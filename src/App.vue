@@ -5,7 +5,7 @@ import type {Ref} from 'vue'
 import {AppFullscreen} from 'quasar'
 
 let leftDrawerOpen = ref(false)
-let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'book': new Map()})
+let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'manga': new Map()})
 let files = computed(() => {
   return folders.value[tab.value]
 })
@@ -16,7 +16,7 @@ let books = computed(() => {
   }
   return list
 })
-let tab = ref('book')
+let tab = ref('manga')
 let showDragInput = ref(false)
 const {getRootProps, getInputProps} = useDropzone({multiple: true, onDrop});
 
@@ -27,10 +27,10 @@ function dragenter(e: any) {
 function onDrop(acceptFiles: File[]) {
   console.log(acceptFiles)
   showDragInput.value = false
-  folders.value['book'] = new Map()
-  let lastFolder = 'book'
+  folders.value['manga'] = new Map()
+  let lastFolder = 'manga'
   acceptFiles.forEach((v: any) => {
-    lastFolder = v.path.split('/')[1] || 'book'
+    lastFolder = v.path.split('/')[1] || 'manga'
     if (!folders.value[lastFolder]) folders.value[lastFolder] = new Map()
     folders.value[lastFolder].set(v.name, v)
   })
@@ -60,15 +60,15 @@ let fitWidth = ref(true);
 </script>
 
 <template>
-  <q-layout view="hHh lpR fFf" class="column full-height bg-grey-10 text-grey-1" @dragenter="dragenter"
+  <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1" @dragenter="dragenter"
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader">
       <q-toolbar class="bg-grey-9">
-        <q-btn stretch flat icon="refresh" label="refresh" @click="refresh"/>
+        <q-btn stretch flat icon="refresh" @click="refresh"/>
         <q-separator dark vertical inset/>
-        <q-btn stretch flat label="fullscreen" icon="open_in_full" @click="AppFullscreen.request()"/>
+        <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.request()"/>
         <q-separator dark vertical inset/>
-        <q-btn stretch flat label="fitWidth" icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
+        <q-btn stretch flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
         <div class="col text-right full-height">
           <q-btn-dropdown class="bg-primary text-grey-1 ellipsis" stretch flat :label="tab" style="max-width: 100%"
                           align="left">
@@ -81,7 +81,7 @@ let fitWidth = ref(true);
             </q-list>
           </q-btn-dropdown>
         </div>
-        <q-btn stretch flat icon="menu" label="preview" @click="leftDrawerOpen = !leftDrawerOpen"/>
+        <q-btn stretch flat icon="menu" @click="leftDrawerOpen = !leftDrawerOpen"/>
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
@@ -90,7 +90,7 @@ let fitWidth = ref(true);
         <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
       </div>
     </q-page-container>
-    <q-drawer show-if-above v-model="leftDrawerOpen" side="right" bordered class="bg-grey-10">
+    <q-drawer show-if-above v-model="leftDrawerOpen" side="right" bordered class="bg-grey-8">
       <div class="thumbnail">
         <a v-for="(i,ii) in files" :href="'#'+ii" draggable="false">
           <img :src="createUrl(i)" :alt="i[1].name" draggable="false">
