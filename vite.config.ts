@@ -16,7 +16,6 @@ export default defineConfig({
         quasar({}),
         VitePWA({
             registerType: 'autoUpdate',
-            includeAssets:['*.ttf','*.woff2', 'images/*.png','*.ico'],
             workbox: {
                 globPatterns: ['**/*.{js,css,html,ttf,woff2,ico,png,jpg}'],
             },
