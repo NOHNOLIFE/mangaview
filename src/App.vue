@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {useDropzone} from "vue3-dropzone";
-import {computed, ref} from "vue";
+import {computed, createElementBlock, ref} from "vue";
 import type {Ref} from 'vue'
-import {AppFullscreen} from 'quasar'
+import {AppFullscreen, debounce} from 'quasar'
 
 let leftDrawerOpen = ref(false)
 let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'manga': new Map()})
@@ -25,7 +25,6 @@ function dragenter(e: any) {
 }
 
 function onDrop(acceptFiles: File[]) {
-  console.log(acceptFiles)
   showDragInput.value = false
   folders.value['manga'] = new Map()
   let lastFolder = 'manga'
@@ -37,8 +36,10 @@ function onDrop(acceptFiles: File[]) {
   tab.value = lastFolder
 }
 
-function createUrl(file: any) {
-  return URL.createObjectURL(file[1])
+let ImageUrls: { [key: string]: string } = {}
+
+function createUrl(file: any[]) {
+  return ImageUrls[file[1].path] || (ImageUrls[file[1].path] = URL.createObjectURL(file[1]))
 }
 
 let showHeader = ref(true)
@@ -50,7 +51,18 @@ let scroll = (v: any) => {
     showHeader.value = true
   }
   scrollVal = v
+  scrollSync()
 }
+
+let scrollSync = debounce(() => {
+  if (scrollArea.value && scrollArea2.value) {
+    (scrollArea2.value as Element).scrollTop = ((scrollArea2.value as Element).scrollHeight - (scrollArea2.value as Element).clientHeight)
+        * (scrollArea.value as Element).scrollTop / ((scrollArea.value as Element).scrollHeight - (scrollArea.value as Element).clientHeight)
+  }
+}, 200)
+
+let scrollArea = ref(null)
+let scrollArea2 = ref(null)
 
 function refresh() {
   location.reload()
@@ -85,15 +97,18 @@ let fitWidth = ref(true);
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
-      <div class="main col scroll-y smooth text-center" :class="{'fit-width':fitWidth}" v-scroll="scroll">
-        <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false">
+      <div class="main col scroll-y smooth text-center" :class="{'fit-width':fitWidth}" v-scroll="scroll"
+           ref="scrollArea">
+        <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false"
+             loading="lazy"/>
         <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
       </div>
     </q-page-container>
-    <q-drawer show-if-above v-model="leftDrawerOpen" side="right" bordered class="bg-grey-8">
-      <div class="thumbnail">
+    <q-drawer show-if-above v-model="leftDrawerOpen" side="right" bordered>
+      <div class="thumbnail bg-grey-8 smooth full-height scroll-y" ref="scrollArea2">
         <a v-for="(i,ii) in files" :href="'#'+ii" draggable="false">
-          <img :src="createUrl(i)" :alt="i[1].name" draggable="false">
+          <img :src="createUrl(i)" :alt="i[1].name" :id="'t-'+ii.toString()" draggable="false" width="280"
+               loading="lazy"/>
         </a>
       </div>
     </q-drawer>
@@ -126,14 +141,15 @@ let fitWidth = ref(true);
     max-width: 100%;
     width: auto;
   }
-  &.fit-width > img{
+
+  &.fit-width > img {
     width: 100%;
   }
 }
 
 .thumbnail {
   img {
-    max-width: 280px;
+
   }
 }
 </style>
