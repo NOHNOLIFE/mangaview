@@ -8,7 +8,6 @@ import {VitePWA} from "vite-plugin-pwa";
 
 let showSourceMap = process.env.NODE_ENV === 'development';
 
-// https://vitejs.dev/config/
 export default defineConfig({
     plugins: [vue({
         template: {transformAssetUrls},
@@ -16,35 +15,43 @@ export default defineConfig({
         vueJsx(),
         quasar({}),
         VitePWA({
+            registerType: 'autoUpdate',
+            includeAssets:['*.ttf','*.woff2', 'images/*.png','*.ico'],
+            workbox: {
+                globPatterns: ['**/*.{js,css,html,ttf,woff2,ico,png,jpg}'],
+            },
+            devOptions: {
+                enabled: true
+            },
             manifest: {
-                "name": "MangaView Progressive Web App",
+                "name": "MangaView easy view easy fun",
                 "short_name": "MangaView",
-                "description": "Progressive Web App use to explore image files",
+                "description": "Manga explorer reader Viewer",
                 "icons": [
                     {
-                        "src": "public/icons/icon-64.png",
+                        "src": "/icons/icon-64.png",
                         "sizes": "64x64",
                         "type": "image/png"
                     },
                     {
-                        "src": "public/icons/icon-128.png",
+                        "src": "/icons/icon-128.png",
                         "sizes": "128x128",
                         "type": "image/png"
                     },
                     {
-                        "src": "public/icons/icon-256.png",
+                        "src": "/icons/icon-256.png",
                         "sizes": "256x256",
                         "type": "image/png"
                     },
                     {
-                        "src": "public/icons/icon-512.png",
+                        "src": "/icons/icon-512.png",
                         "sizes": "512x512",
                         "type": "image/png"
                     }
                 ],
                 "start_url": "/index.html",
                 "display": "fullscreen",
-                "theme_color": "#1976d2",
+                "theme_color": "#212121",
                 "background_color": "#212121"
             },
         })

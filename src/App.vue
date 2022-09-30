@@ -2,7 +2,7 @@
 import {useDropzone} from "vue3-dropzone";
 import {computed, ref} from "vue";
 import type {Ref} from 'vue'
-import {debounce} from 'quasar'
+import {AppFullscreen} from 'quasar'
 
 let leftDrawerOpen = ref(false)
 let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'book': new Map()})
@@ -52,6 +52,11 @@ let scroll = (v: any) => {
   scrollVal = v
 }
 
+function refresh() {
+  location.reload()
+}
+
+let fitWidth = ref(true);
 </script>
 
 <template>
@@ -59,11 +64,14 @@ let scroll = (v: any) => {
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader">
       <q-toolbar class="bg-grey-9">
-        <q-btn stretch flat label="full-screen"/>
+        <q-btn stretch flat icon="refresh" label="refresh" @click="refresh"/>
         <q-separator dark vertical inset/>
-        <q-btn stretch flat label="Link"/>
+        <q-btn stretch flat label="fullscreen" icon="open_in_full" @click="AppFullscreen.request()"/>
+        <q-separator dark vertical inset/>
+        <q-btn stretch flat label="fitWidth" icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
         <div class="col text-right full-height">
-          <q-btn-dropdown class="bg-primary text-grey-1" stretch flat :label="tab">
+          <q-btn-dropdown class="bg-primary text-grey-1 ellipsis" stretch flat :label="tab" style="max-width: 100%"
+                          align="left">
             <q-list>
               <q-item v-for="n in books" clickable v-close-popup tabindex="0" class="bg-blue-grey-10 text-grey-1">
                 <q-item-section>
@@ -77,15 +85,15 @@ let scroll = (v: any) => {
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
-      <div class="main col scroll-y smooth text-center" v-scroll="scroll">
-        <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii">
+      <div class="main col scroll-y smooth text-center" :class="{'fit-width':fitWidth}" v-scroll="scroll">
+        <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false">
         <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
       </div>
     </q-page-container>
     <q-drawer show-if-above v-model="leftDrawerOpen" side="right" bordered class="bg-grey-10">
       <div class="thumbnail">
-        <a v-for="(i,ii) in files" :href="'#'+ii">
-          <img :src="createUrl(i)" :alt="i[1].name">
+        <a v-for="(i,ii) in files" :href="'#'+ii" draggable="false">
+          <img :src="createUrl(i)" :alt="i[1].name" draggable="false">
         </a>
       </div>
     </q-drawer>
@@ -114,6 +122,11 @@ let scroll = (v: any) => {
 
 .main {
   > img {
+    display: inline-block;
+    max-width: 100%;
+    width: auto;
+  }
+  &.fit-width > img{
     width: 100%;
   }
 }

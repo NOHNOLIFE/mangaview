@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import {Quasar} from 'quasar'
+import {Quasar,AppFullscreen} from 'quasar'
 
 
 import App from './App.vue'
@@ -21,7 +21,7 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(Quasar, {
-    plugins: {}, // import Quasar plugins and add here
+    plugins: {AppFullscreen}, // import Quasar plugins and add here
     config: {notify: { /* look at QuasarConfOptions from the API card */}
     },
 })
