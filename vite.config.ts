@@ -9,6 +9,7 @@ import {VitePWA} from "vite-plugin-pwa";
 let showSourceMap = process.env.NODE_ENV === 'development';
 
 export default defineConfig({
+    base:'./',
     plugins: [vue({
         template: {transformAssetUrls},
     }),
