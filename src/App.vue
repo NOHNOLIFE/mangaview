@@ -172,7 +172,7 @@ let fitWidth = ref(true);
 
           <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false"
                loading="lazy"/>
-          <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
+          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center">drop file to here<br><br>请拖拽文件到此处</div>
         </div>
       </div>
     </q-page-container>
