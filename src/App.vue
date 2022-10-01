@@ -32,11 +32,11 @@ function scroll_end() {
 }
 
 function scroll_px(px: number = 2) {
-  scrollArea.value.scrollTop+=px
+  scrollArea.value.scrollTop += px
 }
 
 let showDragInput = ref(false)
-const {getRootProps, getInputProps} = useDropzone({multiple: true,accept:'image/*', onDrop});
+const {getRootProps, getInputProps, open} = useDropzone({multiple: true, accept: 'image/*', onDrop});
 
 function dragenter(e: any) {
   showDragInput.value = true
@@ -47,7 +47,8 @@ function onDrop(acceptFiles: File[]) {
   folders.value['manga'] = new Map()
   let lastFolder = 'manga'
   acceptFiles.forEach((v: any) => {
-    lastFolder = v.path.split('/')[1] || 'manga'
+    let p = v.path.split('/')
+    lastFolder = p.length > 1 ? p[p.length - 2] : 'manga'
     if (!folders.value[lastFolder]) folders.value[lastFolder] = new Map()
     folders.value[lastFolder].set(v.name, v)
   })
@@ -94,10 +95,13 @@ let fitWidth = ref(true);
 
 <template>
   <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1"
-            @dragenter="dragenter"  @keydown.shift.space="scroll_px(0+70-scrollArea.clientHeight)"  @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
+            @dragenter="dragenter" @keydown.shift.space="scroll_px(0+70-scrollArea.clientHeight)"
+            @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader">
       <q-toolbar class="bg-grey-9">
+        <q-btn stretch flat icon="folder_open" @click="open"/>
+        <q-separator dark vertical inset/>
         <q-btn stretch flat icon="refresh" @click="refresh"/>
         <q-separator dark vertical inset/>
         <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.request()"/>
@@ -120,14 +124,24 @@ let fitWidth = ref(true);
     </q-header>
     <q-page-container class="col column">
       <div class="col column relative-position">
-        <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)"><q-icon name="fa-solid fa-circle-left"/></div>
-        <div class="right-page control" @click="scroll_px(scrollArea.clientHeight-20)"><q-icon name="fa-solid fa-circle-right"/></div>
-        <div class="up-page control" @click="scroll_top"><q-icon name="fa-solid fa-circle-up"/></div>
-        <div class="down-page control" @click="scroll_end"><q-icon name="fa-solid fa-circle-down"/></div>
-      <div class="main col scroll-y smooth text-center relative-position" :class="{'fit-width':fitWidth}" v-scroll="scroll" ref="scrollArea">
-        <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false" loading="lazy"/>
-        <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
-      </div>
+        <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)">
+          <q-icon name="fa-solid fa-circle-left"/>
+        </div>
+        <div class="right-page control" @click="scroll_px(scrollArea.clientHeight-20)">
+          <q-icon name="fa-solid fa-circle-right"/>
+        </div>
+        <div class="up-page control" @click="scroll_top">
+          <q-icon name="fa-solid fa-circle-up"/>
+        </div>
+        <div class="down-page control" @click="scroll_end">
+          <q-icon name="fa-solid fa-circle-down"/>
+        </div>
+        <div class="main col scroll-y smooth text-center relative-position" :class="{'fit-width':fitWidth}"
+             v-scroll="scroll" ref="scrollArea">
+          <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false"
+               loading="lazy"/>
+          <div v-if="files.size===0" class="text-h5 q-pa-lg">drop folder or image files to this page</div>
+        </div>
       </div>
     </q-page-container>
     <q-drawer show-if-above v-model="leftDrawerOpen" side="right" width="323" class="text-center" bordered>
@@ -140,7 +154,7 @@ let fitWidth = ref(true);
     </q-drawer>
   </q-layout>
   <div id="drag-input" :class="[showDragInput&&'show']" v-bind="getRootProps()">
-    <input v-bind="getInputProps()" accept="image/*"/>
+    <input v-bind="getInputProps()" accept="image/*" webkitdirectory multiple/>
   </div>
 </template>
 
@@ -179,7 +193,7 @@ let fitWidth = ref(true);
   }
 }
 
-.control{
+.control {
   display: inline-block;
   position: absolute;
   z-index: 9;
@@ -187,43 +201,51 @@ let fitWidth = ref(true);
   padding: 30px 8%;
   right: 22px;
   cursor: pointer;
-  &.up-page{
+
+  &.up-page {
     top: 0;
     left: 0;
   }
-  &.down-page{
+
+  &.down-page {
     bottom: 0;
     left: 0;
   }
-  &.left-page{
+
+  &.left-page {
     z-index: 10;
     top: 0;
     left: 0;
     width: fit-content;
     opacity: 0;
     height: 100%;
-    >i{
+
+    > i {
       top: 50%;
-      transform:translateY(-50%);
+      transform: translateY(-50%);
     }
   }
-  &.right-page{
+
+  &.right-page {
     z-index: 10;
     top: 0;
     height: 100%;
     opacity: 0;
-    >i{
+
+    > i {
       top: 50%;
-      transform:translateY(-50%);
+      transform: translateY(-50%);
     }
   }
-  >i{
+
+  > i {
     position: relative;
     z-index: 1;
     color: #1abfff;
     font-size: 70px;
     opacity: 0;
-    &:after{
+
+    &:after {
       z-index: -1;
       content: '';
       position: absolute;
@@ -236,7 +258,8 @@ let fitWidth = ref(true);
       filter: blur(1px);
     }
   }
-  &:hover>i{
+
+  &:hover > i {
     opacity: 0.2;
   }
 }
