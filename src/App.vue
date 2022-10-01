@@ -37,7 +37,7 @@ function checkShowHeader(e: any) {
   } else {
     showHeader.value = false
   }
-  if (e.view.innerWidth - e.clientX < 50) {
+  if (e.view.innerWidth - e.clientX < 50 && mouseTarget.value!==targetType.header) {
     rightDrawerOpenWhenHide.value = true
   }
 }
@@ -101,8 +101,9 @@ let scroll = debounce((v: any) => {
 
 let scrollSync = (e?: any) => {
   let clientHeight = scrollArea.value.clientHeight
+  let clientHeight2 = scrollArea2.value.clientHeight
   if (mouseTarget.value == targetType.main) {
-    scrollArea2.value.scrollTop = scrollArea2.value.scrollHeight * (scrollArea.value.scrollTop + clientHeight / 2) / scrollArea.value.scrollHeight - clientHeight / 2
+    scrollArea2.value.scrollTop = scrollArea2.value.scrollHeight * (scrollArea.value.scrollTop + clientHeight / 2) / scrollArea.value.scrollHeight - clientHeight2 / 2
   } else if (mouseTarget.value == targetType.thumbnail) {
     let y = e.layerY
     scrollArea.value.scrollTop = scrollArea.value.scrollHeight * (scrollArea2.value.scrollTop + y) / scrollArea2.value.scrollHeight - clientHeight / 2
