@@ -6,6 +6,8 @@ recommended to use Chrome with latest version
 # [install from here](https://nohnolife.github.io/mangaview/dist/index.html)
 
 #### install button on address bar right. and it will be work while offline
+press `Ctrl+Shift+R` to update the app
+
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 #### drag folders into the app.
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%202.png)
