@@ -3,8 +3,9 @@ import {useDropzone} from "vue3-dropzone";
 import {computed, watch, ref} from "vue";
 import type {Ref} from 'vue'
 import {AppFullscreen, debounce} from 'quasar'
+import {tiHummer} from "@quasar/extras/themify";
 
-let leftDrawerOpen = ref(false)
+let rightDrawerOpen = ref(true)
 let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'manga': new Map()})
 let files = computed(() => {
   return folders.value[tab.value]
@@ -21,10 +22,22 @@ watch(tab, () => {
   scroll_top()
 })
 
+function checkShowHeader(e: any) {
+  if (e.clientY < 120) {
+    showHeader.value = true
+  } else {
+    showHeader.value = false
+  }
+}
+
 function scroll_top() {
   scrollArea.value.scrollTop = 0
   scrollArea2.value.scrollTop = 0
 }
+
+enum targetType {header, main, thumbnail}
+
+let mouseTarget: Ref<targetType> = ref(targetType.main)
 
 function scroll_end() {
   scrollArea.value.scrollTop = scrollArea.value.scrollHeight
@@ -64,22 +77,18 @@ function createUrl(file: any[]) {
 let showHeader = ref(true)
 let scrollVal = 0
 let scroll = debounce((v: any) => {
-  if (showHeader && v - scrollVal > 60) {
-    showHeader.value = false
-  } else if (v - scrollVal < -60) {
-    showHeader.value = true
-  }
   scrollVal = v
-  scrollSync()
-}, 200)
+  if (mouseTarget.value === targetType.main) scrollSync()
+}, 100)
 
-let scrollSync = (revert?: boolean) => {
-  if (!revert) {
-    scrollArea2.value.scrollTop = (scrollArea2.value.scrollHeight - scrollArea2.value.clientHeight)
-        * scrollArea.value.scrollTop / (scrollArea.value.scrollHeight - scrollArea.value.clientHeight)
-  } else {
-    scrollArea.value.scrollTop = (scrollArea.value.scrollHeight - scrollArea.value.clientHeight)
-        * scrollArea2.value.scrollTop / (scrollArea2.value.scrollHeight - scrollArea2.value.clientHeight)
+let scrollSync = (e?: any) => {
+  console.log(e)
+  let clientHeight = scrollArea.value.clientHeight
+  if (mouseTarget.value == targetType.main) {
+    scrollArea2.value.scrollTop = scrollArea2.value.scrollHeight * (scrollArea.value.scrollTop + clientHeight / 2) / scrollArea.value.scrollHeight - clientHeight / 2
+  } else if (mouseTarget.value == targetType.thumbnail) {
+    let y = e.layerY
+    scrollArea.value.scrollTop = scrollArea.value.scrollHeight * (scrollArea2.value.scrollTop + y) / scrollArea2.value.scrollHeight - clientHeight / 2
   }
 }
 
@@ -95,19 +104,17 @@ let fitWidth = ref(true);
 
 <template>
   <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1"
-            @dragenter="dragenter" @keydown.shift.space="scroll_px(0+70-scrollArea.clientHeight)"
+            @dragenter="dragenter" @keydown.shift.space="scroll_px(20-scrollArea.clientHeight)"
             @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
+            @mousemove="checkShowHeader"
             style="z-index: 0">
-    <q-header reveal height-hint="98" v-model="showHeader">
+    <q-header reveal height-hint="98" v-model="showHeader"
+              @mouseenter="mouseTarget=targetType.header" @mousemove="targetType.header">
       <q-toolbar class="bg-grey-9">
         <q-btn stretch flat icon="folder_open" @click="open"/>
         <q-separator dark vertical inset/>
         <q-btn stretch flat icon="refresh" @click="refresh"/>
-        <q-separator dark vertical inset/>
-        <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.request()"/>
-        <q-separator dark vertical inset/>
-        <q-btn stretch flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
-        <div class="col text-right full-height">
+        <div class="col text-center full-height">
           <q-btn-dropdown class="bg-primary text-grey-1 ellipsis" stretch flat :label="tab" style="max-width: 100%"
                           align="left">
             <q-list>
@@ -119,11 +126,16 @@ let fitWidth = ref(true);
             </q-list>
           </q-btn-dropdown>
         </div>
-        <q-btn stretch flat icon="menu" @click="leftDrawerOpen = !leftDrawerOpen"/>
+        <q-btn stretch flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
+        <q-separator dark vertical inset/>
+        <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.request()"/>
+        <q-separator dark vertical inset/>
+        <q-btn stretch flat icon="menu" @click="rightDrawerOpen = !rightDrawerOpen"/>
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
-      <div class="col column relative-position">
+      <div class="col column relative-position" @mousemove="mouseTarget=targetType.main"
+           @mouseenter="mouseTarget=targetType.main">
         <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)">
           <q-icon name="fa-solid fa-circle-left"/>
         </div>
@@ -144,9 +156,10 @@ let fitWidth = ref(true);
         </div>
       </div>
     </q-page-container>
-    <q-drawer show-if-above v-model="leftDrawerOpen" side="right" width="323" class="text-center" bordered>
-      <div class="thumbnail bg-grey-8 smooth full-height scroll-y" ref="scrollArea2">
-        <a v-for="(i,ii) in files" draggable="false" @click.stop="scrollSync(true)">
+    <q-drawer show-if-above v-model="rightDrawerOpen" side="right" width="323" class="text-center" bordered>
+      <div class="thumbnail bg-grey-8 smooth full-height scroll-y" ref="scrollArea2" @click.prevent="scrollSync"
+           @mousemove="mouseTarget=targetType.thumbnail" @mouseenter="mouseTarget=targetType.thumbnail">
+        <a v-for="(i,ii) in files" draggable="false">
           <img :src="createUrl(i)" :alt="i[1].name" :id="'t-'+ii.toString()" draggable="false" width="300"
                loading="lazy"/>
         </a>
@@ -188,6 +201,10 @@ let fitWidth = ref(true);
 }
 
 .thumbnail {
+  a {
+    display: inline-block;
+  }
+
   img {
     cursor: pointer;
   }
@@ -203,6 +220,7 @@ let fitWidth = ref(true);
   cursor: pointer;
 
   &.up-page {
+    z-index: 11;
     top: 0;
     left: 0;
   }
