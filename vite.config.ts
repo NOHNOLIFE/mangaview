@@ -24,9 +24,9 @@ export default defineConfig({
                 enabled: true
             },
             manifest: {
-                "name": "MangaView easy view easy fun",
+                "name": "MangaView",
                 "short_name": "MangaView",
-                "description": "Manga explorer reader Viewer",
+                "description": "Manga explorer reader Viewer. easy view easy fun",
                 "icons": [
                     {
                         "src": "./icons/icon-64.png",
