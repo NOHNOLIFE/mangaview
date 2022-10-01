@@ -120,7 +120,7 @@ let fitWidth = ref(true);
 </script>
 
 <template>
-  <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1"
+  <q-layout view="hHr lpR fFf" class="column full-height bg-grey-8 text-grey-1"
             @dragenter="dragenter" @keydown.shift.space="scroll_px(20-scrollArea.clientHeight)"
             @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
             @mousemove="checkShowHeader"
