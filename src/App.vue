@@ -36,7 +36,7 @@ function scroll_px(px: number = 2) {
 }
 
 let showDragInput = ref(false)
-const {getRootProps, getInputProps} = useDropzone({multiple: true, onDrop});
+const {getRootProps, getInputProps} = useDropzone({multiple: true,accept:'image/*', onDrop});
 
 function dragenter(e: any) {
   showDragInput.value = true
@@ -140,7 +140,7 @@ let fitWidth = ref(true);
     </q-drawer>
   </q-layout>
   <div id="drag-input" :class="[showDragInput&&'show']" v-bind="getRootProps()">
-    <input v-bind="getInputProps()"/>
+    <input v-bind="getInputProps()" accept="image/*"/>
   </div>
 </template>
 
