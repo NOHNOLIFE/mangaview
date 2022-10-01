@@ -6,10 +6,10 @@ recommended to use Chrome with latest version
 # [install from here](https://nohnolife.github.io/mangaview/dist/index.html)
 
 #### install button on address bar right. and it will be work while offline
-![](/description/desc 1.png)
+![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 #### drag folders into the app.
-![](/description/desc 2.png)
+![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%202.png)
 ## but there will not have history record if you refresh or reopen app
 #### switch folder
-![](/description/desc 3.png)
-![](/description/desc 4.png)
+![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%203.png)
+![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%204.png)
