@@ -9,7 +9,7 @@ recommended to use [Chrome](https://www.google.com/chrome/) with latest version
 #### install button on address bar right. and it will be work while offline
 press `Ctrl+Shift+R` to update the app, you may need to try several times
 
-uninstall open this page [chrome://apps/](chrome://apps/) and click mouse right
+uninstall open this page [chrome://apps](chrome://apps) and click mouse right
 
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 #### drag folders into the app.
