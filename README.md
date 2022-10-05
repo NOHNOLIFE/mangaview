@@ -18,3 +18,5 @@ uninstall open this page [[chrome://apps](chrome://apps)] and click mouse right
 #### switch folder
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%203.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%204.png)
+
+#  [LICENCE](https://github.com/NOHNOLIFE/mangaview/blob/main/LICENSE)
