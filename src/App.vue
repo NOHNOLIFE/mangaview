@@ -172,7 +172,7 @@ let fitWidth = ref(true);
           <div class="down-page control" @click="scroll_end" v-ripple.early="{ color: 'dark' }">
             <q-icon name="fa-solid fa-circle-down"/>
           </div>
-          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center">drop file to here<br><br>请拖拽文件到此处
+          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center" style="direction: ltr">Drag and drop files here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
           </div>
           <div class="relative-position">
             <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)" v-ripple.early="{ color: 'dark' }"></div>
