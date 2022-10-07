@@ -7,11 +7,13 @@
 Manga explorer reader viewer, only support image files
 
 recommended to use [Chrome](https://www.google.com/chrome/) with the latest version
-____
+___
+#### My [twitter](https://twitter.com/mousoug)
+
 # [install from here](https://nohnolife.github.io/mangaview/dist/index.html)
-____
+___
 #### Drag and drop folders into the app. And enjoy it.
-____
+___
 
 ## press `Ctrl+Shift+R` to [update]() the app, you may need to try several times
 #### The installation button is on the right of the address bar. It can be used normally in offline state
@@ -22,5 +24,5 @@ if you want to uninstall it please open this page [[chrome://apps](chrome://apps
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%205.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%206.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%207.png)
-____
+___
 #  [LICENCE](https://github.com/NOHNOLIFE/mangaview/blob/main/LICENSE)
