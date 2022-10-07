@@ -132,6 +132,8 @@ let fitWidth = ref(true);
         <q-btn stretch flat icon="folder_open" @click="open"/>
         <q-separator dark vertical inset/>
         <q-btn stretch flat icon="refresh" @click="refresh"/>
+        <q-separator dark vertical inset/>
+        <q-btn stretch flat icon="help_outline" href="https://github.com/NOHNOLIFE/mangaview" type="a" target="_blank"/>
         <div class="col text-center full-height">
           <q-btn class="bg-primary text-grey-1 ellipsis overflow-hidden" align="left" flat :label="tab"
                  style="width: 100%">
@@ -156,7 +158,7 @@ let fitWidth = ref(true);
         </div>
         <q-btn stretch flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
         <q-separator dark vertical inset/>
-        <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.request()"/>
+        <q-btn stretch flat icon="open_in_full" @click="AppFullscreen.toggle()"/>
         <q-separator dark vertical inset/>
         <q-btn stretch flat icon="menu" @click="rightDrawerOpen=rightDrawerOpenWhenHide=!rightDrawerUse"/>
       </q-toolbar>
