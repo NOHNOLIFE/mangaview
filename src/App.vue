@@ -14,8 +14,8 @@ watch([rightDrawerOpen, rightDrawerOpenWhenHide], () => {
   else
     rightDrawerUse.value = false
 })
-
-let folders: Ref<{ [key: string]: Map<string, any> }> = ref({'manga': new Map()})
+const default_book='My Book'
+let folders: Ref<{ [key: string]: Map<string, any> }> = ref({[default_book]: new Map()})
 let files = computed(() => {
   return folders.value[tab.value]
 })
@@ -26,7 +26,7 @@ let books = computed(() => {
   }
   return list
 })
-let tab = ref('manga')
+let tab = ref(default_book)
 watch(tab, () => {
   scroll_top()
 })
@@ -37,7 +37,7 @@ function checkShowHeader(e: any) {
   } else {
     showHeader.value = false
   }
-  if (e.view.innerWidth - e.clientX < 50 && mouseTarget.value!==targetType.header) {
+  if (e.view.innerWidth - e.clientX < 100 && !showHeader.value) {
     rightDrawerOpenWhenHide.value = true
   }
 }
@@ -75,11 +75,11 @@ function dragenter(e: any) {
 
 function onDrop(acceptFiles: File[]) {
   showDragInput.value = false
-  folders.value['manga'] = new Map()
-  let lastFolder = 'manga'
+  folders.value[default_book] = new Map()
+  let lastFolder = default_book
   acceptFiles.forEach((v: any) => {
     let p = v.path.split('/')
-    lastFolder = p.length > 1 ? p[p.length - 2] : 'manga'
+    lastFolder = p.length > 1 ? p[p.length - 2] : default_book
     if (!folders.value[lastFolder]) folders.value[lastFolder] = new Map()
     folders.value[lastFolder].set(v.name, v)
   })
@@ -88,23 +88,23 @@ function onDrop(acceptFiles: File[]) {
 
 let ImageUrls: { [key: string]: string } = {}
 
-function createUrl(file: any[]) {
-  return ImageUrls[file[1].path] || (ImageUrls[file[1].path] = URL.createObjectURL(file[1]))
+function createUrl(file: any) {
+  if (!file) return '/img-default.png'
+  return ImageUrls[file.path] || (ImageUrls[file.path] = URL.createObjectURL(file))
 }
 
 let showHeader = ref(true)
-let scrollVal = 0
-let scroll = debounce((v: any) => {
-  scrollVal = v
-  if (mouseTarget.value == targetType.main) scrollSync()
-}, 100)
+let scroll = (e: MouseEvent) => {
+  e.preventDefault()
+  scrollSync()
+}
 
 let scrollSync = (e?: any) => {
   let clientHeight = scrollArea.value.clientHeight
   let clientHeight2 = scrollArea2.value.clientHeight
   if (mouseTarget.value == targetType.main) {
     scrollArea2.value.scrollTop = scrollArea2.value.scrollHeight * (scrollArea.value.scrollTop + clientHeight / 2) / scrollArea.value.scrollHeight - clientHeight2 / 2
-  } else if (mouseTarget.value == targetType.thumbnail) {
+  } else if (mouseTarget.value == targetType.thumbnail && e) {
     let y = e.layerY
     scrollArea.value.scrollTop = scrollArea.value.scrollHeight * (scrollArea2.value.scrollTop + y) / scrollArea2.value.scrollHeight - clientHeight / 2
   }
@@ -121,7 +121,7 @@ let fitWidth = ref(true);
 </script>
 
 <template>
-  <q-layout view="hHr lpR fFf" class="column full-height bg-grey-8 text-grey-1"
+  <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1"
             @dragenter="dragenter" @keydown.shift.space="scroll_px(20-scrollArea.clientHeight)"
             @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
             @mousemove="checkShowHeader"
@@ -133,16 +133,26 @@ let fitWidth = ref(true);
         <q-separator dark vertical inset/>
         <q-btn stretch flat icon="refresh" @click="refresh"/>
         <div class="col text-center full-height">
-          <q-btn-dropdown class="bg-primary text-grey-1 ellipsis" stretch flat :label="tab" style="max-width: 100%"
-                          align="left">
-            <q-list>
-              <q-item v-for="n in books" v-close-popup tabindex="0" class="bg-blue-grey-10 text-grey-1">
-                <q-item-section>
-                  <q-item-label @click="tab=n">{{ n }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-btn-dropdown>
+          <q-btn class="bg-primary text-grey-1 ellipsis overflow-hidden" align="left" flat :label="tab"
+                 style="width: 100%">
+            <q-menu fit anchor="bottom middle" self="top middle" square>
+              <q-list class="bg-blue-grey-10">
+                <q-item v-for="n in books" v-close-popup clickable class="bg-blue-grey-10 text-grey-1 relative-position"
+                        @click="tab=n" v-ripple.early>
+                  <q-item-section thumbnail>
+                    <img :src="createUrl(folders[n].values().next().value)">
+                  </q-item-section>
+                  <q-item-section side top>
+                    <q-badge color="primary" :label="folders[n].size+' P'"/>
+                    <q-icon v-if="n===tab" name="gps_fixed" color="green" class="q-mt-md"/>
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ n }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
         </div>
         <q-btn stretch flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth"/>
         <q-separator dark vertical inset/>
@@ -154,33 +164,31 @@ let fitWidth = ref(true);
     <q-page-container class="col column">
       <div class="col column relative-position" @mousemove="mouseTarget=targetType.main"
            @mouseenter="mouseTarget=targetType.main">
-        <div class="main col scroll-y smooth text-center" :class="{'fit-width':fitWidth}"
-             v-scroll="scroll" ref="scrollArea" style=" direction: rtl">
-
-          <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)">
-            <q-icon name="fa-solid fa-circle-left"/>
-          </div>
-          <div class="right-page control" @click="scroll_px(scrollArea.clientHeight-20)">
-            <q-icon name="fa-solid fa-circle-right"/>
-          </div>
-          <div class="up-page control" @click="scroll_top">
+        <div class="main col scroll-y text-center smooth" :class="{'fit-width':fitWidth}"
+             @scroll="scroll" ref="scrollArea" style=" direction: rtl">
+          <div class="up-page control" @click="scroll_top" v-ripple.early="{ color: 'dark' }">
             <q-icon name="fa-solid fa-circle-up"/>
           </div>
-          <div class="down-page control" @click="scroll_end">
+          <div class="down-page control" @click="scroll_end" v-ripple.early="{ color: 'dark' }">
             <q-icon name="fa-solid fa-circle-down"/>
           </div>
-
-          <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i[1].name" :id="ii.toString()" draggable="false"
-               loading="lazy"/>
-          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center">drop file to here<br><br>请拖拽文件到此处</div>
+          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center">drop file to here<br><br>请拖拽文件到此处
+          </div>
+          <div class="relative-position">
+            <div class="left-page control" @click="scroll_px(0+70-scrollArea.clientHeight)" v-ripple.early="{ color: 'dark' }"></div>
+            <div class="right-page control" @click="scroll_px(scrollArea.clientHeight-20)" v-ripple.early="{ color: 'dark' }"></div>
+            <img v-for="(i,ii) in files.values()" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
+                 draggable="false" loading="lazy"/>
+          </div>
         </div>
       </div>
     </q-page-container>
-    <q-drawer show-if-above v-model="rightDrawerUse" side="right" width="323" class="text-center" bordered>
-      <div class="thumbnail bg-grey-8 smooth full-height scroll-y" ref="scrollArea2" @click.prevent="scrollSync"
+    <q-drawer show-if-above v-model="rightDrawerUse" side="right" width="323" class="text-center" bordered dark
+              :overlay="!rightDrawerOpen">
+      <div class="thumbnail bg-grey-8 full-height scroll-y" ref="scrollArea2" @click.prevent="scrollSync"
            @mousemove="mouseTarget=targetType.thumbnail" @mouseenter="mouseTarget=targetType.thumbnail">
-        <a v-for="(i,ii) in files" draggable="false">
-          <img :src="createUrl(i)" :alt="i[1].name" :id="'t-'+ii.toString()" draggable="false" width="300"
+        <a v-for="(i,ii) in files.values()" draggable="false">
+          <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" width="300"
                loading="lazy"/>
         </a>
       </div>
@@ -209,13 +217,14 @@ let fitWidth = ref(true);
 }
 
 .main {
-  > img {
+  img {
     display: inline-block;
     max-width: 100%;
     width: auto;
+    margin: -2.5px 0;
   }
 
-  &.fit-width > img {
+  &.fit-width img {
     width: 100%;
   }
 }
@@ -227,6 +236,7 @@ let fitWidth = ref(true);
 
   img {
     cursor: pointer;
+    margin: -2.5px 0;
   }
 }
 
@@ -235,7 +245,7 @@ let fitWidth = ref(true);
   position: absolute;
   z-index: 9;
   text-align: center;
-  padding: 30px 2%;
+  padding: 4% 0;
   left: 22px;
   cursor: pointer;
 
@@ -248,14 +258,16 @@ let fitWidth = ref(true);
   &.down-page {
     bottom: 0;
     right: 0;
+    z-index: 11;
   }
 
   &.left-page {
-    z-index: 10;
+    width: 50%;
     top: 0;
-    width: fit-content;
-    opacity: 0;
+    left: 0;
+    padding: 0;
     height: 100%;
+    box-sizing: content-box;
 
     > i {
       top: 50%;
@@ -264,14 +276,14 @@ let fitWidth = ref(true);
   }
 
   &.right-page {
-    z-index: 10;
+    width: 50%;
     top: 0;
     right: 0;
-    padding-left: 4%;
-    padding-right: 4%;
     left: unset;
+    padding: 0;
     height: 100%;
-    opacity: 0;
+    box-sizing: content-box;
+
 
     > i {
       top: 50%;
