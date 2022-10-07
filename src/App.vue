@@ -89,7 +89,7 @@ function onDrop(acceptFiles: File[]) {
 let ImageUrls: { [key: string]: string } = {}
 
 function createUrl(file: any) {
-  if (!file) return '/img-default.png'
+  if (!file) return './img-default.png'
   return ImageUrls[file.path] || (ImageUrls[file.path] = URL.createObjectURL(file))
 }
 
