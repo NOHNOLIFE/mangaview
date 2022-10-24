@@ -122,8 +122,14 @@ let fitWidth = ref(true);
 
 <template>
   <q-layout view="hHh lpR fFf" class="column full-height bg-grey-8 text-grey-1"
-            @dragenter="dragenter" @keydown.shift.space="scroll_px(20-scrollArea.clientHeight)"
-            @keydown.space.exact="scroll_px(scrollArea.clientHeight-20)"
+            @dragenter="dragenter"
+            @keydown.shift.space="scroll_px(100-scrollArea.clientHeight)"
+            @keydown.up.exact="scroll_px(100-scrollArea.clientHeight)"
+            @keydown.left.exact="scroll_px(100-scrollArea.clientHeight)"
+            @keydown.space.exact="scroll_px(scrollArea.clientHeight-100)"
+            @keydown.enter.exact="scroll_px(scrollArea.clientHeight-100)"
+            @keydown.down.exact="scroll_px(scrollArea.clientHeight-100)"
+            @keydown.right.exact="scroll_px(scrollArea.clientHeight-100)"
             @mousemove="checkShowHeader"
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader"
