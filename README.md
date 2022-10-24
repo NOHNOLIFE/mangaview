@@ -10,7 +10,7 @@ recommended to use [Chrome](https://www.google.com/chrome/) with the latest vers
 ___
 #### My [twitter](https://twitter.com/mousoug)
 
-# [install from here](https://nohnolife.github.io/mangaview/dist/index.html)
+# [点击安装 install from here](https://nohnolife.github.io/mangaview/dist/index.html)
 ___
 #### Drag and drop folders into the app. And enjoy it.
 ___
