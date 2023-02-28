@@ -21,7 +21,11 @@ There will be not have history record if you refresh or reopen app\
 my [twitter](https://twitter.com/mousoug)
 ## sample
 
-### [video sample](https://github.com/NOHNOLIFE/mangaview/blob/main/description/sample.mp4)
+### [video sample](https://github.com/NOHNOLIFE/mangaview/raw/main/description/sample.mp4)
+
+<video src="https://github.com/NOHNOLIFE/mangaview/raw/main/description/sample.mp4" controls>
+你的浏览器不支持 <code>video</code> 标签。
+</video>
 
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%205.png)
