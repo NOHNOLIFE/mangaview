@@ -217,7 +217,7 @@ let fitWidth = ref(true)
 
 function showMenuBook() {
   let dom = document.getElementById('my-book-' + tabIndex.value)
-  dom && dom.scrollIntoView({behavior: "smooth", block: "center"})
+  dom && dom.scrollIntoView({block: "center"})
 }
 
 let drawerWidth = ref((localStorage.getItem('drawerWidth') || 360) as number)
