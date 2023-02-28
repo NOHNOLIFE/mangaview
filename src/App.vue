@@ -123,16 +123,15 @@ function dragScrollStart(e: any, isPrev: Boolean = false) {
   dragScrollTarget = isPrev ? 'prev' : 'main'
   dragAreaTop = isPrev ? scrollArea2.scrollTop : scrollArea.scrollTop
   dragScrollY = e.screenY
+  e.stopPropagation()
 }
 
 function dragScrollEnd() {
-  setTimeout(() => {
-    mouseDown = false
-    dragScroll.value = false
-    dragScrollTarget = 'main'
-    dragAreaTop = 0
-    dragScrollY = 0
-  }, 10)
+  mouseDown = false
+  dragScroll.value = false
+  dragScrollTarget = 'main'
+  dragAreaTop = 0
+  dragScrollY = 0
 }
 
 function mouseMove(e: any) {
@@ -140,7 +139,7 @@ function mouseMove(e: any) {
     let offsetX = e.screenX - dwChangeX
     drawerWidth.value = dwChangeW - offsetX
     localStorage.setItem('drawerWidth', drawerWidth.value.toString())
-  } else if (mouseDown) {
+  } else if (mouseDown && Math.abs(e.screenY - dragScrollY) > 0) {
     dragScroll.value = true
     let offsetX = dragScrollY - e.screenY
     if (dragScrollTarget === 'main') {
@@ -276,6 +275,7 @@ function copyBooksName() {
   copyToClipboard(list.join(','))
 }
 
+
 let scrollArea: HTMLElement
 let scrollArea2: HTMLElement
 nextTick(() => {
@@ -307,6 +307,7 @@ nextTick(() => {
             @keydown.delete.exact="removeBook()"
             @keydown.ctrl.c.exact="copyBooksName()"
             @mousemove="mouseMove"
+            @mouseup.left="dragScrollEnd"
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader"
               @mouseenter="mouseTarget=targetType.header" @mousemove="targetType.header">
@@ -389,8 +390,9 @@ nextTick(() => {
         <div class="main col scroll-y text-center smooth" :class="{'fit-width':fitWidth}"
              @scroll="scroll"
              id="scrollArea" style=" direction: rtl">
-          <div @mousedown="dragScrollStart"
-               @mouseup="dragScrollEnd">
+          <div @mousedown.left.capture="dragScrollStart"
+               @mouseup.left="dragScrollEnd"
+          >
             <div class="up-page control" @click="scroll_top">
               <q-icon name="fa-solid fa-circle-up"/>
             </div>
@@ -404,8 +406,8 @@ nextTick(() => {
               </div>
             </div>
             <div class="relative-position">
-              <div class="left-page control" @click="!dragScroll && scroll_up()"></div>
-              <div class="right-page control" @click="!dragScroll && scroll_down()"></div>
+              <div class="left-page control" @mouseup.left="!dragScroll && scroll_up()"></div>
+              <div class="right-page control" @mouseup.left="!dragScroll && scroll_down()"></div>
               <img v-for="(i,ii) in files.values()" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
                    draggable="false" loading="lazy"/>
             </div>
@@ -419,19 +421,20 @@ nextTick(() => {
               dark :overlay="!rightDrawerOpen">
       <div class="thumbnail full-height scroll-y"
            id="scrollArea2"
-           @mouseup="dragScrollEnd"
-           @click.prevent="!dragScroll && scrollSync($event)"
            @mousemove="mouseTarget=targetType.thumbnail"
            @mouseenter="mouseTarget=targetType.thumbnail">
-        <div @mousedown="dragScrollStart($event,true)">
-          <a v-for="(i,ii) in files.values()" draggable="false">
-            <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" class="full-width"
-                 loading="lazy"/>
-          </a>
+        <div @mousedown.left.capture="dragScrollStart($event,true)"
+             @mouseup.left="dragScrollEnd">
+          <div @mouseup.left="!dragScroll && scrollSync($event)">
+            <a v-for="(i,ii) in files.values()" draggable="false">
+              <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" class="full-width"
+                   loading="lazy"/>
+            </a>
+          </div>
         </div>
       </div>
       <div style="cursor: col-resize;width: 8px;margin-left: -4px" class="absolute-left full-height"
-           @mousedown="dwStartChange" @mouseup="dwChange=false"
+           @mousedown.left="dwStartChange" @mouseup.left="dwChange=false"
       />
     </q-drawer>
   </q-layout>
