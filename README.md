@@ -23,9 +23,9 @@ my [twitter](https://twitter.com/mousoug)
 
 ### [video sample](https://github.com/NOHNOLIFE/mangaview/raw/main/description/sample.mp4)
 
-<video src="https://github.com/NOHNOLIFE/mangaview/raw/main/description/sample.mp4" controls>
-你的浏览器不支持 <code>video</code> 标签。
-</video>
+https://user-images.githubusercontent.com/16075139/221929788-0f7651a5-4539-47b5-9e17-c2a824b879f5.mp4
+
+https://user-images.githubusercontent.com/16075139/221929967-c6236734-47be-493a-8470-2c4668ae1f27.mp4
 
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%205.png)
@@ -49,3 +49,6 @@ ___
 * previous book:  `page-up`
 ___
 ###  [LICENCE](https://github.com/NOHNOLIFE/mangaview/blob/main/LICENSE)
+
+
+
