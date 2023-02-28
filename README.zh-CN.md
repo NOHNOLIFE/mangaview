@@ -18,9 +18,7 @@ ___
 
 ## 示例
 
-<video src="https://github.com/NOHNOLIFE/mangaview/blob/main/description/sample.mp4" controls>
-你的浏览器不支持 <code>video</code> 标签。
-</video>
+### [示例视频](https://github.com/NOHNOLIFE/mangaview/blob/main/description/sample.mp4)
 
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%201.png)
 ![](https://github.com/NOHNOLIFE/mangaview/blob/main/description/desc%205.png)
