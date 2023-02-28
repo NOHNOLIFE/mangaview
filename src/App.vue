@@ -286,7 +286,7 @@ nextTick(() => {
                           @click="tab=n" v-close-popup
                           :id="'my-book-'+idx">
                     <div class="absolute-top-right cursor-pointer" style="z-index: 2">
-                      <q-icon name="close" class="close-book" @click="removeBook(n)"/>
+                      <q-icon name="close" class="close-book" @click.stop.prevent="removeBook(n)"/>
                     </div>
                     <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
                       <img :src="createUrl(folders[n].values().next().value)">
