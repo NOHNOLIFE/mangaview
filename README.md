@@ -12,11 +12,12 @@ ___
 
 ### [点击安装 install from here](https://nohnolife.github.io/mangaview/dist/index.html)
 ___
-#### Drag and drop folders into the app. And enjoy it.
+Drag and drop folders into the app. And enjoy it.
 ___
 
 ### press `Ctrl+Shift+R` to [update]() the app, you may need to try several times
-#### The installation button is on the right of the address bar. It can be used normally in offline state
+The installation button is on the right of the address bar. It can be used normally in **offline** state
+
 if you want to uninstall it please open this page [[chrome://apps](chrome://apps)]
 #### There will be not have history record if you refresh or reopen app
 
@@ -31,9 +32,12 @@ ___
 ### keyboard:
 * scroll down: `space`\ `↓`
 * page down: `F`\ `→`\ `enter`
-* 
+*
 * scroll up: `shift + space`\ `↑`
-* page up:`D`\ `←`
+* page up: `D`\ `←`
+*
+* page top: `home`
+* page end: `end`
 * 
 * next book: `page-down`
 * previous book:  `page-up`

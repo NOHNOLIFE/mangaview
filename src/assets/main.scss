@@ -22,28 +22,22 @@ body {
   bottom: 0;
 }
 
-
 .q-menu {
   &::-webkit-scrollbar {
-    width: 10px;
+    width: 20px;
   }
 }
 
-.q-item {
-  img {
-    width: auto;
-    height: 200px;
-    transition: height ease 0.3s;
+#title-btn {
+  .q-btn__content.text-center > * {
+    width: 100%;
+    text-overflow: ellipsis;
+    overflow: hidden;
   }
-  //&:hover{
-  //  img{
-  //    height: 200px;
-  //  }
-  //}
 }
 
-.q-btn{
-  text-transform:unset;
+.q-btn {
+  text-transform: unset;
 }
 
 .smooth {
@@ -52,7 +46,7 @@ body {
 
 /*---滚动条默认显示样式--*/
 ::-webkit-scrollbar-thumb {
-  height: 50px;
+  height: 2rem;
   outline-offset: -2px;
   /*outline:2px solid #fff;*/
   -webkit-border-radius: 0;
@@ -61,14 +55,14 @@ body {
 
 /*---鼠标点击滚动条显示样式--*/
 ::-webkit-scrollbar-thumb:hover {
-  height: 50px;
+  height: 2rem;
   -webkit-border-radius: 0;
 }
 
 /*---滚动条大小--*/
 ::-webkit-scrollbar {
-  width: 22px;
-  height: 22px;
+  width: 1rem;
+  height: 1rem;
 }
 
 /*---滚动框背景样式--*/

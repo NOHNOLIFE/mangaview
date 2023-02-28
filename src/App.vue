@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {useDropzone} from "vue3-dropzone";
-import {computed, watch, ref, unref, nextTick} from "vue";
+import {computed, watch, ref, nextTick} from "vue";
 import type {Ref} from 'vue'
 import {AppFullscreen, copyToClipboard} from 'quasar'
 
 let rightDrawerOpen = ref(true)
 let rightDrawerOpenWhenHide = ref(true)
-let rightDrawerUse = ref(true)
+let rightDrawerUse = ref(false)
 
 watch([rightDrawerOpen, rightDrawerOpenWhenHide], () => {
   if (rightDrawerOpen.value || (!rightDrawerOpen.value && rightDrawerOpenWhenHide.value))
@@ -20,9 +20,9 @@ let showDefaultBook = computed(v => {
   return folders.value[default_book].size > 0
 })
 
-let folders: Ref<{ [key: string]: Map<string, any> }> = ref({[default_book]: new Map()})
+let folders: Ref<any> = ref({[default_book]: new Map()})
 let files = computed(() => {
-  return folders.value[tab.value]
+  return folders.value[tab.value] || new Map()
 })
 let books = computed(() => {
   let list = []
@@ -38,7 +38,7 @@ let books = computed(() => {
 let tab = ref(default_book)
 let tabIndex = computed(v => books.value.indexOf(tab.value))
 watch(tab, () => {
-  scroll_top()
+  scroll_top(true)
 })
 
 function checkShowHeader(e: any) {
@@ -61,14 +61,22 @@ watch(mouseTarget, () => {
     rightDrawerOpenWhenHide.value = false
 })
 
-function scroll_top() {
-  scrollArea.scrollTop = 0
-  scrollArea2.scrollTop = 0
+function scroll_top(noChangeBook: boolean) {
+  if (scrollArea.scrollTop === 0 && !noChangeBook) {
+    prevBook()
+  } else {
+    scrollArea.scrollTop = 0
+    scrollArea2.scrollTop = 0
+  }
 }
 
 function scroll_end() {
-  scrollArea.scrollTop = scrollArea.scrollHeight
-  scrollArea2.scrollTop = scrollArea2.scrollHeight
+  if (scrollArea.scrollTop >= scrollArea.scrollHeight - scrollArea.clientHeight) {
+    nextBook()
+  } else {
+    scrollArea.scrollTop = scrollArea.scrollHeight
+    scrollArea2.scrollTop = scrollArea2.scrollHeight
+  }
 }
 
 function scroll_up() {
@@ -156,13 +164,25 @@ function onDrop(acceptFiles: File[]) {
   showDragInput.value = false
   folders.value[default_book] = new Map()
   let lastFolder = default_book
+
+  let oldFolders = {...folders.value}
+  let newFolders: any = {}
+
+  lastFolder = default_book
   acceptFiles.forEach((v: any) => {
     let p = v.path.split('/')
     lastFolder = p.length > 1 ? p[p.length - 2] : default_book
-    if (!folders.value[lastFolder]) folders.value[lastFolder] = new Map()
-    folders.value[lastFolder].set(v.name, v)
+    if (oldFolders[lastFolder]) {
+      delete oldFolders[lastFolder]
+    }
+    if (!newFolders[lastFolder]) {
+      newFolders[lastFolder] = new Map()
+    }
+    newFolders[lastFolder].set(v.name, v)
   })
-  tab.value = lastFolder
+  folders.value = {...newFolders, ...oldFolders}
+  tab.value = Object.keys(folders.value)[0] || default_book
+  console.log(tab.value)
 }
 
 let ImageUrls: { [key: string]: string } = {}
@@ -174,6 +194,7 @@ function createUrl(file: any) {
 
 let showHeader = ref(true)
 let scroll = (e: MouseEvent) => {
+  showHeader.value = false
   e.preventDefault()
   scrollSync()
 }
@@ -189,8 +210,19 @@ let scrollSync = (e?: any) => {
   }
 }
 
-function removeBook(name: any) {
-  delete folders.value[name]
+function removeBook(name: any = tab.value) {
+  if (name !== tab.value) {
+    delete folders.value[name]
+  } else {
+    let idx = tabIndex.value
+    idx = idx === (books.value.length - 1) ? idx - 1 : idx + 1
+    if (idx < 0) {
+      tab.value = default_book
+    } else {
+      tab.value = books.value[idx]
+    }
+    delete folders.value[name]
+  }
 }
 
 function refresh() {
@@ -220,7 +252,11 @@ function showMenuBook() {
   dom && dom.scrollIntoView({block: "center"})
 }
 
-let drawerWidth = ref((localStorage.getItem('drawerWidth') || 360) as number)
+function toggleDrawer() {
+  rightDrawerOpen.value = rightDrawerOpenWhenHide.value = !rightDrawerUse.value
+}
+
+let drawerWidth = ref(Number(localStorage.getItem('drawerWidth') || ((window.innerWidth / 4) > 280 ? 280 : window.innerWidth / 4)))
 let dwChange = ref(false)
 let dwChangeW = 0
 let dwChangeX = 0
@@ -229,6 +265,15 @@ function dwStartChange(e: any) {
   dwChange.value = true
   dwChangeW = drawerWidth.value
   dwChangeX = e.screenX
+}
+
+function mobileToggleMenu() {
+  rightDrawerUse.value = true
+}
+
+function copyBooksName() {
+  let list = books.value.map(v => `".\/${v}\/"`)
+  copyToClipboard(list.join(','))
 }
 
 let scrollArea: HTMLElement
@@ -255,75 +300,90 @@ nextTick(() => {
             @keydown.down.exact="holdingScroll(2)"
             @keyup.down.exact="endHolding()"
             @keydown.right.exact="scroll_down()"
+            @keydown.home.exact="scroll_top()"
+            @keydown.end.exact="scroll_end()"
             @keyup.page-up.exact="prevBook()"
             @keyup.page-down.exact="nextBook()"
+            @keydown.delete.exact="removeBook()"
+            @keydown.ctrl.c.exact="copyBooksName()"
             @mousemove="mouseMove"
             style="z-index: 0">
     <q-header reveal height-hint="98" v-model="showHeader"
               @mouseenter="mouseTarget=targetType.header" @mousemove="targetType.header">
-      <q-toolbar class="bg-grey-9">
-        <q-btn flat icon="folder_open" @click="open">
-          <q-tooltip>open folder</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="refresh" @click="refresh">
-          <q-tooltip>reload & empty</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="help_outline" href="https://github.com/NOHNOLIFE/mangaview" type="a" target="_blank">
-          <q-tooltip>help</q-tooltip>
-        </q-btn>
-        <div class="col text-center full-height q-mx-sm">
-          <q-btn unelevated class="bg-primary text-grey-1 ellipsis overflow-hidden full-width" align="left" flat
-                 :label="tab">
-            <q-menu fit anchor="bottom middle" self="top middle" v-if="books.length>0" square
-                    max-height="100vh" max-width="100vw"
-                    :offset="[0,6]"
-                    @dragenter="dragenter"
-                    @show="showMenuBook()">
-              <div class="q-pa-md bg-blue-grey-10">
-                <div class="row q-gutter-lg">
-                  <q-card v-for="(n,idx) in books" flat class="my-card column relative-position"
-                          :class="[n===tab?'bg-primary':'bg-transparent']"
-                          @click="tab=n" v-close-popup
-                          :id="'my-book-'+idx">
-                    <div class="absolute-top-right cursor-pointer" style="z-index: 2">
-                      <q-icon name="close" class="close-book" @click.stop.prevent="removeBook(n)"/>
-                    </div>
-                    <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
-                      <img :src="createUrl(folders[n].values().next().value)">
-                    </div>
-                    <q-card-section class="col text-white cursor-pointer book-title no-padding" v-ripple.early>
-                      <div class="q-pa-sm">
-                        <q-badge color="secondary" class="q-py-xs q-mr-sm" :label="folders[n].size+' P'"
-                                 @click.stop="copyToClipboard(n)">
-                          <q-tooltip>click to copy title</q-tooltip>
-                        </q-badge>
-                        {{ n }}
+      <q-toolbar class="bg-grey-9 no-padding">
+        <div class="row q-pa-sm full-width">
+          <div style="min-width: fit-content">
+            <q-btn flat icon="folder_open" @click="open">
+              <q-tooltip>open folder</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="refresh" @click="refresh">
+              <q-tooltip>reload & empty</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="help_outline" href="https://github.com/NOHNOLIFE/mangaview" type="a" target="_blank">
+              <q-tooltip>help</q-tooltip>
+            </q-btn>
+          </div>
+          <div class="col text-center full-height" style="flex-basis: 300px">
+            <q-btn unelevated class="bg-primary text-grey-1 ellipsis overflow-hidden full-width" id="title-btn"
+                   align="left" flat
+                   :label="tab">
+              <q-menu fit anchor="bottom middle" self="top middle" v-if="books.length>0" square
+                      max-height="100%" max-width="100%"
+                      :offset="[0,6]"
+                      @dragenter="dragenter"
+                      @show="showMenuBook()">
+                <div class="q-pa-md bg-blue-grey-10">
+                  <div class="row q-gutter-lg justify-center">
+                    <q-card v-for="(n,idx) in books" flat class="my-card column relative-position"
+                            :class="[n===tab?'bg-primary':'bg-transparent']"
+                            @click="tab=n" v-close-popup
+                            :id="'my-book-'+idx">
+                      <div class="absolute-top-right cursor-pointer" style="z-index: 2">
+                        <q-icon name="close" class="close-book" @click.stop.prevent="removeBook(n)"/>
                       </div>
-                    </q-card-section>
-                  </q-card>
+                      <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
+                        <img :src="createUrl(folders[n].values().next().value)">
+                      </div>
+                      <q-card-section class="col text-white cursor-pointer book-title no-padding" v-ripple.early>
+                        <div class="q-pa-sm">
+                          <q-badge color="secondary" class="q-py-xs q-mr-sm" :label="folders[n].size+' P'"
+                                   @click.stop="copyToClipboard(n)">
+                            <q-tooltip>click to copy title</q-tooltip>
+                          </q-badge>
+                          {{ n }}
+                        </div>
+                      </q-card-section>
+                    </q-card>
+                  </div>
                 </div>
-              </div>
-            </q-menu>
-          </q-btn>
+              </q-menu>
+            </q-btn>
+          </div>
+          <div style="min-width: fit-content">
+            <q-btn flat icon="fa-solid fa-backward-step" @click="prevBook()">
+              <q-tooltip>previous book (Page Up)</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="fa-solid fa-forward-step" @click="nextBook()">
+              <q-tooltip>next book (Page Down)</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth">
+              <q-tooltip>fit width</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="open_in_full" @click="AppFullscreen.toggle()">
+              <q-tooltip>fullscreen</q-tooltip>
+            </q-btn>
+            <q-btn flat icon="menu" id="pc-tool-btn" @click="toggleDrawer()">
+              <q-tooltip>hide/show preview</q-tooltip>
+            </q-btn>
+          </div>
         </div>
-        <q-btn flat icon="fa-solid fa-backward-step" @click="prevBook()">
-          <q-tooltip>previous book (Page Up)</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="fa-solid fa-forward-step" @click="nextBook()">
-          <q-tooltip>next book (Page Down)</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth">
-          <q-tooltip>fit width</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="open_in_full" @click="AppFullscreen.toggle()">
-          <q-tooltip>fullscreen</q-tooltip>
-        </q-btn>
-        <q-btn flat icon="menu" @click="rightDrawerOpen=rightDrawerOpenWhenHide=!rightDrawerUse">
-          <q-tooltip>hide/show preview</q-tooltip>
-        </q-btn>
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
+      <q-page-sticky position="top-right" :offset="[4, 4]" style="z-index: 999" class="mobile-tool-btn"
+                     @click="mobileToggleMenu()">
+        <q-btn round color="primary" icon="apps"/>
+      </q-page-sticky>
       <div class="col column relative-position" @mousemove="mouseTarget=targetType.main"
            @mouseenter="mouseTarget=targetType.main">
         <div class="main col scroll-y text-center smooth" :class="{'fit-width':fitWidth}"
@@ -337,8 +397,11 @@ nextTick(() => {
             <div class="down-page control" @click="scroll_end">
               <q-icon name="fa-solid fa-circle-down"/>
             </div>
-            <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center" style="direction: ltr">Drag and drop
-              folders here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
+            <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-full cursor-pointer" style="direction: ltr"
+                 @click="open">
+              <div class="absolute-center">
+                Drag and drop folders here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
+              </div>
             </div>
             <div class="relative-position">
               <div class="left-page control" @click="!dragScroll && scroll_up()"></div>
@@ -350,9 +413,10 @@ nextTick(() => {
         </div>
       </div>
     </q-page-container>
-    <q-drawer show-if-above v-model="rightDrawerUse" side="right" :width="drawerWidth" class="row bg-grey-8" bordered
-              dark
-              :overlay="!rightDrawerOpen">
+    <q-drawer show-if-above no-swipe-backdrop v-model="rightDrawerUse" side="right" :width="drawerWidth"
+              class="row bg-grey-8"
+              bordered
+              dark :overlay="!rightDrawerOpen">
       <div class="thumbnail full-height scroll-y"
            id="scrollArea2"
            @mouseup="dragScrollEnd"
@@ -377,6 +441,7 @@ nextTick(() => {
 </template>
 
 <style lang="scss" scoped>
+
 #drag-input {
   position: absolute;
   z-index: 9999;
@@ -495,7 +560,7 @@ nextTick(() => {
 }
 
 .my-card {
-  width: 260px;
+  width: 240px;
   padding: 8px;
   transition: all 0.3s ease;
   overflow: hidden;
@@ -541,4 +606,18 @@ nextTick(() => {
     }
   }
 }
+
+.mobile-tool-btn {
+  display: none;
+}
+
+@media (max-width: 1000px) {
+  #pc-tool-btn {
+    display: none;
+  }
+  .mobile-tool-btn {
+    display: initial;
+  }
+}
+
 </style>
