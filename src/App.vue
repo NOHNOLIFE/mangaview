@@ -275,7 +275,7 @@ nextTick(() => {
           <q-btn unelevated class="bg-primary text-grey-1 ellipsis overflow-hidden full-width" align="left" flat
                  :label="tab">
             <q-menu fit anchor="bottom middle" self="top middle" v-if="books.length>0" square
-                    max-height="calc(100vh - 50px)" max-width="100vw"
+                    max-height="100vh" max-width="100vw"
                     :offset="[0,6]"
                     @dragenter="dragenter"
                     @show="showMenuBook()">
@@ -327,24 +327,25 @@ nextTick(() => {
       <div class="col column relative-position" @mousemove="mouseTarget=targetType.main"
            @mouseenter="mouseTarget=targetType.main">
         <div class="main col scroll-y text-center smooth" :class="{'fit-width':fitWidth}"
-             @mousedown="dragScrollStart"
-             @mouseup="dragScrollEnd"
              @scroll="scroll"
              id="scrollArea" style=" direction: rtl">
-          <div class="up-page control" @click="scroll_top">
-            <q-icon name="fa-solid fa-circle-up"/>
-          </div>
-          <div class="down-page control" @click="scroll_end">
-            <q-icon name="fa-solid fa-circle-down"/>
-          </div>
-          <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center" style="direction: ltr">Drag and drop
-            folders here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
-          </div>
-          <div class="relative-position">
-            <div class="left-page control" @click="!dragScroll && scroll_up()"></div>
-            <div class="right-page control" @click="!dragScroll && scroll_down()"></div>
-            <img v-for="(i,ii) in files.values()" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
-                 draggable="false" loading="lazy"/>
+          <div @mousedown="dragScrollStart"
+               @mouseup="dragScrollEnd">
+            <div class="up-page control" @click="scroll_top">
+              <q-icon name="fa-solid fa-circle-up"/>
+            </div>
+            <div class="down-page control" @click="scroll_end">
+              <q-icon name="fa-solid fa-circle-down"/>
+            </div>
+            <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-center" style="direction: ltr">Drag and drop
+              folders here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
+            </div>
+            <div class="relative-position">
+              <div class="left-page control" @click="!dragScroll && scroll_up()"></div>
+              <div class="right-page control" @click="!dragScroll && scroll_down()"></div>
+              <img v-for="(i,ii) in files.values()" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
+                   draggable="false" loading="lazy"/>
+            </div>
           </div>
         </div>
       </div>
@@ -354,15 +355,16 @@ nextTick(() => {
               :overlay="!rightDrawerOpen">
       <div class="thumbnail full-height scroll-y"
            id="scrollArea2"
-           @mousedown="dragScrollStart($event,true)"
            @mouseup="dragScrollEnd"
            @click.prevent="!dragScroll && scrollSync($event)"
            @mousemove="mouseTarget=targetType.thumbnail"
            @mouseenter="mouseTarget=targetType.thumbnail">
-        <a v-for="(i,ii) in files.values()" draggable="false">
-          <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" class="full-width"
-               loading="lazy"/>
-        </a>
+        <div @mousedown="dragScrollStart($event,true)">
+          <a v-for="(i,ii) in files.values()" draggable="false">
+            <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" class="full-width"
+                 loading="lazy"/>
+          </a>
+        </div>
       </div>
       <div style="cursor: col-resize;width: 8px;margin-left: -4px" class="absolute-left full-height"
            @mousedown="dwStartChange" @mouseup="dwChange=false"
