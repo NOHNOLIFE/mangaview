@@ -198,16 +198,18 @@ function refresh() {
 }
 
 function prevBook() {
-  if (tabIndex.value < books.value.length - 1) {
-    tab.value = books.value[tabIndex.value + 1]
+  if (tabIndex.value > 0) {
+    tab.value = books.value[tabIndex.value - 1]
   } else {
-
+    tab.value = books.value[books.value.length - 1]
   }
 }
 
 function nextBook() {
-  if (tabIndex.value > 0) {
-    tab.value = books.value[tabIndex.value - 1]
+  if (tabIndex.value < books.value.length - 1) {
+    tab.value = books.value[tabIndex.value + 1]
+  } else {
+    tab.value = books.value[0]
   }
 }
 
@@ -278,23 +280,25 @@ nextTick(() => {
                     @dragenter="dragenter"
                     @show="showMenuBook()">
               <div class="q-pa-md bg-blue-grey-10">
-                <div class="row q-gutter-xl">
-                  <q-card v-for="(n,idx) in books" class="my-card column relative-position bg-transparent"
+                <div class="row q-gutter-lg">
+                  <q-card v-for="(n,idx) in books" flat class="my-card column relative-position"
+                          :class="[n===tab?'bg-primary':'bg-transparent']"
                           @click="tab=n" v-close-popup
                           :id="'my-book-'+idx">
-                    <div class="absolute-top-right cursor-pointer" v-if="idx!==0" style="z-index: 2">
+                    <div class="absolute-top-right cursor-pointer" style="z-index: 2">
                       <q-icon name="close" class="close-book" @click="removeBook(n)"/>
                     </div>
-                    <div class="img-outer row items-center cursor-pointer" v-ripple.early>
+                    <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
                       <img :src="createUrl(folders[n].values().next().value)">
                     </div>
-                    <q-card-section class="col text-white q-pa-sm cursor-pointer"
-                                    :class="[n===tab?'bg-primary':'bg-grey-8']" v-ripple.early>
-                      <q-badge color="secondary" class="q-py-xs" :label="folders[n].size+' P'"
-                               @click.stop="copyToClipboard(n)">
-                        <q-tooltip>click to copy title</q-tooltip>
-                      </q-badge>
-                      {{ n }}
+                    <q-card-section class="col text-white cursor-pointer book-title no-padding" v-ripple.early>
+                      <div class="q-pa-sm">
+                        <q-badge color="secondary" class="q-py-xs q-mr-sm" :label="folders[n].size+' P'"
+                                 @click.stop="copyToClipboard(n)">
+                          <q-tooltip>click to copy title</q-tooltip>
+                        </q-badge>
+                        {{ n }}
+                      </div>
                     </q-card-section>
                   </q-card>
                 </div>
@@ -302,21 +306,21 @@ nextTick(() => {
             </q-menu>
           </q-btn>
         </div>
-          <q-btn flat icon="fa-solid fa-backward-step" @click="prevBook()">
-            <q-tooltip>previous book (Page Up)</q-tooltip>
-          </q-btn>
-          <q-btn flat icon="fa-solid fa-forward-step" @click="nextBook()">
-            <q-tooltip>next book (Page Down)</q-tooltip>
-          </q-btn>
-          <q-btn flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth">
-            <q-tooltip>fit width</q-tooltip>
-          </q-btn>
-          <q-btn flat icon="open_in_full" @click="AppFullscreen.toggle()">
-            <q-tooltip>fullscreen</q-tooltip>
-          </q-btn>
-          <q-btn flat icon="menu" @click="rightDrawerOpen=rightDrawerOpenWhenHide=!rightDrawerUse">
-            <q-tooltip>hide/show preview</q-tooltip>
-          </q-btn>
+        <q-btn flat icon="fa-solid fa-backward-step" @click="prevBook()">
+          <q-tooltip>previous book (Page Up)</q-tooltip>
+        </q-btn>
+        <q-btn flat icon="fa-solid fa-forward-step" @click="nextBook()">
+          <q-tooltip>next book (Page Down)</q-tooltip>
+        </q-btn>
+        <q-btn flat icon="fa-solid fa-arrows-left-right" @click="fitWidth=!fitWidth">
+          <q-tooltip>fit width</q-tooltip>
+        </q-btn>
+        <q-btn flat icon="open_in_full" @click="AppFullscreen.toggle()">
+          <q-tooltip>fullscreen</q-tooltip>
+        </q-btn>
+        <q-btn flat icon="menu" @click="rightDrawerOpen=rightDrawerOpenWhenHide=!rightDrawerUse">
+          <q-tooltip>hide/show preview</q-tooltip>
+        </q-btn>
       </q-toolbar>
     </q-header>
     <q-page-container class="col column">
@@ -489,11 +493,17 @@ nextTick(() => {
 }
 
 .my-card {
-  width: 210px;
+  width: 260px;
+  padding: 8px;
   transition: all 0.3s ease;
+  overflow: hidden;
 
   &:hover {
     transform: scale(1.05);
+
+    .book-title {
+      background: #17202f;
+    }
 
     .img-outer::after {
       content: '';
@@ -508,7 +518,8 @@ nextTick(() => {
   }
 
   .img-outer {
-    height: 297px;
+    text-align: center;
+    height: 300px;
     overflow-y: hidden;
 
     img {
@@ -517,6 +528,8 @@ nextTick(() => {
   }
 
   .close-book {
+    margin-top: 10px;
+    margin-right: 10px;
     font-size: 30px;
     text-shadow: 0px 0px 3px #ffffff;
     opacity: 0.5;
