@@ -62,7 +62,7 @@ watch(mouseTarget, () => {
 })
 
 function scroll_top(noChangeBook: boolean) {
-  if (scrollArea.scrollTop === 0 && !noChangeBook) {
+  if (scrollArea.scrollTop <= 10 && !noChangeBook) {
     prevBook()
   } else {
     scrollArea.scrollTop = 0
@@ -71,7 +71,7 @@ function scroll_top(noChangeBook: boolean) {
 }
 
 function scroll_end() {
-  if (scrollArea.scrollTop >= scrollArea.scrollHeight - scrollArea.clientHeight) {
+  if (scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight <= 10) {
     nextBook()
   } else {
     scrollArea.scrollTop = scrollArea.scrollHeight
@@ -393,10 +393,10 @@ nextTick(() => {
           <div @mousedown.left.capture="dragScrollStart"
                @mouseup.left="dragScrollEnd"
           >
-            <div class="up-page control" @click="scroll_top">
+            <div class="up-page control" @click="scroll_top()">
               <q-icon name="fa-solid fa-circle-up"/>
             </div>
-            <div class="down-page control" @click="scroll_end">
+            <div class="down-page control" @click="scroll_end()">
               <q-icon name="fa-solid fa-circle-down"/>
             </div>
             <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-full cursor-pointer" style="direction: ltr"
