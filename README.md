@@ -7,7 +7,7 @@ Manga explorer reader viewer, only support image files\
 recommended to use [Chrome](https://www.google.com/chrome/) with the latest version
 ### [中文指南](README.zh-CN.md)
 ___
-[点击加载 load from here](https://nohnolife.github.io/mangaview/dist/index.html)
+### [点击加载 load from here](https://nohnolife.github.io/mangaview/dist/index.html)
 
 Drag and drop folders into the app, and enjoy it.
 
