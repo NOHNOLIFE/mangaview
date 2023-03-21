@@ -272,7 +272,7 @@ function mobileToggleMenu() {
 
 function copyBooksName() {
   let list = books.value.map(v => `".\/${v}\/"`)
-  copyToClipboard(list.join(','))
+  copyToClipboard(list.join('\n'))
 }
 
 
