@@ -20,9 +20,16 @@ let showDefaultBook = computed(v => {
   return folders.value[default_book].size > 0
 })
 
-let folders: Ref<any> = ref({[default_book]: new Map()})
+let folders: Ref<any> = ref({[default_book]: {}})
 let files = computed(() => {
-  return folders.value[tab.value] || new Map()
+  let o = folders.value[tab.value] || {}
+  let list = Object.keys(o).map(v => o[v])
+  list.sort((a, b) => {
+    let x = a.name.replace(/(\.\w+)$/, '').padStart(9)
+    let y = b.name.replace(/(\.\w+)$/, '').padStart(9)
+    return x - y
+  })
+  return list
 })
 let books = computed(() => {
   let list = []
@@ -33,8 +40,23 @@ let books = computed(() => {
       list.push(i)
     }
   }
+  if (filter.value.key) {
+    list = list.filter(v => v.includes(filter.value.key || ''))
+  }
+  if (filter.value.minP) {
+    list = list.filter(v => Object.keys(folders.value[v]).length >= (filter.value.minP || 0))
+  }
+  if (filter.value.maxP) {
+    list = list.filter(v => Object.keys(folders.value[v]).length <= (filter.value.maxP || 1))
+  }
   return list
 })
+let filter = ref({
+  key: null,
+  minP: null,
+  maxP: null,
+})
+
 let tab = ref(default_book)
 let tabIndex = computed(v => books.value.indexOf(tab.value))
 watch(tab, () => {
@@ -159,9 +181,10 @@ function dragenter(e: any) {
   showDragInput.value = true
 }
 
+//start
 function onDrop(acceptFiles: File[]) {
   showDragInput.value = false
-  folders.value[default_book] = new Map()
+  folders.value[default_book] = {}
   let lastFolder = default_book
 
   let oldFolders = {...folders.value}
@@ -175,9 +198,9 @@ function onDrop(acceptFiles: File[]) {
       delete oldFolders[lastFolder]
     }
     if (!newFolders[lastFolder]) {
-      newFolders[lastFolder] = new Map()
+      newFolders[lastFolder] = {}
     }
-    newFolders[lastFolder].set(v.name, v)
+    newFolders[lastFolder][v.name] = v
   })
   folders.value = {...newFolders, ...oldFolders}
   tab.value = Object.keys(folders.value)[0] || default_book
@@ -328,33 +351,52 @@ nextTick(() => {
             <q-btn unelevated class="bg-primary text-grey-1 ellipsis overflow-hidden full-width" id="title-btn"
                    align="left" flat
                    :label="tab">
-              <q-menu fit anchor="bottom middle" self="top middle" v-if="books.length>0" square
-                      max-height="100%" max-width="100%"
-                      :offset="[0,6]"
-                      @dragenter="dragenter"
+              <q-menu @dragenter="dragenter"
                       @show="showMenuBook()">
-                <div class="q-pa-md bg-blue-grey-10">
-                  <div class="row q-gutter-lg justify-center">
-                    <q-card v-for="(n,idx) in books" flat class="my-card column relative-position"
-                            :class="[n===tab?'bg-primary':'bg-transparent']"
-                            @click="tab=n" v-close-popup
-                            :id="'my-book-'+idx">
-                      <div class="absolute-top-right cursor-pointer" style="z-index: 2">
-                        <q-icon name="close" class="close-book" @click.stop.prevent="removeBook(n)"/>
+                <div>
+                  <div class="bg-blue-grey-10 column" id="books"
+                       style="position: fixed;left: 0;right: 0;top: 0;bottom: 0;">
+                    <div class="col-auto">
+                      <div class="q-pa-md bg-blue-grey-2 row q-gutter-md items-center full-width">
+                        <q-input v-model="filter.key" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                                 placeholder="search keyword" class="col" style="min-width: 300px"/>
+                        <q-input v-model="filter.minP" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                                 type="number" placeholder="min pages" min="0" style="flex-basis: 120px"/>
+                        <q-input v-model="filter.maxP" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                                 type="number" placeholder="max pages" min="0" style="flex-basis: 120px"/>
+                        <q-btn color="primary" icon="refresh" @click="filter={key:null,minP:null,maxP:null}">
+                          <q-tooltip>reset search</q-tooltip>
+                        </q-btn>
+                        <q-btn color="primary" icon="close" v-close-popup>
+                          <q-tooltip>home</q-tooltip>
+                        </q-btn>
                       </div>
-                      <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
-                        <img :src="createUrl(folders[n].values().next().value)">
+                    </div>
+                    <div class="col q-pa-lg scroll-y">
+                      <div class="row q-gutter-lg justify-center">
+                        <q-card v-for="(n,idx) in books" flat class="my-card column relative-position"
+                                :class="[n===tab?'bg-primary':'bg-transparent']"
+                                @click="tab=n" v-close-popup
+                                :id="'my-book-'+idx">
+                          <div class="absolute-top-right cursor-pointer" style="z-index: 2">
+                            <q-icon name="close" class="close-book" @click.stop.prevent="removeBook(n)"/>
+                          </div>
+                          <div class="img-outer row items-center cursor-pointer bg-blue-grey-10" v-ripple.early>
+                            <img :src="createUrl(Object.entries(folders[n])[0][1])">
+                          </div>
+                          <q-card-section class="col text-white cursor-pointer book-title no-padding" v-ripple.early>
+                            <div class="q-pa-sm">
+                              <q-badge color="secondary" class="q-py-xs q-mr-sm"
+                                       :label="Object.keys(folders[n]).length+' P'"
+                                       @click.stop="copyToClipboard(n)">
+                                <q-tooltip>click to copy title</q-tooltip>
+                              </q-badge>
+                              {{ n }}
+                            </div>
+                          </q-card-section>
+                        </q-card>
                       </div>
-                      <q-card-section class="col text-white cursor-pointer book-title no-padding" v-ripple.early>
-                        <div class="q-pa-sm">
-                          <q-badge color="secondary" class="q-py-xs q-mr-sm" :label="folders[n].size+' P'"
-                                   @click.stop="copyToClipboard(n)">
-                            <q-tooltip>click to copy title</q-tooltip>
-                          </q-badge>
-                          {{ n }}
-                        </div>
-                      </q-card-section>
-                    </q-card>
+                    </div>
                   </div>
                 </div>
               </q-menu>
@@ -399,7 +441,7 @@ nextTick(() => {
             <div class="down-page control" @click="scroll_end()">
               <q-icon name="fa-solid fa-circle-down"/>
             </div>
-            <div v-if="files.size===0" class="text-h4 q-pa-lg absolute-full cursor-pointer" style="direction: ltr"
+            <div v-if="files.length===0" class="text-h4 q-pa-lg absolute-full cursor-pointer" style="direction: ltr"
                  @click="open">
               <div class="absolute-center">
                 Drag and drop folders here<br><br>请拖拽文件夹到此处<br><br>フォルダをドラッグ＆<br>ドロップしてしてください
@@ -408,7 +450,7 @@ nextTick(() => {
             <div class="relative-position">
               <div class="left-page control" @mouseup.left="!dragScroll && scroll_up()"></div>
               <div class="right-page control" @mouseup.left="!dragScroll && scroll_down()"></div>
-              <img v-for="(i,ii) in files.values()" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
+              <img v-for="(i,ii) in files" :src="createUrl(i)" :alt="i.name" :id="ii.toString()"
                    draggable="false" loading="lazy"/>
             </div>
           </div>
@@ -426,7 +468,8 @@ nextTick(() => {
         <div @mousedown.left.capture="dragScrollStart($event,true)"
              @mouseup.left="dragScrollEnd">
           <div @mouseup.left="!dragScroll && scrollSync($event)">
-            <a v-for="(i,ii) in files.values()" draggable="false">
+            <a v-for="(i,ii) in files" draggable="false">
+              <q-tooltip anchor="center left" self="center right" :offset="[0,-10]">{{ i.name }}</q-tooltip>
               <img :src="createUrl(i)" :alt="i.name" :id="'t-'+ii.toString()" draggable="false" class="full-width"
                    loading="lazy"/>
             </a>
