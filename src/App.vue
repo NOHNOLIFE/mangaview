@@ -41,7 +41,7 @@ let books = computed(() => {
     }
   }
   if (filter.value.key) {
-    list = list.filter(v => v.includes(filter.value.key || ''))
+    list = list.filter(v => v.toLowerCase().includes((filter.value.key || '').toLowerCase()))
   }
   if (filter.value.minP) {
     list = list.filter(v => Object.keys(folders.value[v]).length >= (filter.value.minP || 0))
