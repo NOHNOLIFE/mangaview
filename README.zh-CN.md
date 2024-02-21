@@ -3,6 +3,8 @@
 #漫画阅读器  #本子阅读器  #同人志阅读器 #条漫阅读器
 
 适用于PC端的本地的漫画阅读器。无需安装，浏览器直接打开网址即可
+
+* ### 最新版本 v1.0
 # [点击此处加载](https://nohnolife.github.io/mangaview/dist/index.html)
 推荐使用最新版的 [Chrome浏览器](https://www.google.com/chrome/)\
 网页加载完成后拖拽文件到页面区域内即可

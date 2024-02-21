@@ -7,6 +7,7 @@ import {quasar, transformAssetUrls} from '@quasar/vite-plugin'
 import {VitePWA} from "vite-plugin-pwa";
 
 let showSourceMap = process.env.NODE_ENV === 'development';
+let version='v1.0';
 
 export default defineConfig({
     base:'./',
@@ -24,8 +25,8 @@ export default defineConfig({
                 enabled: true
             },
             manifest: {
-                "name": "MangaView",
-                "short_name": "MangaView",
+                "name": "MangaView "+version,
+                "short_name": "MangaView "+version,
                 "description": "Manga explorer reader Viewer. easy view easy fun",
                 "icons": [
                     {
