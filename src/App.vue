@@ -25,9 +25,8 @@ let files = computed(() => {
   let o = folders.value[tab.value] || {}
   let list = Object.keys(o).map(v => o[v])
   list.sort((a, b) => {
-    let x = a.name.replace(/(\.\w+)$/, '').padStart(9)
-    let y = b.name.replace(/(\.\w+)$/, '').padStart(9)
-    return x - y
+    if (Number(a - b).toString() == 'NaN') return 1
+    return a - b
   })
   return list
 })
@@ -358,11 +357,14 @@ nextTick(() => {
                        style="position: fixed;left: 0;right: 0;top: 0;bottom: 0;">
                     <div class="col-auto">
                       <div class="q-pa-md bg-blue-grey-2 row q-gutter-md items-center full-width">
-                        <q-input v-model="filter.key" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                        <q-input v-model="filter.key" debounce="800" dense clearable rounded
+                                 standout="bg-teal text-white"
                                  placeholder="search keyword" class="col" style="min-width: 300px"/>
-                        <q-input v-model="filter.minP" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                        <q-input v-model="filter.minP" debounce="800" dense clearable rounded
+                                 standout="bg-teal text-white"
                                  type="number" placeholder="min pages" min="0" style="flex-basis: 120px"/>
-                        <q-input v-model="filter.maxP" debounce="800" dense clearable rounded standout="bg-teal text-white"
+                        <q-input v-model="filter.maxP" debounce="800" dense clearable rounded
+                                 standout="bg-teal text-white"
                                  type="number" placeholder="max pages" min="0" style="flex-basis: 120px"/>
                         <q-btn color="primary" icon="refresh" @click="filter={key:null,minP:null,maxP:null}">
                           <q-tooltip>reset search</q-tooltip>
