@@ -25,8 +25,10 @@ let files = computed(() => {
   let o = folders.value[tab.value] || {}
   let list = Object.keys(o).map(v => o[v])
   list.sort((a, b) => {
-    if (Number(a - b).toString() == 'NaN') return 1
-    return a - b
+    let x = a.name.replace(/(\.\w+)$/, '')
+    let y = b.name.replace(/(\.\w+)$/, '')
+    if (Number(x - y).toString() == 'NaN') return 1
+    return x - y
   })
   return list
 })
