@@ -50,8 +50,6 @@ ___
 * 
 * next book: `page-down`
 * previous book:  `page-up`
-___
-###  [LICENCE](https://github.com/NOHNOLIFE/mangaview/blob/main/LICENSE)
 
 
 
