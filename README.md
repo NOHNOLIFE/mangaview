@@ -21,7 +21,6 @@ The installation button is on the right of the address bar. It can be used norma
 if you want to uninstall it please open this page [[chrome://apps](chrome://apps)]\
 There will be not have history record if you refresh or reopen app\
 
-my [twitter](https://twitter.com/mousoug)
 ## sample
 
 ### [video sample](https://github.com/NOHNOLIFE/mangaview/raw/main/description/sample.mp4)
