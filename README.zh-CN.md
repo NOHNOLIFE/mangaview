@@ -9,7 +9,6 @@
 推荐使用最新版的 [Chrome浏览器](https://www.google.com/chrome/)\
 网页加载完成后拖拽文件到页面区域内即可
 ___
-我的推特 [twitter](https://twitter.com/mousoug)
 
 **如安装了离线页面，更新软件时需同时按下 `Ctrl+Shift+R` 来刷新APP, 网络不好的情况下请多试几次**
 
