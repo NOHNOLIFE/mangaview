@@ -82,30 +82,8 @@ h1{margin:6px 0 8px;font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacin
 .features .i{width:16px;height:16px}
 #offline{color:var(--ok)}
 
-/* 顶部工具栏：收起时只留菜单按钮，展开为整条玻璃应用栏 */
+/* 窗口控件覆盖区的拖动条；工具面板样式见 toolbar.css */
 #win-drag{position:fixed;top:env(titlebar-area-y,0px);left:env(titlebar-area-x,0px);width:env(titlebar-area-width,0px);height:env(titlebar-area-height,0px);app-region:drag;-webkit-app-region:drag}
-#toolbar{position:fixed;z-index:5;top:calc(var(--top) + 8px);left:8px;right:calc(8px + var(--dock));display:flex;align-items:center;gap:4px;padding:5px;border:1px solid transparent;border-radius:16px;pointer-events:none}
-#toolbar>*{pointer-events:auto}
-#tab{border-color:var(--line2);background:var(--glass);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--shadow);color:var(--text);opacity:.5}
-#tab:hover,#tab:focus-visible{opacity:1}
-#tab:not(:disabled):active{transform:none}
-#toolbar.open{border-color:var(--line2);background:var(--glass);backdrop-filter:blur(22px) saturate(1.5);box-shadow:var(--shadow);pointer-events:auto;animation:drop .2s var(--ease)}
-#toolbar.open #tab{opacity:1;border-color:transparent;background:transparent;box-shadow:none;backdrop-filter:none;color:var(--muted)}
-#toolbar.open #tab:hover{background:rgba(255,255,255,.08);color:var(--text)}
-#bar{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:2px;min-width:0;max-height:60vh;overflow:auto}
-.shelf-btn{height:38px;padding:0 14px 0 11px;border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:600}
-.shelf-btn:not(:disabled):hover{background:rgba(255,122,89,.24);border-color:transparent;color:var(--accent-hi)}
-.shelf-btn .i{width:22px;height:22px}
-#bar .heading{display:flex;flex:1 1 9rem;flex-direction:column;justify-content:center;min-width:0;padding:0 10px;line-height:1.25}
-#bookTitle{overflow:hidden;font-size:14.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-#bookMeta{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-#bookMeta:empty{display:none}
-#bar .group{display:flex;gap:2px;margin-left:4px;padding-left:6px;border-left:1px solid var(--line)}
-.on-full,:root:fullscreen .on-window{display:none}
-:root:fullscreen .on-full{display:block}
-.bar-progress{position:absolute;left:18px;right:18px;bottom:-1px;height:2px;overflow:hidden;border-radius:2px;background:rgba(255,255,255,.06);pointer-events:none!important}
-#toolbar:not(.open) .bar-progress{display:none}
-.bar-progress i{display:block;height:100%;background:var(--accent-grad);transform:scaleX(0);transform-origin:left;transition:transform .25s var(--ease)}
 
 /* 点击区提示 */
 #reader[data-zone]{cursor:pointer}

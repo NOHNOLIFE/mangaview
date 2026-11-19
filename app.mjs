@@ -6,6 +6,7 @@ import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
 import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
+import {install as toolPanel} from './toolbar.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -382,6 +383,7 @@ ctx.settings.push(
 try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 shelfUI(ctx);
+toolPanel(ctx);
 
 select(books.get(get('last'))||books.values().next().value);
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
