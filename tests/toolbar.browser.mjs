@@ -54,8 +54,8 @@ try{
   for(const id of ['bookTitle','bookMeta','barProgress'])assert.ok(await js(`bar.querySelector('.heading').contains(${id})`));
   assert.ok(Math.abs((await box('#bar [data-act="shelf"]')).width-inner)<1,'Shelf button spans the row');
   assert.ok(heading.bottom<=(await box('#bar [data-act="shelf"]')).top);
-  // 书签、设置未注册 action 时隐藏；其余按钮都有可见文字。
-  assert.deepEqual(await js(`['bookmarks','settings'].map(a=>document.querySelector('#bar [data-act="'+a+'"]').hidden)`),[true,true]);
+  // 书签、设置按钮在对应模块注册 action 后显示；其余按钮都有可见文字。
+  assert.deepEqual(await js(`['bookmarks','settings'].map(a=>document.querySelector('#bar [data-act="'+a+'"]').hidden)`),[false,false]);
   assert.equal(await js(`[...bar.querySelectorAll('.tb')].filter(b=>!b.hidden).every(b=>{const s=b.querySelector('span');return s.textContent.trim()&&s.getBoundingClientRect().width>10;})`),true);
   const columns=()=>js(`new Set([...bar.querySelectorAll('.tb:not(.wide)')].filter(b=>!b.hidden).map(b=>Math.round(b.getBoundingClientRect().left))).size`);
   assert.equal(await columns(),2);
