@@ -32,9 +32,13 @@ Handles huge libraries, works offline, and never uploads your files.
 - **Built for long strips**: each book is one continuous vertical strip with no snapping at image borders, so tall webtoon pages read naturally.
 - **Fast with big libraries**: only visible pages are created and decoded, behind a small read queue. Thousands of images on a spinning hard drive stay responsive.
 - **Thumbnail navigator**: pops out at the right window edge or stays pinned beside the page. Click any point of a thumbnail to jump to that exact spot, even inside a very tall image.
-- **Bookshelf**: covers, page counts, reading progress, title search and page-count filters.
+- **Shelf and library**: keep what you are reading on the shelf and everything else in the library. Both show a cover-only masonry wall; titles and actions appear on hover.
+- **Tags**: add your own tags to any book. Each tag gets its own colour, and you can filter by clicking a tag or typing `#tag` in the search box.
+- **Bookmarks**: press and hold `G` to bookmark the current spot. Bookmarks are listed as small pictures of the page, because nobody remembers file names.
 - **Sorting**: by file name or modification time (either direction), or shuffle. Set a default or override it per book.
 - **Picks up where you left off** in every book, and refreshes folders to pick up added or removed images.
+- **Nothing is lost when files move**: books whose folder can't be found go to *Missing* with their covers, tags and bookmarks intact, and can be reconnected later.
+- **Backup**: export all app data to one file and import it on another computer.
 - **Installable and offline**: install it as an app. After the first load it runs without a network connection.
 - **Four languages**: English, 中文, 日本語 and 한국어, chosen automatically from your browser settings.
 
@@ -48,7 +52,7 @@ New versions arrive automatically. There is nothing to download, unzip or set up
 
 ## How to use
 
-Open a folder or images from the welcome screen, or drop them anywhere in the window. Hover the top-left corner or press **T** to show the toolbar.
+Open a folder or images from the welcome screen, or drop them anywhere in the window. Move the mouse to the left edge of the window (or hover the menu button in the top-left corner, or press **T**) to open the tool panel.
 
 ### Mouse
 
@@ -59,8 +63,10 @@ Open a folder or images from the welcome screen, or drop them anywhere in the wi
 | Click the top 15% | Jump to the start. At the start, go to the previous book |
 | Click the bottom 15% | Jump to the end. At the end, go to the next book |
 | Click the middle, left / right half | Back / forward one screen |
+| Move to the left window edge | Open the tool panel |
 | Move to the right window edge | Pop out the thumbnail strip |
 | Click a thumbnail | Jump to that exact point |
+| Right click | Open the bookmark panel |
 
 ### Keyboard
 
@@ -68,16 +74,40 @@ Open a folder or images from the welcome screen, or drop them anywhere in the wi
 | --- | --- |
 | `Space` / `↓` | Scroll down (hold to keep scrolling) |
 | `Shift+Space` / `↑` | Scroll up |
-| `F` / `→` / `Enter` | Forward one screen |
+| `F` / `→` | Forward one screen |
 | `D` / `←` | Back one screen |
+| `G` / `Enter` | Tap: next bookmark. Hold: add a bookmark |
 | `Home` / `End` | Start / end of the book. Press again to change books |
 | `Page Up` / `Page Down` | Previous / next book |
-| `Delete` | Remove the current book from the shelf |
+| `Delete` | Delete the current book's record |
 | `Ctrl+C` | Copy the titles currently listed on the shelf |
-| `T` | Show or hide the toolbar |
-| `Esc` | Close the toolbar and the thumbnail strip |
+| `T` | Show or hide the tool panel |
+| `Esc` | Close the tool panel and the thumbnail strip |
 
 The keyboard button in the toolbar shows this list inside the app.
+
+### Tool panel
+
+The tool panel slides in from the left edge and closes when the mouse leaves it. The book title and progress sit on top; the buttons below can be laid out in one or two columns (**Settings → Toolbar**). Edge pop-out can be turned off there too; the menu button and **T** still work.
+
+### Shelf, library and tags
+
+The **Bookshelf** button opens a full-screen view with four lists:
+
+- **Shelf**: what you are reading now. Newly opened folders, and folders you open again, land here. *Previous / next book* move through this list.
+- **Library**: everything else, for managing large collections.
+- **All books**: both together, for searching everything.
+- **Missing**: only shown when some books' folders can't be found (see below).
+
+Search matches titles, folder paths and tags. Type `#tag` to filter by tag, or click tags in the tag bar (several tags must all match). **Move all to shelf / library** applies to everything the current filters show. Hover or focus a cover to see its title, progress and tags, and buttons to edit tags, move, copy the title or delete the record. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
+
+### Bookmarks
+
+- **Hold `G` or `Enter`** to add a bookmark at the centre of the screen. A ring fills up while you hold, so you can see what is happening; let go early and it counts as a tap.
+- **Tap `G` or `Enter`** to jump to the next bookmark. After the last one it wraps to the first.
+- **Right click** the page to open the bookmark panel at the mouse. Hovering a bookmark jumps there immediately; moving the mouse out closes the panel and keeps the new position, while **Esc** closes it and goes back to where you were. The **Add bookmark** button sits right under the mouse when the panel opens.
+
+Bookmarks are stored with a small picture of the page and follow the image, not the scroll position, so they survive re-sorting.
 
 ### Thumbnail strip
 
@@ -89,17 +119,29 @@ In **Sort**, choose **This folder / book** to set an order for the current book 
 
 ### Refreshing folders
 
-MangaView checks your folders for added or removed images in three cases:
+MangaView checks your folders for added or removed images in three cases (the first can be turned off in **Settings**):
 
 - each time the app opens or the page is reloaded, it checks every folder it still has access to;
 - when you switch back to the window, it checks the current book;
 - when you press a **Refresh** button (next to **Bookshelf** in the toolbar, and on the shelf), it checks everything. A manual refresh can also ask for access to the current book again.
 
-A folder that can't be found is **not** removed automatically, because the browser can't tell a deleted folder from an unplugged drive. The book is marked *Folder missing* on the shelf instead. A manual refresh lists the missing folders and removes their records only after you confirm. This stops a new folder that later appears at the same path from inheriting old progress and order. New subfolders are not detected: open the parent folder again to add them.
+New subfolders are not detected: open the parent folder again to add them.
+
+### Missing books and moving your files
+
+A book whose folder can't be found is **never** deleted automatically, because the browser can't tell a deleted folder from an unplugged drive. It moves to **Missing** instead, keeping its cover, tags, bookmarks and progress. Plug the drive back in and refresh, and it returns on its own. Records are deleted only when you delete them.
+
+Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **cover** (the first image by file name):
+
+- **Open the parent folder again**: a missing book with the same folder name and cover is reconnected automatically instead of being added twice.
+- **Restore from folder…** (in *Missing*): pick a folder that contains your books, at any depth. Exact matches are restored at once. Likely matches (renamed folder with the same cover, or same name with a different cover) are listed for you to tick. Anything else stays missing.
+- **Restore** on a single book: pick its folder. If it doesn't match, you can still **Restore anyway** to keep the tags, bookmarks and progress.
 
 ### Your data
 
-Images are read on your device and never uploaded or copied. The app stores only a book index, read-only file handles, sort settings and reading positions in the browser. Clearing site data erases this history.
+Images are read on your device and never uploaded or copied. The browser stores a book index, read-only file handles, sort settings, reading positions, tags, bookmarks and small compressed thumbnails (covers and bookmarks, never the original images). Clearing site data erases all of this.
+
+**Settings → Data** can export everything to one JSON file and import it again, merging with or replacing the current data. The file contains no images and no folder access, so after importing on another computer the books appear under *Missing*: use **Restore from folder…** to reconnect them.
 
 - If the browser has revoked access when you reopen a book, use **Grant access**.
 - If the files have moved, use **Locate originals**.
@@ -130,7 +172,13 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | Path | Purpose |
 | --- | --- |
 | `index.html`, `style.css` | Markup, icons and styles |
-| `app.mjs` | App logic: shelf, toolbar, input, sorting, refresh |
+| `app.mjs` | Core logic: books, input, sorting, refresh, keyboard; installs the feature modules |
+| `shelf.mjs`, `shelf.css` | Shelf, library, missing books, tags, restore |
+| `match.mjs` | Matching missing books to folders, tag colours |
+| `toolbar.mjs`, `toolbar.css` | Left tool panel |
+| `bookmarks.mjs`, `bookmarks.css` | Bookmarks |
+| `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
+| `thumbs.mjs` | Compressed thumbnails |
 | `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
 | `model.mjs` | Sorting and layout math |
 | `sources.mjs` | Folder scanning and file access |
@@ -143,8 +191,12 @@ Tests need Node 22.12+:
 
 ```sh
 node --test tests/core.test.mjs
-# End-to-end test in headless Chrome or Edge:
+# End-to-end tests in headless Chrome or Edge (each uses a throwaway profile and generated images):
 node tests/browser.mjs "<path to chrome.exe or msedge.exe>"
+node tests/shelf.browser.mjs "<path>"
+node tests/toolbar.browser.mjs "<path>"
+node tests/bookmarks.browser.mjs "<path>"
+node tests/settings.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:
