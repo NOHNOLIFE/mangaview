@@ -48,25 +48,29 @@ const strings = {
   failed:['Operation failed. Check access and try again.','操作未完成，请检查权限后重试。','操作できません。権限を確認して再試行してください。','작업을 완료하지 못했습니다. 권한을 확인하고 다시 시도하세요.'],
   storage:['Cannot save history on this device.','无法在此设备保存历史。','この端末に履歴を保存できません。','기기에 기록을 저장할 수 없습니다.'],
   scanning:['Indexing local images…','正在索引本地图片…','画像を確認中…','로컬 이미지 목록을 읽는 중…'],
+  settings:['Settings','设置','設定','설정'],bookmarks:['Bookmarks','书签','しおり','책갈피'],
+  langLabel:['Language','语言','言語','언어'],langAuto:['Follow browser','跟随浏览器','ブラウザーに合わせる','브라우저 설정 따르기'],
+  autoCheck:['Check folders on startup','启动时检查文件夹','起動時にフォルダーを確認','시작할 때 폴더 확인'],
+  edgeRight:['Show thumbnails at the right edge','鼠标移到右缘时弹出缩略图栏','右端でサムネイルを表示','오른쪽 가장자리에서 미리보기 표시'],
   ready:['Ready for offline reading','已可离线阅读','オフラインで読めます','오프라인 읽기 준비 완료'],
   // 帮助页的快捷键表：[[按键或鼠标操作…], 说明]，多个按键之间是“或”，“+”表示组合键。
   shortcuts:[
     [[['Wheel','Left drag'],'Scroll'],[['Middle click'],'Browser auto-scroll (where supported)'],[['Space','↓'],'Scroll down; hold to keep going'],[['Shift+Space','↑'],'Scroll up'],
-     [['F','→','Enter'],'Forward one screen'],[['D','←'],'Back one screen'],[['Click top'],'Jump to start; at the start, previous book'],[['Click bottom'],'Jump to end; at the end, next book'],[['Click middle'],'Left half: back one screen · Right half: forward'],
+     [['F','→'],'Forward one screen'],[['D','←'],'Back one screen'],[['Click top'],'Jump to start; at the start, previous book'],[['Click bottom'],'Jump to end; at the end, next book'],[['Click middle'],'Left half: back one screen · Right half: forward'],
      [['Home','End'],'Start / end; press again to change books'],[['Page Up','Page Down'],'Previous / next book'],[['Delete'],'Remove current book'],
-     [['Ctrl+C'],'Copy listed titles'],[['T'],'Show or hide tools'],[['Esc'],'Close tools and preview'],[['Right edge'],'Hover to show the preview strip'],[['Click preview'],'Jump to that exact point']],
+     [['Ctrl+C'],'Copy listed titles'],[['T'],'Show or hide tools'],[['Esc'],'Close tools and preview'],[['Right edge'],'Hover to show the preview strip'],[['Click preview'],'Jump to that exact point'],[['Left edge'],'Hover to show tools'],[['G','Enter'],'Tap: next bookmark · Hold: add bookmark'],[['Right click'],'Bookmark panel']],
     [[['滚轮','左键拖动'],'滚动'],[['中键'],'浏览器原生自动滚动（需平台支持）'],[['空格','↓'],'向下滚动，按住持续滚动'],[['Shift+空格','↑'],'向上滚动'],
-     [['F','→','Enter'],'后一屏'],[['D','←'],'前一屏'],[['单击上方'],'回到书首；已在书首时切换上一本'],[['单击下方'],'滚到书尾；已在书尾时切换下一本'],[['单击中部'],'左半屏：前一屏 · 右半屏：后一屏'],
+     [['F','→'],'后一屏'],[['D','←'],'前一屏'],[['单击上方'],'回到书首；已在书首时切换上一本'],[['单击下方'],'滚到书尾；已在书尾时切换下一本'],[['单击中部'],'左半屏：前一屏 · 右半屏：后一屏'],
      [['Home','End'],'书首 / 书尾，再按一次切换上 / 下一本'],[['Page Up','Page Down'],'上一本 / 下一本'],[['Delete'],'从书架移除当前书'],
-     [['Ctrl+C'],'复制筛选出的书名'],[['T'],'显示 / 隐藏工具栏'],[['Esc'],'收起工具栏和预览'],[['鼠标移到右缘'],'弹出缩略图栏'],[['点击缩略图'],'跳到对应画面位置']],
+     [['Ctrl+C'],'复制筛选出的书名'],[['T'],'显示 / 隐藏工具栏'],[['Esc'],'收起工具栏和预览'],[['鼠标移到右缘'],'弹出缩略图栏'],[['点击缩略图'],'跳到对应画面位置'],[['鼠标移到左缘'],'弹出工具栏'],[['G','Enter'],'单击：跳到下一个书签 · 长按：添加书签'],[['右键'],'打开书签面板']],
     [[['ホイール','左ドラッグ'],'スクロール'],[['中クリック'],'自動スクロール（対応環境のみ）'],[['スペース','↓'],'下へスクロール（長押しで連続）'],[['Shift+スペース','↑'],'上へスクロール'],
-     [['F','→','Enter'],'1画面進む'],[['D','←'],'1画面戻る'],[['上部をクリック'],'先頭へ。先頭なら前の本へ'],[['下部をクリック'],'末尾へ。末尾なら次の本へ'],[['中央部をクリック'],'左半分：1画面戻る · 右半分：1画面進む'],
+     [['F','→'],'1画面進む'],[['D','←'],'1画面戻る'],[['上部をクリック'],'先頭へ。先頭なら前の本へ'],[['下部をクリック'],'末尾へ。末尾なら次の本へ'],[['中央部をクリック'],'左半分：1画面戻る · 右半分：1画面進む'],
      [['Home','End'],'先頭／末尾。もう一度押すと前後の本へ'],[['Page Up','Page Down'],'前の本／次の本'],[['Delete'],'現在の本を本棚から外す'],
-     [['Ctrl+C'],'表示中の書名をコピー'],[['T'],'ツールの表示／非表示'],[['Esc'],'ツールとプレビューを閉じる'],[['右端にマウス'],'サムネイルを表示'],[['プレビューをクリック'],'その位置へジャンプ']],
+     [['Ctrl+C'],'表示中の書名をコピー'],[['T'],'ツールの表示／非表示'],[['Esc'],'ツールとプレビューを閉じる'],[['右端にマウス'],'サムネイルを表示'],[['プレビューをクリック'],'その位置へジャンプ'],[['左端にマウス'],'ツールを表示'],[['G','Enter'],'短押し：次のしおり · 長押し：しおりを追加'],[['右クリック'],'しおりパネル']],
     [[['휠','왼쪽 드래그'],'스크롤'],[['가운데 클릭'],'자동 스크롤(지원 환경)'],[['스페이스','↓'],'아래로 스크롤, 누르고 있으면 계속'],[['Shift+스페이스','↑'],'위로 스크롤'],
-     [['F','→','Enter'],'한 화면 앞으로'],[['D','←'],'한 화면 뒤로'],[['위쪽 클릭'],'처음으로, 이미 처음이면 이전 책'],[['아래쪽 클릭'],'끝으로, 이미 끝이면 다음 책'],[['중앙 영역 클릭'],'왼쪽 절반: 한 화면 뒤로 · 오른쪽 절반: 앞으로'],
+     [['F','→'],'한 화면 앞으로'],[['D','←'],'한 화면 뒤로'],[['위쪽 클릭'],'처음으로, 이미 처음이면 이전 책'],[['아래쪽 클릭'],'끝으로, 이미 끝이면 다음 책'],[['중앙 영역 클릭'],'왼쪽 절반: 한 화면 뒤로 · 오른쪽 절반: 앞으로'],
      [['Home','End'],'처음 / 끝, 다시 누르면 책 전환'],[['Page Up','Page Down'],'이전 / 다음 책'],[['Delete'],'현재 책 제거'],
-     [['Ctrl+C'],'표시된 제목 복사'],[['T'],'도구 표시 / 숨기기'],[['Esc'],'도구와 미리보기 닫기'],[['오른쪽 가장자리'],'마우스를 대면 미리보기 표시'],[['미리보기 클릭'],'해당 지점으로 이동']]
+     [['Ctrl+C'],'표시된 제목 복사'],[['T'],'도구 표시 / 숨기기'],[['Esc'],'도구와 미리보기 닫기'],[['오른쪽 가장자리'],'마우스를 대면 미리보기 표시'],[['미리보기 클릭'],'해당 지점으로 이동'],[['왼쪽 가장자리'],'마우스를 대면 도구 표시'],[['G','Enter'],'짧게: 다음 책갈피 · 길게: 책갈피 추가'],[['오른쪽 클릭'],'책갈피 패널']]
   ]
 };
 export function detect(list) {
@@ -76,4 +80,7 @@ export function detect(list) {
   }
   return 'en';
 }
+// 功能模块用 extend 注册自己的文案，格式与上方相同：key:[en,zh,ja,ko]。
+export function extend(table) { Object.assign(strings, table); }
+export const languageList = languages;
 export function translate(key, lang) { return strings[key][languages.indexOf(lang)] ?? strings[key][0]; }

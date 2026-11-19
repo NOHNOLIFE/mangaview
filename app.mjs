@@ -1,11 +1,15 @@
-import {detect,translate} from './lang.mjs';
+import {detect,translate,languageList} from './lang.mjs';
 import {byTime,sortedPages,folderSort,needsSort,isImage,natural} from './model.mjs';
-import {library} from './store.mjs';
+import {library,thumbs} from './store.mjs';
+import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
+// 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
 import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes} from './sources.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
-let lang=detect(navigator.languages||[navigator.language]);
+// 设置面板可固定界面语言；未设置时跟随浏览器。
+const langPref=()=>{try{return JSON.parse(localStorage.getItem('mv2:lang'));}catch{return null;}};
+let lang=langPref()||detect(navigator.languages||[navigator.language]);
 const t=key=>translate(key,lang), title=b=>b.title??t('loose');
 function localize(){
   document.documentElement.lang=lang;
@@ -76,7 +80,7 @@ function readRatio(book){
   const i=book.pages.findIndex(p=>p.name===pos.name);
   return i<0?0:Math.min(1,(i+pos.f)/n);
 }
-function select(book){flush();current=book||null;hintState='';queueMicrotask(()=>zoneHint());put('last',current?.id??null);$('access').hidden=true;
+function select(book){flush();current=book||null;queueMicrotask(()=>emit('select',current));hintState='';queueMicrotask(()=>zoneHint());put('last',current?.id??null);$('access').hidden=true;
   view.show(current,current?get('pos:'+current.id):null);toolsState();
   if(book && needsSort(book,defaultSort))safe(arrange)(book);
 }
@@ -103,7 +107,7 @@ async function addGroup(group){
       book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;
     }else book.pages.push(...group.pages);
     await arrange(book,false,before);
-  }else{book={id:crypto.randomUUID(),sortOverride:null,...group};books.set(book.id,book);await persist(book);}
+  }else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group});books.set(book.id,book);await persist(book);}
   return book;
 }
 async function add(groups){
@@ -168,7 +172,7 @@ function drawShelf(){cleanShelf();const holder=$('books'),list=filtered();
 }
 async function copy(value){await navigator.clipboard.writeText(value);notice('copied');}
 async function discard(book){
-  sortRequests.delete(book);flush();await library('delete',book.id);books.delete(book.id);
+  sortRequests.delete(book);flush();await library('delete',book.id);await dropThumbs(book.id);books.delete(book.id);
   if(book===current){current=null;select(books.values().next().value);}dropKey('pos:'+book.id);
 }
 async function remove(book){if(!book||!confirm(t('confirmRemove')+'\n'+title(book)))return;await discard(book);if(shelf.open)drawShelf();}
@@ -228,7 +232,7 @@ window.addEventListener('focus',safe(async()=>{
 }));
 async function clearAll(){if(!books.size||!confirm(t('confirmClear')))return;
   for(const book of books.values())sortRequests.delete(book);
-  flush();await library('clear');for(const id of books.keys())dropKey('pos:'+id);
+  flush();await library('clear');await thumbs('clear');for(const id of books.keys())dropKey('pos:'+id);
   books.clear();current=null;select(null);drawShelf();}
 $('filters').oninput=drawShelf;$('filters').onreset=()=>queueMicrotask(drawShelf);$('filters').onsubmit=e=>e.preventDefault();shelf.onclose=cleanShelf;
 
@@ -314,7 +318,7 @@ toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeE
 // 鼠标贴近窗口右缘稍作停留即弹出缩略图栏，离开后自动收起。
 function cancelEdge(){clearTimeout(edgeTimer);edgeTimer=0;}
 document.addEventListener('pointermove',e=>{
-  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&$('panel').hidden&&innerWidth-e.clientX<=24&&!document.querySelector('dialog[open]');
+  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&$('panel').hidden&&innerWidth-e.clientX<=24&&!document.querySelector('dialog[open]');
   if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned)preview(true);},120);
 });
 document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
@@ -364,19 +368,38 @@ window.addEventListener('keydown',e=>{
   if(e.key==='Escape'){showBar(false);if(!pinned)preview(false);main.focus();return;}
   if(e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();if(!e.repeat){showBar(bar.hidden);(bar.hidden?main:bar.querySelector('button')).focus();}return;}
   if(!current||e.target.closest('button')&&[' ','Enter'].includes(e.key))return;
+  for(const h of ctx.keys)if(h.down?.(e))return; // 功能模块的按键（如书签 G / Enter）
   const k=e.key.toLowerCase();if([' ','arrowdown','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k==='arrowup'||e.shiftKey?-1:1);return;}
-  if(['f','arrowright','enter','d','arrowleft'].includes(k)){e.preventDefault();screenStep(['d','arrowleft'].includes(k)?-1:1);return;}
+  if(['f','arrowright','d','arrowleft'].includes(k)){e.preventDefault();screenStep(['d','arrowleft'].includes(k)?-1:1);return;}
   if(!['home','end','pageup','pagedown','delete'].includes(k))return;e.preventDefault();if(e.repeat)return;
   if(k==='home')toStart();else if(k==='end')toEnd();
   else if(k==='delete')safe(remove)(current);else step(k==='pageup'?-1:1);
 });
-window.addEventListener('keyup',e=>{if(e.code===hold)stop();});window.addEventListener('blur',stop);
+window.addEventListener('keyup',e=>{if(e.code===hold)stop();for(const h of ctx.keys)h.up?.(e);});window.addEventListener('blur',()=>{stop();for(const h of ctx.keys)h.blur?.();});
 window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden){flush();stop();}});
-window.addEventListener('languagechange',()=>{lang=detect(navigator.languages);localize();toolsState();if(sortOptions.open)showSortChoices();if(shelf.open)drawShelf();});
+function relocalize(){localize();toolsState();if(sortOptions.open)showSortChoices();if(shelf.open)drawShelf();emit('lang',lang);}
+function setLang(code){put('lang',code||null);lang=code||detect(navigator.languages||[navigator.language]);relocalize();}
+window.addEventListener('languagechange',()=>{if(langPref())return;lang=detect(navigator.languages);relocalize();});
 
-try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,b);}}catch{notice('storage');}
+// 旧记录补齐新字段：place 区分书架 / 书库；tags、bookmarks 随书目保存，导出时一并带走。
+function normalize(b){b.place??='shelf';b.tags??=[];b.bookmarks??=[];b.added??=Date.now();return b;}
+// 功能模块共用的上下文。keys：{down(e)→true 表示已处理, up(e), blur()}；settings：设置面板条目，见 settings 描述。
+const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
+const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
+  actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
+  redrawShelf(){if(shelf.open)drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open)};
+// 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
+ctx.settings.push(
+  {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
+  {id:'autoCheck',group:'general',label:'autoCheck',type:'toggle',get:()=>get('autoCheck',true),set:v=>put('autoCheck',v)},
+  {id:'edgeRight',group:'reading',label:'edgeRight',type:'toggle',get:()=>get('edgeRight',true),set:v=>put('edgeRight',v)});
+
+
+try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
+// features: 在这里安装功能模块，例如 bookmarks(ctx);
+
 select(books.get(get('last'))||books.values().next().value);
-safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
+if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
 if(new URLSearchParams(location.search).get('from')==='v1'){history.replaceState(null,'',location.pathname);notice('upgraded',undefined,10000);}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(async reg=>{
