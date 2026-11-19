@@ -9,6 +9,7 @@ import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
 import {install as settingsPanel} from './settings.mjs';
 import {install as backup} from './backup.mjs';
+import {install as bookmarks} from './bookmarks.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -384,7 +385,7 @@ ctx.settings.push(
 
 try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-shelfUI(ctx);settingsPanel(ctx);backup(ctx);
+shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);
 toolPanel(ctx);
 
 select(books.get(get('last'))||books.values().next().value);
