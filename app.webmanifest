@@ -1,0 +1,7 @@
+{
+  "id":"./", "name":"MangaView", "short_name":"MangaView",
+  "start_url":"./", "scope":"./", "display":"standalone",
+  "display_override":["window-controls-overlay","standalone"],
+  "theme_color":"#0e0f11","background_color":"#0e0f11",
+  "icons":[{"src":"./icons/192.png","sizes":"192x192","type":"image/png"},{"src":"./icons/512.png","sizes":"512x512","type":"image/png"}]
+}

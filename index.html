@@ -1,13 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <link rel="icon" href="/favicon.ico"/>
-    <title>MangaView</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0e0f11"><title>MangaView v2.0.0</title>
+<link rel="icon" href="./icons/192.png"><link rel="manifest" href="./app.webmanifest">
+<link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script>
 </head>
 <body>
-<div id="app"></div>
-<script type="module" src="/src/main.ts"></script>
+<svg class="sprite" aria-hidden="true">
+<defs><linearGradient id="logoFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa070"/><stop offset="1" stop-color="#ff4d7d"/></linearGradient></defs>
+<symbol id="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="url(#logoFill)"/><rect x="13" y="9" width="22" height="30" rx="3.5" fill="#fff"/><path d="M13 20.5h22M13 29.5h22M25 20.5v9" stroke="url(#logoFill)" stroke-width="2.6" fill="none"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+<symbol id="i-library" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><path d="m17.2 5.3 2.9-.8 3 14.4-2.9.8z"/></symbol>
+<symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 19 9 12l9-7z"/><path d="M6 5v14"/></symbol>
+<symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7z"/><path d="M18 5v14"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M21 8l-4-4-4 4M17 4v16"/></symbol>
+<symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M15 3v18"/></symbol>
+<symbol id="i-full-enter" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M16 21h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></symbol>
+<symbol id="i-full-exit" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M16 21v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></symbol>
+<symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M6 9.5h.01M10 9.5h.01M14 9.5h.01M18 9.5h.01M6 13h.01M18 13h.01M10 13h4M8 16h8"/></symbol>
+<symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><path d="M12 10v6M9 13h6"/></symbol>
+<symbol id="i-image-plus" viewBox="0 0 24 24"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M16 5h6M19 2v6"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16a2 2 0 0 1-1-1.7V5a2 2 0 0 1 2-2h9.3A2 2 0 0 1 16 4"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="i-unlock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></symbol>
+<symbol id="i-cloud-check" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/><path d="m9 14 2 2 4-4"/></symbol>
+<symbol id="i-strip" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M6 8h12M6 15h12"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-name-asc" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M15 4h4l-4 6h4M15 20v-3.5a2 2 0 0 1 4 0V20M15 18h4"/></symbol>
+<symbol id="i-name-desc" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M15 14h4l-4 6h4M15 10V6.5a2 2 0 0 1 4 0V10M15 8h4"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4M18 2l4 4-4 4"/><path d="M2 18h1.4a4 4 0 0 0 3.3-1.7l6.6-9.6A4 4 0 0 1 16.6 5H22M2 6h1.4a4 4 0 0 1 3.3 1.7l.8 1.1M22 18h-5.4a4 4 0 0 1-3.3-1.7l-.8-1.1"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-book-open" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol>
+<symbol id="i-to-top" viewBox="0 0 24 24"><path d="M5 3h14M18 13l-6-6-6 6M12 7v14"/></symbol>
+<symbol id="i-to-end" viewBox="0 0 24 24"><path d="M19 21H5M18 11l-6 6-6-6M12 17V3"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></symbol>
+<symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+</svg>
+<main id="reader" tabindex="0" data-aria="reading"><div class="strip"></div></main>
+
+<section id="empty" hidden>
+<div class="hero">
+<svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+<div class="eyebrow">MangaView</div>
+<h1 data-t="welcome"></h1>
+<p data-t="intro"></p>
+<div class="drop">
+<svg class="i drop-icon" aria-hidden="true"><use href="#i-upload"/></svg>
+<div class="actions">
+<button class="primary" data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
+<button data-act="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg><span data-t="files"></span></button>
+</div>
+</div>
+<ul class="features">
+<li><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-t="featLocal"></span></li>
+<li><svg class="i" aria-hidden="true"><use href="#i-strip"/></svg><span data-t="featStrip"></span></li>
+<li id="offline" hidden><svg class="i" aria-hidden="true"><use href="#i-cloud-check"/></svg><span data-t="ready"></span></li>
+</ul>
+</div>
+</section>
+
+<div id="win-drag"></div>
+<div id="toolbar">
+<button id="tab" class="icon-btn" data-label="tools" aria-expanded="false" aria-controls="bar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
+<nav id="bar" hidden data-aria="tools">
+<button class="shelf-btn" data-act="shelf" data-label="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
+<button class="icon-btn" data-act="refresh" data-label="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+<div class="heading"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small></div>
+<div class="group">
+<button class="icon-btn" data-act="prev" data-label="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg></button>
+<button class="icon-btn" data-act="next" data-label="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg></button>
+</div>
+<div class="group">
+<button class="icon-btn" data-act="sort" data-label="sort" aria-haspopup="dialog" aria-controls="sortOptions"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button>
+<button class="icon-btn" data-act="fit" data-label="fit" aria-pressed="true"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg></button>
+<button class="icon-btn" data-act="preview" data-label="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg></button>
+</div>
+<div class="group">
+<button class="icon-btn" data-act="folder" data-label="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg></button>
+<button class="icon-btn" data-act="files" data-label="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg></button>
+</div>
+<div class="group">
+<button class="icon-btn" data-act="full" data-label="full"><svg class="i on-window" aria-hidden="true"><use href="#i-full-enter"/></svg><svg class="i on-full" aria-hidden="true"><use href="#i-full-exit"/></svg></button>
+<button class="icon-btn" data-act="help" data-label="help"><svg class="i" aria-hidden="true"><use href="#i-keyboard"/></svg></button>
+<a class="icon-btn" href="https://github.com/NOHNOLIFE/mangaview" target="_blank" rel="noopener noreferrer" data-label="github"><svg class="i" aria-hidden="true"><use href="#i-github"/></svg></a>
+</div>
+</nav>
+<div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div>
+</div>
+
+<div id="zoneHint" aria-hidden="true" hidden><span class="pill"><svg class="i"><use id="zoneIcon" href="#i-to-top"/></svg><span id="zoneText"></span></span></div>
+<div id="hud" aria-hidden="true" hidden><svg class="ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle id="ring" class="fill" cx="10" cy="10" r="8" pathLength="100"/></svg><span id="pageNum"></span></div>
+<aside id="panel" hidden><div id="grip" role="separator" tabindex="0" aria-orientation="vertical" data-label="width"></div><div id="preview" tabindex="0" data-aria="preview"><div class="strip"></div></div></aside>
+
+<section id="access" hidden><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span data-t="missing"></span>
+<div class="actions"><button class="primary" data-act="allow"><svg class="i" aria-hidden="true"><use href="#i-unlock"/></svg><span data-t="allow"></span></button><button data-act="locate"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><span data-t="locate"></span></button></div></section>
+
+<dialog id="shelf" aria-labelledby="shelfTitle">
+<header>
+<div class="title"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><h2 id="shelfTitle" data-t="shelf"></h2><span id="shelfCount" class="count"></span></div>
+<div class="tools">
+<button class="icon-btn" data-act="refresh" data-label="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+<button data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
+<button class="icon-btn" data-act="files" data-label="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg></button>
+<button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+</div>
+</header>
+<form id="filters" role="search">
+<label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="query" type="search" data-placeholder="search"></label>
+<div class="range"><input id="min" type="number" min="0" data-placeholder="min"><span>–</span><input id="max" type="number" min="0" data-placeholder="max"></div>
+<button type="reset" data-t="reset"></button>
+</form>
+<div id="books"></div>
+<footer>
+<button data-act="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span data-t="copy"></span></button>
+<span class="spacer"></span>
+<button class="danger" data-act="clear"><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg><span data-t="clear"></span></button>
+</footer>
+</dialog>
+
+<dialog id="sortOptions" aria-labelledby="sortTitle">
+<header><h2 id="sortTitle" data-t="sort"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+<select id="sortScope" data-label="sortScope" hidden><option value="folder" data-t="folderSort"></option><option value="global" data-t="globalSort"></option></select>
+<div class="segmented" role="group" data-aria="sortScope"><button type="button" data-scope="folder" data-t="folderSort"></button><button type="button" data-scope="global" data-t="globalSort"></button></div>
+<div class="options">
+<button data-mode="default"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="label"><span data-t="followSort"></span><small id="defaultSortName"></small></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<button data-mode="nameAsc"><svg class="i" aria-hidden="true"><use href="#i-name-asc"/></svg><span class="label" data-t="nameAsc"></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<button data-mode="nameDesc"><svg class="i" aria-hidden="true"><use href="#i-name-desc"/></svg><span class="label" data-t="nameDesc"></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<button data-mode="timeAsc"><svg class="i" aria-hidden="true"><use href="#i-clock"/></svg><span class="label" data-t="timeAsc"></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<button data-mode="timeDesc"><svg class="i" aria-hidden="true"><use href="#i-history"/></svg><span class="label" data-t="timeDesc"></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<button data-mode="shuffle"><svg class="i" aria-hidden="true"><use href="#i-shuffle"/></svg><span class="label" data-t="shuffle"></span><svg class="i check" aria-hidden="true"><use href="#i-check"/></svg></button>
+</div>
+</dialog>
+
+<dialog id="help" aria-labelledby="helpTitle">
+<header><h2 id="helpTitle" data-t="help"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+<dl id="keys"></dl>
+</dialog>
+
+<div id="dropOverlay" hidden><div class="box"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><span data-t="dropHere"></span></div></div>
+<p id="notice" role="status" aria-live="polite"></p>
+<input id="folderInput" type="file" webkitdirectory multiple hidden><input id="fileInput" type="file" accept="image/*" multiple hidden>
 </body>
 </html>
