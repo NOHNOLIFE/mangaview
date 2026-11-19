@@ -307,7 +307,8 @@ document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.targ
 
 const bar=$('bar'),toolbar=$('toolbar'),tab=$('tab');let barTimer,edgeTimer=0;
 function showBar(open){clearTimeout(barTimer);bar.hidden=!open;toolbar.classList.toggle('open',open);tab.setAttribute('aria-expanded',String(open));if(open)updateProgress();}
-tab.onclick=()=>showBar(bar.hidden);toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&bar.hidden)barTimer=setTimeout(()=>showBar(true),300);};
+// 鼠标移入立即展开；点击只负责打开（触屏和键盘），不再收起，避免“刚打开就被点关”。
+tab.onclick=()=>showBar(true);toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&bar.hidden)showBar(true);};
 toolbar.onpointerleave=()=>{clearTimeout(barTimer);if(!toolbar.querySelector(':focus-visible'))barTimer=setTimeout(()=>showBar(false),450);};
 toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeElement)&&!toolbar.matches(':hover'))showBar(false);});
 // 鼠标贴近窗口右缘稍作停留即弹出缩略图栏，离开后自动收起。

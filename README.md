@@ -9,9 +9,16 @@ Handles huge libraries, works offline, and never uploads your files.
 
 **English** · [简体中文](README.zh-CN.md)
 
+#漫画阅读器 #本子阅读器 #同人志阅读器 #条漫阅读器<br>
+#漫画ビューア #同人誌ビューア #漫画リーダー #만화뷰어 #웹툰뷰어<br>
+#manga-reader #comic-reader #webtoon-reader
+
 ### [▶ Open MangaView](https://nohnolife.github.io/mangaview/)
 
 </div>
+
+> [!IMPORTANT]
+> **There is nothing to download or install from this repository.** MangaView is a web app: open the link above in Chrome or Edge and start reading. If you want it as a desktop app, use the browser's own *Install* button. It then gets its own window, works offline and updates itself. The files here are the source code, needed only if you want to develop MangaView.
 
 ## Showcase
 
@@ -33,21 +40,11 @@ Handles huge libraries, works offline, and never uploads your files.
 
 ## Getting started
 
-### Online
+1. Open **https://nohnolife.github.io/mangaview/** in the latest desktop **Chrome** or **Edge**.
+2. *(Optional)* Install it: click the install icon at the right end of the address bar, or open the browser menu and choose *Install MangaView*. It opens in its own window, can be pinned to the taskbar and works offline.
+3. Open a folder or drop images into the window.
 
-Open **https://nohnolife.github.io/mangaview/** in the latest desktop **Chrome** or **Edge**. To install it as an app, use the install icon in the address bar. Once loaded, it also works offline.
-
-### Run locally
-
-On Windows, install [Python 3](https://www.python.org/) and double-click `启动漫画阅读器.bat` in the repository root. It starts a local server and opens your browser. Keep the console window open while reading, and close it to stop the server.
-
-Or run this from the repository root on any platform:
-
-```sh
-python -m http.server 4173 --bind 127.0.0.1
-```
-
-Then open http://127.0.0.1:4173/. Opening `index.html` straight from disk does not work, because installing, offline mode and file access all need a secure context.
+New versions arrive automatically. There is nothing to download, unzip or set up.
 
 ## How to use
 
@@ -119,6 +116,17 @@ The old version that used to live at `/mangaview/dist/` has been replaced by v2.
 
 There is no build step and there are no dependencies, just plain ES modules served as static files.
 
+### Run locally
+
+This is only for working on the code; to read manga, use the online version.
+
+- **Windows**: install [Python 3](https://www.python.org/) and double-click `local_run.bat` in the repository root. It starts a server at http://127.0.0.1:4173/ and opens your browser. Close the console window to stop it.
+- **Any platform**: run `python -m http.server 4173 --bind 127.0.0.1` from the repository root, then open http://127.0.0.1:4173/.
+
+Opening `index.html` straight from disk does not work, because installing, offline mode and file access all need a secure context (HTTPS or localhost).
+
+### Project layout
+
 | Path | Purpose |
 | --- | --- |
 | `index.html`, `style.css` | Markup, icons and styles |
@@ -152,3 +160,17 @@ Things the automated tests can't cover:
 2. Push to `main`. GitHub Pages serves the repository root.
 
 Open windows keep the version they started with. The new version downloads in the background and takes over once every old window is closed. If the download fails or you are offline, the current version keeps running. Keep `dist/` for as long as v1 users may still be around.
+
+## Keywords
+
+Local manga reader, comic viewer, webtoon / manhwa / manhua long-strip reader and doujinshi viewer for desktop browsers. Reads image folders offline, with no upload.
+
+#漫画阅读器 #本子阅读器 #同人志阅读器 #条漫阅读器 #韩漫阅读器 #本地漫画阅读器 #网页漫画阅读器 #在线漫画阅读器 #离线漫画阅读器 #漫画查看器 #看漫画软件 #看图软件 #图片浏览器 #长条漫画 #竖屏漫画 #PWA漫画阅读器
+
+#漫畫閱讀器 #本子閱讀器 #同人誌閱讀器 #條漫閱讀器 #韓漫閱讀器 #本地漫畫閱讀器 #看圖軟體 #圖片瀏覽器
+
+#漫画ビューア #同人誌ビューア #漫画リーダー #マンガビューア #マンガリーダー #コミックビューア #縦読み漫画 #縦スクロール漫画 #ウェブトゥーンビューア #画像ビューア #ローカル漫画ビューア #オフライン漫画リーダー
+
+#만화뷰어 #만화리더 #웹툰뷰어 #웹툰리더 #동인지뷰어 #코믹뷰어 #로컬만화뷰어 #이미지뷰어 #세로스크롤만화 #오프라인만화뷰어
+
+#manga-reader #manga-viewer #comic-reader #comic-viewer #webtoon-reader #manhwa-reader #manhua-reader #doujinshi-reader #image-viewer #local-manga-reader #offline-manga-reader #pwa

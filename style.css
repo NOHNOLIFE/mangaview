@@ -88,6 +88,7 @@ h1{margin:6px 0 8px;font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacin
 #toolbar>*{pointer-events:auto}
 #tab{border-color:var(--line2);background:var(--glass);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--shadow);color:var(--text);opacity:.5}
 #tab:hover,#tab:focus-visible{opacity:1}
+#tab:not(:disabled):active{transform:none}
 #toolbar.open{border-color:var(--line2);background:var(--glass);backdrop-filter:blur(22px) saturate(1.5);box-shadow:var(--shadow);pointer-events:auto;animation:drop .2s var(--ease)}
 #toolbar.open #tab{opacity:1;border-color:transparent;background:transparent;box-shadow:none;backdrop-filter:none;color:var(--muted)}
 #toolbar.open #tab:hover{background:rgba(255,255,255,.08);color:var(--text)}
