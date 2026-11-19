@@ -4,13 +4,15 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0e0f11"><title>MangaView v2.0.0</title>
 <link rel="icon" href="./icons/192.png"><link rel="manifest" href="./app.webmanifest">
-<link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script>
+<link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./toolbar.css"><script type="module" src="./app.mjs"></script>
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
 <defs><linearGradient id="logoFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa070"/><stop offset="1" stop-color="#ff4d7d"/></linearGradient></defs>
 <symbol id="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="url(#logoFill)"/><rect x="13" y="9" width="22" height="30" rx="3.5" fill="#fff"/><path d="M13 20.5h22M13 29.5h22M25 20.5v9" stroke="url(#logoFill)" stroke-width="2.6" fill="none"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+<symbol id="i-tb-bookmark" viewBox="0 0 24 24"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-tb-settings" viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.2a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.2a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.2a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.2a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-library" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><path d="m17.2 5.3 2.9-.8 3 14.4-2.9.8z"/></symbol>
 <symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 19 9 12l9-7z"/><path d="M6 5v14"/></symbol>
 <symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7z"/><path d="M18 5v14"/></symbol>
@@ -72,30 +74,27 @@
 <div id="win-drag"></div>
 <div id="toolbar">
 <button id="tab" class="icon-btn" data-label="tools" aria-expanded="false" aria-controls="bar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
-<nav id="bar" hidden data-aria="tools">
-<button class="shelf-btn" data-act="shelf" data-label="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
-<button class="icon-btn" data-act="refresh" data-label="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
-<div class="heading"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small></div>
-<div class="group">
-<button class="icon-btn" data-act="prev" data-label="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg></button>
-<button class="icon-btn" data-act="next" data-label="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg></button>
-</div>
-<div class="group">
-<button class="icon-btn" data-act="sort" data-label="sort" aria-haspopup="dialog" aria-controls="sortOptions"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button>
-<button class="icon-btn" data-act="fit" data-label="fit" aria-pressed="true"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg></button>
-<button class="icon-btn" data-act="preview" data-label="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg></button>
-</div>
-<div class="group">
-<button class="icon-btn" data-act="folder" data-label="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg></button>
-<button class="icon-btn" data-act="files" data-label="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg></button>
-</div>
-<div class="group">
-<button class="icon-btn" data-act="full" data-label="full"><svg class="i on-window" aria-hidden="true"><use href="#i-full-enter"/></svg><svg class="i on-full" aria-hidden="true"><use href="#i-full-exit"/></svg></button>
-<button class="icon-btn" data-act="help" data-label="help"><svg class="i" aria-hidden="true"><use href="#i-keyboard"/></svg></button>
-<a class="icon-btn" href="https://github.com/NOHNOLIFE/mangaview" target="_blank" rel="noopener noreferrer" data-label="github"><svg class="i" aria-hidden="true"><use href="#i-github"/></svg></a>
-</div>
+<nav id="bar" hidden data-aria="tools" data-cols="2">
+<div class="heading"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small><div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div></div>
+<button class="tb wide shelf-btn" data-act="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
+<button class="tb wide" data-act="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span data-t="refresh"></span></button>
+<hr class="sep">
+<button class="tb" data-act="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg><span data-t="prev"></span></button>
+<button class="tb" data-act="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg><span data-t="next"></span></button>
+<hr class="sep">
+<button class="tb" data-act="sort" aria-haspopup="dialog" aria-controls="sortOptions"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg><span data-t="sort"></span></button>
+<button class="tb" data-act="fit" aria-pressed="true"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg><span data-t="fit"></span></button>
+<button class="tb" data-act="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span data-t="preview"></span></button>
+<button class="tb" data-act="bookmarks" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-bookmark"/></svg><span data-t="bookmarks"></span></button>
+<hr class="sep">
+<button class="tb" data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
+<button class="tb" data-act="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg><span data-t="files"></span></button>
+<hr class="sep">
+<button class="tb" data-act="full"><svg class="i on-window" aria-hidden="true"><use href="#i-full-enter"/></svg><svg class="i on-full" aria-hidden="true"><use href="#i-full-exit"/></svg><span data-t="full"></span></button>
+<button class="tb" data-act="help"><svg class="i" aria-hidden="true"><use href="#i-keyboard"/></svg><span data-t="help"></span></button>
+<button class="tb" data-act="settings" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-settings"/></svg><span data-t="settings"></span></button>
+<a class="tb" href="https://github.com/NOHNOLIFE/mangaview" target="_blank" rel="noopener noreferrer"><svg class="i" aria-hidden="true"><use href="#i-github"/></svg><span data-t="github"></span></a>
 </nav>
-<div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div>
 </div>
 
 <div id="zoneHint" aria-hidden="true" hidden><span class="pill"><svg class="i"><use id="zoneIcon" href="#i-to-top"/></svg><span id="zoneText"></span></span></div>
