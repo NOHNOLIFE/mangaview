@@ -3,7 +3,8 @@ import {byTime,sortedPages,folderSort,needsSort,isImage,natural} from './model.m
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes} from './sources.mjs';
+import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive} from './sources.mjs';
+import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
@@ -85,30 +86,39 @@ function select(book){flush();current=book||null;queueMicrotask(()=>emit('select
   if(book && needsSort(book,defaultSort))safe(arrange)(book);
 }
 function reloadView(anchor=view.anchor()){if(!current)return;$('access').hidden=true;view.show(current,anchor);updateProgress();}
-function filtered(){const q=$('query').value.trim().toLocaleLowerCase();return [...books.values()].filter(b=>title(b).toLocaleLowerCase().includes(q)&&b.pages.length>=Number($('min').value)&&(!$('max').value||b.pages.length<=Number($('max').value)));}
+// 过期：文件夹找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
+function expired(b){return !!b.missing||!b.dir&&!b.pages.some(p=>p.handle)&&!isLive(b);}
+// 上一本 / 下一本在当前书所在的列表（书架或书库）内切换，跳过过期书。
+function readingList(book){const place=book?.place??'shelf';return [...books.values()].filter(b=>b.place===place&&!expired(b)).sort((a,b)=>natural(title(a),title(b)));}
 function step(d){
-  const list=filtered();if(!list.length)return;
+  const list=readingList(current);if(!list.length)return;
   const i=list.indexOf(current);
   const next=i<0 ? (d<0?list.length-1:0) : (i+d+list.length)%list.length;
   select(list[next]);
 }
 
 // 不对未打开的书读取原图；目录本身的只读句柄可跨启动保存。
+// 同一个文件夹（句柄相同）合并为同一本书；同名但位置不同的文件夹是不同的书。
+// 找不到时再看过期书：文件夹名和封面摘要都一致时接回原记录，标签、书签和进度随之恢复。
 async function addGroup(group){
   let book;
-  if(group.dir)for(const b of books.values())if(b.title===group.title&&b.dir&&await group.dir.isSameEntry(b.dir)){book=b;break;}
+  if(group.dir)for(const b of books.values())if(b.title===group.title&&b.dir&&await group.dir.isSameEntry(b.dir).catch(()=>false)){book=b;break;}
+  if(!book&&group.dir)book=await ctx.autoMatch?.(group);
   if(!group.title){const names=new Set(group.pages.map(p=>p.name));book=[...books.values()].find(b=>!b.title&&!b.pages.some(p=>names.has(p.name)));}
-  if(book){
-    const before=book===current?view.anchor():null;
-    if(group.dir){
-      const fresh=new Map(group.pages.map(p=>[p.name,p]));
-      const retained=book.pages.filter(p=>fresh.delete(p.name));
-      for(const p of retained)delete p.lastModified;
-      book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;
-    }else book.pages.push(...group.pages);
-    await arrange(book,false,before);
-  }else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group});books.set(book.id,book);await persist(book);}
+  if(book){book.place='shelf';await relink(book,group);}else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group});books.set(book.id,book);await persist(book);}
   return book;
+}
+// 把书目接到（新的）文件夹上：保留仍存在的页面及其尺寸，追加新图，去掉已不存在的图。
+async function relink(book,group){
+  const before=book===current?view.anchor():null;
+  if(group.dir){
+    const fresh=new Map(group.pages.map(p=>[p.name,p]));
+    const retained=book.pages.filter(p=>fresh.delete(p.name));
+    for(const p of retained)delete p.lastModified;
+    book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;
+    if(group.path)book.path=group.path;if(group.title)book.title=group.title;delete book.missing;
+  }else book.pages.push(...group.pages);
+  await arrange(book,false,before);emit('books');
 }
 async function add(groups){
   let first=true;
@@ -119,7 +129,7 @@ async function add(groups){
   }
   if(first)notice('noImages');
   else if($('notice').textContent===t('scanning'))$('notice').textContent='';
-  if(shelf.open)drawShelf();
+  ctx.redrawShelf();emit('books');
 }
 let pendingInput=null;
 function input(kind,book){pendingInput=book;const el=$(kind+'Input');el.value='';el.click();}
@@ -149,36 +159,15 @@ window.addEventListener('drop',e=>{
   else safe(add)(fileGroups(e.dataTransfer.files));
 });
 
-const covers=new Map(), coverObserver=new IntersectionObserver(entries=>{for(const entry of entries){const slot=entry.target,b=covers.get(slot);if(!b)continue;
-  if(entry.isIntersecting)imageJob(slot,()=>source(b,b.pages[0]),20,true);else release(slot);
-}},{root:$('books')});
-function cleanShelf(){coverObserver.disconnect();for(const slot of covers.keys())release(slot);covers.clear();$('books').replaceChildren();}
-function drawShelf(){cleanShelf();const holder=$('books'),list=filtered();
-  $('shelfCount').textContent=!books.size?'':list.length===books.size?books.size:list.length+' / '+books.size;
-  if(!list.length){const box=make('div','shelf-empty');box.append(icon('book-open'),make('p','',t(books.size?'noBooks':'emptyShelf')));holder.append(box);return;}
-  const batch=document.createDocumentFragment();
-  list.forEach((b,n)=>{
-    const card=make('article','book'+(b===current?' current':'')+(b.missing?' missing':''));card.style.animationDelay=Math.min(n,24)*18+'ms';
-    const pick=make('button','pick');pick.type='button';pick.onclick=safe(()=>{select(b);shelf.close();main.focus();});
-    const cover=make('span','cover');covers.set(cover,b);coverObserver.observe(cover);
-    const ratio=readRatio(b),percent=Math.round(ratio*100),info=make('span','info'),meta=make('span','meta'),bar=make('span','progress');
-    meta.append(make('span','',b.pages.length+' '+t('pages')),b.missing?make('span','lost',t('missingFolder')):make('span',percent?'':'fresh',percent?percent+'%':t('unread')));
-    bar.style.setProperty('--p',ratio);info.append(make('strong','name',title(b)),meta,bar);
-    pick.append(cover,info);if(b===current)pick.append(make('span','badge',t('nowReading')));
-    const tools=make('div','actions');tools.append(iconButton('copy',t('titleCopy'),()=>copy(title(b))),iconButton('trash',t('remove'),()=>remove(b),'danger'));
-    card.append(pick,tools);batch.append(card);
-  });
-  holder.append(batch);
-}
 async function copy(value){await navigator.clipboard.writeText(value);notice('copied');}
 async function discard(book){
   sortRequests.delete(book);flush();await library('delete',book.id);await dropThumbs(book.id);books.delete(book.id);
   if(book===current){current=null;select(books.values().next().value);}dropKey('pos:'+book.id);
 }
-async function remove(book){if(!book||!confirm(t('confirmRemove')+'\n'+title(book)))return;await discard(book);if(shelf.open)drawShelf();}
+async function remove(book){if(!book||!confirm(t('confirmRemove')+'\n'+title(book)))return;await discard(book);ctx.redrawShelf();}
 
 // 刷新：只列目录、不读图。浏览器无法区分“文件夹已删除”和“移动硬盘未连接”，
-// 所以自动检查只标记失效；删除记录只在手动刷新并经确认后进行。
+// 所以找不到的书只标记为过期（书架“过期书籍”分类），记录、标签和书签都保留，用户手动删除才清除。
 async function check(book,ask){
   let state=await book.dir.queryPermission?.({mode:'read'})??'granted';
   if(state==='prompt'&&ask)state=await book.dir.requestPermission({mode:'read'}).catch(()=>'prompt');
@@ -202,21 +191,16 @@ function refreshAll(manual){
   if(refreshing)return refreshing;
   refreshing=(async()=>{
     busy(true);if(manual)notice('refreshing');
-    let updated=0,denied=0,removed=0;const gone=[];
+    let updated=0,denied=0,gone=0;
     for(const b of [...books.values()]){
       if(!b.dir||!books.has(b.id))continue;
       const r=await check(b,manual&&b===current);
-      if(r==='denied')denied++;else if(r==='gone'){b.missing=true;gone.push(b);}else if(r!=='same')updated++;
+      if(r==='denied')denied++;else if(r==='gone'){b.missing=true;gone++;}else if(r!=='same')updated++;
     }
-    if(gone.length&&manual){
-      const names=gone.slice(0,20).map(title).join('\n')+(gone.length>20?'\n…':'');
-      if(confirm(t('confirmPrune')+'\n\n'+names)){for(const b of gone)if(books.has(b.id))await discard(b);removed=gone.length;}
-    }
-    if(shelf.open)drawShelf();
+    ctx.redrawShelf();emit('books');
     const parts=[];
     if(updated)parts.push(fmt('updatedN',{n:updated}));
-    if(removed)parts.push(fmt('removedN',{n:removed}));
-    if(gone.length>removed)parts.push(fmt(manual?'goneN':'goneHint',{n:gone.length-removed}));
+    if(gone)parts.push(fmt('expiredN',{n:gone}));
     if(denied&&manual)parts.push(fmt('deniedN',{n:denied}));
     if(parts.length)notice(null,parts.join(' · '));else if(manual)notice('refreshDone');
   })().finally(()=>{refreshing=null;busy(false);});
@@ -227,14 +211,13 @@ let focusCheck=0;
 window.addEventListener('focus',safe(async()=>{
   const book=current;if(!book?.dir||refreshing||Date.now()-focusCheck<1500)return;focusCheck=Date.now();
   const r=await check(book,false);
-  if(r==='gone'){book.missing=true;notice(null,fmt('goneHint',{n:1}));}
+  if(r==='gone'){book.missing=true;notice(null,fmt('expiredN',{n:1}));ctx.redrawShelf();}
   else if(typeof r==='object'&&book===current)notice(null,fmt('pagesChanged',{a:r.added,r:r.removed}));
 }));
 async function clearAll(){if(!books.size||!confirm(t('confirmClear')))return;
   for(const book of books.values())sortRequests.delete(book);
   flush();await library('clear');await thumbs('clear');for(const id of books.keys())dropKey('pos:'+id);
-  books.clear();current=null;select(null);drawShelf();}
-$('filters').oninput=drawShelf;$('filters').onreset=()=>queueMicrotask(drawShelf);$('filters').onsubmit=e=>e.preventDefault();shelf.onclose=cleanShelf;
+  books.clear();current=null;select(null);ctx.redrawShelf();}
 
 const sortRequests=new WeakMap();
 async function arrange(book,manual=false,anchor){
@@ -295,7 +278,7 @@ sortOptions.onclick=safe(async e=>{
     await arrange(current,mode!=='default');
   }
 });
-const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf.showModal();drawShelf();},help:()=>$('help').showModal(),
+const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf.showModal();ctx.drawShelf();},help:()=>$('help').showModal(),
   prev:()=>step(-1),next:()=>step(1),sort:()=>{
     sortScope.querySelector('[value="folder"]').disabled=!current;
     sortScope.value=current?'folder':'global';
@@ -303,7 +286,7 @@ const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf
   },
   fit:()=>{view.fit=!view.fit;put('fit',view.fit);view.layout();toolsState();},
   full:()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(),
-  preview:()=>{pinned=!pinned;put('preview',pinned);preview(pinned);},refresh:()=>refreshAll(true),copy:()=>copy(filtered().map(title).join('\n')),clear:clearAll,
+  preview:()=>{pinned=!pinned;put('preview',pinned);preview(pinned);},refresh:()=>refreshAll(true),clear:clearAll,
   allow:async()=>{const b=current;if(!b)return;const h=b.dir||unavailablePage?.handle;
     if(!h)return pick(b.title?'folder':'file',b);if(await h.requestPermission({mode:'read'})==='granted'&&current===b)reloadView();},
   locate:()=>current&&pick(current.title?'folder':'file',current)};
@@ -377,7 +360,7 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{if(e.code===hold)stop();for(const h of ctx.keys)h.up?.(e);});window.addEventListener('blur',()=>{stop();for(const h of ctx.keys)h.blur?.();});
 window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden){flush();stop();}});
-function relocalize(){localize();toolsState();if(sortOptions.open)showSortChoices();if(shelf.open)drawShelf();emit('lang',lang);}
+function relocalize(){localize();toolsState();if(sortOptions.open)showSortChoices();ctx.redrawShelf();emit('lang',lang);}
 function setLang(code){put('lang',code||null);lang=code||detect(navigator.languages||[navigator.language]);relocalize();}
 window.addEventListener('languagechange',()=>{if(langPref())return;lang=detect(navigator.languages);relocalize();});
 
@@ -387,7 +370,8 @@ function normalize(b){b.place??='shelf';b.tags??=[];b.bookmarks??=[];b.added??=D
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
-  redrawShelf(){if(shelf.open)drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open)};
+  drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
+  expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -397,6 +381,7 @@ ctx.settings.push(
 
 try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
+shelfUI(ctx);
 
 select(books.get(get('last'))||books.values().next().value);
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹

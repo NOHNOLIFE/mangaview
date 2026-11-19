@@ -26,13 +26,15 @@ export async function readMissingTimes(book,active){
 }
 function pageFor(file){const p={name:file.name,lastModified:file.lastModified};live.set(p,file);return p;}
 const ordered=pages=>pages.sort((a,b)=>natural(a.name,b.name));
-export async function* scan(dir){
+// path：从所选根目录起的相对路径，用于区分同名文件夹和恢复过期书（浏览器拿不到磁盘绝对路径）。
+export async function* scan(dir,base=''){
+  const path=base?base+'/'+dir.name:dir.name;
   const pages=[],children=[];
   for await(const h of dir.values()){
     if(h.kind==='directory')children.push(h);else if(isImage(h.name))pages.push({name:h.name});
   }
-  if(pages.length)yield {title:dir.name,dir,pages:ordered(pages)};
-  for(const child of children)yield* scan(child);
+  if(pages.length)yield {title:dir.name,dir,path,pages:ordered(pages)};
+  for(const child of children)yield* scan(child,path);
 }
 export function fileGroups(files){
   const groups=new Map();
@@ -41,13 +43,15 @@ export function fileGroups(files){
     const path=f.webkitRelativePath?.split('/').slice(0,-1).join('/')||'';
     if(!groups.has(path))groups.set(path,[]);groups.get(path).push(pageFor(f));
   }
-  return Array.from(groups,([path,pages])=>({title:path.split('/').pop()||null,pages:ordered(pages)}));
+  return Array.from(groups,([path,pages])=>({title:path.split('/').pop()||null,...path&&{path},pages:ordered(pages)}));
 }
 export async function* handleGroups(handles){
   const loose=[];
   for(const h of handles){if(h.kind==='directory')yield* scan(h);else if(isImage(h.name))loose.push({name:h.name,handle:h});}
   if(loose.length)yield {title:null,pages:ordered(loose)};
 }
+// 本次会话里是否还持有文件选择器给的 File（无句柄的书重启后即失效）。
+export const isLive=book=>book.pages.some(p=>live.has(p));
 export function reconnect(book,group){
   // 只重绑定同名条目，不用选错的目录覆盖原来的历史或随机顺序。
   const byName=new Map(group.pages.map(p=>[p.name,p]));let count=0;

@@ -4,14 +4,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0e0f11"><title>MangaView v2.0.0</title>
 <link rel="icon" href="./icons/192.png"><link rel="manifest" href="./app.webmanifest">
-<link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script>
+<link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./shelf.css"><script type="module" src="./app.mjs"></script>
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
 <defs><linearGradient id="logoFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa070"/><stop offset="1" stop-color="#ff4d7d"/></linearGradient></defs>
 <symbol id="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="url(#logoFill)"/><rect x="13" y="9" width="22" height="30" rx="3.5" fill="#fff"/><path d="M13 20.5h22M13 29.5h22M25 20.5v9" stroke="url(#logoFill)" stroke-width="2.6" fill="none"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
-<symbol id="i-library" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><path d="m17.2 5.3 2.9-.8 3 14.4-2.9.8z"/></symbol>
+<symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol><symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></symbol><symbol id="i-library" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><path d="m17.2 5.3 2.9-.8 3 14.4-2.9.8z"/></symbol>
 <symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 19 9 12l9-7z"/><path d="M6 5v14"/></symbol>
 <symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7z"/><path d="M18 5v14"/></symbol>
 <symbol id="i-sort" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M21 8l-4-4-4 4M17 4v16"/></symbol>
@@ -105,9 +105,14 @@
 <section id="access" hidden><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span data-t="missing"></span>
 <div class="actions"><button class="primary" data-act="allow"><svg class="i" aria-hidden="true"><use href="#i-unlock"/></svg><span data-t="allow"></span></button><button data-act="locate"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><span data-t="locate"></span></button></div></section>
 
-<dialog id="shelf" aria-labelledby="shelfTitle">
+<dialog id="shelf" data-aria="shelf">
 <header>
-<div class="title"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><h2 id="shelfTitle" data-t="shelf"></h2><span id="shelfCount" class="count"></span></div>
+<div class="views" id="views" role="tablist" data-aria="views">
+<button role="tab" data-view="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="viewShelf"></span><span class="count"></span></button>
+<button role="tab" data-view="library"><svg class="i" aria-hidden="true"><use href="#i-archive"/></svg><span data-t="viewLibrary"></span><span class="count"></span></button>
+<button role="tab" data-view="all"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg><span data-t="viewAll"></span><span class="count"></span></button>
+<button role="tab" data-view="expired" class="expired-tab"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span data-t="viewExpired"></span><span class="count"></span></button>
+</div>
 <div class="tools">
 <button class="icon-btn" data-act="refresh" data-label="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
 <button data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
@@ -116,16 +121,28 @@
 </div>
 </header>
 <form id="filters" role="search">
-<label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="query" type="search" data-placeholder="search"></label>
+<label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="query" type="search" data-placeholder="search" autocomplete="off" autofocus></label>
 <div class="range"><input id="min" type="number" min="0" data-placeholder="min"><span>–</span><input id="max" type="number" min="0" data-placeholder="max"></div>
 <button type="reset" data-t="reset"></button>
 </form>
+<div id="tagBar" class="tag-bar" hidden></div>
+<div id="bulk" class="bulk"><span id="shelfCount" class="count"></span><p id="expiredHint" class="hint" data-t="expiredHint" hidden></p><span class="spacer"></span><span id="bulkActions" class="bulk-actions"></span><button class="icon-btn" data-act="copy" data-label="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
 <div id="books"></div>
-<footer>
-<button data-act="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span data-t="copy"></span></button>
-<span class="spacer"></span>
-<button class="danger" data-act="clear"><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg><span data-t="clear"></span></button>
-</footer>
+</dialog>
+
+<dialog id="tagEditor" aria-labelledby="tagTitle">
+<header><h2 id="tagTitle" data-t="editTags"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+<p id="tagBook" class="tag-book"></p>
+<div id="tagList" class="tag-list"></div>
+<form id="tagForm" class="tag-form"><input id="tagInput" data-placeholder="addTag" autocomplete="off" maxlength="40"><button class="primary" type="submit" data-t="add"></button></form>
+<div id="tagSuggest" class="tag-list suggest"></div>
+</dialog>
+
+<dialog id="restore" aria-labelledby="restoreTitle">
+<header><h2 id="restoreTitle"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+<p id="restoreHint" class="hint"></p>
+<div id="restoreList" class="restore-list"></div>
+<footer><span class="spacer"></span><button data-close data-t="cancel"></button><button id="restoreGo" class="primary"></button></footer>
 </dialog>
 
 <dialog id="sortOptions" aria-labelledby="sortTitle">

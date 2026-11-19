@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {detect,translate} from '../lang.mjs';
 import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort} from '../model.mjs';
+import {grade,assign,coverName,hue,norm} from '../match.mjs';
 import {fileGroups,scan,reconnect,source,readMissingTimes} from '../sources.mjs';
 
 test('语言按偏好顺序匹配地区变体，否则显示英文',()=>{
@@ -72,4 +73,19 @@ test('无句柄的散图不复制进历史；重新定位不删除未匹配图',
   const book=structuredClone(group);await assert.rejects(source(book,book.pages[0]),{name:'NotFoundError'});
   book.pages.unshift({name:'missing.jpg'});assert.equal(reconnect(book,group),1);
   assert.equal(await source(book,book.pages[1]),f);assert.equal(book.pages.length,2);
+});
+test('过期书匹配：同名同封面自动恢复，改名或换封面需确认，一个文件夹只配一本书',()=>{
+  const book=(title,hash,names=['1.jpg','2.jpg'])=>({title,pages:names.map(name=>({name})),fp:hash&&{cover:{hash}}});
+  const cand=(title,hash,names=['1.jpg','2.jpg'])=>({title,hash,names});
+  assert.equal(grade(book('Ａlpha  Book','h1'),cand('alpha book','h1')).level,2);
+  assert.equal(grade(book('A','h1'),cand('B','h1')).level,1);
+  assert.equal(grade(book('A','h1'),cand('A','h2')).level,1);
+  assert.equal(grade(book('A',null),cand('A',null)).level,2);
+  assert.equal(grade(book('A',null,['1.jpg']),cand('A',null,['9.jpg'])).level,1);
+  assert.equal(grade(book('A','h1'),cand('B','h2')).level,0);
+  const b1=book('A','h1'),b2=book('A','h2'),c1=cand('A','h1');
+  const out=assign([{book:b2,cand:c1,...grade(b2,c1)},{book:b1,cand:c1,...grade(b1,c1)}]);
+  assert.equal(out.length,1);assert.equal(out[0].book,b1);
+  assert.equal(coverName(['10.jpg','2.jpg','b.png']),'2.jpg');
+  assert.equal(hue('热血'),hue(' 热血 '));assert.equal(norm('ＡＢ  c'),'ab c');
 });

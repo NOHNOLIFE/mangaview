@@ -134,7 +134,7 @@ try{
   assert.equal((await record()).override,'shuffle');assert.deepEqual(await order(),mixed);
   await setSort('nameDesc','global');await js(`document.querySelector('#bar [data-act="next"]').click()`);
   await wait(async()=>{const b=await record();return b.id===second.id&&b.mode==='nameDesc';});assert.deepEqual(await order(),reversed);
-  // 刷新：新增图片并入当前书；文件夹删除后经确认清理记录。
+  // 刷新：新增图片并入当前书；文件夹删除后不删记录，而是归入过期书籍，手动删除才清除。
   await js(`(async()=>{const d=await (await (await navigator.storage.getDirectory()).getDirectoryHandle('other')).getDirectoryHandle('Test book');
     const w=await (await d.getFileHandle('0.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="6" height="9"/>');await w.close();})()`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);
@@ -142,8 +142,14 @@ try{
   await wait(()=>js(`!document.querySelector('#bar [data-act="refresh"]').disabled`));
   await js(`window.confirm=()=>true;navigator.storage.getDirectory().then(r=>r.removeEntry('other',{recursive:true}))`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);
-  await wait(async()=>(await record()).id===original);
-  assert.equal(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).length)`),1);
+  await wait(()=>js(`!document.querySelector('#bar [data-act="refresh"]').disabled`));
+  assert.equal(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).length)`),2,'Missing folders keep their records');
+  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await wait(()=>js(`!document.querySelector('[data-view="expired"]').hidden`));
+  await js(`document.querySelector('[data-view="expired"]').click()`);
+  await wait(()=>js(`document.querySelectorAll('#books .book.expired').length===1`));
+  await js(`[...document.querySelectorAll('#bulkActions button')].at(-1).click()`);
+  await wait(()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).length===1)`));await js('shelf.close()');
   assert.deepEqual(errors,[]);console.log('PASS: locale, import, virtual strip, floating toolbar geometry, long-image navigation, shelf, offline cold start, shuffle persistence, non-disruptive update, folder refresh');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
