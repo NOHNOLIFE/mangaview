@@ -5,6 +5,7 @@ import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
 import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes} from './sources.mjs';
 import {Reader,imageJob,release} from './view.mjs';
+import {install as bookmarks} from './bookmarks.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -397,6 +398,7 @@ ctx.settings.push(
 
 try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
+bookmarks(ctx);
 
 select(books.get(get('last'))||books.values().next().value);
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
