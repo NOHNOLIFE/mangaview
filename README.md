@@ -96,7 +96,7 @@ The full-screen bookmark and thumbnail views switch between a regular grid (the 
 | `T` | Show or hide the toolbar |
 | `Esc` | Close the toolbar, the action bar and floating side panels |
 
-The keyboard button in the toolbar shows this list inside the app.
+The keyboard button in the toolbar shows these controls inside the app as a picture: the left-hand and right-hand parts of a keyboard and the mouse, with each key labelled by what it does; hover or focus a key for the full description.
 
 ### Toolbar and action bar
 
