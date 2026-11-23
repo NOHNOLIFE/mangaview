@@ -42,11 +42,13 @@
 .ov-marks.masonry .ov-mark{position:absolute;aspect-ratio:auto}
 .ov-layout{flex:none}
 
-/* 侧栏顶部（缩略图栏；书架书签列表的 .sm-head 见 bookmarks.css，两者同高、镜像对称）：内侧是打开全屏总览的按钮，然后是标题和数量。 */
+/* 侧栏头部（缩略图栏 .pv-head；书架书签列表的 .sm-head 见 bookmarks.css）：两侧同高（52px）、镜像对称，各是一个占满整行的块状“打开全屏”按钮
+   （图标、文字、数量），距内侧（靠阅读区）和外侧边缘同为 10px 左右。 */
 #panel>.pv-head{position:absolute;z-index:1;top:0;left:10px;right:0;height:52px}
 #panel>#preview{top:52px}
-.side-head{display:flex;flex:none;align-items:center;gap:8px;min-width:0;padding:0 6px;color:var(--muted);font-size:12.5px;font-weight:600}
-.side-head .count{color:var(--faint);font-variant-numeric:tabular-nums}
-.side-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.side-open{flex:none;margin-left:-4px;width:32px;height:32px;border-radius:9px}
-.side-open .i{width:18px;height:18px}
+.side-head{display:flex;flex:none;align-items:center;min-width:0;padding:0 10px 0 0;color:var(--muted);font-size:12.5px;font-weight:600}
+.side-open{flex:1;min-width:0;justify-content:flex-start;gap:8px;width:auto;height:36px;padding:0 8px 0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;font-weight:600}
+.side-open:not(:disabled):hover{background:var(--s3);border-color:rgba(255,255,255,.18);color:var(--text)}
+.side-open .i{width:18px;height:18px;color:var(--accent)}
+.side-open .side-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-open .count{flex:none;margin-left:auto;padding:0 2px;background:none;color:var(--faint);font-weight:600}

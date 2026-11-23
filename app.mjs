@@ -3,7 +3,7 @@ import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage} from './sources.mjs';
+import {source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -57,6 +57,9 @@ let noticeTimer;
 const fmt=(key,vars)=>t(key).replace(/\{(\w+)\}/g,(_,k)=>vars[k]);
 function notice(key,text=t(key),ms=3800){clearTimeout(noticeTimer);$('notice').textContent=text;noticeTimer=setTimeout(()=>$('notice').textContent='',ms);}
 function safe(fn){return (...args)=>Promise.resolve().then(()=>fn(...args)).catch(e=>{if(e.name!=='AbortError'){console.warn(e);notice('failed');}});}
+// 边缘触发区（像素）：四边同一个值，见下方 atEdge。inset：顶缘从窗口控件覆盖区（--top）以下算起。
+const EDGE=32;
+const atEdge=(side,e,inset=0)=>side==='left'?e.clientX<EDGE:side==='right'?innerWidth-e.clientX<=EDGE:side==='top'?e.clientY-inset<EDGE:innerHeight-e.clientY<=EDGE;
 const prefix='mv2:', books=new Map();let current=null, unavailablePage=null;
 function get(key,otherwise=null){try{return JSON.parse(localStorage.getItem(prefix+key))??otherwise;}catch{return otherwise;}}
 function put(key,value){try{localStorage.setItem(prefix+key,JSON.stringify(value));}catch{notice('storage');}}
@@ -282,7 +285,7 @@ async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
     if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
     else await add(scan(dir));
-  }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('files'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg']}}]});
+  }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('imageTypes'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg']}}]});
     if(book){for await(const g of handleGroups(handles))await rebound(book,reconnect(book,g));}else await add(handleGroups(handles));
   }else input(kind,book);
 }
@@ -291,26 +294,29 @@ async function pickMerged(){
   if(!window.showDirectoryPicker)return input('folder',null,true);
   const dir=await showDirectoryPicker({mode:'read'});await addMerged([dir],scan(dir));
 }
-// 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。下方一小块区域是「导入为单个作品」。
-let dragDepth=0;const dropOverlay=$('dropOverlay'),dropMerge=$('dropMerge');
-const overMerge=e=>{if(dropOverlay.hidden)return false;const r=dropMerge.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;};
+// 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。中间是默认区域（按文件夹建书），下方依次是「导入为单个作品」和「添加到散图图集」两块区域。
+// 散图区域：拖入内容里的所有图片（包括文件夹里的，递归）都作为散图加入散图图集，不按文件夹建书。
+let dragDepth=0;const dropOverlay=$('dropOverlay'),zones=[...dropOverlay.querySelectorAll('.zone')];
+const zoneAt=e=>{if(dropOverlay.hidden)return null;for(const z of zones){const r=z.getBoundingClientRect();if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)return z.dataset.zone;}return null;};
 function overlay(show){
   if(show){$('dropText').textContent=t(importPlace()==='library'?'dropLibrary':'dropHere');dropOverlay.hidden=false;
     if(dropOverlay.showPopover&&!dropOverlay.matches(':popover-open'))try{dropOverlay.showPopover();}catch{}}
-  else{dropOverlay.hidden=true;dropMerge.classList.remove('over');if(dropOverlay.hidePopover&&dropOverlay.matches(':popover-open'))try{dropOverlay.hidePopover();}catch{}}
+  else{dropOverlay.hidden=true;for(const z of zones)z.classList.remove('over');if(dropOverlay.hidePopover&&dropOverlay.matches(':popover-open'))try{dropOverlay.hidePopover();}catch{}}
 }
 window.addEventListener('dragenter',e=>{if(e.dataTransfer.types.includes('Files')){dragDepth++;if(dropOverlay.hidden)overlay(true);}});
 window.addEventListener('dragleave',e=>{if(e.dataTransfer.types.includes('Files')&&--dragDepth<=0){dragDepth=0;overlay(false);}});
-window.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';dropMerge.classList.toggle('over',overMerge(e));}});
+window.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';const at=zoneAt(e);for(const z of zones)z.classList.toggle('over',z.dataset.zone===at);}});
 window.addEventListener('drop',e=>{
-  const merge=overMerge(e),place=importPlace();
+  const zone=zoneAt(e),place=importPlace();
   dragDepth=0;overlay(false);
   if(!e.dataTransfer.types.includes('Files'))return;e.preventDefault();
   const items=[...e.dataTransfer.items].filter(x=>x.kind==='file');
   if(items.length&&items[0].getAsFileSystemHandle){const handles=items.map(x=>x.getAsFileSystemHandle());safe(async()=>{
     const list=(await Promise.all(handles)).filter(Boolean);
-    if(merge)await addMerged(list.filter(h=>h.kind==='directory'),handleGroups(list),place);else await add(handleGroups(list),place);})();}
-  else safe(merge?addMerged:add)(...merge?[null,fileGroups(e.dataTransfer.files),place]:[fileGroups(e.dataTransfer.files),place]);
+    if(zone==='merge')await addMerged(list.filter(h=>h.kind==='directory'),handleGroups(list),place);
+    else if(zone==='loose'){notice('scanning');await add(await looseImages(list),place);}
+    else await add(handleGroups(list),place);})();}
+  else{const files=e.dataTransfer.files;safe(()=>zone==='merge'?addMerged(null,fileGroups(files),place):add(zone==='loose'?looseFiles(files):fileGroups(files),place))();}
 });
 
 async function copy(value){await navigator.clipboard.writeText(value);notice('copied');}
@@ -478,15 +484,16 @@ function showBar(open){clearTimeout(barTimer);fade(bar,open);toolbar.classList.t
 tab.onclick=()=>{const keyboard=document.activeElement===tab;showBar(true);if(keyboard)bar.querySelector('.tb:not([hidden])')?.focus();};toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&!showing(bar))showBar(true);};
 toolbar.onpointerleave=()=>{clearTimeout(barTimer);if(!toolbar.querySelector(':focus-visible'))barTimer=setTimeout(()=>showBar(false),450);};
 toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeElement)&&!toolbar.matches(':hover'))showBar(false);});
-// 鼠标贴近窗口右缘（SIDE_EDGE 像素内）停留 SIDE_DWELL 毫秒即弹出缩略图栏，离开后自动收起；左侧书架书签（bookmarks.mjs）相同。
-// 两侧栏拖宽度的下限也统一为 SIDE_MIN。
-const SIDE_EDGE=32,SIDE_DWELL=150,SIDE_MIN=160;
+// 四边的边缘触发区统一为 EDGE 像素（ctx.atEdge）：顶缘工具栏、底缘操作栏（toolbar.mjs）、左缘书架书签（bookmarks.mjs）、右缘缩略图栏（这里）。
+// 改距离只改这一处；各自的停留延迟（DWELL）用来防误触，可以不同。
+// 鼠标贴近右缘停留 SIDE_DWELL 毫秒即弹出缩略图栏，离开后自动收起；左侧书架书签相同。两侧栏拖宽度的下限也统一为 SIDE_MIN。
+const SIDE_DWELL=150,SIDE_MIN=160;
 function cancelEdge(){clearTimeout(edgeTimer);edgeTimer=0;}
 document.addEventListener('pointermove',e=>{
-  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&!showing($('panel'))&&innerWidth-e.clientX<=SIDE_EDGE&&!document.querySelector('dialog[open]');
+  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&!showing($('panel'))&&atEdge('right',e)&&!document.querySelector('dialog[open]');
   if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!document.querySelector('dialog[open]'))preview(true);},SIDE_DWELL);
   // 窄条在静止的指针下弹出时浏览器未必补发 pointerenter，之后也就没有 pointerleave：指针已离开窄条和右缘就直接收起。
-  if(e.pointerType==='mouse'&&!pinned&&!resizing&&showing($('panel'))&&innerWidth-e.clientX>SIDE_EDGE&&!$('panel').contains(e.target))preview(false);
+  if(e.pointerType==='mouse'&&!pinned&&!resizing&&showing($('panel'))&&!atEdge('right',e)&&!$('panel').contains(e.target))preview(false);
 });
 document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
 $('panel').onpointerleave=()=>{if(!pinned&&!resizing)preview(false);};
@@ -563,7 +570,7 @@ function normalize(b){
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
-  orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
+  orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,atEdge,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
   expired,readingList,relink,relinkAll,rebuild,mergeKeys,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(

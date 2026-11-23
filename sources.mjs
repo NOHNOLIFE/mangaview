@@ -70,6 +70,19 @@ export async function* handleGroups(handles){
   for(const h of handles){if(h.kind==='directory')yield* scan(h);else if(isImage(h.name))loose.push({name:h.name,handle:h});}
   if(loose.length)yield {title:null,pages:ordered(loose)};
 }
+// 拖到「添加到散图图集」：所有图片（包括文件夹里的，递归）合成一组散图（title 为 null，归入散图图集）。
+// 来自文件夹的图以相对路径为页名（如“卷1/001.jpg”），各文件夹的同名文件不会冲突，按名称排序时也按文件夹聚在一起。
+export async function looseImages(handles){
+  const pages=[];
+  async function walk(dir,base){for await(const h of dir.values()){const name=base+'/'+h.name;if(h.kind==='directory')await walk(h,name);else if(isImage(h.name))pages.push({name,handle:h});}}
+  for(const h of handles){if(h.kind==='directory')await walk(h,h.name);else if(isImage(h.name))pages.push({name:h.name,handle:h});}
+  return pages.length?[{title:null,pages:ordered(pages)}]:[];
+}
+// 同上，用于不支持文件句柄的浏览器（只有本次会话的 File）。
+export function looseFiles(files){
+  const pages=fileGroups(files).flatMap(g=>g.pages.map(p=>{if(g.path)p.name=g.path+'/'+p.name;return p;}));
+  return pages.length?[{title:null,pages:ordered(pages)}]:[];
+}
 // 导入为单个作品：给扫描出的各个文件夹排定顺序和 key。只选了一个文件夹时 key 为相对它的路径（它本身的图用它的名称），
 // 选了多个时带上各自的名称；按路径自然排序，父文件夹自己的图排在子文件夹之前。返回 [{group,key}]。
 export function mergeKeys(groups){

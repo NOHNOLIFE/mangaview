@@ -43,9 +43,9 @@
 /* 放不下文字时（toolbar.mjs 加 .compact）只显示图标，文字视觉隐藏，读屏和悬停提示仍可用。 */
 #endbar.compact .eb{padding:0 10px}
 #endbar.compact .eb span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-#endbar.compact .eb-pos{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.eb-pos{min-width:84px;padding:0 6px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap}
-.eb-pos:empty{display:none}
+/* 位置：下方一个零高度、不可见的占位串（按总张数的位数生成，toolbar.mjs 的 syncPos）撑开宽度，宽度只取决于位数。 */
+.eb-pos{flex:none;display:flex;flex-direction:column;align-items:center;min-width:72px;padding:0 6px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.eb-pos::after{content:attr(data-room);height:0;overflow:hidden;visibility:hidden}
 body.endbar-open #hud{opacity:0}
 .on-full,:root:fullscreen .on-window{display:none}
 :root:fullscreen .on-full{display:block}

@@ -59,9 +59,11 @@ try{
   await move(W-30,500);await delay(60);assert.equal(await panelHidden(),true,'Edge needs a short dwell');
   await wait(async()=>!await panelHidden());
   // 缩略图栏顶部：打开全屏缩略图的按钮（内侧，靠阅读区）、标题和页数；点击打开并收起浮动的窄条。
-  assert.equal(await js('document.querySelector("#panel .pv-head").textContent'),'Thumbnails40');
-  const pvBtn=await center('#panel .pv-head .side-open'),pvBox=await js('(r=>({left:r.left,top:r.top}))(document.getElementById("panel").getBoundingClientRect())');
-  assert.ok(pvBtn.x<pvBox.left+48&&pvBtn.y<pvBox.top+52,'Button sits at the inner top corner');
+  // 头部就是一个占满整行的块状按钮（图标 + 文字 + 页数），点击区域大。
+  assert.equal(await js('document.querySelector("#panel .pv-head").textContent'),'Full screen40');
+  const pvBtn=await center('#panel .pv-head .side-open'),pvBox=await js('(r=>({left:r.left,top:r.top,width:r.width}))(document.getElementById("panel").getBoundingClientRect())');
+  assert.ok(pvBtn.y<pvBox.top+52&&pvBtn.w>=pvBox.width-32,'Block button fills the head row: '+JSON.stringify([pvBtn,pvBox]));
+  assert.ok(await js('document.querySelector("#panel .side-open").getBoundingClientRect().height')>=34,'Tall enough to hit easily');
   assert.equal(await js('document.querySelector("#panel .side-open").title'),'Full-screen thumbnails (V)');
   await shot('strip-head');await click(pvBtn.x,pvBtn.y);await wait(isOpen);await wait(panelHidden);
   assert.equal(await pos(),'Page 1 / 40');assert.equal((await sel()).i,0);
@@ -153,7 +155,8 @@ try{
   // 书架书签列表顶部的按钮（内侧上角，与缩略图栏镜像）：专注模式下内容隐藏时不可点，悬停显示后才能点。
   await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Short'`));
   const smOpen=()=>js('shelfOverview.open&&!shelfOverview.classList.contains("closing")'),mClosed=()=>js('!shelfOverview.open');
-  const smBtn=await center('#shelfmarks .side-open'),dockRight=await js('document.getElementById("shelfmarks").getBoundingClientRect().right');assert.ok(smBtn.x>dockRight-48&&smBtn.y<52,'Left button at the inner top corner');
+  const smBtn=await center('#shelfmarks .side-open'),dockW=await js('document.getElementById("shelfmarks").getBoundingClientRect().width');assert.ok(smBtn.w>=dockW-32&&smBtn.y<52,'Left block button fills the head row');
+  assert.equal(await js('document.querySelector("#shelfmarks .sm-head").textContent'),'Full screen3');
   await move(400,300);await delay(500);
   assert.equal(await js(`getComputedStyle(document.querySelector('#shelfmarks .side-open')).visibility`),'hidden','Hidden button cannot be clicked');
   await move(smBtn.x,smBtn.y);await wait(()=>js(`getComputedStyle(document.querySelector('#shelfmarks .side-open')).visibility==='visible'`));
@@ -193,8 +196,8 @@ try{
   await shot('docked-heads');
   // 两个侧栏的头部行等高、按钮在内侧上角且边距相同（左右镜像）。
   const heads=await js(`(()=>{const q=s=>document.querySelector(s).getBoundingClientRect(),a=q('#shelfmarks .sm-head'),b=q('#panel .pv-head'),d=q('#shelfmarks'),p=q('#panel'),x=q('#shelfmarks .side-open'),y=q('#panel .side-open');
-    return {ha:a.height,hb:b.height,ta:a.top,tb:b.top,ia:d.right-x.right,ib:y.left-p.left,ya:x.top,yb:y.top};})()`);
-  assert.ok(Math.abs(heads.ha-heads.hb)<1&&Math.abs(heads.ta-heads.tb)<1&&Math.abs(heads.ia-heads.ib)<1.5&&Math.abs(heads.ya-heads.yb)<1,'Sidebar heads mirror each other '+JSON.stringify(heads));
+    return {ha:a.height,hb:b.height,ta:a.top,tb:b.top,ia:d.right-x.right,ib:y.left-p.left,oa:x.left-d.left,ob:p.right-y.right,ya:x.top,yb:y.top,xa:x.height,xb:y.height};})()`);
+  assert.ok(Math.abs(heads.ha-heads.hb)<1&&Math.abs(heads.ta-heads.tb)<1&&Math.abs(heads.ia-heads.ib)<1.5&&Math.abs(heads.oa-heads.ob)<1.5&&Math.abs(heads.ya-heads.yb)<1&&heads.xa===heads.xb,'Sidebar heads mirror each other '+JSON.stringify(heads));
   // 顶缘触发区避开正在显示的侧栏：停在侧栏顶部按钮的上半部不弹工具栏，阅读区上方照常弹出。
   const sb=await center('#shelfmarks .side-open');
   for(const [x,y] of [[pb.x,pb.y-10],[sb.x,sb.y-10]]){await move(x,y);await delay(400);assert.equal(await js('document.getElementById("bar").hidden'),true,'Sidebar heads are not part of the top edge');}
@@ -206,7 +209,7 @@ try{
   assert.deepEqual(await js('[document.getElementById("panel").offsetWidth,document.getElementById("shelfmarks").offsetWidth]'),[160,160]);
   // 旧版的两个开关已不存在。
   assert.equal(await js(`localStorage.getItem('mv2:overview')??localStorage.getItem('mv2:smOverview')`),null);
-  assert.deepEqual(errors,[]);console.log('PASS: sidebar buttons open full-screen thumbnails / shelf bookmarks (floating, docked, focus mode), corner gestures removed, wider edge zone, regular grid, long strips capped, grid keyboard navigation, hover selection shared with keyboard, shrinking selection, grid / masonry toggle (both views, remembered), thumbnail cache across reopen and book switches, revalidation after focus, C / V / [ / ] keys, equal minimum widths');
+  assert.deepEqual(errors,[]);console.log('PASS: full-width block buttons in mirrored sidebar heads open full-screen thumbnails / shelf bookmarks (floating, docked, focus mode), corner gestures removed, wider edge zone, regular grid, long strips capped, grid keyboard navigation, hover selection shared with keyboard, shrinking selection, grid / masonry toggle (both views, remembered), thumbnail cache across reopen and book switches, revalidation after focus, C / V / [ / ] keys, equal minimum widths');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

@@ -13,7 +13,7 @@ extend({
   smOvOpen:['Full-screen shelf bookmarks (C)','全屏书架书签（C）','全画面の本棚しおり（C）','전체 화면 책장 책갈피 (C)'],
   ovGrid:['Layout: grid (click for masonry)','布局：网格（点击切换为瀑布流）','レイアウト：グリッド（クリックでメイソンリー）','레이아웃: 격자 (클릭하면 메이슨리)'],
   ovMasonry:['Layout: masonry (click for grid)','布局：瀑布流（点击切换为网格）','レイアウト：メイソンリー（クリックでグリッド）','레이아웃: 메이슨리 (클릭하면 격자)'],
-  pvTitle:['Thumbnails','缩略图','サムネイル','미리보기'],
+  pvOpenLabel:['Full screen','全屏缩略图','全画面で表示','전체 화면'],
   ovPos:['Page {n} / {m}','第 {n} / {m} 页','{n} / {m} ページ','{n} / {m} 페이지'],
   ovHint:['WASD / arrows: choose · Space / Enter: open · {key} / Esc: close','WASD / 方向键选择 · 空格 / Enter 打开 · {key} / Esc 关闭','WASD / 矢印で選択 · Space / Enter で開く · {key} / Esc で閉じる','WASD / 화살표로 선택 · Space / Enter로 열기 · {key} / Esc로 닫기']
 });
@@ -159,7 +159,7 @@ export function install(ctx){
   let marks=[],msel=0,mframe=0,mfollow=false;
   const sm=()=>ctx.shelfmarks;
   const shelfSheet=sheet('shelfOverview',['c','['],'ov-marks',{
-    setup(quiet){const groups=sm()?.groups()||[];if(!groups.length){if(!quiet)ctx.notice(null,t('smEmpty'));return false;}
+    setup(quiet){const groups=sm()?.groups()||[];if(!groups.length){if(!quiet)ctx.notice(null,t(sm()?.emptyKey()??'smEmpty'));return false;}
       shelfSheet.name.textContent=t('shelfmarks');shelfSheet.body.style.setProperty('--bm-ar',sm().ratio());
       marks=[];const start=sm().start();
       shelfSheet.body.replaceChildren(...groups.map(({book,items})=>{
@@ -219,12 +219,12 @@ export function install(ctx){
   function pick(i){const m=marks[i];if(!m)return;shelfSheet.close();sm().go(m.book,m.x);}
   shelfSheet.body.addEventListener('click',e=>{const node=e.target.closest('.ov-mark');if(node)pick(+node.dataset.k);});
 
-  // ---- 缩略图栏顶部：标题、页数和“全屏缩略图”按钮（书架书签列表的同款按钮见 bookmarks.mjs）----
-  // 按钮在顶部内侧（靠阅读区一端，与左侧书签列表镜像对称），浮动弹出和常驻时都可用；浮动时点开后先收起窄条。
+  // ---- 缩略图栏顶部：占满整行的块状“全屏缩略图”按钮（图标、文字、页数；书架书签列表的同款按钮见 bookmarks.mjs，两侧镜像、等高）----
+  // 浮动弹出和常驻时都可用；浮动时点开后先收起窄条。
   const panel=document.getElementById('panel'),pvHead=make('div','side-head pv-head'),pvName=make('span','side-title'),pvCount=make('span','count');
   const pvOpen=ctx.iconButton('overview','',()=>{if(thumbs.open()&&!document.body.classList.contains('docked'))ctx.fade(panel,false);},'side-open');
-  pvHead.append(pvOpen,pvName,pvCount);panel.prepend(pvHead);
-  function pvSync(){pvName.textContent=t('pvTitle');pvCount.textContent=ctx.current?.pages.length||'';pvOpen.title=t('ovOpen');pvOpen.setAttribute('aria-label',t('ovOpen'));}
+  pvOpen.append(pvName,pvCount);pvHead.append(pvOpen);panel.prepend(pvHead);
+  function pvSync(){pvName.textContent=t('pvOpenLabel');pvCount.textContent=ctx.current?.pages.length||'';pvOpen.title=t('ovOpen');pvOpen.setAttribute('aria-label',t('ovOpen'));}
   pvSync();ctx.on('select',pvSync);ctx.on('books',pvSync);ctx.on('lang',pvSync);
   ctx.overview={thumbs,shelfmarks:shelfSheet};
 }

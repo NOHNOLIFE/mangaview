@@ -16,10 +16,12 @@ extend({
   bmPage:['Image {n}','第 {n} 张','{n} 枚目','{n}번째'],bmGone:['Image missing','图片已不存在','画像なし','이미지 없음'],
   bmDelete:['Delete bookmark','删除书签','しおりを削除','책갈피 삭제'],
   smEmpty:['No bookmarks on the shelf yet — hold F or Enter while reading to add one','书架上还没有书签，阅读时长按 F 或 Enter 添加','本棚にしおりはまだありません。読書中に F か Enter を長押しで追加','책장에 아직 책갈피가 없습니다. 읽는 중에 F 또는 Enter를 길게 눌러 추가하세요'],
+  smFiltered:['No bookmarks in the current shelf filter results — clear or change the filters','当前书架筛选结果中没有书签，可清除或更换筛选条件','本棚の絞り込み結果にしおりはありません。絞り込みを解除するか変更してください','현재 책장 필터 결과에 책갈피가 없습니다. 필터를 지우거나 바꿔 보세요'],
+  smOpenLabel:['Full screen','全屏书签','全画面で表示','전체 화면'],
   smEdgeLeft:['Show shelf bookmarks at the left edge (when not pinned)','书架书签未常驻时，鼠标移到左缘弹出','本棚のしおりを固定していないとき、左端で表示','책장 책갈피를 고정하지 않았을 때 왼쪽 가장자리에서 표시'],
   smWidth:['Bookmark list width','书签列表宽度','しおり一覧の幅','책갈피 목록 너비']
 });
-const SHOW=150,ADD=550,EDGE=32,DWELL=150,MIN_W=160; // EDGE / DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致
+const SHOW=150,ADD=550,DWELL=150,MIN_W=160; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）
 export function install(ctx){
   const {main,view,t,fmt,notice,make,icon}=ctx;
   const sprite=document.querySelector('svg.sprite'),mark='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
@@ -141,20 +143,28 @@ export function install(ctx){
   // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。
   // 悬停不跳转，点击才跳转（可跨书）；此时短按 F / Enter（Shift 反向）也按这个列表跳到下一个书签，必要时切换书。
   const dock=make('aside','sm-dock'),dockHead=make('div','sm-head'),dockList=make('div','sm-list'),dockGrip=make('div','sm-grip');
-  // 顶部内侧（靠阅读区一端）：打开全屏书架书签（overview.mjs）；浮动时点开后先收起列表。没有书签时不可用。
-  const dockOpen=ctx.iconButton('overview','',()=>{if(ctx.overview?.shelfmarks.open()&&!pinned)float(false);},'side-open');
+  // 头部是一个占满整行的块状按钮：打开全屏书架书签（overview.mjs），按钮里有图标、文字和书签数；浮动时点开后先收起列表。没有书签时不可用。
+  const dockOpen=ctx.iconButton('overview','',()=>{if(ctx.overview?.shelfmarks.open()&&!pinned)float(false);},'side-open'),dockLabel=make('span','side-title'),dockCount=make('span','count');
+  dockOpen.append(dockLabel,dockCount);
   dock.id='shelfmarks';dock.hidden=true;dockGrip.setAttribute('role','separator');dockGrip.setAttribute('aria-orientation','vertical');dockGrip.tabIndex=0;
   dock.append(dockHead,dockList,dockGrip);document.getElementById('toolbar').before(dock);
   // 书架上（不含书库和过期书）有书签的书，顺序与上一本 / 下一本相同。
   const shelfBooks=()=>ctx.readingList({place:'shelf'});
+  // 书架上没有可显示的书签时的提示：书架页的筛选生效时，说明可能是筛选导致的（有清除筛选的接口时附一个按钮）；没有筛选才说书架上还没有书签。
+  const emptyKey=()=>ctx.filtering?.()?'smFiltered':'smEmpty';
+  function emptyNote(){
+    const p=make('p','bm-empty',t(emptyKey()));
+    if(emptyKey()==='smFiltered'&&ctx.clearFilters){const b=make('button','link-btn',t('clearFilters'));b.type='button';b.onclick=()=>{ctx.clearFilters();renderDock();};p.append(make('br'),b);}
+    return p;
+  }
   function renderDock(){
     if(dock.hidden)return;
     const groups=shelfBooks().map(book=>({book,items:list(book)})).filter(g=>g.items.length);
     dock.setAttribute('aria-label',t('shelfmarks'));dockGrip.title=t('smWidth');dockGrip.setAttribute('aria-label',t('smWidth'));
     dockOpen.title=t('smOvOpen');dockOpen.setAttribute('aria-label',dockOpen.title);dockOpen.disabled=!groups.some(g=>g.items.some(x=>x.i>=0));
-    dockHead.replaceChildren(make('span','side-title',t('shelfmarks')),make('span','count',groups.reduce((n,g)=>n+g.items.length,0)||''),dockOpen);
+    dockLabel.textContent=t('smOpenLabel');dockCount.textContent=groups.reduce((n,g)=>n+g.items.length,0)||'';if(!dockOpen.isConnected)dockHead.append(dockOpen);
     dock.style.setProperty('--bm-ar',ratio());
-    if(!groups.length){dockList.replaceChildren(make('p','bm-empty',t('smEmpty')));return;}
+    if(!groups.length){dockList.replaceChildren(emptyNote());return;}
     dockList.replaceChildren(...groups.map(({book,items})=>{
       // 每本书一组，不显示书名；当前书的一组高亮。
       const section=make('section','sm-book');section.dataset.book=book.id;section.setAttribute('aria-label',ctx.title(book));
@@ -178,7 +188,7 @@ export function install(ctx){
     const book=ctx.current,order=shelfBooks(),rank=new Map(order.map((b,i)=>[b,i]));
     if(!rank.has(book))return next(d);
     const all=order.flatMap(b=>list(b).map(x=>({...x,book:b}))),flat=all.filter(x=>x.i>=0);
-    if(!flat.length){notice(null,t(all.length?'bmAllGone':'smEmpty'));return;}
+    if(!flat.length){notice(null,t(all.length?'bmAllGone':emptyKey()));return;}
     const s=starts();if(!s)return;
     let k=-1,found=false;if(repeat(book)){const j=flat.findIndex(x=>x.bm.id===last.id);if(j>=0){k=j+d;found=true;}}
     if(!found){const r=rank.get(book),y=main.scrollTop+main.clientHeight/2,p=x=>point(s,{i:x.i,f:x.bm.f});
@@ -206,10 +216,10 @@ export function install(ctx){
   ctx.actions.shelfmarks=()=>{ctx.put('shelfmarks',!pinned);setDock(!pinned);};
   let edgeTimer=0;const cancelEdge=()=>{clearTimeout(edgeTimer);edgeTimer=0;};
   document.addEventListener('pointermove',e=>{
-    const near=e.pointerType==='mouse'&&!e.buttons&&!pinned&&e.clientX<=EDGE&&!ctx.showing(dock)&&!document.querySelector('dialog[open]')&&ctx.get('edgeLeft',true);
+    const near=e.pointerType==='mouse'&&!e.buttons&&!pinned&&ctx.atEdge('left',e)&&!ctx.showing(dock)&&!document.querySelector('dialog[open]')&&ctx.get('edgeLeft',true);
     if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!document.querySelector('dialog[open]'))float(true);},DWELL);
     // 与右侧缩略图栏相同的兜底：在静止的指针下弹出后没有 pointerleave，指针离开列表和左缘即收起。
-    if(e.pointerType==='mouse'&&!pinned&&!resizing&&ctx.showing(dock)&&e.clientX>EDGE&&!dock.contains(e.target))float(false);
+    if(e.pointerType==='mouse'&&!pinned&&!resizing&&ctx.showing(dock)&&!ctx.atEdge('left',e)&&!dock.contains(e.target))float(false);
   });
   document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
   dock.addEventListener('pointerleave',()=>{if(!pinned&&!resizing)float(false);});
@@ -226,7 +236,7 @@ export function install(ctx){
   // 供全屏书架书签（overview.mjs）使用：有效书签按书分组、跳转、缩略图 key、显示比例，以及打开时默认选中的书签。
   ctx.shelfmarks={
     groups:()=>shelfBooks().map(book=>({book,items:list(book).filter(x=>x.i>=0)})).filter(g=>g.items.length),
-    go:goShelf,thumbKey:key,ratio,
+    go:goShelf,thumbKey:key,ratio,emptyKey,
     start(){const book=ctx.current;if(!book)return null;if(last?.book===book)return last.id;
       const items=list(book).filter(x=>x.i>=0),s=starts();if(!items.length)return null;if(!s)return items[0].bm.id;
       const y=main.scrollTop+main.clientHeight/2;return (items.find(x=>point(s,{i:x.i,f:x.bm.f})>=y-2)||items.at(-1)).bm.id;}

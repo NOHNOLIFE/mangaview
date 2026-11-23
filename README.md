@@ -54,7 +54,7 @@ New versions arrive automatically. There is nothing to download, unzip or set up
 
 ## How to use
 
-Open a folder or images from the welcome screen, or drop them anywhere in the window. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
+Open a folder or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Drop on the **Add to Loose images** area at the bottom of the drop overlay to add every image, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
 
 ### Mouse
 
@@ -102,7 +102,7 @@ The keyboard button in the toolbar shows this list inside the app.
 
 Rest the mouse at the top edge and the toolbar appears, centred over the page: a row of icons (hover one to see its name) that wraps onto more lines in a narrow window, with the book title and progress just below. You can also press **T**, or press Tab to focus the menu button in the top-left corner and then Enter.
 
-Rest the mouse at the bottom edge for the action bar. Its buttons are always the same: **Previous book**, **Back to top**, the current position, **Jump to end** and **Next book**; at the start or end the matching button is greyed out. Changing books lives here only; the toolbar has no previous / next buttons. While shelf filters are active, previous / next book only move through the filtered results, and the buttons carry a small dot to show it.
+Rest the mouse at the bottom edge for the action bar. Its buttons are always the same: **Previous book**, **Back to top**, the current position (images read / total), **Jump to end** and **Next book**; at the start or end the matching button is greyed out. Changing books lives here only; the toolbar has no previous / next buttons. While shelf filters are active, previous / next book only move through the filtered results, and the buttons carry a small dot to show it.
 
 Both fade out when the mouse leaves, and each edge pop-out can be turned off in **Settings → Toolbar**; **T** still works. Clicking the page only turns it (left half back, right half forward). On a touch screen, tap the top of the page to show or hide the toolbar.
 
@@ -145,13 +145,13 @@ When a series is split across several folders (one per volume, for example), you
 
 Bookmarks are stored with a small picture of the page and follow the image, not the scroll position, so they survive re-sorting.
 
-**Shelf bookmarks**: works like the thumbnail strip. It gathers the bookmarks of every book on the shelf, in shelf order (not the library or missing books; with shelf filters active, only the filtered books). It isn't pinned by default: rest the mouse at the left edge and it pops out over the page, then fades out when the mouse leaves (turn this off in **Settings → Reading**). The **Shelf bookmarks** button in the toolbar pins it on the left, and the page narrows to make room; drag the list's right edge to resize it. Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted), with no titles or file names. The button at its top opens full-screen shelf bookmarks. While the list is pinned, tapping `F` / `Enter` (`Shift` for backwards) follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
+**Shelf bookmarks**: works like the thumbnail strip. It gathers the bookmarks of every book on the shelf, in shelf order (not the library or missing books; with shelf filters active, only the filtered books; if that leaves it empty, it suggests clearing or changing the filters). It isn't pinned by default: rest the mouse at the left edge and it pops out over the page, then fades out when the mouse leaves (turn this off in **Settings → Reading**). The **Shelf bookmarks** button in the toolbar pins it on the left, and the page narrows to make room; drag the list's right edge to resize it. Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted), with no titles or file names. The full-width button at its top opens full-screen shelf bookmarks. While the list is pinned, tapping `F` / `Enter` (`Shift` for backwards) follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
 
 **Focus mode** (on by default, turn it off in **Settings → Reading**): when the mouse isn't over them and they don't have keyboard focus, the pinned shelf bookmark list and thumbnail strip hide their content but keep their space, on the same background as the page, so there is less to distract you. Move the mouse over them to bring the content back. Showing and hiding fade with a short delay, so sweeping the mouse past them does not flicker.
 
 ### Thumbnail strip
 
-Rest the mouse at the right edge to pop it out over the page. It closes when the mouse leaves (turn this off in **Settings → Reading**). The thumbnail button in the toolbar pins it instead: pinned, it sits beside the page and the page narrows so nothing is covered. Drag its left edge to resize it. Its top row shows the page count and a **Full-screen thumbnails** button.
+Rest the mouse at the right edge to pop it out over the page. It closes when the mouse leaves (turn this off in **Settings → Reading**). The thumbnail button in the toolbar pins it instead: pinned, it sits beside the page and the page narrows so nothing is covered. Drag its left edge to resize it. Its top row is a full-width **Full screen** button that also shows the page count.
 
 Thumbnails are cached in memory for the session (up to 64 MB, never written to disk). Opening full-screen thumbnails again for the same book, or coming back from another book, doesn't read the images again until you close the app.
 
