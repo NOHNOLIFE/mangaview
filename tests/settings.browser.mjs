@@ -80,7 +80,7 @@ try{
     settings.querySelector('[data-id=bakExport] button').click()`);
   const text=await wait(()=>js('window.savedDone&&window.saved.text()'));const data=JSON.parse(text);
   assert.match(await js('savedName'),/^mangaview-backup-\d{8}\.json$/);
-  assert.equal(data.app,'MangaView');assert.equal(data.format,1);assert.ok(!isNaN(Date.parse(data.exported)));
+  assert.equal(data.app,'MangaView');assert.equal(data.format,2);assert.ok(!isNaN(Date.parse(data.exported)));
   assert.deepEqual(Object.keys(data),['app','format','exported','storage','books','thumbs']);
   assert.ok(Object.keys(data.storage).every(k=>k.startsWith('mv2:')));
   assert.equal(data.storage['mv2:pos:'+b],JSON.stringify({name:'1.svg',f:.25}));assert.equal(data.storage['mv2:autoCheck'],'false');
@@ -133,7 +133,7 @@ try{
   const snapshot=async()=>{const x=await state();delete x.ls['mv2:pos:'+g];delete x.ls['mv2:last'];return x;};
   const before=await snapshot();
   for(const [content,message] of [[text.slice(0,text.length/2),'文件已损坏或格式不正确'],['{"app":"Other","format":1}','这不是 MangaView 备份文件'],
-    [JSON.stringify({...data,format:2}),'更新版本'],[JSON.stringify({...data,thumbs:[{key:'x:cover',data:'%%%'}]}),'文件已损坏或格式不正确'],[JSON.stringify({...data,books:[{title:'no id'}]}),'文件已损坏或格式不正确']]){
+    [JSON.stringify({...data,format:3}),'更新版本'],[JSON.stringify({...data,thumbs:[{key:'x:cover',data:'%%%'}]}),'文件已损坏或格式不正确'],[JSON.stringify({...data,books:[{title:'no id'}]}),'文件已损坏或格式不正确']]){
     await js('notice.textContent=""');await importFile(content);
     await wait(()=>js(`notice.textContent.includes(${JSON.stringify(message)})`));
     assert.equal(await js(`!!document.querySelector('dialog.bak-ask')`),false);assert.equal(await js('window.before'),1,'不应重新载入');

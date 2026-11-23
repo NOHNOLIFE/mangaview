@@ -119,6 +119,7 @@
 <button class="icon-btn" data-act="refresh" data-label="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
 <button data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
 <button class="icon-btn" data-act="files" data-label="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg></button>
+<button class="icon-btn" data-act="merge" data-label="importMerged"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg></button>
 <button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
 </div>
 </header>
@@ -172,7 +173,7 @@
 <dl id="keys"></dl>
 </dialog>
 
-<div id="dropOverlay" hidden><div class="box"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><span data-t="dropHere"></span></div></div>
+<div id="dropOverlay" popover="manual" hidden><div class="box"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><span id="dropText" data-t="dropHere"></span></div><div id="dropMerge" class="merge"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg><span><strong data-t="dropMerge"></strong><small data-t="dropMergeHint"></small></span></div></div>
 <p id="notice" role="status" aria-live="polite"></p>
 <input id="folderInput" type="file" webkitdirectory multiple hidden><input id="fileInput" type="file" accept="image/*" multiple hidden>
 </body>

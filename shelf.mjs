@@ -1,6 +1,6 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 所有书籍 / 过期书籍；瀑布流纯封面、标签筛选、批量移动与恢复。
-import {natural} from './model.mjs';
-import {scan,readMissingTimes} from './sources.mjs';
+import {natural,fileOf} from './model.mjs';
+import {scan,readMissingTimes,allPages,keyOf} from './sources.mjs';
 import {norm,coverName,grade,assign,hue} from './match.mjs';
 
 const $=id=>document.getElementById(id);
@@ -42,7 +42,10 @@ export function install(ctx){
     }}finally{timing=false;if(changed)refresh();}
   }
   setTimeout(sweepTimes,1500);ctx.on('books',()=>setTimeout(sweepTimes,800));
-  const coverPage=b=>{const n=coverName(b.pages.map(p=>p.name));return b.pages.find(p=>p.name===n);};
+  // 封面：按文件名排序的第一张；合并作品取第一个可见卷的第一张。
+  const firstPage=pages=>{const n=coverName(pages.map(fileOf));return pages.find(p=>fileOf(p)===n);};
+  const coverPage=b=>{if(!(b.sources?.length>1))return firstPage(b.pages);
+    for(const s of b.sources){const mine=b.pages.filter(p=>keyOf(p)===s.key);if(mine.length)return firstPage(mine);}};
   // 过期书只出现在“过期书籍”里，其他列表不显示，避免被当成可读的书。
   const inView=(b,v=view)=>ctx.expired(b)?v==='expired':v==='all'||b.place===v;
 
@@ -73,12 +76,25 @@ export function install(ctx){
 
   // ---- 封面缓存：只存压缩 WebP，过期书也能显示；串行读取，不与阅读抢硬盘。
   let chain=Promise.resolve();const queue=fn=>(chain=chain.then(fn).catch(()=>{}));
-  const fresh=b=>{const p=coverPage(b);return !p||b.fp?.thumb&&b.fp.cover?.name===p.name;};
+  // 合并作品的每一卷另记一份封面摘要（只读各卷首张图的前 64KB，每卷一次），恢复时按卷匹配。
+  const bySource=b=>{const m=new Map();for(const p of b.pages){const k=keyOf(p);if(!m.has(k))m.set(k,[]);m.get(k).push(p);}return m;};
+  const staleFp=b=>{if(!(b.sources?.length>1))return [];const m=bySource(b);
+    return b.sources.map(s=>[s,m.get(s.key)&&firstPage(m.get(s.key))]).filter(([s,p])=>p&&s.fp?.name!==fileOf(p)&&!ctx.isDown(b,s));};
+  const needsFp=b=>staleFp(b).length>0;
+  const coverFresh=b=>{const p=coverPage(b);return !p||b.fp?.thumb&&b.fp.cover?.name===p.name;};
+  const fresh=b=>coverFresh(b)&&!needsFp(b);
   async function ensureCover(b){
-    const page=coverPage(b);if(!page||!books.has(b.id)||fresh(b)||ctx.expired(b))return;
-    const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
-    await ctx.saveThumb(b.id+':cover',th);
-    b.fp={cover:{name:page.name,size:file.size,hash:await digest(file)},thumb:true};b.coverRatio=th.h/th.w;
+    if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
+    const page=coverPage(b);
+    if(page&&!coverFresh(b)){
+      const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
+      await ctx.saveThumb(b.id+':cover',th);
+      b.fp={cover:{name:page.name,size:file.size,hash:await digest(file)},thumb:true};b.coverRatio=th.h/th.w;
+    }
+    for(const [s,p] of staleFp(b)){
+      if(b.fp?.cover?.name===p.name){s.fp={...b.fp.cover,name:fileOf(p)};continue;}
+      try{const file=await ctx.source(b,p);s.fp={name:fileOf(p),size:file.size,hash:await digest(file)};}catch{} // 读不到的卷下次再试
+    }
     if(books.has(b.id))await ctx.persist(b);
   }
   let sweeping=false;
@@ -122,9 +138,10 @@ export function install(ctx){
     pick.append(cover,veil);
     if(ratio>0){const bar=make('span','progress');bar.style.setProperty('--p',ratio);pick.append(bar);}
     if(b===ctx.current)pick.append(make('span','badge',t('nowReading')));
+    const lost=ex?0:ctx.lostSources(b);if(lost){const w=make('span','part');w.title=fmt('partN',{n:lost});w.setAttribute('aria-label',w.title);w.append(icon('alert'));pick.append(w);}
     const tools=make('div','actions');
     if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('pencil',t('rename'),()=>editName(b)),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
-    else tools.append(iconButton('pencil',t('rename'),()=>editName(b)),iconButton('tag',t('editTags'),()=>editTags(b)),
+    else tools.append(...lost?[iconButton('link',t('restore'),()=>restoreOne(b))]:[],iconButton('pencil',t('rename'),()=>editName(b)),iconButton('tag',t('editTags'),()=>editTags(b)),
       b.place==='library'?iconButton('library',t('toShelf'),()=>move([b],'shelf')):iconButton('archive',t('toLibrary'),()=>move([b],'library')),
       iconButton('copy',t('titleCopy'),()=>ctx.copy(ctx.title(b))),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
     el.append(pick,tools);return el;
@@ -178,7 +195,7 @@ export function install(ctx){
   $('filters').oninput=draw;$('filters').onreset=()=>{activeTags.clear();queueMicrotask(draw);};$('filters').onsubmit=e=>e.preventDefault();
   // close 事件异步派发：关闭后立刻重新打开时，迟到的事件不能清空新画好的列表。
   shelf.addEventListener('close',()=>{if(!shelf.open){cleanup();shown=[];}});
-  ctx.drawShelf=draw;
+  ctx.drawShelf=draw;ctx.shelfView=()=>view;
   ctx.actions.copy=()=>ctx.copy(filtered().map(ctx.title).join('\n'));
 
   // ---- 书名编辑：只改显示名（b.name），文件夹名 b.title 仍用于识别同一文件夹和恢复过期书；留空恢复原名。
@@ -208,57 +225,92 @@ export function install(ctx){
   $('tagForm').onsubmit=e=>{e.preventDefault();safe(addTags)($('tagInput').value);};$('tagInput').oninput=drawTagEditor;
   $('tagEditor').addEventListener('close',()=>{tagging=null;});
 
-  // ---- 恢复过期书：先按文件夹名找，再比对封面摘要；改过名的文件夹用“页数相近 + 封面文件大小相同”筛出后再算摘要。
+  // ---- 恢复：以源（文件夹）为单位。待恢复的“槽”是过期书的每个源，以及其他书中暂时找不到的卷；
+  // 单文件夹书按整本书的名称和封面摘要匹配，合并作品按每一卷的名称和封面摘要匹配。用户选的文件夹作为源，可同时恢复所有引用它的书。
+  // 先按文件夹名找，再比对封面摘要；改过名的文件夹用“页数相近 + 封面文件大小相同”筛出后再算摘要。
   async function candidates(dir,progress){const out=[];for await(const g of scan(dir)){out.push({...g,names:g.pages.map(p=>p.name)});progress?.(out.length);}return out;}
   const coverFile=async c=>(await c.dir.getFileHandle(coverName(c.names))).getFile();
   async function candHash(c){if(c.hash===undefined)try{const f=await coverFile(c);c.size=f.size;c.hash=await digest(f);}catch{c.hash=null;}return c.hash;}
   async function candSize(c){if(c.size===undefined)try{c.size=(await coverFile(c)).size;}catch{c.size=null;}return c.size;}
-  async function pairs(list,cands){
+  // 槽：{book,source,merged,t}，t 是供 grade 比较的 {title,pages,fp}。
+  // want(title)：只要名称相符的槽（普通导入时用，避免为大量无关的书构造比较对象）；all：不论是否缺失（定位原文件）。
+  function slotsOf(b,want,all=false){
+    if(!b.sources?.length)return [];const ex=all||ctx.expired(b);
+    return b.sources.filter(s=>(ex||ctx.isDown(b,s))&&(!want||want(s.key?s.title:b.title))).map(s=>s.key
+      ?{book:b,source:s,merged:true,t:{title:s.title,pages:allPages(b).filter(p=>keyOf(p)===s.key).map(p=>({name:fileOf(p)})),fp:s.fp&&{cover:s.fp}}}
+      :{book:b,source:s,merged:false,t:b});
+  }
+  const allSlots=()=>[...books.values()].flatMap(b=>slotsOf(b));
+  async function pairs(slots,cands){
     const byName=new Map();for(const c of cands){const k=norm(c.title);if(!byName.has(k))byName.set(k,[]);byName.get(k).push(c);}
     const out=[];
-    for(const b of list){
-      const named=byName.get(norm(b.title))||[],fp=b.fp?.cover;
-      for(const c of named){if(fp?.hash)await candHash(c);out.push({book:b,cand:c,...grade(b,c)});}
+    for(const x of slots){
+      const t=x.t,named=byName.get(norm(t.title))||[],fp=t.fp?.cover,pair=(c,g)=>({book:x.book,source:x.source,merged:x.merged,cand:c,...g});
+      for(const c of named){if(fp?.hash)await candHash(c);out.push(pair(c,grade(t,c)));}
       if(!fp?.hash||named.some(c=>c.hash===fp.hash))continue;
       for(const c of cands){
-        if(named.includes(c)||Math.abs(c.names.length-b.pages.length)>Math.max(2,b.pages.length*.1))continue;
-        if(await candSize(c)!==fp.size)continue;await candHash(c);const g=grade(b,c);if(g.level)out.push({book:b,cand:c,...g});
+        if(named.includes(c)||Math.abs(c.names.length-t.pages.length)>Math.max(2,t.pages.length*.1))continue;
+        if(await candSize(c)!==fp.size)continue;await candHash(c);const g=grade(t,c);if(g.level)out.push(pair(c,g));
       }
     }
     return out;
   }
-  // 普通“打开文件夹”时：同名且封面摘要一致的过期书直接接回原记录，避免产生重复条目。
+  // 把配对按书分组接回，每本书只排序保存一次。返回恢复的书数。
+  async function apply(list){
+    const per=new Map();for(const p of list){if(!per.has(p.book))per.set(p.book,[]);per.get(p.book).push({cand:p.cand,source:p.source});}
+    for(const [b,links] of per)if(books.has(b.id))await ctx.relinkAll(b,links);
+    return per.size;
+  }
+  // 普通“打开文件夹”时：同名且封面摘要一致的过期书或缺失的卷直接接回原记录，避免产生重复条目。返回可自动接回的配对。
   ctx.autoMatch=async group=>{
-    const list=[...books.values()].filter(b=>ctx.expired(b)&&norm(b.title)===norm(group.title));if(!list.length)return null;
+    const k=norm(group.title),slots=[...books.values()].flatMap(b=>slotsOf(b,x=>norm(x)===k));if(!slots.length)return [];
     const c={...group,names:group.pages.map(p=>p.name)},ps=[];
-    for(const b of list){if(b.fp?.cover?.hash)await candHash(c);ps.push({book:b,cand:c,...grade(b,c)});}
-    return assign(ps).find(p=>p.level===2)?.book??null;
+    for(const x of slots){if(x.t.fp?.cover?.hash)await candHash(c);ps.push({book:x.book,source:x.source,merged:x.merged,cand:c,...grade(x.t,c)});}
+    return assign(ps).filter(p=>p.level===2);
   };
   async function pickRoot(){if(!window.showDirectoryPicker){notice('needFsa');return null;}return showDirectoryPicker({mode:'read'});}
   function summary(done,pending,left){const parts=[];if(done)parts.push(fmt('restoredN',{n:done}));if(pending)parts.push(fmt('pendingN',{n:pending}));if(left)parts.push(fmt('unmatchedN',{n:left}));notice(null,parts.join(' · ')||t('noMatch'));}
+  const stillExpired=slots=>[...new Set(slots.map(x=>x.book))].filter(b=>books.has(b.id)&&ctx.expired(b)).length;
   async function restoreBatch(){
     const dir=await pickRoot();if(!dir)return;
-    const list=[...books.values()].filter(ctx.expired);notice(null,fmt('scanningN',{n:0}),120000);
+    const slots=allSlots();notice(null,fmt('scanningN',{n:0}),120000);
     const cands=await candidates(dir,n=>{if(n%25===0)notice(null,fmt('scanningN',{n}),120000);});
-    const matched=assign(await pairs(list,cands)),sure=matched.filter(p=>p.level===2),maybe=matched.filter(p=>p.level===1);
-    for(const p of sure)await ctx.relink(p.book,p.cand);
-    const left=list.length-matched.length;draw();
-    if(!maybe.length)return summary(sure.length,0,left);
+    const matched=assign(await pairs(slots,cands)),sure=matched.filter(p=>p.level===2),maybe=matched.filter(p=>p.level===1);
+    const done=await apply(sure);draw();
+    if(!maybe.length)return summary(done,0,stillExpired(slots));
     openRestore({title:t('reviewTitle'),hint:t('reviewHint'),go:t('restoreSelected'),rows:maybe,checks:true,async onGo(chosen){
-      for(const p of chosen)await ctx.relink(p.book,p.cand);draw();summary(sure.length+chosen.length,0,left+maybe.length-chosen.length);}});
-    summary(sure.length,maybe.length,left);
+      const more=await apply(chosen);draw();summary(done+more,0,stillExpired(slots));}});
+    summary(done,new Set(maybe.map(p=>p.book)).size,0);
   }
   async function restoreOne(b){
     const dir=await pickRoot();if(!dir)return;
     const cands=await candidates(dir);if(!cands.length)return notice('noImages');
-    const ps=[];for(const c of cands){if(b.fp?.cover?.hash)await candHash(c);ps.push({book:b,cand:c,...grade(b,c)});}
-    ps.sort((x,y)=>y.score-x.score);
-    // 都不匹配时，以所选文件夹本身（或唯一的子文件夹）作为强制恢复的对象。
-    const best=ps[0].level?ps[0]:ps.find(p=>p.cand.dir===dir)??(ps.length===1?ps[0]:null);
-    if(!best)return notice('noMatch');
-    const done=async()=>{await ctx.relink(b,best.cand);draw();summary(1,0,0);};
-    if(best.level===2)return done();
-    openRestore({title:t('restoreTitle'),hint:t('forceHint'),go:t(best.level?'restore':'forceRestore'),rows:[best],onGo:done});
+    let mine=slotsOf(b);if(!mine.length&&b.sources?.length>1)mine=slotsOf(b,null,true);
+    const others=allSlots().filter(x=>x.book!==b);
+    if(!mine.length)return notice('noMatch');
+    // 同一个文件夹也可能是其他过期书或缺失的卷：完全匹配的一并接回。
+    const extra=async()=>apply(assign(await pairs(others,cands)).filter(p=>p.level===2));
+    if(!mine[0].merged){
+      const x=mine[0],ps=[];for(const c of cands){if(b.fp?.cover?.hash)await candHash(c);ps.push({book:b,source:x.source,merged:false,cand:c,...grade(b,c)});}
+      ps.sort((p,q)=>q.score-p.score);
+      // 都不匹配时，以所选文件夹本身（或唯一的子文件夹）作为强制恢复的对象。
+      const best=ps[0].level?ps[0]:ps.find(p=>p.cand.dir===dir)??(ps.length===1?ps[0]:null);
+      if(!best)return notice('noMatch');
+      const done=async()=>{await ctx.relink(b,best.cand,x.source);await extra();draw();summary(1,0,0);};
+      if(best.level===2)return done();
+      return openRestore({title:t('restoreTitle'),hint:t('forceHint'),go:t(best.level?'restore':'forceRestore'),rows:[best],onGo:done});
+    }
+    // 合并作品：逐卷匹配；完全匹配的直接接回，可能匹配的勾选确认。一卷都对不上时，可以按所选文件夹重建（相对路径相同的卷保留书签和进度）。
+    const matched=assign(await pairs(mine,cands)),sure=matched.filter(p=>p.level===2),maybe=matched.filter(p=>p.level===1);
+    if(!matched.length){
+      const row={book:b,cand:{title:dir.name,dir,names:cands.flatMap(c=>c.names),path:dir.name,cover:cands[0]},same:norm(dir.name)===norm(b.title),cover:null};
+      return openRestore({title:t('restoreTitle'),hint:t('forceMergedHint'),go:t('forceRestore'),rows:[row],async onGo(){
+        await ctx.rebuild(b,ctx.mergeKeys(cands));await extra();draw();summary(1,0,0);}});
+    }
+    await apply(sure);await extra();draw();
+    if(!maybe.length)return summary(1,0,0);
+    openRestore({title:t('reviewTitle'),hint:t('reviewHint'),go:t('restoreSelected'),rows:maybe,checks:true,async onGo(chosen){
+      await apply(chosen);draw();summary(1,0,0);}});
   }
   let urls=[];
   function side(label,name,meta,load){
@@ -273,9 +325,11 @@ export function install(ctx){
       const row=make(checks?'label':'div','match');
       if(checks){const box=make('input');box.type='checkbox';box.checked=!!p.cover;p.box=box;row.append(box);}
       const pages=n=>n+' '+t('pages');
-      row.append(side(t('oldRecord'),ctx.title(p.book),[pages(p.book.pages.length),p.book.path].filter(Boolean).join(' · '),async()=>(await ctx.getThumb(p.book.id+':cover'))?.url),
+      // 合并作品的某一卷：显示“书名 · 卷名”和这一卷的页数、路径。
+      const vol=p.merged&&p.source,n=vol?allPages(p.book).filter(x=>keyOf(x)===vol.key).length:p.book.pages.length;
+      row.append(side(t('oldRecord'),ctx.title(p.book)+(vol?' · '+vol.title:''),[pages(n),vol?vol.path:p.book.path].filter(Boolean).join(' · '),async()=>(await ctx.getThumb(p.book.id+':cover'))?.url),
         make('span','arrow','→'),
-        side(t('newFolder'),p.cand.title,[pages(p.cand.names.length),p.cand.path].filter(Boolean).join(' · '),async()=>{const th=await ctx.makeThumb(await coverFile(p.cand),{width:120});const u=URL.createObjectURL(th.blob);urls.push(u);return u;}));
+        side(t('newFolder'),p.cand.title,[pages(p.cand.names.length),p.cand.path].filter(Boolean).join(' · '),async()=>{const th=await ctx.makeThumb(await coverFile(p.cand.cover??p.cand),{width:120});const u=URL.createObjectURL(th.blob);urls.push(u);return u;}));
       const why=make('span','why');
       why.append(make('span',p.same?'':'bad',t(p.same?'sameName':'diffName')));
       if(p.cover!=null)why.append(make('span',p.cover?'':'bad',t(p.cover?'sameCover':'diffCover')));
