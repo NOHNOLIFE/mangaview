@@ -479,7 +479,7 @@ export function install(ctx){
   shelf.addEventListener('close',()=>{flushFilter();if(!shelf.open){opened=false;grid.classList.remove('intro');}});
   // close 事件是异步的：关闭后立刻再按 B 打开时它还没到，这里用属性变化（微任务）及时记下“已关闭”，下次绘制按“打开”处理。
   new MutationObserver(()=>{if(!shelf.open)opened=false;}).observe(shelf,{attributes:true,attributeFilter:['open']});
-  ctx.drawShelf=draw;ctx.shelfView=()=>view;
+  ctx.drawShelf=draw;ctx.shelfView=()=>view;ctx.clearFilters=clearFilters;
   ctx.actions.copy=()=>ctx.copy(filtered().map(ctx.title).join('\n'));
 
   // ---- 存储空间：低频检查（启动后一次、打开书架时最多每 10 分钟一次）。占用达到配额的 85% 时提示删除旧书记录。

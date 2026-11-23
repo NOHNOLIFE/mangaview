@@ -236,6 +236,7 @@ MangaView 会在三种情况下检查文件夹里图片的增删（第一种可�
 | `lang.mjs` | 内置翻译 |
 | `sw.js` | 离线缓存 |
 | `dist/` | 供 v1 用户迁移的过渡文件 |
+| `docs/dev-guidelines.zh-CN.md` | 设计要求与开发约定 |
 
 测试需要 Node 22.12+：
 

@@ -236,6 +236,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `lang.mjs` | Built-in translations |
 | `sw.js` | Offline cache |
 | `dist/` | Migration bridge for v1 users |
+| `docs/dev-guidelines.zh-CN.md` | Design requirements and development conventions (Chinese) |
 
 Tests need Node 22.12+:
 
