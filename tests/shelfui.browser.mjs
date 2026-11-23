@@ -108,11 +108,19 @@ try{
   await js(`query.value='B30';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await names())==='["B30"]');
   assert.equal(await js(`document.querySelector('#books .book .bm-flag')`),null,'No badge without bookmarks');
   await js(`filters.reset()`);await wait(async()=>(await names()).length>5);
+  // 工具条：只有图标、宽度固定；有无筛选条件、角标、预设时，各元素的位置和宽度完全不变。
+  const row=()=>js(`['#filters .search','#clearBtn','#filterToggle','#presetBtn','#sortBtn','#bulkBtn','#layoutBtn'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return [s,r.left,r.top,r.width,r.height].join(' ');})`);
+  const row0=await row();assert.equal(await js('clearBtn.disabled'),true);
+  assert.ok(await js(`(()=>{const x=s=>document.querySelector(s).getBoundingClientRect();return x('#clearBtn').left>x('#filters .search').right&&x('#filterToggle').left>x('#clearBtn').right&&x('#presetBtn').left>x('#filterToggle').right&&x('#sortBtn').left-x('#presetBtn').right>40&&x('#bulkBtn').left>x('#sortBtn').right&&x('#layoutBtn').left>x('#bulkBtn').right;})()`),'Order: search, clear, filters, presets | sort, batch, layout');
+  assert.ok(await js(`['clearBtn','filterToggle','presetBtn','sortBtn','bulkBtn','layoutBtn','markedToggle'].every(id=>{const b=document.getElementById(id);return !b.querySelector('span:not(.nbadge)')&&b.title&&b.getAttribute('aria-label');})`),'Icon-only buttons with tooltips');
+  assert.equal(await js(`new Set(['#views [data-view="all"] use','#shelf [data-act="merge"] use','#bulkBtn use','#layoutBtn use'].map(s=>document.querySelector(s).getAttribute('href'))).size`),4,'All / merge / batch / layout icons differ');
   await js('filterToggle.click()');assert.equal(await js('filterPanel.hidden'),false);
+  await wait(()=>js(`filterToggle.getAttribute('aria-expanded')+'|'+filterToggle.title+'|'+getComputedStyle(filterToggle.querySelector('.chev')).rotate==='true|Hide filters|180deg'`)); // 展开时箭头朝上
   await js('markedToggle.click()');await wait(async()=>JSON.stringify(await names())==='["B10","B35","B60"]');
-  assert.equal(await js('shelfCount.textContent'),'3 / 78');assert.equal(await js('filterBadge.textContent'),'1');
+  assert.equal(await js('shelfCount.textContent'),'3 / 78');assert.ok(await js('query.parentNode.contains(shelfCount)'),'Result count sits inside the search box');assert.equal(await js('filterBadge.textContent'),'1');
   await js(`[...tagBar.querySelectorAll('button.tag')].find(x=>x.textContent.startsWith('xtag')).click()`);await wait(async()=>JSON.stringify(await names())==='["B10","B35"]');
   await js('filterToggle.click()');assert.equal(await js('filterSummary.hidden'),false);assert.equal(await js('filterBadge.textContent'),'2');
+  assert.deepEqual(await row(),row0,'Filters, badge and clear button do not move or resize the toolbar');assert.equal(await js('clearBtn.disabled'),false);
   await shot('shelf-filtered');
   // 5. 当前导航范围：上一本 / 下一本与书架书签列表只在筛选结果中；当前书 B30 不在结果里时走到排序上最近的一本。
   await js('shelf.close()');await wait(()=>js(`[...document.querySelectorAll('#shelfmarks .sm-book')].length===2`));
@@ -136,20 +144,31 @@ try{
   await js('presetBtn.click()');await wait(()=>js(`presetPop.matches(':popover-open')`));
   await js(`presetPop.querySelector('.pp-add').click()`);await wait(()=>js(`!!presetPop.querySelector('.pp-name input')`));
   await js(`(()=>{const f=presetPop.querySelector('.pp-name');f.querySelector('input').value='Marked';f.requestSubmit();})()`);
-  await wait(()=>js(`presetName.textContent==='Marked'`));assert.equal(JSON.parse(await js(`localStorage.getItem('mv2:shelfPresets')`))[0].name,'Marked');
+  await wait(()=>js(`presetBtn.title==='Preset: Marked'`));assert.equal(JSON.parse(await js(`localStorage.getItem('mv2:shelfPresets')`))[0].name,'Marked');
+  assert.ok(await js(`presetBtn.classList.contains('on')`));assert.deepEqual(await row(),row0,'An applied preset does not resize the toolbar');
   await shot('shelf-presets');
   await press('esc');await wait(()=>js(`!presetPop.matches(':popover-open')`));assert.equal(await js('shelf.open'),true,'Esc closes only the popover');
-  await js(`filterSummary.querySelector('.link-btn').click()`);await wait(async()=>(await names()).length>5);
-  assert.equal(await js('presetName.textContent'),'Presets');
+  await js(`clearBtn.click()`);await wait(async()=>(await names()).length>5);
+  assert.equal(await js('presetBtn.title'),'Presets');assert.equal(await js('clearBtn.disabled'),true,'Clear is disabled without filters');
   await js('presetBtn.click()');await js(`presetPop.querySelector('.pp-apply').click()`);await wait(async()=>JSON.stringify(await names())==='["B10","B35"]');
-  assert.equal(await js('presetName.textContent'),'Marked');
+  assert.equal(await js('presetBtn.title'),'Preset: Marked');
   await js('presetBtn.click()');await js(`presetPop.querySelector('.pp-row [aria-label="Rename"]').click()`);
   await js(`(()=>{const f=presetPop.querySelector('.pp-name');f.querySelector('input').value='Favourites';f.requestSubmit();})()`);
-  await wait(()=>js(`presetName.textContent==='Favourites'`));await js('presetPop.hidePopover()');
+  await wait(()=>js(`presetBtn.title==='Preset: Favourites'`));await js('presetPop.hidePopover()');
   await js('filterToggle.click();markedToggle.click()');await wait(async()=>(await names()).length===2&&await js(`presetBtn.classList.contains('modified')`));
   await js('presetBtn.click()');await js(`presetPop.querySelector('.pp-row [aria-label="Delete preset"]').click()`);
-  assert.equal(await js(`localStorage.getItem('mv2:shelfPresets')`),'[]');assert.equal(await js('presetName.textContent'),'Presets');await js('presetPop.hidePopover()');
+  assert.equal(await js(`localStorage.getItem('mv2:shelfPresets')`),'[]');assert.equal(await js('presetBtn.title'),'Presets');await js('presetPop.hidePopover()');
   await js('filters.reset()');await wait(async()=>(await names()).length>5);
+  // 7b. 排序菜单：与预设同样的弹出层；当前项打勾，方向键 + Enter 选择，Esc 只关闭菜单。
+  assert.equal(await js('sortBtn.title'),'Sort: Name · ascending');
+  await js('sortBtn.focus()');await press('enter');await wait(()=>js(`sortPop.matches(':popover-open')`));
+  await wait(()=>js(`sortPop.contains(document.activeElement)`));assert.equal(await js(`document.activeElement.dataset.sort+'|'+document.activeElement.getAttribute('aria-checked')`),'nameAsc|true','Focus lands on the current sort');
+  assert.deepEqual(await js(`[...sortPop.querySelectorAll('.sp-item')].map(b=>b.textContent)`),['Date added · descending','Date added · ascending','Folder time · descending','Folder time · ascending','Name · ascending','Name · descending']);
+  await shot('shelf-sort-menu');
+  await press('down');await press('enter');await wait(()=>js(`!sortPop.matches(':popover-open')&&sortBtn.dataset.sort==='nameDesc'`));
+  assert.equal(await js(`localStorage.getItem('mv2:shelfSort')`),'"nameDesc"');assert.equal(await js('document.activeElement.id'),'sortBtn');
+  await press('enter');await wait(()=>js(`sortPop.matches(':popover-open')`));await press('esc');await wait(()=>js(`!sortPop.matches(':popover-open')`));assert.equal(await js('shelf.open'),true);
+  await js(`sortBtn.click();sortPop.querySelector('[data-sort="nameAsc"]').click()`);assert.equal(await js('sortBtn.dataset.sort'),'nameAsc');
   // 8. 标签联想：输入即列出匹配的已有标签，↓ + Enter 选用；输入为空时最近用过的排在最前。
   await js(`query.value='B20';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await names())==='["B20"]');
   await js(`document.querySelector('#books .book [aria-label="Tags"]').click()`);await wait(()=>js('tagEditor.open'));
@@ -161,7 +180,16 @@ try{
   await js(`query.value='B21';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await names())==='["B21"]');
   await js(`document.querySelector('#books .book [aria-label="Tags"]').click()`);await wait(()=>js('tagEditor.open'));
   assert.deepEqual(await js(`[...tagSuggest.querySelectorAll('.sug')].slice(0,1).map(s=>[s.querySelector('.tag').textContent,s.querySelector('small').textContent])`),[['xtag','Recent']]);
-  await shot('tag-suggest');await js('tagEditor.close()');await js('filters.reset()');
+  // 联想是浮层：一行排多个；输入不同内容时对话框和输入框的位置、大小都不动。
+  assert.equal(await js(`getComputedStyle(tagSuggest).position+'|'+(tagSuggest.children[0].offsetTop===tagSuggest.children[1].offsetTop)`),'absolute|true','Suggestions float and sit side by side');
+  const box=()=>js(`[tagInput,tagEditor].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height].join(' ');}).join(' / ')`);
+  await delay(300);const box0=await box();
+  for(const v of ['x','XT','zzzz','']){await js(`tagInput.value='${v}';tagInput.dispatchEvent(new Event('input'))`);assert.equal(await box(),box0,'Input stays put while typing '+v);}
+  assert.equal(await js('tagSuggest.hidden'),false);
+  await js('tagInput.focus()');await press('down');await press('right');assert.equal(await js(`tagSuggest.querySelector('[aria-selected=true] .tag').textContent`),'other','→ moves to the next suggestion');
+  await shot('tag-suggest');
+  await press('esc');assert.equal(await js('tagSuggest.hidden+"|"+tagEditor.open+"|"+tagInput.getAttribute("aria-expanded")'),'true|true|false','First Esc closes the suggestions only');
+  await press('esc');await wait(()=>js('!tagEditor.open'));await js('filters.reset()');
   // 搜索框：Esc 先清空关键词，再回到列表；再按 Esc 关闭书架。
   await js(`query.focus();query.value='zzz';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>(await names()).length===0);
   await press('esc');await wait(async()=>(await names()).length>5);assert.equal(await js('query.value+"|"+shelf.open'),'|true');
@@ -176,6 +204,8 @@ try{
   assert.ok(await js('books.clientHeight>innerHeight*.45'),'List keeps enough height at 500px: '+await js('books.clientHeight'));
   assert.ok(await js(`[...filters.querySelectorAll('button,input,select')].filter(e=>e.offsetParent).every(e=>{const r=e.getBoundingClientRect();return r.right<=innerWidth+1&&r.left>=-1;})`),'Controls stay inside the window');
   await shot('shelf-narrow');
+  // 再点已激活的列表页签：关闭书架，回到阅读界面。
+  await js(`document.querySelector('[data-view="shelf"][aria-selected="true"]').click()`);await wait(()=>js('!shelf.open'));
   // 11. 旧数据或损坏的偏好值不报错、不白屏。
   await cdp('Emulation.clearDeviceMetricsOverride');
   await js(`localStorage.setItem('mv2:shelfFilter','{"q":5,"tags":"x","min":"-3","max":"abc","preset":"nope"}');localStorage.setItem('mv2:shelfPresets','{"a":1}');localStorage.setItem('mv2:shelfLayout','"weird"');localStorage.setItem('mv2:recentTags','7');`);

@@ -108,26 +108,26 @@ Both fade out when the mouse leaves, and each edge pop-out can be turned off in 
 
 ### Shelf, library and tags
 
-The **Bookshelf** button (or **B**) opens a full-screen view with four lists:
+The **Bookshelf** button (or **B**) opens a full-screen view with four lists (click the tab of the current list again, or press **B** again, to go back to reading):
 
 - **Shelf**: what you are reading now. Newly opened folders, and folders you open again, land here.
 - **Library**: everything else, for managing large collections. Books you open or drop while the shelf view is showing the library go to the library.
-- **All books**: both together, for searching everything.
+- **All**: both together, for searching everything.
 - **Missing**: only shown when some books' folders can't be found (see below).
 
 *Previous / next book* move through the list the current book is in (shelf or library). Importing while the shelf view is open doesn't switch the book you're reading; you just get a note of how many books were added.
 
-When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. A button in the header switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions).
+When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
 
-**Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. The **Filters** button opens a panel with a page-count range, **Has bookmarks** and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it with a button to clear them. Filters are remembered and stay in place as you switch between shelf, library and all books; previous / next book and the shelf bookmarks also stay within the filtered results.
+**Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. While filters are active, the search box shows the number of results on its right. The **Filters** button opens a panel with a page-count range, **Has bookmarks** and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it, and the **Clear filters** button next to the search box clears them all. Filters are remembered and stay in place as you switch between shelf, library and all; previous / next book and the shelf bookmarks also stay within the filtered results.
 
-**Presets**: save the current filters as a preset, then apply it with one click from the preset menu, where you can also rename, delete or update presets. If you change the filters after applying one, its button is marked *modified*.
+**Presets**: save the current filters as a preset, then apply it with one click from the preset menu, where you can also rename, delete or update presets. If you change the filters after applying one, the preset button gets a small dot (its tooltip says *modified*).
 
-**Sorting books**: the drop-down sorts by date added (newest first by default), folder time or name, in either direction. Shelf, library and all books share this setting, and previous / next book and the shelf bookmarks follow the same order. Browsers can't read a folder's own modification time, so *folder time* is the newest modification time of the images inside; it is worked out in the background only when you pick that sort (file info only, no image reading), and books not done yet go last.
+**Sorting books**: the sort menu sorts by date added (descending, newest first, by default), folder time or name, ascending or descending (ascending: oldest first / A→Z). Shelf, library and all share this setting, and previous / next book and the shelf bookmarks follow the same order. Browsers can't read a folder's own modification time, so *folder time* is the newest modification time of the images inside; it is worked out in the background only when you pick that sort (file info only, no image reading), and books not done yet go last.
 
 The **Batch actions** menu copies the listed titles, has **Move all to shelf / library** for everything the current filters show, and **Clear shelf / library**, which deletes the records of every book in that list (filters don't apply) after asking for confirmation. Image files are never deleted.
 
-The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested as you type (`↑` `↓` to choose, Enter to add), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
+The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested in a pop-up below the box as you type (`↑` `↓` to choose, then `←` `→` too, Enter to add, `Esc` closes the suggestions first), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
 
 ### Import as one book
 

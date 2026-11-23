@@ -1,4 +1,4 @@
-// 书架界面：书架（在读列表）/ 书库（大量藏书）/ 所有书籍 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
+// 书架界面：书架（在读列表）/ 书库（大量藏书）/ 全部 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
 import {natural,fileOf} from './model.mjs';
 import {scan,readMissingTimes,allPages,keyOf} from './sources.mjs';
 import {norm,coverName,grade,assign,hue} from './match.mjs';
@@ -19,6 +19,7 @@ extend({
   tagRecent:['Recent','最近','最近','최근'],tagHint:['↑ ↓ to choose · Enter to add','↑ ↓ 选择 · 回车添加','↑ ↓ で選択 · Enter で追加','↑ ↓ 선택 · Enter 추가'],
   storageHigh:['Browser storage is {p}% full. Delete records of books you no longer need (covers and bookmark thumbnails take most of the space).','浏览器存储空间已用 {p}%，建议删除不再需要的旧书记录（主要占用来自封面和书签缩略图）。','ブラウザーの保存領域が {p}% 使用されています。不要になった本の記録を削除してください（主に表紙としおりのサムネイルが容量を使います）。','브라우저 저장 공간이 {p}% 찼습니다. 더 이상 필요 없는 책 기록을 삭제하세요(표지와 책갈피 썸네일이 대부분을 차지합니다).'],
   layoutGrid:['Grid','普通网格','グリッド','격자'],layoutMasonry:['Masonry','瀑布流','マソンリー','메이슨리'],
+  filtersHide:['Hide filters','收起筛选','絞り込みを閉じる','필터 접기'],sortNow:['Sort: {s}','排序：{s}','並べ替え：{s}','정렬: {s}'],presetNow:['Preset: {s}','预设：{s}','プリセット：{s}','프리셋: {s}'],
   layoutSwitch:['Layout: {now} — click for {next}','布局：{now}（点击切换为{next}）','レイアウト：{now}（クリックで{next}に切替）','레이아웃: {now} (클릭하면 {next}(으)로 전환)']
 });
 const $=id=>document.getElementById(id);
@@ -56,8 +57,16 @@ export function install(ctx){
     return ka!==kb?(ka?-1:1):ka&&a[key]!==b[key]?dir*(a[key]-b[key]):byName(a,b);};
   const compare={addedNew:byNumber('added',-1),addedOld:byNumber('added',1),folderNew:byNumber('folderTime',-1),folderOld:byNumber('folderTime',1),nameAsc:byName,nameDesc:(a,b)=>byName(b,a)};
   const byTitle=list=>list.sort(compare[sortBy]);ctx.orderBooks=byTitle;
-  const sortSelect=$('shelfSort');sortSelect.value=sortBy;
-  sortSelect.onchange=()=>{sortBy=sortSelect.value;put('shelfSort',sortBy);draw('sort');ctx.emit('books');sweepTimes();};
+  // 排序菜单：与预设菜单同样的弹出层；按钮只显示图标，当前排序写在提示文字里。
+  const sortLabel={addedNew:'bsAddedNew',addedOld:'bsAddedOld',folderNew:'bsFolderNew',folderOld:'bsFolderOld',nameAsc:'bsNameAsc',nameDesc:'bsNameDesc'},sortBtn=$('sortBtn'),sortPop=$('sortPop');
+  function setSort(v){if(!SORTS.includes(v)||v===sortBy)return;sortBy=v;put('shelfSort',sortBy);draw('sort');ctx.emit('books');sweepTimes();}
+  function drawSortBtn(){sortBtn.title=fmt('sortNow',{s:t(sortLabel[sortBy])});sortBtn.setAttribute('aria-label',sortBtn.title);sortBtn.dataset.sort=sortBy;}
+  function drawSortPop(){sortPop.replaceChildren(...SORTS.map(v=>{const b=make('button','sp-item');b.type='button';b.dataset.sort=v;b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(v===sortBy));
+    b.append(icon('check'),make('span','',t(sortLabel[v])));b.onclick=()=>{sortPop.hidePopover();sortBtn.focus();setSort(v);};return b;}));}
+  sortPop.addEventListener('beforetoggle',e=>{if(e.newState==='open')drawSortPop();});
+  sortPop.addEventListener('toggle',e=>{if(e.newState==='open')sortPop.querySelector('[aria-checked=true]')?.focus({preventScroll:true});});
+  sortPop.addEventListener('keydown',e=>{const items=[...sortPop.querySelectorAll('button')],i=items.indexOf(document.activeElement),n=items.length;
+    const j={ArrowDown:(i+1)%n,ArrowUp:(i-1+n)%n,Home:0,End:n-1}[e.key];if(j==null)return;e.preventDefault();items[j].focus();});
   // 按文件夹时间排序时才计算（只读文件元数据，串行，不与阅读抢硬盘）；算出新值后刷新列表。
   let timing=false,retime=false;
   async function sweepTimes(){
@@ -306,7 +315,8 @@ export function install(ctx){
       if(v==='expired')tab.hidden=!counts.expired;}
     const before=shown,oldIndex=before.findIndex(b=>b.id===activeId),hadFocus=holder.contains(document.activeElement)||document.activeElement===document.body;
     shown=filtered();
-    $('shelfCount').textContent=shown.length===counts[view]?'':shown.length+' / '+counts[view];
+    // 筛选结果数显示在搜索框内右侧（叠加显示，不占工具条宽度）。
+    $('shelfCount').textContent=filtering()?shown.length+' / '+counts[view]:'';
     $('expiredHint').hidden=view!=='expired';
     drawFilterUI();drawBulk(counts);
     for(const [id,el] of nodes)if(!books.has(id)){el.remove();nodes.delete(id);}
@@ -325,7 +335,7 @@ export function install(ctx){
     else if(!ids.has(target)){target=shown[Math.min(Math.max(oldIndex,0),shown.length-1)]?.id;scroll='nearest';focus=hadFocus;}
     if(reason==='open'){grid.classList.add('intro');clearTimeout(introTimer);introTimer=setTimeout(()=>grid.classList.remove('intro'),900);}
     const was=nodes.get(activeId);activeId=target??null;if(was&&was.dataset.id!==activeId)mark(was,false);
-    drawLayoutBtn();place((reason==='update'||reason==='layout')&&before.length>0);
+    drawLayoutBtn();drawSortBtn();place((reason==='update'||reason==='layout')&&before.length>0);
     setActive(activeId,{focus,scroll});
   }
   async function move(list,place){
@@ -363,18 +373,22 @@ export function install(ctx){
     btn.replaceChildren(icon(layoutMode==='grid'?'layout-grid':'layout-masonry'));btn.title=fmt('layoutSwitch',{now,next});btn.setAttribute('aria-label',btn.title);btn.dataset.mode=layoutMode;}
   $('layoutBtn').onclick=()=>{layoutMode=layoutMode==='grid'?'masonry':'grid';put('shelfLayout',layoutMode);draw('layout');};
   $('restoreAllBtn').onclick=safe(()=>restoreBatch());
-  $('views').onclick=e=>{const tab=e.target.closest('[data-view]');if(!tab)return;view=tab.dataset.view;if(view!=='expired')put('shelfView',view);draw('view');};
+  // 再点一次已激活的列表页签：关闭书架，回到阅读界面。
+  $('views').onclick=e=>{const tab=e.target.closest('[data-view]');if(!tab)return;if(tab.dataset.view===view){shelf.close();return;}view=tab.dataset.view;if(view!=='expired')put('shelfView',view);draw('view');};
   $('views').onkeydown=e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;const tabs=[...$('views').querySelectorAll('[data-view]:not([hidden])')],i=tabs.findIndex(x=>x.dataset.view===view);
-    const next=tabs[(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];next.click();next.focus();};
+    const next=tabs[(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];if(next.dataset.view!==view)next.click();next.focus();};
 
-  // ---- 筛选界面：一行主工具条；页数、书签、标签在可折叠的筛选面板里；面板收起且有筛选时，下方一行显示生效的条件和“清除”。
+  // ---- 筛选界面：一行主工具条；页数、书签、标签在可折叠的筛选面板里；面板收起且有筛选时，下方一行显示生效的条件（各条可单独移除）。
   const panel=$('filterPanel'),toggle=$('filterToggle');let tagsOpen=false;
-  function showPanel(open){panel.hidden=!open;toggle.setAttribute('aria-expanded',String(open));put('shelfPanel',open);drawFilterUI();}
-  toggle.onclick=()=>showPanel(panel.hidden);panel.hidden=!get('shelfPanel',false);toggle.setAttribute('aria-expanded',String(!panel.hidden));
+  function showPanel(open){panel.hidden=!open;put('shelfPanel',open);drawFilterUI();}
+  toggle.onclick=()=>showPanel(panel.hidden);panel.hidden=!get('shelfPanel',false);
   function toggleTag(tag){const k=norm(tag),has=F.tags.some(x=>norm(x)===k);setFilter({...F,tags:has?F.tags.filter(x=>norm(x)!==k):[...F.tags,tag]},{inputs:false});}
   function drawFilterUI(){
     const n=extraFilters();
-    $('filterBadge').textContent=n||'';toggle.classList.toggle('on',n>0);
+    // 工具条按钮都只显示图标（文字在提示里），宽度固定：角标叠在按钮角上，“清除筛选”无条件时禁用而不移除。
+    $('filterBadge').textContent=n||'';toggle.classList.toggle('on',n>0);toggle.setAttribute('aria-expanded',String(!panel.hidden));
+    toggle.title=t(panel.hidden?'filters':'filtersHide');toggle.setAttribute('aria-label',t('filters'));
+    $('clearBtn').disabled=!filtering()&&!presetId;
     $('markedToggle').setAttribute('aria-pressed',String(F.marked));
     // 标签：当前列表中的标签按使用次数排列，已选的排在最前（即使当前列表里没有）。默认只显示一行，可展开或搜索。
     const tags=allTags(b=>inView(b)),counts=new Map(tags),on=new Set(F.tags.map(norm)),q=norm($('tagQuery').value);
@@ -389,19 +403,18 @@ export function install(ctx){
     const sum=$('filterSummary');sum.hidden=!panel.hidden||!n;
     if(!sum.hidden){
       const x=(label,fn)=>{const c=make('span','fchip',label),b=make('button','tag-x');b.type='button';b.setAttribute('aria-label',t('remove')+' · '+label);b.append(icon('close'));b.onclick=fn;c.append(b);return c;};
-      const c=make('button','link-btn',t('clearFilters'));c.type='button';c.onclick=()=>clearFilters();
       sum.replaceChildren(make('span','flabel',t('filterOn')),...F.tags.map(tag=>chip(tag,{remove:()=>toggleTag(tag)})),
-        ...(F.min||F.max?[x(rangeText(F),()=>setFilter({...F,min:'',max:''}))]:[]),...(F.marked?[x(t('hasBookmarks'),()=>setFilter({...F,marked:false}))]:[]),c);
+        ...(F.min||F.max?[x(rangeText(F),()=>setFilter({...F,min:'',max:''}))]:[]),...(F.marked?[x(t('hasBookmarks'),()=>setFilter({...F,marked:false}))]:[]));
     }
-    // 预设按钮：显示正在使用的预设名，条件被改动后加“已修改”标记。
-    const p=presets.find(x=>x.id===presetId),mod=!!p&&!same(F,p.f);
-    $('presetName').textContent=p?p.name:t('presets');$('presetBtn').classList.toggle('on',!!p);$('presetBtn').classList.toggle('modified',mod);
-    $('presetBtn').title=p?p.name+(mod?' · '+t('presetModified'):''):t('presets');
+    // 预设按钮：正在使用预设时高亮，预设名写在提示里；条件被改动后加“已修改”圆点。
+    const p=presets.find(x=>x.id===presetId),mod=!!p&&!same(F,p.f),pb=$('presetBtn');
+    pb.classList.toggle('on',!!p);pb.classList.toggle('modified',mod);
+    pb.title=p?fmt('presetNow',{s:p.name+(mod?' ('+t('presetModified')+')':'')}):t('presets');pb.setAttribute('aria-label',pb.title);
     if($('presetPop').matches(':popover-open'))drawPresets();
   }
   $('tagMore').onclick=()=>{tagsOpen=!tagsOpen;drawFilterUI();};
   $('markedToggle').onclick=()=>setFilter({...F,marked:!F.marked});
-  function clearFilters(){$('tagQuery').value='';sortSelect.value=sortBy;setFilter(EMPTY,{preset:null});} // 表单重置也会把排序下拉框恢复成第一项，这里改回来
+  function clearFilters(){$('tagQuery').value='';setFilter(EMPTY,{preset:null});}
   const form=$('filters');
   form.oninput=e=>{
     if(e.target.id==='tagQuery'){drawFilterUI();return;}
@@ -412,7 +425,7 @@ export function install(ctx){
   // 弹出层打开时 Esc 只关闭弹出层，不关闭整个书架。
   window.addEventListener('keydown',e=>{
     if(e.key!=='Escape'||!shelf.open||e.target.closest?.('.pp-name'))return;const open=shelf.querySelector(':popover-open');if(!open)return;
-    e.preventDefault();e.stopPropagation();const btn=$(open.id==='presetPop'?'presetBtn':'bulkBtn');open.hidePopover();btn.focus();
+    e.preventDefault();e.stopPropagation();const btn=$({presetPop:'presetBtn',sortPop:'sortBtn'}[open.id]??'bulkBtn');open.hidePopover();btn.focus();
   },true);
   // 搜索框快捷键：/ 或 Ctrl+F 聚焦；在搜索框里按 ↓ 回到列表，Esc 先清空关键词、再回到列表。
   shelf.addEventListener('keydown',e=>{
@@ -461,7 +474,7 @@ export function install(ctx){
       popEl.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-popEl.offsetHeight-8))+'px';popEl.style.left=Math.max(8,Math.min(right?r.right-w:r.left,document.documentElement.clientWidth-w-8))+'px';});
   }
   pop.addEventListener('beforetoggle',e=>{if(e.newState==='open'){editing=null;presetQuery='';drawPresets();}});
-  anchor(pop,$('presetBtn'));anchor($('bulkPop'),$('bulkBtn'),true);
+  anchor(pop,$('presetBtn'));anchor($('bulkPop'),$('bulkBtn'),true);anchor(sortPop,sortBtn,true);
   // close 事件异步派发：关闭后立刻重新打开时，迟到的事件不能清空新画好的列表。
   shelf.addEventListener('close',()=>{flushFilter();if(!shelf.open){opened=false;grid.classList.remove('intro');}});
   // close 事件是异步的：关闭后立刻再按 B 打开时它还没到，这里用属性变化（微任务）及时记下“已关闭”，下次绘制按“打开”处理。
@@ -492,9 +505,9 @@ export function install(ctx){
   $('renameBook').addEventListener('close',()=>{renaming=null;});
 
   // ---- 标签编辑：输入即联想已有标签（前缀匹配优先，再按包含），↑ ↓ 选择、回车添加；输入为空时列出最近用过和常用的标签。
-  let tagging=null,hl=-1,sugs=[];
+  let tagging=null,hl=-1,sugs=[],sugOff=false; // sugOff：联想浮层被 Esc 收起，再输入或按 ↑ ↓ 时重新显示
   const recentTags=()=>{const r=get('recentTags',[]);return Array.isArray(r)?r.filter(x=>typeof x==='string'):[];};
-  function editTags(b){tagging=b;hl=-1;$('tagBook').textContent=ctx.title(b);$('tagInput').value='';drawTagEditor();$('tagEditor').showModal();$('tagInput').focus();}
+  function editTags(b){tagging=b;hl=-1;sugOff=false;$('tagBook').textContent=ctx.title(b);$('tagInput').value='';drawTagEditor();$('tagEditor').showModal();$('tagInput').focus();}
   const lastPart=v=>v.split(/[,，、#]/).pop();
   function suggestions(){
     const have=new Set(tagsOf(tagging).map(norm)),q=norm(lastPart($('tagInput').value)),all=allTags().filter(([k])=>!have.has(k));
@@ -509,12 +522,13 @@ export function install(ctx){
     const b=tagging;if(!b)return;const input=$('tagInput');
     $('tagList').replaceChildren(...tagsOf(b).map(x=>chip(x,{remove:safe(async()=>{b.tags=tagsOf(b).filter(y=>y!==x);await saveTags(b);})})));
     sugs=suggestions();if(hl>=sugs.length)hl=sugs.length-1;
-    const box=$('tagSuggest');
+    // 联想是输入框下方的浮层（绝对定位，不参与对话框布局）：结果增减时对话框大小和输入框位置都不动；标签紧凑地一行排多个。
+    const box=$('tagSuggest');box.hidden=sugOff||!sugs.length;input.setAttribute('aria-expanded',String(!box.hidden));
     box.replaceChildren(...sugs.map((s,i)=>{const row=make('button','sug');row.type='button';row.id='tag-sug-'+i;row.tabIndex=-1;
       row.setAttribute('role','option');row.setAttribute('aria-selected',String(i===hl));row.append(chip(s.tag),make('small','',s.recent?t('tagRecent'):String(s.n)));
       row.onmousedown=e=>e.preventDefault();row.onclick=safe(()=>pick(i));return row;}));
     if(sugs.length)box.append(make('p','sug-hint',t('tagHint')));
-    if(hl>=0){input.setAttribute('aria-activedescendant','tag-sug-'+hl);box.children[hl]?.scrollIntoView({block:'nearest'});}else input.removeAttribute('aria-activedescendant');
+    if(hl>=0&&!box.hidden){input.setAttribute('aria-activedescendant','tag-sug-'+hl);box.children[hl]?.scrollIntoView({block:'nearest'});}else input.removeAttribute('aria-activedescendant');
   }
   function pick(i){const s=sugs[i];if(!s)return;const parts=$('tagInput').value.split(/[,，、#]/);parts[parts.length-1]=s.tag;hl=-1;return addTags(parts.join(','));}
   async function addTags(raw){
@@ -526,11 +540,13 @@ export function install(ctx){
   }
   async function saveTags(b){await ctx.persist(b);drawTagEditor();if(shelf.open)draw();}
   $('tagForm').onsubmit=e=>{e.preventDefault();if(hl>=0)safe(pick)(hl);else safe(addTags)($('tagInput').value);};
-  $('tagInput').oninput=()=>{hl=-1;drawTagEditor();};
+  $('tagInput').oninput=()=>{hl=-1;sugOff=false;drawTagEditor();};
   $('tagInput').onkeydown=e=>{
     if(e.isComposing)return;
-    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!sugs.length)return;hl=e.key==='ArrowDown'?(hl+1)%sugs.length:hl<=0?sugs.length-1:hl-1;drawTagEditor();}
-    else if(e.key==='Escape'&&hl>=0){e.preventDefault();hl=-1;drawTagEditor();}
+    // ↑ ↓ 随时选择；← → 只在已选中某项时切换（否则留给光标移动）。Esc 先收起浮层，再按才关闭对话框。
+    const step={ArrowDown:1,ArrowUp:-1,...hl>=0&&!sugOff?{ArrowRight:1,ArrowLeft:-1}:{}}[e.key];
+    if(step){e.preventDefault();if(!sugs.length)return;if(sugOff){sugOff=false;hl=-1;}hl=step>0?(hl+1)%sugs.length:hl<=0?sugs.length-1:hl-1;drawTagEditor();}
+    else if(e.key==='Escape'&&!$('tagSuggest').hidden){e.preventDefault();hl=-1;sugOff=true;drawTagEditor();}
   };
   $('tagEditor').addEventListener('close',()=>{tagging=null;});
 

@@ -1,4 +1,4 @@
-/* 书架：书架 / 书库 / 所有书籍 / 过期书籍。瀑布流纯封面，书名与操作在选中（鼠标悬停或键盘焦点）时显示。 */
+/* 书架：书架 / 书库 / 全部 / 过期书籍。瀑布流纯封面，书名与操作在选中（鼠标悬停或键盘焦点）时显示。 */
 .views{display:flex;flex-wrap:wrap;gap:3px;padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--raise);app-region:no-drag;-webkit-app-region:no-drag}
 .views button{height:38px;padding:0 14px 0 12px;border:0;border-radius:10px;background:none;color:var(--muted);font-size:14.5px;font-weight:600}
 .views button:not(:disabled):hover{background:rgba(255,255,255,.05);color:var(--text)}
@@ -8,26 +8,31 @@
 .views .count{margin-left:-2px}
 .views .expired-tab{color:var(--faint)}
 .views .expired-tab[aria-selected=true] .i{color:var(--warn)}
-/* 功能区：一行主工具条（搜索、筛选、预设、排序、计数、批量），筛选面板可折叠；任何时候书籍列表都占据绝大部分高度。 */
+/* 功能区：一行主工具条（搜索、清除筛选、筛选、预设 | 排序、批量、布局），筛选面板可折叠；任何时候书籍列表都占据绝大部分高度。
+   工具条按钮只显示图标、宽度固定（文字在提示里），有无筛选条件时各元素的宽度和位置都不变；计数放在列表页签上。 */
 #filters{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:8px;padding:0 36px 12px;border-bottom:1px solid var(--line)}
-#filters .search{flex:1 1 11rem;min-width:9rem}
+#filters .search{flex:1 1 12rem;min-width:7rem;max-width:26rem}
 .search-key{position:absolute;right:9px;top:50%;translate:0 -50%;padding:0 6px;border:1px solid var(--line2);border-radius:5px;color:var(--faint);font:11px/18px inherit;pointer-events:none}
 #query:focus+.search-key,#query:not(:placeholder-shown)+.search-key{display:none}
 #query::-webkit-search-cancel-button{margin-right:2px}
-.chip-btn{flex:none;height:36px;padding:0 12px;gap:7px;font-size:13.5px;max-width:15rem}
-.chip-btn>span:not(.nbadge){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chip-btn .i{width:18px;height:18px}
-.chip-btn.on{border-color:rgba(255,122,89,.45);background:var(--accent-soft)}
-.chip-btn.on>.i:first-child{color:var(--accent)}
-.chip-btn.modified #presetName::after{content:' •';color:var(--accent)}
-.chip-btn.toggle[aria-pressed=true]{border-color:rgba(255,122,89,.45);background:var(--accent-soft)}
-.chip-btn.toggle[aria-pressed=true] .i{color:var(--accent);fill:currentColor}
-.nbadge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.search-count{position:absolute;right:11px;top:50%;translate:0 -50%;color:var(--muted);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.search-count:empty{display:none}
+.search:has(.search-count:not(:empty)) .search-key{display:none}
+.search:has(.search-count:not(:empty)) #query{padding-right:5.5em}
+.tool-btn{position:relative;flex:none;border-color:var(--line2);background:var(--s2)}
+.tool-btn:not(:disabled):hover{border-color:rgba(255,255,255,.18);background:var(--s3)}
+.tool-btn .i{width:18px;height:18px}
+.tool-btn.on,.tool-btn.toggle[aria-pressed=true]{border-color:rgba(255,122,89,.45);background:var(--accent-soft);color:var(--accent)}
+.tool-btn.toggle[aria-pressed=true] .i{fill:currentColor}
+#filterToggle{width:50px;gap:1px;padding-left:2px}
+#filterToggle .chev{width:13px;height:13px;color:var(--faint);transition:rotate .2s var(--ease)}
+#filterToggle[aria-expanded=true] .chev{rotate:180deg}
+#presetBtn.modified::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.nbadge{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;line-height:18px;text-align:center;pointer-events:none}
 .nbadge:empty{display:none}
-#filters>.count{flex:none}
 .filter-panel{display:grid;flex:1 1 100%;gap:10px;padding:4px 0 2px}
 .fp-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.fp-row .range input{width:6.5em}
+.fp-row .range input{width:7.5em}
 .fp-tags{display:flex;align-items:flex-start;gap:8px;min-width:0}
 .tag-search{position:relative;display:flex;flex:none;width:9.5rem}
 .tag-search .i{position:absolute;left:9px;top:7px;width:16px;height:16px;color:var(--faint);pointer-events:none}
@@ -35,7 +40,9 @@
 .tag-bar{display:flex;flex:1;flex-wrap:wrap;align-content:flex-start;gap:6px;min-width:0;max-height:min(30vh,150px);padding:2px;overflow:auto}
 .tag-bar.collapsed{max-height:30px;overflow:hidden}
 .fp-tags .link-btn{flex:none;height:30px}
-.filter-summary{display:flex;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:6px}
+/* 生效条件摘要：固定一行（多了横向滚动），不随条件多少改变高度。 */
+.filter-summary{display:flex;flex:1 1 100%;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.filter-summary>*{flex:none}
 .flabel{color:var(--accent);font-size:12.5px;font-weight:650}
 .fchip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid var(--line2);border-radius:999px;background:var(--s2);font-size:12px;font-weight:600}
 .shelf-note{display:flex;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0}
@@ -54,7 +61,7 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .tag-x:not(:disabled):hover{background:rgba(0,0,0,.25);opacity:1}
 .tag-x .i{width:12px;height:12px}
 
-/* 弹出层：预设、批量操作 */
+/* 弹出层：预设、排序、批量操作 */
 .menu-pop{position:fixed;inset:auto;margin:0;width:max-content;min-width:15rem;max-width:min(26rem,calc(100vw - 16px));max-height:min(70vh,32rem);padding:6px;overflow:auto;border:1px solid var(--line2);border-radius:14px;background:var(--solid);color:inherit;box-shadow:var(--shadow)}
 .menu-pop:popover-open{display:grid;gap:4px;animation:drop .16s var(--ease)}
 .bulk-actions{display:grid;gap:2px}
@@ -62,6 +69,11 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .menu-pop button:not(.icon-btn):not(.primary):not(:disabled):hover{background:rgba(255,255,255,.06)}
 .menu-pop .danger{color:var(--danger)}
 .pp-add .i{color:var(--accent)}
+.sort-pop{min-width:13rem}
+.sort-pop .sp-item{gap:10px}
+.sp-item .i{width:16px;height:16px;color:var(--accent);opacity:0}
+.sp-item[aria-checked=true] .i{opacity:1}
+.menu-pop .sp-item[aria-checked=true]{background:var(--accent-soft)}
 .pp-search{position:relative;display:flex}
 .pp-search .i{position:absolute;left:9px;top:9px;width:16px;height:16px;color:var(--faint);pointer-events:none}
 .pp-search input{width:100%;height:34px;padding-left:32px;font-size:13px}
@@ -134,19 +146,21 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 
 /* 标签编辑：输入即联想 */
 #tagEditor,#renameBook{width:min(28rem,94vw)}
+/* 标签编辑：顶部对齐（不随内容重新居中），允许联想浮层伸出对话框之外。 */
+#tagEditor{margin-top:max(14vh,16px);overflow:visible}
 #renameBook .tag-book{margin-bottom:18px}
 .tag-book{margin:0 22px 10px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
-.tag-list{display:flex;flex-wrap:wrap;gap:6px;padding:0 22px 12px}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:9.5rem;padding:0 22px 12px;overflow:auto}
 .tag-list:empty{display:none}
-.tag-form{display:flex;gap:8px;padding:0 22px 10px}
+.tag-form{position:relative;display:flex;gap:8px;padding:0 22px 20px}
 .tag-form input{flex:1}
-.tag-suggest{display:grid;gap:1px;max-height:min(40vh,18rem);margin:0 16px 16px;overflow:auto}
-.tag-suggest:empty{display:none}
-.tag-suggest .sug{justify-content:space-between;height:34px;padding:0 8px;border:0;border-radius:8px;background:none}
-.tag-suggest .sug:not(:disabled):hover,.tag-suggest .sug[aria-selected=true]{background:rgba(255,255,255,.07)}
+.tag-suggest{position:absolute;z-index:3;left:22px;right:22px;top:42px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px;max-height:min(40vh,15rem);padding:8px;overflow:auto;border:1px solid var(--line2);border-radius:14px;background:var(--solid);box-shadow:var(--shadow);animation:drop .14s var(--ease)}
+.tag-suggest .sug{gap:5px;height:30px;padding:0 8px 0 3px;border:1px solid transparent;border-radius:999px;background:none}
+.tag-suggest .sug:not(:disabled):active{transform:none}
+.tag-suggest .sug:not(:disabled):hover,.tag-suggest .sug[aria-selected=true]{border-color:transparent;background:rgba(255,255,255,.08)}
 .tag-suggest .sug[aria-selected=true]{box-shadow:inset 0 0 0 1px var(--line2)}
-.tag-suggest .sug small{color:var(--faint);font-size:11.5px}
-.sug-hint{margin:4px 8px 0;color:var(--faint);font-size:11.5px}
+.tag-suggest .sug small{color:var(--faint);font-size:11px}
+.sug-hint{flex:1 1 100%;margin:4px 6px 0;color:var(--faint);font-size:11.5px}
 
 /* 恢复 */
 #restore{width:min(48rem,94vw)}
@@ -170,26 +184,10 @@ label.match .why{grid-column:2/-1}
 .why .bad{background:rgba(255,179,92,.12);color:var(--warn)}
 #restore footer{display:flex;flex:none;gap:8px;padding:14px 16px 16px}
 
-@media (max-width:900px){
-  #filterToggle>span[data-t]{display:none}
-  #presetName{max-width:8rem}
-  .shelf-sort select{max-width:11rem}
-}
 @media (max-width:560px){
   #books{padding:14px}
-  #filters .search{flex-basis:100%}
   #filters{padding:0 14px 10px;gap:6px}
-  .chip-btn{padding:0 10px}
-  .chip-btn>span[data-t],#presetName{display:none}
-  .shelf-sort select{max-width:8rem}
   .tag-search{width:7.5rem}
   .views button{padding:0 10px}
   .views button>span[data-t]{display:none}
 }
-/* 书籍排序：主工具条里的下拉框 */
-.shelf-sort{position:relative;display:flex;align-items:center}
-.shelf-sort .i{position:absolute;left:9px;width:16px;height:16px;color:var(--muted);pointer-events:none}
-.shelf-sort select{height:36px;padding:0 10px 0 31px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;cursor:pointer}
-.shelf-sort select:hover{background:var(--s3)}
-.shelf-sort select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.shelf-sort option{background:var(--solid)}
