@@ -45,6 +45,9 @@ try{
   }
   const ph=()=>js('reader.clientWidth*1.4'),H=()=>js('reader.clientHeight');
   const goto=async(n,f)=>js(`reader.scrollTop=${(n+f)*await ph()-await H()/2}`);
+  // 正文变宽 / 变窄后，ResizeObserver 才按新宽度重排（保持屏幕中央的页）；在那之前按新宽度换算的滚动位置会落到旧布局的别的页上。
+  // 等 n 页正文的总高度与当前宽度一致，再按像素滚动。
+  const laid=n=>wait(async()=>Math.abs(await js('parseFloat(reader.firstElementChild.style.height)')-n*await ph())<1);
   const center=async()=>{const p=await ph();return js(`(()=>{const c=Math.round((reader.scrollTop+reader.clientHeight/2)/${p}*100)/100;return [bookTitle.textContent,Math.floor(c),+(c-Math.floor(c)).toFixed(2)];})()`);};
   const text=()=>js(`document.getElementById('notice').textContent`);
   const codes={f:['KeyF',70,'f'],F:['KeyF',70,'F']};
@@ -81,7 +84,7 @@ try{
   await shot('shelfmarks');
   // 悬停不跳转，点击才跳转（跨书）。
   const item=(b,n)=>box(`#shelfmarks .sm-book:nth-child(${b}) .bm-item:nth-child(${n}) .bm-thumb`);
-  await delay(300); // 打开列表后正文变窄重排，等位置稳定再比较
+  await laid(10); // 打开列表后正文变窄重排，等位置稳定再比较
   let p=await item(1,2);const before=await center();await mouse('mouseMoved',p.x,p.y);await delay(300);assert.deepEqual(await center(),before,'Hover does not jump');
   await click(p.x,p.y);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Alpha',6,.5]));
   assert.equal(await js(`document.querySelector('#shelfmarks .sm-book:nth-child(1)').classList.contains('current')&&document.querySelector('#shelfmarks .sm-book:nth-child(1) .bm-item:nth-child(2)').classList.contains('active')`),true);
@@ -203,9 +206,9 @@ try{
     drag('dragenter',10,10);const z=dropLoose.getBoundingClientRect();drag('drop',z.left+z.width/2,z.top+z.height/2);})()`);
   await wait(()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title)?.pages.map(p=>p.name).join()==='P/0.svg,P/0.svg (2),P/1.svg,P/1.svg (2),P/2.svg,P/2.svg (2)')`));
   await wait(()=>js(`bookTitle.textContent==='Loose images'&&document.querySelector('#reader [data-name="P/0.svg (2)"] img')?.naturalHeight===1120`));
-  await js('reader.focus()');await js(`document.querySelector('${btn}').click()`);await wait(()=>js('!document.getElementById("shelfmarks").hidden'));
+  await js('reader.focus()');await js(`document.querySelector('${btn}').click()`);await wait(()=>js('!document.getElementById("shelfmarks").hidden'));await laid(6);
   await goto(1,.5);await hold();await wait(async()=>await count()===1);await goto(3,.5);await hold();await wait(async()=>await count()===2);
-  assert.deepEqual(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>m.name))`),['P/0.svg (2)','P/1.svg (2)']);
+  assert.deepEqual(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>[m.name,Math.round(m.f*100)/100]))`),[['P/0.svg (2)',.5],['P/1.svg (2)',.5]]);
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   const looseMarked=()=>js(`[...document.querySelectorAll('#shelfmarks .sm-book.current .bm-item.active')].map(a=>a.getAttribute('aria-label')).join()`);
   await wait(async()=>await looseMarked()==='Loose images · Image 4');
