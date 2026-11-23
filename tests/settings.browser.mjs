@@ -62,6 +62,16 @@ try{
   assert.deepEqual(await headings(),['Settings','General','Reading','Toolbar','Data']);
   assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/not the image files or folder access/);
   assert.equal(await sw('edgeRight'),'false');assert.equal(await sw('autoCheck'),'true');
+  // 开关几何：滑块在轨道内垂直居中（偏差 ≤ 0.5px），关时左边距 = 开时右边距 = 上下边距；放大页面、改字号后同样成立。
+  const knobs=()=>js(`[...settings.querySelectorAll('.set-switch')].map(s=>{const r=s.getBoundingClientRect(),k=s.querySelector('.knob').getBoundingClientRect();
+    return {on:s.getAttribute('aria-checked')==='true',dy:Math.abs(k.top+k.height/2-(r.top+r.height/2)),side:s.getAttribute('aria-checked')==='true'?r.right-k.right:k.left-r.left,top:k.top-r.top,h:r.height,w:r.width};})`);
+  const checkKnobs=async label=>{await wait(()=>js(`[...settings.querySelectorAll('.set-switch .knob')].every(k=>!k.getAnimations().length)`));const all=await knobs();
+    assert.ok(all.some(k=>k.on)&&all.some(k=>!k.on),'Both states present');
+    for(const k of all){assert.ok(k.dy<=.5,label+': knob is vertically centred '+JSON.stringify(k));assert.ok(Math.abs(k.side-k.top)<=.5,label+': side margin equals top margin '+JSON.stringify(k));assert.ok(k.h<k.w,label+': track is a pill '+JSON.stringify(k));}
+    const sides=all.map(k=>k.side);assert.ok(Math.max(...sides)-Math.min(...sides)<=.5,label+': on / off margins are symmetric '+sides);};
+  await checkKnobs('default');
+  await js(`settings.style.fontSize='22px';settings.style.lineHeight='2.2'`);await checkKnobs('large font');await js(`settings.style.fontSize='';settings.style.lineHeight=''`);
+  await cdp('Emulation.setDeviceMetricsOverride',{width:900,height:900,deviceScaleFactor:1.5,mobile:false});await checkKnobs('scale 1.5');await cdp('Emulation.clearDeviceMetricsOverride');
   await wait(()=>js(`/\\d+ books · \\d+ thumbnails/.test(settings.querySelector('[data-id=bakStorage]').textContent)&&/ of /.test(settings.querySelector('.bak-usage').textContent)`));
   await shot('settings-en');
   await js(`(()=>{const s=settings.querySelector('[data-id=lang] select');s.value='zh';s.dispatchEvent(new Event('change'));})()`);
