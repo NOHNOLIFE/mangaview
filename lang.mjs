@@ -98,29 +98,6 @@ const strings = {
   scanningN:['Scanning folders… {n}','正在扫描文件夹… {n}','フォルダーを走査中… {n}','폴더 검색 중… {n}'],
   needFsa:['This browser can\'t reconnect folders. Use the latest Chrome or Edge.','当前浏览器无法重新关联文件夹，请使用最新版 Chrome 或 Edge。','このブラウザーではフォルダーを再接続できません。最新の Chrome か Edge を使ってください。','이 브라우저에서는 폴더를 다시 연결할 수 없습니다. 최신 Chrome 또는 Edge를 사용하세요.'],
   ready:['Ready for offline reading','已可离线阅读','オフラインで読めます','오프라인 읽기 준비 완료'],
-  // 帮助页的快捷键表：[[按键或鼠标操作…], 说明]，多个按键之间是“或”，“+”表示组合键。
-  shortcuts:[
-    [[['Wheel','Left drag'],'Scroll'],[['Middle click'],'Browser auto-scroll (where supported)'],[['Space','S','↓'],'Scroll down; hold to keep going'],[['Shift+Space','W','↑'],'Scroll up; hold to keep going'],
-     [['D','→'],'Tap: forward one screen · Hold: next book'],[['A','←'],'Tap: back one screen · Hold: previous book'],[['Click'],'Left half: back one screen · Right half: forward'],[['Bottom edge'],'Hover for the action bar: previous / next book, start / end'],
-     [['Home','End'],'Start / end; press again to change books'],[['Page Up','Page Down'],'Previous / next book'],[['Delete'],'Delete the current book\'s record (asks first; image files are kept)'],
-     [['Ctrl+C'],'Copy listed titles'],[['T'],'Show or hide tools'],[['B'],'Open or close the shelf'],[['Esc'],'Close tools, the action bar and floating panels'],[['Right edge'],'Hover to show the preview strip; its top button opens full-screen thumbnails'],[['V',']'],'Open or close full-screen thumbnails'],[['C','['],'Open or close full-screen shelf bookmarks'],[['W A S D','↑ ↓ ← →'],'Full-screen views: choose · Space / Enter: open'],[['Click preview'],'Jump to that exact point'],[['Top edge'],'Hover to show tools'],[['Left edge'],'Hover to show shelf bookmarks (when not pinned); its top button opens them full screen'],[['F','Enter'],'Tap: next bookmark · Hold: add bookmark'],[['Shift+F','Shift+Enter'],'Previous bookmark'],[['Right click'],'Bookmark panel'],
-     [['/','Ctrl+F'],'Shelf: focus the search box'],[['↑ ↓ ← →'],'Shelf: move between books · Enter: open · Delete: delete record']],
-    [[['滚轮','左键拖动'],'滚动'],[['中键'],'浏览器原生自动滚动（需平台支持）'],[['空格','S','↓'],'向下滚动，按住持续滚动'],[['Shift+空格','W','↑'],'向上滚动，按住持续滚动'],
-     [['D','→'],'单击：后一屏 · 长按：下一本'],[['A','←'],'单击：前一屏 · 长按：上一本'],[['单击正文'],'左半屏：前一屏 · 右半屏：后一屏'],[['鼠标移到底缘'],'弹出操作栏：上一本 / 下一本、回到书首 / 滚到书尾'],
-     [['Home','End'],'书首 / 书尾，再按一次切换上 / 下一本'],[['Page Up','Page Down'],'上一本 / 下一本'],[['Delete'],'删除当前书的记录（需确认，不删除原图）'],
-     [['Ctrl+C'],'复制筛选出的书名'],[['T'],'显示 / 隐藏工具栏'],[['B'],'打开 / 关闭书架'],[['Esc'],'收起工具栏、操作栏和浮动的侧栏'],[['鼠标移到右缘'],'弹出缩略图栏；栏顶按钮：全屏缩略图'],[['V',']'],'打开 / 关闭全屏缩略图'],[['C','['],'打开 / 关闭全屏书架书签'],[['W A S D','↑ ↓ ← →'],'全屏界面中选择 · 空格 / Enter 打开'],[['点击缩略图'],'跳到对应画面位置'],[['鼠标移到顶缘'],'弹出工具栏'],[['鼠标移到左缘'],'弹出书架书签（未常驻时）；栏顶按钮：全屏书架书签'],[['F','Enter'],'单击：跳到下一个书签 · 长按：添加书签'],[['Shift+F','Shift+Enter'],'跳到上一个书签'],[['右键'],'打开书签面板'],
-     [['/','Ctrl+F'],'书架页：聚焦搜索框'],[['↑ ↓ ← →'],'书架页：在书之间移动 · Enter 打开 · Delete 删除记录']],
-    [[['ホイール','左ドラッグ'],'スクロール'],[['中クリック'],'自動スクロール（対応環境のみ）'],[['スペース','S','↓'],'下へスクロール（長押しで連続）'],[['Shift+スペース','W','↑'],'上へスクロール（長押しで連続）'],
-     [['D','→'],'短押し：1画面進む · 長押し：次の本'],[['A','←'],'短押し：1画面戻る · 長押し：前の本'],[['クリック'],'左半分：1画面戻る · 右半分：1画面進む'],[['下端にマウス'],'操作バーを表示：前の本／次の本、先頭／末尾'],
-     [['Home','End'],'先頭／末尾。もう一度押すと前後の本へ'],[['Page Up','Page Down'],'前の本／次の本'],[['Delete'],'現在の本の記録を削除（確認あり・元画像は削除しません）'],
-     [['Ctrl+C'],'表示中の書名をコピー'],[['T'],'ツールの表示／非表示'],[['B'],'本棚を開く／閉じる'],[['Esc'],'ツール・操作バー・浮いているパネルを閉じる'],[['右端にマウス'],'サムネイルを表示 · 上部のボタンで全画面サムネイル'],[['V',']'],'全画面サムネイルを開く／閉じる'],[['C','['],'全画面の本棚しおりを開く／閉じる'],[['W A S D','↑ ↓ ← →'],'全画面一覧で選択 · Space / Enter で開く'],[['プレビューをクリック'],'その位置へジャンプ'],[['上端にマウス'],'ツールを表示'],[['左端にマウス'],'本棚のしおりを表示（固定していないとき） · 上部のボタンで全画面'],[['F','Enter'],'短押し：次のしおり · 長押し：しおりを追加'],[['Shift+F','Shift+Enter'],'前のしおり'],[['右クリック'],'しおりパネル'],
-     [['/','Ctrl+F'],'本棚：検索欄へ移動'],[['↑ ↓ ← →'],'本棚：本を選ぶ · Enter で開く · Delete で記録を削除']],
-    [[['휠','왼쪽 드래그'],'스크롤'],[['가운데 클릭'],'자동 스크롤(지원 환경)'],[['스페이스','S','↓'],'아래로 스크롤, 누르고 있으면 계속'],[['Shift+스페이스','W','↑'],'위로 스크롤, 누르고 있으면 계속'],
-     [['D','→'],'짧게: 한 화면 앞으로 · 길게: 다음 책'],[['A','←'],'짧게: 한 화면 뒤로 · 길게: 이전 책'],[['클릭'],'왼쪽 절반: 한 화면 뒤로 · 오른쪽 절반: 앞으로'],[['아래쪽 가장자리'],'작업 표시줄 표시: 이전 / 다음 책, 처음 / 끝'],
-     [['Home','End'],'처음 / 끝, 다시 누르면 책 전환'],[['Page Up','Page Down'],'이전 / 다음 책'],[['Delete'],'현재 책 기록 삭제 (확인 후 삭제, 원본 이미지는 유지)'],
-     [['Ctrl+C'],'표시된 제목 복사'],[['T'],'도구 표시 / 숨기기'],[['B'],'책장 열기 / 닫기'],[['Esc'],'도구, 작업 표시줄, 떠 있는 패널 닫기'],[['오른쪽 가장자리'],'마우스를 대면 미리보기 표시 · 상단 버튼: 전체 화면 미리보기'],[['V',']'],'전체 화면 미리보기 열기 / 닫기'],[['C','['],'전체 화면 책장 책갈피 열기 / 닫기'],[['W A S D','↑ ↓ ← →'],'전체 화면 목록에서 선택 · Space / Enter로 열기'],[['미리보기 클릭'],'해당 지점으로 이동'],[['위쪽 가장자리'],'마우스를 대면 도구 표시'],[['왼쪽 가장자리'],'마우스를 대면 책장 책갈피 표시 (고정하지 않았을 때) · 상단 버튼: 전체 화면'],[['F','Enter'],'짧게: 다음 책갈피 · 길게: 책갈피 추가'],[['Shift+F','Shift+Enter'],'이전 책갈피'],[['오른쪽 클릭'],'책갈피 패널'],
-     [['/','Ctrl+F'],'책장: 검색창으로 이동'],[['↑ ↓ ← →'],'책장: 책 사이 이동 · Enter 열기 · Delete 기록 삭제']]
-  ]
 };
 export function detect(list) {
   for (const tag of list) {

@@ -12,6 +12,7 @@ import {install as settingsPanel} from './settings.mjs';
 import {install as backup} from './backup.mjs';
 import {install as bookmarks} from './bookmarks.mjs';
 import {install as focusMode} from './focus.mjs';
+import {install as helpPanel} from './help.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -24,14 +25,6 @@ function localize(){
   for(const el of document.querySelectorAll('[data-label]')){el.title=t(el.dataset.label);el.setAttribute('aria-label',el.title);}
   for(const el of document.querySelectorAll('[data-aria]'))el.setAttribute('aria-label',t(el.dataset.aria)); // 只给读屏，不显示悬停文字
   for(const el of document.querySelectorAll('[data-placeholder]')){el.placeholder=t(el.dataset.placeholder);el.setAttribute('aria-label',el.placeholder);}
-  $('keys').replaceChildren(...t('shortcuts').map(([alternatives,text])=>{
-    const row=document.createElement('div'),keys=document.createElement('dt'),desc=document.createElement('dd');
-    alternatives.forEach((combo,i)=>{
-      if(i)keys.append(make('span','or','/'));
-      combo.split('+').forEach((key,j)=>{if(j)keys.append('+');keys.append(make('kbd','',key));});
-    });
-    desc.textContent=text;row.append(keys,desc);return row;
-  }));
 }
 function make(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!=null)el.textContent=text;return el;}
 function icon(name){
@@ -603,7 +596,7 @@ ctx.settings.push(
 try{for(const b of await library('getAll')){try{const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);
+shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);
 toolPanel(ctx);
 
 select(books.get(get('last'))||books.values().next().value);
