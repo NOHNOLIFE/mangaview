@@ -105,13 +105,14 @@ try{
   await js(`document.querySelector('[data-view="library"]').click()`);
   await js(`(async()=>{await mk('drop','A',2,'gray');await mk('drop','B',2,'pink');await mk('drop','C',1,'navy');
     window.queue=[];DataTransferItem.prototype.getAsFileSystemHandle=function(){return Promise.resolve(window.queue.shift()??null);};
-    window.drag=(type,x,y,n=1)=>{const dt=new DataTransfer();for(let i=0;i<n;i++)dt.items.add(new File(['x'],i+'.png',{type:'image/png'}));window.dispatchEvent(new DragEvent(type,{dataTransfer:dt,clientX:x,clientY:y,bubbles:true,cancelable:true}));};})()`);
+    // kinds：每个字符一项，d 为文件夹（type 为空，与真实拖入一致），i 为图片文件。
+    window.drag=(type,x,y,kinds='d')=>{const dt=new DataTransfer();[...kinds].forEach((k,i)=>dt.items.add(k==='i'?new File(['x'],i+'.png',{type:'image/png'}):new File([],'dir'+i)));window.dispatchEvent(new DragEvent(type,{dataTransfer:dt,clientX:x,clientY:y,bubbles:true,cancelable:true}));};})()`);
   await js(`drag('dragenter',10,10)`);
   assert.ok(await js(`dropOverlay.matches(':popover-open')&&!dropOverlay.hidden`),'覆盖层进入顶层，书架对话框之上');
   assert.equal(await js('dropText.textContent'),'松开即可添加到书库');
   const zone=await js(`(()=>{const r=dropMerge.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`);
   await js(`drag('dragover',${zone[0]},${zone[1]})`);assert.ok(await js(`dropMerge.classList.contains('over')`));await shot('drop-over-shelf');
-  await js(`(async()=>{window.queue=[await dirOf('drop/A'),await dirOf('drop/B')];drag('drop',${zone[0]},${zone[1]},2);})()`);
+  await js(`(async()=>{window.queue=[await dirOf('drop/A'),await dirOf('drop/B')];drag('drop',${zone[0]},${zone[1]},'dd');})()`);
   await wait(async()=>(await js(`byTitle('A')`))?.sources?.length===2);
   const dropped=await js(`byTitle('A')`);assert.equal(dropped.place,'library');assert.deepEqual(dropped.sources.map(s=>s.key),['A','B']);
   assert.ok(await js('dropOverlay.hidden&&!dropOverlay.matches(":popover-open")'));
@@ -119,33 +120,59 @@ try{
   await wait(async()=>(await js(`byTitle('C')`))?.place==='library');
   // 拖到「添加到散图图集」：拖入内容里的所有图（含文件夹里的，递归）都作为散图加入散图图集，不按文件夹建书；页名带相对路径，各文件夹的同名文件不冲突。
   assert.equal(await js(`document.querySelector('#shelf [data-act="files"]').title`),'添加到散图图集');
+  assert.deepEqual(await js(`[...new Set([...document.querySelectorAll('[data-act="folder"]')].map(b=>b.textContent.trim()||b.title))]`),['添加文件夹'],'One name for adding a folder everywhere');
   await js(`mk('drop/A','deep',1,'olive')`);await js(`drag('dragenter',10,10)`);
   const areas=()=>js(`[dropOverlay.querySelector('.box'),dropMerge,dropLoose].map(e=>{const r=e.getBoundingClientRect();return {l:r.left,t:r.top,r:r.right,b:r.bottom};})`);
-  const stacked=(a,w,h)=>a[0].b<=a[1].t&&a[1].b<=a[2].t&&a.every(r=>r.l>=0&&r.t>=0&&r.r<=w&&r.b<=h);
-  let rects=await areas();assert.ok(stacked(rects,await js('innerWidth'),await js('innerHeight')),'Default, merge and loose areas stack without overlapping: '+JSON.stringify(rects));
+  // 默认区域在上；下方两块左右并排、紧贴无间隙（相邻边坐标相等、上下对齐），与默认区域之间留出间距；全部在窗口内。
+  const laidOut=(a,w,h)=>a[0].b+8<=a[1].t&&a[1].r===a[2].l&&a[1].t===a[2].t&&a[1].b===a[2].b&&a[1].l<a[1].r&&a[2].l<a[2].r&&a.every(r=>r.l>=0&&r.t>=0&&r.r<=w&&r.b<=h);
+  let rects=await areas();assert.ok(laidOut(rects,await js('innerWidth'),await js('innerHeight')),'Merge and loose sit side by side with no gap, apart from the default area: '+JSON.stringify(rects));
+  // 指针横穿两块区域：每一点都落在其中一块上，不会闪回默认区域；分界两侧各归各的。
+  const midY=(rects[1].t+rects[1].b)/2;
+  const sweep=await js(`(()=>{const out=[];for(let x=${rects[1].l+1};x<${rects[2].r-1};x+=3){drag('dragover',x,${midY});out.push(dropMerge.classList.contains('over')?'m':dropLoose.classList.contains('over')?'l':'-');}return out.join('');})()`);
+  assert.match(sweep,/^m+l+$/,'No default gap between the two areas: '+sweep);
+  await js(`drag('dragover',${rects[1].r-1},${midY})`);assert.ok(await js('dropMerge.classList.contains("over")'));
+  await js(`drag('dragover',${rects[2].l+1},${midY})`);assert.ok(await js('dropLoose.classList.contains("over")&&!dropMerge.classList.contains("over")'));
+  // 说明小字的对比度：底色按最坏情况（下面是白色画面）合成，至少 4.5:1。
+  const contrast=await js(`(()=>{const rgb=s=>s.match(/[\\d.]+/g).map(Number),lum=c=>{const [r,g,b]=c.map(v=>(v/=255)<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*r+.7152*g+.0722*b;};
+    const [r,g,b,a=1]=rgb(getComputedStyle(dropLoose).backgroundColor),bg=[r,g,b].map(v=>v*a+255*(1-a)),fg=rgb(getComputedStyle(dropLoose.querySelector('small')).color);
+    const [hi,lo]=[lum(fg),lum(bg)].sort((x,y)=>y-x);return (hi+.05)/(lo+.05);})()`);
+  assert.ok(contrast>=4.5,'Hint text is readable: '+contrast);
   assert.equal(await js('dropLoose.textContent'),'添加到散图图集拖到这里，所有图片（包括文件夹里的）都作为散图添加');
   const lzone=[(rects[2].l+rects[2].r)/2,(rects[2].t+rects[2].b)/2];
   await js(`drag('dragover',${lzone[0]},${lzone[1]})`);assert.ok(await js(`dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`));await shot('drop-over-loose');
   await js(`drag('dragover',10,10)`);assert.ok(await js(`!dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`),'Outside the two areas: default import');
   const total=(await js('records()')).length;
-  await js(`(async()=>{window.queue=[await dirOf('drop/A'),await dirOf('drop/B')];drag('drop',${lzone[0]},${lzone[1]},2);})()`);
+  await js(`(async()=>{window.queue=[await dirOf('drop/A'),await dirOf('drop/B')];drag('drop',${lzone[0]},${lzone[1]},'dd');})()`);
   const loose=await wait(async()=>(await js('records()')).find(b=>!b.title&&b.pages.some(p=>p.name==='A/deep/1.svg')));
   assert.deepEqual(loose.pages.map(p=>p.name),['A/1.svg','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']);assert.equal(loose.place,'library');
   assert.equal((await js('records()')).length,total+1,'Only the loose album is added, no folder books');
   // 只有一个散图图集：直接拖入已在图集里的图（同一个文件，路径不同）不重复；另一个同名文件夹里的同名图（不同文件）加入同一个图集，页名加序号，显示原文件名。
   const looseNames=()=>js(`records().then(r=>r.filter(b=>!b.title).map(b=>b.pages.map(p=>p.name)))`);
-  await js(`(async()=>{notice.textContent='';window.queue=[await (await dirOf('drop/B')).getFileHandle('1.svg')];drag('dragenter',10,10);drag('drop',10,10);})()`);
+  await js(`(async()=>{notice.textContent='';window.queue=[await (await dirOf('drop/B')).getFileHandle('1.svg')];drag('dragenter',10,10,'i');drag('drop',10,10,'i');})()`);
   await wait(()=>js(`notice.textContent.includes('已添加 1 本')`));
   assert.deepEqual(await looseNames(),[['A/1.svg','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']]);
   await js(`mk('drop2','A',1,'black')`);
-  await js(`(async()=>{window.queue=[await dirOf('drop2/A'),await dirOf('drop/A')];drag('dragenter',10,10);drag('drop',${lzone[0]},${lzone[1]},2);})()`);
+  await js(`(async()=>{window.queue=[await dirOf('drop2/A'),await dirOf('drop/A')];drag('dragenter',10,10,'dd');drag('drop',${lzone[0]},${lzone[1]},'dd');})()`);
   await wait(async()=>(await looseNames())[0]?.length===6);
   assert.deepEqual(await looseNames(),[['A/1.svg','A/1.svg (2)','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']]);
   assert.equal((await js('records()')).length,total+1);
   assert.equal(await js(`records().then(r=>r.find(b=>!b.title).pages.find(p=>p.name==='A/1.svg (2)')).then(p=>p.file+'|'+p.path+'|'+!!p.handle)`),'1.svg|A|true');
-  // 小窗口：三块区域都在窗口内、互不重叠。
+  // 只拖入图片文件：整个覆盖层就是「添加到散图图集」，不显示下方两块区域；松开（任何位置）即加入散图图集，不建书。
+  const loosePages=()=>js('records()').then(r=>r.filter(b=>!b.title).reduce((n,b)=>n+b.pages.length,0)),titled=()=>js('records()').then(r=>r.filter(b=>b.title).length);
+  const lp=await loosePages(),tb=await titled();
+  await js(`drag('dragenter',10,10,'ii')`);
+  assert.ok(await js(`!dropOverlay.hidden&&dropOverlay.classList.contains('images')&&!dropMerge.getClientRects().length&&!dropLoose.getClientRects().length`),'Only the loose album is offered');
+  assert.equal(await js('dropText.textContent'),'松开即可添加到散图图集');
+  await js(`drag('dragover',${lzone[0]},${lzone[1]},'ii')`);assert.equal(await js(`getComputedStyle(dropOverlay.querySelector('.box')).opacity`),'1');await shot('drop-images');
+  await js(`(async()=>{window.queue=[await (await dirOf('drop/C')).getFileHandle('1.svg')];drag('drop',${zone[0]},${zone[1]},'i');})()`);
+  await wait(async()=>await loosePages()===lp+1);assert.equal(await titled(),tb,'No folder book');assert.equal((await looseNames()).length,1,'Still one loose album');assert.ok(await js('dropOverlay.hidden'));
+  // 混合拖入（文件夹 + 图片）仍是三块区域。
+  await js(`drag('dragenter',10,10,'di')`);assert.ok(await js(`!dropOverlay.classList.contains('images')&&dropMerge.getClientRects().length===1`));
+  assert.equal(await js('dropText.textContent'),'松开即可添加到书库');await js(`drag('dragleave',10,10)`);
+  // 小窗口：三块区域都在窗口内，布局同上。
   await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:480,deviceScaleFactor:1,mobile:false});await wait(()=>js('innerWidth===360'));
-  await js(`drag('dragenter',10,10)`);await delay(250);rects=await areas();await shot('drop-small');assert.ok(stacked(rects,360,480),'Fits a small window: '+JSON.stringify(rects));
+  await js(`drag('dragenter',10,10)`);await delay(250);rects=await areas();await shot('drop-small');assert.ok(laidOut(rects,360,480),'Fits a small window: '+JSON.stringify(rects));
+  assert.equal(await js(`[dropMerge,dropLoose].every(z=>z.scrollWidth<=z.clientWidth+1)`),true,'Zone content does not overflow');
   await js(`drag('dragleave',10,10)`);await cdp('Emulation.clearDeviceMetricsOverride');
   await js('shelf.close()');await js(`drag('dragenter',10,10)`);assert.equal(await js('dropText.textContent'),'松开即可添加到书架');await js(`drag('dragleave',10,10)`);
   assert.ok(await js('dropOverlay.hidden'));
@@ -259,7 +286,7 @@ try{
   await wait(()=>js(`records().then(r=>r.find(b=>b.id==='loose').pages.map(p=>p.name+':'+!!p.handle).join())`).then(v=>v==='1.svg:true,2.svg:true,2.svg (2):false,sub/1.svg:true'));
   lz=(await albums())[0];assert.equal(lz.title,null);assert.deepEqual(lz.sources??[],[]);assert.equal((await albums()).length,1);
   assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`),false);
-  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, no overlapping areas, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, one loose album (dedupe, same-name images, legacy albums merged, restore by relative path)');
+  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, side-by-side areas without gap, readable hints, images-only drop, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, one loose album (dedupe, same-name images, legacy albums merged, restore by relative path)');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

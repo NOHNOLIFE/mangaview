@@ -94,6 +94,11 @@ try{
     return wait(async()=>{const b=await record();return b.mode===mode&&b;});
   }
   const names=Array.from({length:65},(_,i)=>i+'.svg');
+  // 排序项与书架排序同一写法（正序 / 反序：从旧到新 / A→Z 为正序）；「跟随默认排序」下显示默认项的名称。
+  await js(`document.querySelector('#bar [data-act="sort"]').click()`);await wait(()=>js('sortOptions.open'));
+  assert.deepEqual(await js(`['nameAsc','nameDesc','timeAsc','timeDesc'].map(m=>sortOptions.querySelector('[data-mode="'+m+'"]').textContent)`),['파일명 · 오름차순','파일명 · 내림차순','수정일 · 오름차순','수정일 · 내림차순']);
+  assert.equal(await js('defaultSortName.textContent'),'파일명 · 오름차순');
+  await js('sortOptions.close()');await wait(()=>js('!sortOptions.open'));
   assert.deepEqual((await choose('nameDesc')).pages.map(p=>p[0]),[...names].reverse());
   assert.deepEqual((await choose('nameAsc')).pages.map(p=>p[0]),names);
   const timed=(await choose('timeAsc')).pages;
