@@ -61,7 +61,7 @@ const strings = {
   rename:['Edit title','编辑书名','書名を編集','제목 편집'],renameSave:['Save','保存','保存','저장'],renameHolder:['Title','书名','書名','제목'],
   renameHint:['Original name: {name}. Leave empty to restore it.','原名：{name}。留空即恢复原名。','元の名前：{name}。空欄にすると元に戻ります。','원래 이름: {name}. 비워 두면 원래 이름으로 돌아갑니다.'],
   holdNext:['Keep holding for the next book','继续按住切换到下一本','押し続けると次の本へ','계속 누르면 다음 책'],holdPrev:['Keep holding for the previous book','继续按住切换到上一本','押し続けると前の本へ','계속 누르면 이전 책'],
-  endbar:['Start and end','首尾','先頭と末尾','처음과 끝'],
+  endbar:['Action bar','操作栏','操作バー','작업 표시줄'],
   shelfSort:['Sort books','书籍排序','本の並べ替え','책 정렬'],
   bsAddedNew:['Added: newest first','添加时间：从新到旧','追加日時：新しい順','추가일: 최신순'],bsAddedOld:['Added: oldest first','添加时间：从旧到新','追加日時：古い順','추가일: 오래된 순'],
   bsFolderNew:['Folder time: newest first','文件夹时间：从新到旧','フォルダー日時：新しい順','폴더 시간: 최신순'],bsFolderOld:['Folder time: oldest first','文件夹时间：从旧到新','フォルダー日時：古い順','폴더 시간: 오래된 순'],
@@ -84,22 +84,22 @@ const strings = {
   ready:['Ready for offline reading','已可离线阅读','オフラインで読めます','오프라인 읽기 준비 완료'],
   // 帮助页的快捷键表：[[按键或鼠标操作…], 说明]，多个按键之间是“或”，“+”表示组合键。
   shortcuts:[
-    [[['Wheel','Left drag'],'Scroll'],[['Middle click'],'Browser auto-scroll (where supported)'],[['Space','↓'],'Scroll down; hold to keep going'],[['Shift+Space','↑'],'Scroll up'],
-     [['F','→'],'Tap: forward one screen · Hold: next book'],[['D','←'],'Tap: back one screen · Hold: previous book'],[['Click'],'Left half: back one screen · Right half: forward'],[['Bottom edge'],'Hover for start / end buttons (previous / next book at either end)'],
+    [[['Wheel','Left drag'],'Scroll'],[['Middle click'],'Browser auto-scroll (where supported)'],[['Space','S','↓'],'Scroll down; hold to keep going'],[['Shift+Space','W','↑'],'Scroll up; hold to keep going'],
+     [['D','→'],'Tap: forward one screen · Hold: next book'],[['A','←'],'Tap: back one screen · Hold: previous book'],[['Click'],'Left half: back one screen · Right half: forward'],[['Bottom edge'],'Hover for the action bar: previous / next book, start / end'],
      [['Home','End'],'Start / end; press again to change books'],[['Page Up','Page Down'],'Previous / next book'],[['Delete'],'Remove current book'],
-     [['Ctrl+C'],'Copy listed titles'],[['T'],'Show or hide tools'],[['B'],'Open or close the shelf'],[['Esc'],'Close tools and preview'],[['Right edge'],'Hover to show the preview strip; top-right corner (entering from the page): full-screen thumbnails'],[['V',']'],'Open or close full-screen thumbnails'],[['C','['],'Open or close full-screen shelf bookmarks'],[['W A S D','↑ ↓ ← →'],'Full-screen views: choose · Space / Enter: open'],[['Click preview'],'Jump to that exact point'],[['Top edge'],'Hover to show tools'],[['Left edge'],'Hover to show shelf bookmarks (when not pinned); top-left corner (entering from the page): full screen'],[['G','Enter'],'Tap: next bookmark · Hold: add bookmark'],[['Right click'],'Bookmark panel']],
-    [[['滚轮','左键拖动'],'滚动'],[['中键'],'浏览器原生自动滚动（需平台支持）'],[['空格','↓'],'向下滚动，按住持续滚动'],[['Shift+空格','↑'],'向上滚动'],
-     [['F','→'],'单击：后一屏 · 长按：下一本'],[['D','←'],'单击：前一屏 · 长按：上一本'],[['单击正文'],'左半屏：前一屏 · 右半屏：后一屏'],[['鼠标移到底缘'],'弹出首尾栏：回到书首 / 滚到书尾，已在首尾时切换上 / 下一本'],
+     [['Ctrl+C'],'Copy listed titles'],[['T'],'Show or hide tools'],[['B'],'Open or close the shelf'],[['Esc'],'Close tools, the action bar and floating panels'],[['Right edge'],'Hover to show the preview strip; top-right corner (entering from the page): full-screen thumbnails'],[['V',']'],'Open or close full-screen thumbnails'],[['C','['],'Open or close full-screen shelf bookmarks'],[['W A S D','↑ ↓ ← →'],'Full-screen views: choose · Space / Enter: open'],[['Click preview'],'Jump to that exact point'],[['Top edge'],'Hover to show tools'],[['Left edge'],'Hover to show shelf bookmarks (when not pinned); top-left corner (entering from the page): full screen'],[['F','Enter'],'Tap: next bookmark · Hold: add bookmark'],[['Shift+F','Shift+Enter'],'Previous bookmark'],[['Right click'],'Bookmark panel']],
+    [[['滚轮','左键拖动'],'滚动'],[['中键'],'浏览器原生自动滚动（需平台支持）'],[['空格','S','↓'],'向下滚动，按住持续滚动'],[['Shift+空格','W','↑'],'向上滚动，按住持续滚动'],
+     [['D','→'],'单击：后一屏 · 长按：下一本'],[['A','←'],'单击：前一屏 · 长按：上一本'],[['单击正文'],'左半屏：前一屏 · 右半屏：后一屏'],[['鼠标移到底缘'],'弹出操作栏：上一本 / 下一本、回到书首 / 滚到书尾'],
      [['Home','End'],'书首 / 书尾，再按一次切换上 / 下一本'],[['Page Up','Page Down'],'上一本 / 下一本'],[['Delete'],'从书架移除当前书'],
-     [['Ctrl+C'],'复制筛选出的书名'],[['T'],'显示 / 隐藏工具栏'],[['B'],'打开 / 关闭书架'],[['Esc'],'收起工具栏和预览'],[['鼠标移到右缘'],'弹出缩略图栏；从阅读区移入右上角：全屏缩略图'],[['V',']'],'打开 / 关闭全屏缩略图'],[['C','['],'打开 / 关闭全屏书架书签'],[['W A S D','↑ ↓ ← →'],'全屏界面中选择 · 空格 / Enter 打开'],[['点击缩略图'],'跳到对应画面位置'],[['鼠标移到顶缘'],'弹出工具栏'],[['鼠标移到左缘'],'弹出书架书签（未常驻时）；从阅读区移入左上角：全屏书架书签'],[['G','Enter'],'单击：跳到下一个书签 · 长按：添加书签'],[['右键'],'打开书签面板']],
-    [[['ホイール','左ドラッグ'],'スクロール'],[['中クリック'],'自動スクロール（対応環境のみ）'],[['スペース','↓'],'下へスクロール（長押しで連続）'],[['Shift+スペース','↑'],'上へスクロール'],
-     [['F','→'],'短押し：1画面進む · 長押し：次の本'],[['D','←'],'短押し：1画面戻る · 長押し：前の本'],[['クリック'],'左半分：1画面戻る · 右半分：1画面進む'],[['下端にマウス'],'先頭／末尾ボタンを表示（端では前後の本へ）'],
+     [['Ctrl+C'],'复制筛选出的书名'],[['T'],'显示 / 隐藏工具栏'],[['B'],'打开 / 关闭书架'],[['Esc'],'收起工具栏、操作栏和浮动的侧栏'],[['鼠标移到右缘'],'弹出缩略图栏；从阅读区移入右上角：全屏缩略图'],[['V',']'],'打开 / 关闭全屏缩略图'],[['C','['],'打开 / 关闭全屏书架书签'],[['W A S D','↑ ↓ ← →'],'全屏界面中选择 · 空格 / Enter 打开'],[['点击缩略图'],'跳到对应画面位置'],[['鼠标移到顶缘'],'弹出工具栏'],[['鼠标移到左缘'],'弹出书架书签（未常驻时）；从阅读区移入左上角：全屏书架书签'],[['F','Enter'],'单击：跳到下一个书签 · 长按：添加书签'],[['Shift+F','Shift+Enter'],'跳到上一个书签'],[['右键'],'打开书签面板']],
+    [[['ホイール','左ドラッグ'],'スクロール'],[['中クリック'],'自動スクロール（対応環境のみ）'],[['スペース','S','↓'],'下へスクロール（長押しで連続）'],[['Shift+スペース','W','↑'],'上へスクロール（長押しで連続）'],
+     [['D','→'],'短押し：1画面進む · 長押し：次の本'],[['A','←'],'短押し：1画面戻る · 長押し：前の本'],[['クリック'],'左半分：1画面戻る · 右半分：1画面進む'],[['下端にマウス'],'操作バーを表示：前の本／次の本、先頭／末尾'],
      [['Home','End'],'先頭／末尾。もう一度押すと前後の本へ'],[['Page Up','Page Down'],'前の本／次の本'],[['Delete'],'現在の本を本棚から外す'],
-     [['Ctrl+C'],'表示中の書名をコピー'],[['T'],'ツールの表示／非表示'],[['B'],'本棚を開く／閉じる'],[['Esc'],'ツールとプレビューを閉じる'],[['右端にマウス'],'サムネイルを表示 · 読書エリアから右上へ：全画面サムネイル'],[['V',']'],'全画面サムネイルを開く／閉じる'],[['C','['],'全画面の本棚しおりを開く／閉じる'],[['W A S D','↑ ↓ ← →'],'全画面一覧で選択 · Space / Enter で開く'],[['プレビューをクリック'],'その位置へジャンプ'],[['上端にマウス'],'ツールを表示'],[['左端にマウス'],'本棚のしおりを表示（固定していないとき） · 読書エリアから左上へ：全画面'],[['G','Enter'],'短押し：次のしおり · 長押し：しおりを追加'],[['右クリック'],'しおりパネル']],
-    [[['휠','왼쪽 드래그'],'스크롤'],[['가운데 클릭'],'자동 스크롤(지원 환경)'],[['스페이스','↓'],'아래로 스크롤, 누르고 있으면 계속'],[['Shift+스페이스','↑'],'위로 스크롤'],
-     [['F','→'],'짧게: 한 화면 앞으로 · 길게: 다음 책'],[['D','←'],'짧게: 한 화면 뒤로 · 길게: 이전 책'],[['클릭'],'왼쪽 절반: 한 화면 뒤로 · 오른쪽 절반: 앞으로'],[['아래쪽 가장자리'],'처음 / 끝 버튼 표시 (끝에서는 이전 / 다음 책)'],
+     [['Ctrl+C'],'表示中の書名をコピー'],[['T'],'ツールの表示／非表示'],[['B'],'本棚を開く／閉じる'],[['Esc'],'ツール・操作バー・浮いているパネルを閉じる'],[['右端にマウス'],'サムネイルを表示 · 読書エリアから右上へ：全画面サムネイル'],[['V',']'],'全画面サムネイルを開く／閉じる'],[['C','['],'全画面の本棚しおりを開く／閉じる'],[['W A S D','↑ ↓ ← →'],'全画面一覧で選択 · Space / Enter で開く'],[['プレビューをクリック'],'その位置へジャンプ'],[['上端にマウス'],'ツールを表示'],[['左端にマウス'],'本棚のしおりを表示（固定していないとき） · 読書エリアから左上へ：全画面'],[['F','Enter'],'短押し：次のしおり · 長押し：しおりを追加'],[['Shift+F','Shift+Enter'],'前のしおり'],[['右クリック'],'しおりパネル']],
+    [[['휠','왼쪽 드래그'],'스크롤'],[['가운데 클릭'],'자동 스크롤(지원 환경)'],[['스페이스','S','↓'],'아래로 스크롤, 누르고 있으면 계속'],[['Shift+스페이스','W','↑'],'위로 스크롤, 누르고 있으면 계속'],
+     [['D','→'],'짧게: 한 화면 앞으로 · 길게: 다음 책'],[['A','←'],'짧게: 한 화면 뒤로 · 길게: 이전 책'],[['클릭'],'왼쪽 절반: 한 화면 뒤로 · 오른쪽 절반: 앞으로'],[['아래쪽 가장자리'],'작업 표시줄 표시: 이전 / 다음 책, 처음 / 끝'],
      [['Home','End'],'처음 / 끝, 다시 누르면 책 전환'],[['Page Up','Page Down'],'이전 / 다음 책'],[['Delete'],'현재 책 제거'],
-     [['Ctrl+C'],'표시된 제목 복사'],[['T'],'도구 표시 / 숨기기'],[['B'],'책장 열기 / 닫기'],[['Esc'],'도구와 미리보기 닫기'],[['오른쪽 가장자리'],'마우스를 대면 미리보기 표시 · 읽기 영역에서 오른쪽 위로: 전체 화면 미리보기'],[['V',']'],'전체 화면 미리보기 열기 / 닫기'],[['C','['],'전체 화면 책장 책갈피 열기 / 닫기'],[['W A S D','↑ ↓ ← →'],'전체 화면 목록에서 선택 · Space / Enter로 열기'],[['미리보기 클릭'],'해당 지점으로 이동'],[['위쪽 가장자리'],'마우스를 대면 도구 표시'],[['왼쪽 가장자리'],'마우스를 대면 책장 책갈피 표시 (고정하지 않았을 때) · 읽기 영역에서 왼쪽 위로: 전체 화면'],[['G','Enter'],'짧게: 다음 책갈피 · 길게: 책갈피 추가'],[['오른쪽 클릭'],'책갈피 패널']]
+     [['Ctrl+C'],'표시된 제목 복사'],[['T'],'도구 표시 / 숨기기'],[['B'],'책장 열기 / 닫기'],[['Esc'],'도구, 작업 표시줄, 떠 있는 패널 닫기'],[['오른쪽 가장자리'],'마우스를 대면 미리보기 표시 · 읽기 영역에서 오른쪽 위로: 전체 화면 미리보기'],[['V',']'],'전체 화면 미리보기 열기 / 닫기'],[['C','['],'전체 화면 책장 책갈피 열기 / 닫기'],[['W A S D','↑ ↓ ← →'],'전체 화면 목록에서 선택 · Space / Enter로 열기'],[['미리보기 클릭'],'해당 지점으로 이동'],[['위쪽 가장자리'],'마우스를 대면 도구 표시'],[['왼쪽 가장자리'],'마우스를 대면 책장 책갈피 표시 (고정하지 않았을 때) · 읽기 영역에서 왼쪽 위로: 전체 화면'],[['F','Enter'],'짧게: 다음 책갈피 · 길게: 책갈피 추가'],[['Shift+F','Shift+Enter'],'이전 책갈피'],[['오른쪽 클릭'],'책갈피 패널']]
   ]
 };
 export function detect(list) {

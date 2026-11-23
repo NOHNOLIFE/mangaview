@@ -43,7 +43,7 @@ function iconButton(name,label,action,className=''){
   el.append(icon(name));el.onclick=safe(action);return el;
 }
 localize();
-// 长按进度环（长按 G / Enter 添加书签、长按翻页键切书共用）：show 开始填充，done 显示完成后自动消失。
+// 长按进度环（长按 F / Enter 添加书签、长按翻页键切书共用）：show 开始填充，done 显示完成后自动消失。
 const ring=(()=>{
   const el=make('div','hold'),dial=make('span','hold-dial'),text=make('span','hold-text'),glyph=icon('bookmark');let timer=0;
   dial.innerHTML='<svg class="hold-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg>';
@@ -61,6 +61,16 @@ const prefix='mv2:', books=new Map();let current=null, unavailablePage=null;
 function get(key,otherwise=null){try{return JSON.parse(localStorage.getItem(prefix+key))??otherwise;}catch{return otherwise;}}
 function put(key,value){try{localStorage.setItem(prefix+key,JSON.stringify(value));}catch{notice('storage');}}
 function dropKey(key){try{localStorage.removeItem(prefix+key);}catch{notice('storage');}}
+// 偏好（界面设置与布局）：「还原默认设置」只清除这些键，再重新载入页面，各模块按默认值重新安装。
+// 书目、书签、标签、阅读位置（pos:*）、最近打开的书（last）等数据不在其中。
+// 功能模块新增偏好时调用 ctx.prefs.add('键名')（不含 mv2: 前缀；以 * 结尾表示该前缀下的所有键）。
+const prefs=new Set(['lang','autoCheck','fit','preview','width','defaultSort','edgeRight','edgeLeft','shelfmarks','shelfmarksWidth','overview','smOverview','focusMode','shelfSort','shelfView']);
+function resetPrefs(){
+  flush();
+  const match=k=>prefs.has(k)||[...prefs].some(p=>p.endsWith('*')&&k.startsWith(p.slice(0,-1)));
+  try{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&match(key.slice(prefix.length)))localStorage.removeItem(key);sessionStorage.setItem(prefix+'reset','1');}catch{notice('storage');return;}
+  location.reload();
+}
 function persist(book){return library('put',book).catch(()=>notice('storage'));}
 let posTimer,dimTimer,dirty,hudFrame,hudTimer;
 function savePos(){clearTimeout(posTimer);posTimer=0;if(current)put('pos:'+current.id,view.anchor());}
@@ -87,7 +97,7 @@ function preview(open){const panel=$('panel'),floating=!document.body.classList.
   document.querySelector('[data-act="preview"][aria-pressed]').setAttribute('aria-pressed',String(pinned));}
 function toolsState(){
   $('bookTitle').textContent=$('bookTitle').title=current?title(current):'MangaView';$('empty').hidden=!!current;$('hud').hidden=!current;
-  for(const key of ['prev','next','fit','preview'])document.querySelector(`#bar [data-act="${key}"]`).disabled=!current;
+  for(const key of ['fit','preview'])document.querySelector(`#bar [data-act="${key}"]`).disabled=!current;
   document.querySelector('[data-act="fit"]').setAttribute('aria-pressed',String(view.fit));preview(pinned);updateProgress();
 }
 // 页码、进度环和工具栏进度条；flash 表示由滚动触发，短暂显示页码浮标。
@@ -320,8 +330,8 @@ document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.targ
 
 const bar=$('bar'),toolbar=$('toolbar'),tab=$('tab');let barTimer,edgeTimer=0;
 function showBar(open){clearTimeout(barTimer);fade(bar,open);toolbar.classList.toggle('open',open);tab.setAttribute('aria-expanded',String(open));if(open)updateProgress();}
-// 鼠标移入立即展开；点击只负责打开（触屏和键盘），不再收起，避免“刚打开就被点关”。
-tab.onclick=()=>showBar(true);toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&!showing(bar))showBar(true);};
+// 菜单按钮平时不可见，只供键盘（Tab 聚焦后回车）打开，打开后焦点移到第一个按钮。
+tab.onclick=()=>{const keyboard=document.activeElement===tab;showBar(true);if(keyboard)bar.querySelector('.tb:not([hidden])')?.focus();};toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&!showing(bar))showBar(true);};
 toolbar.onpointerleave=()=>{clearTimeout(barTimer);if(!toolbar.querySelector(':focus-visible'))barTimer=setTimeout(()=>showBar(false),450);};
 toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeElement)&&!toolbar.matches(':hover'))showBar(false);});
 // 鼠标贴近窗口右缘稍作停留即弹出缩略图栏，离开后自动收起。
@@ -343,11 +353,11 @@ function drag(el,click){let start=null;
   el.addEventListener('pointermove',e=>{if(!start)return;const dy=e.clientY-start.y;if(Math.abs(dy)>4||Math.abs(e.clientX-start.x)>4)start.moved=true;if(start.moved)el.scrollTop=start.top-dy;});
   el.addEventListener('pointerup',e=>{if(e.button!==0||!start)return;const moved=start.moved;start=null;if(!moved)click(e);});el.onlostpointercapture=()=>{start=null;};
 }
-// 点击正文：左半屏前一屏、右半屏后一屏。回到书首 / 滚到书尾在底缘弹出的首尾栏里（toolbar.mjs），首尾时变为上 / 下一本。
+// 点击正文：左半屏前一屏、右半屏后一屏；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的操作栏里（toolbar.mjs）。
 const atStart=()=>main.scrollTop<1, atEnd=()=>main.scrollHeight-main.scrollTop-main.clientHeight<=1;
 function toStart(){if(atStart())step(-1);else main.scrollTop=0;}
 function toEnd(){if(atEnd())step(1);else main.scrollTop=main.scrollHeight;}
-drag(main,e=>screenStep(e.clientX-main.getBoundingClientRect().left<main.clientWidth/2?-1:1));
+drag(main,e=>{const r=main.getBoundingClientRect();if(e.pointerType!=='mouse'&&e.clientY-r.top<=40){showBar(!showing(bar));return;}screenStep(e.clientX-r.left<main.clientWidth/2?-1:1);});
 drag(nav,e=>view.fromPreview(e.clientY-nav.getBoundingClientRect().top));
 let hold=null,frame;function stop(){hold=null;cancelAnimationFrame(frame);}
 const HOLD_SHOW=150,HOLD_FIRE=550;let pageHold=null; // 长按翻页键切书
@@ -368,11 +378,12 @@ window.addEventListener('keydown',e=>{
   if(e.altKey)return;if(e.key.toLowerCase()==='b'){e.preventDefault();if(!e.repeat)actions.shelf();return;}
   if(e.key.toLowerCase()==='t'){e.preventDefault();if(!e.repeat){showBar(!showing(bar));(showing(bar)?bar.querySelector('button'):main).focus();}return;}
   if(!current||e.target.closest('button')&&[' ','Enter'].includes(e.key))return;
-  for(const h of ctx.keys)if(h.down?.(e))return; // 功能模块的按键（如书签 G / Enter）
-  const k=e.key.toLowerCase();if([' ','arrowdown','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k==='arrowup'||e.shiftKey?-1:1);return;}
-  // F / → 、D / ←：短按（松开时）翻一屏；长按 150ms 显示进度环，满 550ms 切到下一本 / 上一本。
-  if(['f','arrowright','d','arrowleft'].includes(k)){e.preventDefault();if(e.repeat||pageHold)return;
-    const p=pageHold={code:e.code,d:['d','arrowleft'].includes(k)?-1:1,done:false};
+  for(const h of ctx.keys)if(h.down?.(e))return; // 功能模块的按键（书签 F / Enter、全屏总览 C / V 等）
+  // 空格 / S / ↓ 向下、Shift+空格 / W / ↑ 向上：按住持续滚动。
+  const k=e.key.toLowerCase();if([' ','s','arrowdown','w','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k===' '?(e.shiftKey?-1:1):['w','arrowup'].includes(k)?-1:1);return;}
+  // D / → 、A / ←：短按（松开时）翻一屏；长按 150ms 显示进度环，满 550ms 切到下一本 / 上一本。
+  if(['d','arrowright','a','arrowleft'].includes(k)){e.preventDefault();if(e.repeat||pageHold)return;
+    const p=pageHold={code:e.code,d:['a','arrowleft'].includes(k)?-1:1,done:false};
     p.show=setTimeout(()=>ring.show(p.d>0?'skip-forward':'skip-back',t(p.d>0?'holdNext':'holdPrev')),HOLD_SHOW);
     p.fire=setTimeout(()=>{p.done=true;const before=current;step(p.d);if(current&&current!==before)ring.done(p.d>0?'skip-forward':'skip-back',title(current));else ring.hide();},HOLD_FIRE);
     return;}
@@ -394,7 +405,7 @@ const listeners={};function emit(type,...args){for(const fn of listeners[type]||
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
-  expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll};
+  expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -410,6 +421,7 @@ toolPanel(ctx);
 select(books.get(get('last'))||books.values().next().value);
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
+try{if(sessionStorage.getItem(prefix+'reset')){sessionStorage.removeItem(prefix+'reset');notice('resetDone');}}catch{} // 还原默认设置后的重新载入
 if(new URLSearchParams(location.search).get('from')==='v1'){history.replaceState(null,'',location.pathname);notice('upgraded',undefined,10000);}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(async reg=>{
   if(reg.active)await reg.update();

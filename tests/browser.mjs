@@ -65,13 +65,13 @@ try{
   await cdp('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
   const tap=async(y,x=300)=>{await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x,y});};
   const height=await js('innerHeight');
-  // 底缘弹出首尾栏：滚到书尾后按钮变为“下一本”；回到书首。点击正文右半屏后一屏。
+  // 底缘弹出操作栏：上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本。滚到书尾、回到书首；点击正文右半屏后一屏。
   const rr=JSON.parse(await js('JSON.stringify(reader.getBoundingClientRect())')),move=(x,y)=>cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
-  const endBtn=async n=>{const [x,y]=await js(`(()=>{const r=endbar.querySelectorAll('.eb')[${n}].getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`);await tap(y,x);};
+  const endBtn=async act=>{const [x,y]=await js(`(()=>{const r=endbar.querySelector('[data-act="${act}"]').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`);await tap(y,x);};
   await move(rr.left+rr.width/2,height-4);await wait(()=>js('!endbar.hidden'));
-  await endBtn(1);await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
-  await wait(()=>js(`endbar.querySelectorAll('.eb')[1].textContent==='다음 책'`));
-  await endBtn(0);await wait(()=>js('reader.scrollTop===0'));await wait(()=>js(`endbar.querySelectorAll('.eb')[0].textContent==='이전 책'`));
+  assert.deepEqual(await js(`[...endbar.querySelectorAll('.eb')].map(b=>b.textContent)`),['이전 책','맨 위로','맨 아래로','다음 책']);
+  await endBtn('toEnd');await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
+  await endBtn('toStart');await wait(()=>js('reader.scrollTop===0'));
   await move(rr.left+rr.width/2,height/2);await wait(()=>js('endbar.hidden'));
   await tap(height/2,rr.left+rr.width*.75);await wait(()=>js('reader.scrollTop>0'));
   // 取消常驻后，鼠标贴近右缘临时弹出缩略图栏，移开即收起。
@@ -128,7 +128,7 @@ try{
   await setSort('nameDesc'); // 与当前默认值相等也能显式独立。
   await wait(async()=>(await record()).override==='nameDesc');
   await setSort('nameAsc','global');assert.deepEqual(await order(),reversed);
-  await js(`document.querySelector('#bar [data-act="next"]').click()`);await wait(async()=>(await record()).id===original);
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(async()=>(await record()).id===original);
   await js(`document.querySelector('#bar [data-act="folder"]').click()`);await wait(async()=>(await record()).id===second.id);
   assert.equal((await record()).override,'nameDesc');assert.deepEqual(await order(),reversed);
   await setSort('default');await wait(async()=>{const b=await record();return b.override===null && b.mode==='nameAsc';});
@@ -136,9 +136,9 @@ try{
   await setSort('shuffle','global');await wait(async()=>(await record()).mode==='shuffle');const defaultMix=await order();
   await cdp('Page.navigate',{url:'about:blank'});await wait(()=>js(`location.href==='about:blank'`));await cdp('Page.navigate',{url:origin});
   await wait(()=>js(`bookTitle.textContent==='Test book'`));assert.equal((await record()).override,null);assert.deepEqual(await order(),defaultMix);
-  await js(`document.querySelector('#bar [data-act="next"]').click()`);await wait(async()=>(await record()).id===original);
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(async()=>(await record()).id===original);
   assert.equal((await record()).override,'shuffle');assert.deepEqual(await order(),mixed);
-  await setSort('nameDesc','global');await js(`document.querySelector('#bar [data-act="next"]').click()`);
+  await setSort('nameDesc','global');await js(`document.querySelector('#endbar [data-act="next"]').click()`);
   await wait(async()=>{const b=await record();return b.id===second.id&&b.mode==='nameDesc';});assert.deepEqual(await order(),reversed);
   // 刷新：新增图片并入当前书；文件夹删除后不删记录，而是归入过期书籍，手动删除才清除。
   await js(`(async()=>{const d=await (await (await navigator.storage.getDirectory()).getDirectoryHandle('other')).getDirectoryHandle('Test book');

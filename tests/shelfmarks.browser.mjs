@@ -32,9 +32,8 @@ try{
   // 全屏缩略图 / 全屏书架书签由 overview.browser.mjs 覆盖；这里关掉，避免悬停列表左上部时打开全屏。
   await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});localStorage.setItem('mv2:overview','false');localStorage.setItem('mv2:smOverview','false');`});
   await cdp('Page.navigate',{url:origin});await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
-  // 默认常驻；先取消常驻，测试开关前后的差别。
-  assert.equal(await js(`!document.getElementById('shelfmarks').hidden&&document.body.classList.contains('shelfmarks')`),true,'Pinned by default');
-  await js(`localStorage.setItem('mv2:shelfmarks','false')`);await cdp('Page.reload');await wait(()=>js('document.querySelector("#empty")?.hidden===false&&document.getElementById("shelfmarks").hidden'));
+  // 默认不常驻（缩略图栏同样默认不常驻）。
+  assert.equal(await js(`document.getElementById('shelfmarks').hidden&&!document.body.classList.contains('shelfmarks')&&!document.body.classList.contains('docked')`),true,'Not pinned by default');
   // 两本 10 页的书：Alpha、Beta（书架顺序按书名）。图与默认尺寸 800×1120 相同，便于按像素换算位置。
   async function book(name,first){
     await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('${name}',{create:true});
@@ -48,10 +47,10 @@ try{
   const goto=async(n,f)=>js(`reader.scrollTop=${(n+f)*await ph()-await H()/2}`);
   const center=async()=>{const p=await ph();return js(`(()=>{const c=Math.round((reader.scrollTop+reader.clientHeight/2)/${p}*100)/100;return [bookTitle.textContent,Math.floor(c),+(c-Math.floor(c)).toFixed(2)];})()`);};
   const text=()=>js(`document.getElementById('notice').textContent`);
-  const codes={g:['KeyG',71,'g']};
-  async function key(name,type){const [code,vk,t]=codes[name];await cdp('Input.dispatchKeyEvent',{type,key:name,code,windowsVirtualKeyCode:vk,...(type==='keyDown'?{text:t}:{})});}
-  const tap=async()=>{await key('g','keyDown');await delay(40);await key('g','keyUp');};
-  const hold=async()=>{await key('g','keyDown');await delay(700);await key('g','keyUp');};
+  const codes={f:['KeyF',70,'f'],F:['KeyF',70,'F']};
+  async function key(name,type,shift){const [code,vk,t]=codes[name];await cdp('Input.dispatchKeyEvent',{type,key:name,code,windowsVirtualKeyCode:vk,...(shift?{modifiers:8}:{}),...(type==='keyDown'?{text:t}:{})});}
+  const tap=async(shift=false)=>{const k=shift?'F':'f';await key(k,'keyDown',shift);await delay(40);await key(k,'keyUp',shift);};
+  const hold=async()=>{await key('f','keyDown');await delay(700);await key('f','keyUp');};
   const count=()=>js('JSON.parse(localStorage.getItem("mv2:last"))').then(id=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).reduce((n,b)=>n+b.bookmarks.length,0))`));
   const mouse=(type,x,y,button='none')=>cdp('Input.dispatchMouseEvent',{type,x,y,button,clickCount:button==='none'?0:1});
   const click=async(x,y)=>{await mouse('mouseMoved',x,y);await mouse('mousePressed',x,y,'left');await mouse('mouseReleased',x,y,'left');};
@@ -93,16 +92,25 @@ try{
   // 从书中间开始：先找本书屏幕中心之后的书签。
   await goto(1,0);await tap();await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Alpha',2,.5]));assert.equal(await text(),'Bookmark 1 / 3');
   p=await item(2,1);await click(p.x,p.y);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Beta',3,.5]));
+  // Shift+F 沿列表跨书后退，开头之前回到末尾。
+  await tap(true);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Alpha',6,.5]));assert.equal(await text(),'Bookmark 2 / 3 · Alpha');
+  await tap(true);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Alpha',2,.5]));assert.equal(await text(),'Bookmark 1 / 3');
+  await tap(true);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Beta',3,.5]));assert.equal(await text(),'Back to the last bookmark');
+  // 从书中间开始反向：先找本书屏幕中心之前的书签，没有则是前一本书的最后一个。
+  await goto(1,0);await tap(true);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Alpha',6,.5]));assert.equal(await text(),'Bookmark 2 / 3 · Alpha');
+  p=await item(2,1);await click(p.x,p.y);await wait(async()=>JSON.stringify(await center())===JSON.stringify(['Beta',3,.5]));
   // 在列表里删除书签。
   p=await item(1,1);await mouse('mouseMoved',p.x,p.y);const del=await box('#shelfmarks .sm-book:nth-child(1) .bm-item:nth-child(1) .bm-del');
   await click(del.x,del.y);await wait(async()=>await count()===2);await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   assert.equal((await center())[0],'Beta','Deleting does not switch books');
 
-  // 工具栏：顶部横向一行图标，居中于阅读区（不压在常驻书签列表上）；书名行在工具栏下方。
+  // 工具栏：顶部居中于阅读区（不压在常驻书签列表上），放不下时换行；书名行在工具栏下方。
   await js('tab.click()');await wait(()=>js('!bar.hidden'));await js('Promise.all([...bar.getAnimations(),...barTitle.getAnimations()].map(a=>a.finished)).then(()=>true)');
   const bar=await box('#bar'),rd=await box('#reader'),head=await box('#barTitle');
   assert.ok(bar.left>=rd.left+7&&bar.right<=rd.right-7&&Math.abs(bar.x-rd.x)<=1,'Toolbar is centred over the reader: '+JSON.stringify([bar,rd]));
-  assert.equal(await js(`new Set([...bar.querySelectorAll('.tb')].filter(b=>!b.hidden).map(b=>Math.round(b.offsetTop))).size`),1,'Single row');
+  assert.equal(await js(`[...bar.querySelectorAll('.tb')].filter(b=>!b.hidden).every(b=>{const r=b.getBoundingClientRect(),o=bar.getBoundingClientRect();return r.left>=o.left&&r.right<=o.right&&r.bottom<=o.bottom;})`),true,'Buttons stay inside the toolbar');
+  // 书架书签和缩略图栏的按钮相邻，左右顺序与侧栏位置一致。
+  assert.equal(await js(`document.querySelector('#bar [data-act="shelfmarks"]').nextElementSibling.dataset.act`),'preview');
   assert.ok(head.top>=bar.bottom&&Math.abs(head.x-rd.x)<=1,'Title row sits under the toolbar');
   await shot('toolbar-over-dock');
   await mouse('mouseMoved',bar.x,bar.y);await mouse('mouseMoved',400,600);await wait(()=>js('bar.hidden'));
@@ -153,7 +161,7 @@ try{
   await wait(()=>js(`(s=>!s.hidden&&s.classList.contains('floating'))(document.getElementById('shelfmarks'))`));assert.equal((await box('#reader')).left,0,'Floating list overlays the reader');
   await mouse('mouseMoved',100,300);await delay(300);assert.equal(await js('document.getElementById("shelfmarks").hidden'),false,'Stays open while hovered');
   await mouse('mouseMoved',600,300);await wait(()=>js('document.getElementById("shelfmarks").classList.contains("leaving")'));await wait(()=>js('document.getElementById("shelfmarks").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, hover vs click, cross-book G, delete, top toolbar, title row, focus mode, persistence, floating at the left edge');
+  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, floating at the left edge');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

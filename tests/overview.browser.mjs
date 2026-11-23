@@ -29,7 +29,8 @@ try{
   const js=async expression=>{const r=await cdp('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
   const shot=async name=>{if(!process.env.MV_SHOTS)return;const {data}=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(process.env.MV_SHOTS,name+'.png'),Buffer.from(data,'base64'));};
   await cdp('Runtime.enable');await cdp('Page.enable');
-  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});`});
+  // 书架书签列表默认不再常驻；这里沿用常驻的列表（专注模式下固定的栏）测试。
+  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});if(localStorage.getItem('mv2:shelfmarks')===null)localStorage.setItem('mv2:shelfmarks','true');`});
   await cdp('Page.navigate',{url:origin});await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
   // 一本 40 张的书：两种比例交替，第 10 张是超长条。
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long',{create:true});
@@ -83,8 +84,8 @@ try{
   await move(400,500);await delay(500);await move(W-2,500);await wait(()=>js('!document.getElementById("panel").hidden'));assert.equal(await js('overview.open'),false,'Lower right edge shows the strip');
   await move(W-60,500);await move(W-60,150);await move(W-2,150);await delay(400);assert.equal(await js('overview.open'),false,'Moving up inside the strip does not trigger');
   await move(400,500);await wait(()=>js('document.getElementById("panel").hidden'));
-  // 全屏书架书签：先在两本书里加书签（长按 G）。
-  const holdG=async()=>{await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'g',code:'KeyG',windowsVirtualKeyCode:71,text:'g'});await delay(750);await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'g',code:'KeyG',windowsVirtualKeyCode:71});};
+  // 全屏书架书签：先在两本书里加书签（长按 F）。
+  const holdG=async()=>{await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'f',code:'KeyF',windowsVirtualKeyCode:70,text:'f'});await delay(750);await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'f',code:'KeyF',windowsVirtualKeyCode:70});};
   const count=()=>js('document.querySelectorAll("#shelfmarks .bm-item").length');
   await move(400);await js('reader.scrollTop=3000');await delay(100);await holdG();await wait(async()=>await count()===1);
   await js('reader.scrollTop=9000');await delay(100);await holdG();await wait(async()=>await count()===2);
@@ -92,7 +93,7 @@ try{
     for(let i=0;i<4;i++){const out=await (await dir.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="navy"/></svg>');await out.close();}
     window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
   await wait(()=>js(`bookTitle.textContent==='Short'`));await js('reader.scrollTop=500');await delay(100);await holdG();await wait(async()=>await count()===3);
-  await js(`document.querySelector('#bar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');await delay(100);
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');await delay(100);
   // C 打开：按书分组（书架顺序：最后添加的 Short 在前），当前书高亮，选中屏幕中心处的书签。
   const msel=()=>js('(n=>n&&+n.dataset.k)(document.querySelector("#shelfOverview .ov-mark.sel"))');
   const mOpen=()=>js('shelfOverview.open&&!shelfOverview.classList.contains("closing")'),mClosed=()=>js('!shelfOverview.open');

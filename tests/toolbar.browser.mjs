@@ -1,8 +1,8 @@
-// 顶部工具栏与底部首尾栏：边缘悬停弹出、离开收起、设置项与布局。框架同 tests/browser.mjs。
+// 顶部工具栏与底部操作栏：边缘悬停弹出、离开收起、设置项、换行布局与阅读键位。框架同 tests/browser.mjs。
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
-import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -40,6 +40,7 @@ try{
   const height=await js('innerHeight'),width=await js('innerWidth'),move=(x,y=height/2)=>cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
   const geometry=()=>js('JSON.stringify([reader.getBoundingClientRect(),reader.clientWidth,reader.scrollTop])');
   const box=sel=>js(`(()=>{const r=document.querySelector('${sel}').getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height,x:r.left+r.width/2,y:r.top+r.height/2};})()`);
+  const shot=async name=>{if(process.env.MV_SHOTS)await writeFile(join(process.env.MV_SHOTS,name+'.png'),Buffer.from((await cdp('Page.captureScreenshot')).data,'base64'));};
   const settle=sel=>js(`Promise.all(document.querySelector('${sel}').getAnimations().map(a=>a.finished)).then(()=>true)`);
   // 顶缘悬停约 120ms 弹出；面板浮在正文上，不改变阅读区几何。
   await js('reader.scrollTop=400');await delay(100);const before=await geometry();
@@ -70,39 +71,78 @@ try{
   await move(400,500);await js('help.showModal()');await move(400,2);await delay(300);assert.equal(await js('bar.hidden'),true,'No popup over a dialog');
   await js('help.close()');await move(400,500);
   // Esc 收起，T 切换。
-  const key=async(k,code)=>{for(const type of ['keyDown','keyUp'])await cdp('Input.dispatchKeyEvent',{type,key:k,code,windowsVirtualKeyCode:k==='Escape'?27:84,text:type==='keyDown'&&k.length===1?k:undefined});};
+  const vk={Escape:27,Enter:13,t:84};
+  const key=async(k,code)=>{for(const type of ['keyDown','keyUp'])await cdp('Input.dispatchKeyEvent',{type,key:k,code,windowsVirtualKeyCode:vk[k],text:type==='keyDown'?(k.length===1?k:k==='Enter'?'\r':undefined):undefined});};
   await js('reader.focus()');await key('t','KeyT');await wait(()=>js('!bar.hidden'));await key('Escape','Escape');await wait(()=>js('bar.hidden'));
-  // 关闭 edgeTop 后顶缘不再弹出，菜单按钮仍可用。
+  // 左上角不再有常驻的菜单按钮：平时透明且不接收鼠标，悬停该处不弹出。
+  assert.deepEqual(await js(`[getComputedStyle(tab).opacity,getComputedStyle(tab).pointerEvents]`),['0','none']);
+  const tabBox=await box('#tab');await move(tabBox.x,tabBox.y+30);await move(tabBox.x,tabBox.y+20);await delay(300);assert.equal(await js('bar.hidden'),true,'No hover target in the top-left corner');
+  // 关闭 edgeTop 后顶缘不再弹出；键盘仍可用：Tab 聚焦到菜单按钮时显示，回车打开工具栏并把焦点移到第一个按钮。
   await js(`localStorage.setItem('mv2:edgeTop','false')`);await move(400,2);await delay(400);assert.equal(await js('bar.hidden'),true,'edgeTop off disables the edge popup');
-  const tabBox=await box('#tab');await move(tabBox.x,tabBox.y);await wait(()=>js('!bar.hidden'));
-  await move(600,500);await wait(()=>js('bar.hidden'));await js(`localStorage.removeItem('mv2:edgeTop')`);
+  await move(400,500);await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+  await wait(()=>js('document.activeElement===tab&&getComputedStyle(tab).opacity==="1"'));
+  await key('Enter','Enter');await wait(()=>js('!bar.hidden&&document.activeElement===bar.querySelector(".tb")'));
+  await key('Escape','Escape');await wait(()=>js('bar.hidden'));await js(`localStorage.removeItem('mv2:edgeTop')`);
 
-  // 底缘首尾栏：贴近底缘稍停弹出；书中间时为“回到书首 / 滚到书尾”，到首尾时变为上 / 下一本；离开后收起。
-  const [toTop,toEnd,next,prev]=await js(`import('./lang.mjs').then(m=>['toTop','toEnd','next','prev'].map(k=>m.translate(k,document.documentElement.lang)))`);
-  const labels=()=>js(`[...endbar.querySelectorAll('.eb')].map(b=>[b.textContent,b.classList.contains('swap')])`);
-  const press=async n=>{const b=await box(`#endbar .eb:nth-of-type(${n+1})`);await move(b.x,b.y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:b.x,y:b.y});};
+  // 底缘操作栏：贴近底缘稍停弹出；固定为 上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本，到首尾时不再变成切书按钮；离开后收起。
+  const [prev,toTop,toEnd,next,endbarName]=await js(`import('./lang.mjs').then(m=>['prev','toTop','toEnd','next','endbar'].map(k=>m.translate(k,document.documentElement.lang)))`);
+  const labels=()=>js(`[...endbar.querySelectorAll('.eb')].map(b=>[b.dataset.act,b.textContent,b.title,b.disabled])`);
+  const press=async act=>{const b=await box(`#endbar [data-act="${act}"]`);await move(b.x,b.y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:b.x,y:b.y});};
+  assert.equal(await js('endbar.getAttribute("aria-label")'),endbarName);
   await js('reader.scrollTop=1500');await move(400,height-3);await delay(40);assert.equal(await js('endbar.hidden'),true,'Bottom edge needs a short dwell');
   await wait(()=>js('!endbar.hidden'));await settle('#endbar');
-  assert.deepEqual(await labels(),[[toTop,false],[toEnd,false]]);assert.match(await js('endPos.textContent'),/^\d+ \/ 12 · \d+%$/);
+  // 只有一本书：上一本 / 下一本变灰。
+  assert.deepEqual(await labels(),[['prev',prev,prev,true],['toStart',toTop,toTop,false],['toEnd',toEnd,toEnd,false],['next',next,next,true]]);
+  assert.match(await js('endPos.textContent'),/^\d+ \/ 12 · \d+%$/);
+  assert.deepEqual(await js(`[...endbar.children].map(e=>e.dataset.act||e.id)`),['prev','toStart','endPos','toEnd','next'],'Order: prev, start, position, end, next');
+  assert.equal(await js('endbar.classList.contains("compact")'),false,'Labels fit at 800px');await shot('endbar-800');
   const end=await box('#endbar');assert.ok(Math.abs(end.x-view.x)<=1&&end.bottom<=height-10,'Centred at the bottom');
-  await press(1);await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));await wait(async()=>JSON.stringify((await labels())[1])===JSON.stringify([next,true]));
-  await press(0);await wait(()=>js('reader.scrollTop===0'));await wait(async()=>JSON.stringify((await labels())[0])===JSON.stringify([prev,true]));
+  await press('toEnd');await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));await wait(async()=>(await labels())[2][3]===true);
+  assert.equal((await labels())[2][1],toEnd,'Still “jump to end” at the end');assert.equal(await js('bookTitle.textContent'),'Toolbar book');
+  await press('toStart');await wait(()=>js('reader.scrollTop===0'));await wait(async()=>(await labels())[1][3]===true);
   assert.equal(await js('document.activeElement===reader'),true,'Buttons hand focus back to the reader');
   await move(400,400);await wait(()=>js('endbar.hidden'));
   // 点击正文只翻屏：上 / 下 15% 不再跳首尾。
   for(const y of [20,height-20]){const top=await js('reader.scrollTop=600');for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:600,y});
     await delay(100);assert.equal(await js('reader.scrollTop'),600+await js('Math.max(1,reader.clientHeight-64)'),'Right half pages forward at y='+y);await move(400,400);await wait(()=>js('endbar.hidden&&bar.hidden'));}
   await js(`localStorage.setItem('mv2:edgeBottom','false')`);await move(400,height-3);await delay(400);assert.equal(await js('endbar.hidden'),true,'edgeBottom off disables the bottom bar');
-  // 旧版的单列 / 双列设置被清除；面板避开窗口控件覆盖区（--top），窄窗口时横向滚动。
-  await js(`localStorage.setItem('mv2:toolbarColumns','2')`);await cdp('Page.reload');
+  // 旧版的单列 / 双列设置被清除；面板避开窗口控件覆盖区（--top），窄窗口时换行，内容不超出面板和窗口。
+  await js(`localStorage.setItem('mv2:toolbarColumns','2');localStorage.removeItem('mv2:edgeBottom')`);await cdp('Page.reload');
   await wait(()=>js(`bookTitle.textContent==='Toolbar book'&&localStorage.getItem('mv2:toolbarColumns')===null`));await js('tab.click()');await wait(()=>js('!bar.hidden'));
   await js(`document.documentElement.style.setProperty('--top','40px')`);await settle('#bar');
   assert.equal((await box('#bar')).top,48);assert.equal((await box('#tab')).top,48);
-  await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:500,deviceScaleFactor:1,mobile:false});
-  await wait(()=>js('innerWidth===360'));const small=await box('#bar');
-  assert.ok(small.left>=0&&small.right<=360,'Panel stays inside the window');assert.ok(await js('bar.scrollWidth>bar.clientWidth&&getComputedStyle(bar).overflowX==="auto"'));
-  await cdp('Emulation.clearDeviceMetricsOverride');
-  assert.deepEqual(errors,[]);console.log('PASS: top edge popup, centred icon row with tooltips, title row, leave to fade out, edgeTop off, bottom start/end bar, click pages only, WCO-safe top, narrow window, Esc / T');
+  // 每个可见按钮都在面板内、面板和书名行都在窗口内；行首 / 行尾的分隔线隐藏。
+  const fits=w=>js(`(()=>{const b=bar.getBoundingClientRect(),t=barTitle.getBoundingClientRect(),items=[...bar.children].filter(e=>!e.hidden&&e.matches('.tb'));
+    const inside=items.every(e=>{const r=e.getBoundingClientRect();return r.left>=b.left&&r.right<=b.right&&r.top>=b.top&&r.bottom<=b.bottom;});
+    const seps=[...bar.querySelectorAll('.sep')].every(s=>{let a=s.previousElementSibling,n=s.nextElementSibling;while(a?.hidden)a=a.previousElementSibling;while(n?.hidden)n=n.nextElementSibling;return (a.offsetTop===n.offsetTop)!==s.classList.contains('edge')&&(getComputedStyle(s).visibility==='hidden')===s.classList.contains('edge');});
+    return {inside,seps,rows:new Set(items.map(e=>e.offsetTop)).size,bar:b.left>=0&&b.right<=${w},title:t.left>=0&&t.right<=${w}&&t.top>=b.bottom,overflow:bar.scrollWidth<=bar.clientWidth&&barTitle.scrollWidth<=barTitle.clientWidth+1};})()`);
+  for(const w of [500,360]){
+    await cdp('Emulation.setDeviceMetricsOverride',{width:w,height:500,deviceScaleFactor:1,mobile:false});await wait(()=>js(`innerWidth===${w}`));await delay(100);
+    const f=await fits(w);await shot('toolbar-'+w);assert.ok(f.inside&&f.seps&&f.bar&&f.title&&f.overflow,'Toolbar fits at '+w+'px: '+JSON.stringify(f));assert.ok(f.rows>1,'Wraps at '+w+'px');
+  }
+  // 窄窗口下操作栏只显示图标（文字视觉隐藏，仍是按钮的名称），不超出窗口。
+  await js(`document.documentElement.style.removeProperty('--top')`);await move(180,250);await move(180,497);await wait(()=>js('!endbar.hidden'));await settle('#endbar');
+  await shot('endbar-360');const narrow=await box('#endbar');assert.ok(narrow.left>=0&&narrow.right<=360,'Action bar fits at 360px: '+JSON.stringify(narrow));
+  assert.equal(await js(`endbar.classList.contains('compact')&&[...endbar.querySelectorAll('.eb')].every(b=>b.title&&b.textContent===b.title&&b.querySelector('span').getBoundingClientRect().width<=1)`),true);
+  await cdp('Emulation.clearDeviceMetricsOverride');await wait(async()=>await js('innerWidth')===width);await move(400,300);await wait(()=>js('endbar.hidden'));
+
+  // 键位：S / ↓ 向下、W / ↑ 向上按住滚动；D / → 后一屏、A / ← 前一屏；G 不再绑定；F 跳书签（没有书签时提示）。
+  await key('Escape','Escape');await wait(()=>js('bar.hidden'));await js('reader.focus()');
+  const codes={s:['KeyS',83],w:['KeyW',87],d:['KeyD',68],a:['KeyA',65],g:['KeyG',71],f:['KeyF',70],ArrowDown:['ArrowDown',40],ArrowUp:['ArrowUp',38],ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37]};
+  const down=k=>cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:codes[k][0],windowsVirtualKeyCode:codes[k][1],...(k.length===1?{text:k}:{})});
+  const up=k=>cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:codes[k][0],windowsVirtualKeyCode:codes[k][1]});
+  const step=await js('Math.max(1,reader.clientHeight-64)');
+  for(const [k,d] of [['s',1],['ArrowDown',1],['w',-1],['ArrowUp',-1]]){
+    const top=await js('reader.scrollTop=2000');await down(k);await delay(250);await up(k);await delay(50);const now=await js('reader.scrollTop');
+    assert.ok(d>0?now>top+20:now<top-20,k+' scrolls '+(d>0?'down':'up')+': '+top+' → '+now);
+  }
+  for(const [k,d] of [['d',1],['ArrowRight',1],['a',-1],['ArrowLeft',-1]]){
+    await js('reader.scrollTop=2000');await down(k);await delay(60);await up(k);await wait(async()=>await js('reader.scrollTop')===2000+d*step);
+  }
+  await js('notice.textContent=""');await js('reader.scrollTop=2000');await down('g');await delay(60);await up('g');await delay(150);
+  assert.equal(await js('reader.scrollTop'),2000,'G does nothing');assert.equal(await js('notice.textContent'),'');
+  await down('f');await delay(60);await up('f');await wait(()=>js(`import('./lang.mjs').then(m=>notice.textContent===m.translate('bmNone',document.documentElement.lang))`));assert.equal(await js('reader.scrollTop'),2000,'F no longer turns the page');
+  assert.deepEqual(errors,[]);console.log('PASS: top edge popup, centred icon row with tooltips, title row, leave to fade out, no corner menu button, keyboard access, edgeTop off, bottom action bar, click pages only, WCO-safe top, wrapping in narrow windows, Esc / T, WASD / arrow keys');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

@@ -62,6 +62,16 @@ try{
   assert.deepEqual(await headings(),['Settings','General','Reading','Toolbar','Data']);
   assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/not the image files or folder access/);
   assert.equal(await sw('edgeRight'),'false');assert.equal(await sw('autoCheck'),'true');
+  // 开关几何：滑块在轨道内垂直居中（偏差 ≤ 0.5px），关时左边距 = 开时右边距 = 上下边距；放大页面、改字号后同样成立。
+  const knobs=()=>js(`[...settings.querySelectorAll('.set-switch')].map(s=>{const r=s.getBoundingClientRect(),k=s.querySelector('.knob').getBoundingClientRect();
+    return {on:s.getAttribute('aria-checked')==='true',dy:Math.abs(k.top+k.height/2-(r.top+r.height/2)),side:s.getAttribute('aria-checked')==='true'?r.right-k.right:k.left-r.left,top:k.top-r.top,h:r.height,w:r.width};})`);
+  const checkKnobs=async label=>{await wait(()=>js(`[...settings.querySelectorAll('.set-switch .knob')].every(k=>!k.getAnimations().length)`));const all=await knobs();
+    assert.ok(all.some(k=>k.on)&&all.some(k=>!k.on),'Both states present');
+    for(const k of all){assert.ok(k.dy<=.5,label+': knob is vertically centred '+JSON.stringify(k));assert.ok(Math.abs(k.side-k.top)<=.5,label+': side margin equals top margin '+JSON.stringify(k));assert.ok(k.h<k.w,label+': track is a pill '+JSON.stringify(k));}
+    const sides=all.map(k=>k.side);assert.ok(Math.max(...sides)-Math.min(...sides)<=.5,label+': on / off margins are symmetric '+sides);};
+  await checkKnobs('default');
+  await js(`settings.style.fontSize='22px';settings.style.lineHeight='2.2'`);await checkKnobs('large font');await js(`settings.style.fontSize='';settings.style.lineHeight=''`);
+  await cdp('Emulation.setDeviceMetricsOverride',{width:900,height:900,deviceScaleFactor:1.5,mobile:false});await checkKnobs('scale 1.5');await cdp('Emulation.clearDeviceMetricsOverride');
   await wait(()=>js(`/\\d+ books · \\d+ thumbnails/.test(settings.querySelector('[data-id=bakStorage]').textContent)&&/ of /.test(settings.querySelector('.bak-usage').textContent)`));
   await shot('settings-en');
   await js(`(()=>{const s=settings.querySelector('[data-id=lang] select');s.value='zh';s.dispatchEvent(new Event('change'));})()`);
@@ -160,7 +170,27 @@ try{
   assert.equal(s.ls['mv2:custom'],undefined,'替换会清除旧键');assert.equal(s.ls['mv2:pos:'+g],undefined);
   for(const [k,v] of Object.entries(data.storage))if(k!=='mv2:last'&&k!=='mv2:pos:'+a)assert.equal(s.ls[k],v,k);
   await wait(()=>js(`notice.textContent.includes('导入完成：已恢复 2 本书')`));
-  assert.deepEqual(errors,[]);console.log('PASS: settings panel, language switch, toggle persistence, export, merge import, replace import, invalid files');
+
+  // 7. 还原默认设置：需确认；只清除设置和布局（偏好键），书籍、书签、标签、缩略图、阅读位置和未知键都保留；重新载入后提示。
+  await js(`localStorage.setItem('mv2:fit','false');localStorage.setItem('mv2:shelfmarks','true');localStorage.setItem('mv2:width','300');localStorage.setItem('mv2:edgeTop','false');localStorage.setItem('mv2:custom','1')`);
+  await go(other);await wait(()=>js(`document.body.classList.contains('shelfmarks')`));
+  await openSettings();const resetBtn=`settings.querySelector('.set-foot button')`;
+  assert.equal(await js(`${resetBtn}.textContent`),'还原默认设置');assert.match(await js(`settings.querySelector('.set-foot small').textContent`),/书籍、书签、标签和阅读进度不受影响/);
+  await shot('settings-reset');
+  const kept=await state();
+  await js(`window.confirm=()=>false;${resetBtn}.click()`);await delay(300);assert.deepEqual(await state(),kept,'Cancel changes nothing');
+  await js(`window.before=1;window.confirm=m=>(window.asked=m,true);${resetBtn}.click()`);
+  await wait(()=>js('!window.before&&!!document.getElementById("settings")&&document.readyState==="complete"'));
+  s=await state();
+  assert.deepEqual(s.books,kept.books);assert.deepEqual(s.thumbs,kept.thumbs);
+  const prefKeys=['lang','autoCheck','edgeRight','fit','shelfmarks','width','edgeTop'].map(k=>'mv2:'+k);
+  for(const k of prefKeys)assert.equal(s.ls[k],undefined,k+' is reset');
+  for(const [k,v] of Object.entries(kept.ls))if(!prefKeys.includes(k))assert.equal(s.ls[k],v,k+' is kept');
+  assert.equal(await js('document.documentElement.lang'),'en');assert.equal(await js(`document.body.classList.contains('shelfmarks')`),false);
+  await wait(()=>js(`notice.textContent==='Settings restored to defaults'`));
+  await openSettings();assert.equal(await sw('autoCheck'),'true');assert.equal(await sw('edgeRight'),'true');assert.equal(await sw('edgeTop'),'true');
+  assert.equal(await js(`settings.querySelector('[data-id=lang] select').value`),'');
+  assert.deepEqual(errors,[]);console.log('PASS: settings panel, language switch, toggle persistence, export, merge import, replace import, invalid files, restore defaults');
 }catch(e){console.error('page errors:',errors,'console:',logs,'notice:',await js('notice.textContent+" | "+location.href').catch(e=>e.message));throw e;}finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();
