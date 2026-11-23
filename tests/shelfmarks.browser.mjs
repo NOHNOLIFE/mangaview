@@ -58,7 +58,8 @@ try{
 
   await book('Alpha',true);await goto(2,.5);await hold();await wait(async()=>await count()===1);await goto(6,.5);await hold();await wait(async()=>await count()===2);
   await book('Beta',false);await goto(3,.5);await hold();await wait(async()=>await count()===3);
-  await js(`shelfSort.value='nameAsc';shelfSort.dispatchEvent(new Event('change'))`); // 书架顺序按名称，便于断言
+  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open')); // 书架顺序按名称，便于断言
+  await js(`sortBtn.click();sortPop.querySelector('[data-sort="nameAsc"]').click();shelf.close()`);
   // 关闭时：短按只在本书内循环。
   await js('reader.scrollTop=0');await tap();await wait(async()=>(await center())[1]===3);assert.equal(await text(),'Bookmark 1 / 1');
   assert.equal(await js('document.getElementById("shelfmarks").hidden'),true);
@@ -139,7 +140,7 @@ try{
   // 书架页「清空书架」：二次确认，取消则不删除；确认后删除书架上全部书目，书签列表随之清空。
   const total=()=>js('import("./store.mjs").then(async({library})=>(await library("getAll")).length)');
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
-  await js(`document.querySelector('#views [data-view="shelf"]').click()`);
+  await js(`document.querySelector('#views [data-view="shelf"][aria-selected="false"]')?.click()`); // 再点已激活的页签会关闭书架
   const clear=`[...bulkActions.querySelectorAll('button')].find(b=>b.textContent.startsWith('Clear shelf'))`;
   assert.equal(await js(`${clear}?.textContent`),'Clear shelf (2)');
   await js(`window.confirm=()=>false;${clear}.click()`);await delay(300);assert.equal(await total(),2,'Cancel keeps the books');

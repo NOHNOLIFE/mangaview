@@ -52,8 +52,8 @@ try{
   assert.equal(await js('shelf.open&&query.value'),'b','Typing B in the search box does not close the shelf');await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
   // 卡片按瀑布流绝对定位，DOM 顺序不等于列表顺序；用卡片上的序号还原顺序。
   const order=()=>js(`[...document.querySelectorAll('#books .book')].map(b=>[+b.dataset.i,b.querySelector('.name').textContent]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join()`);
-  const sortBy=v=>js(`shelfSort.value='${v}';shelfSort.dispatchEvent(new Event('change'))`);
-  assert.equal(await js('shelfSort.value'),'addedNew','Default: newest added first');assert.equal(await order(),'Book C,Book B,Book A');
+  const sortBy=v=>js(`sortBtn.click();sortPop.querySelector('[data-sort="${v}"]').click()`);
+  assert.equal(await js('sortBtn.dataset.sort'),'addedNew','Default: newest added first');assert.equal(await order(),'Book C,Book B,Book A');
   await sortBy('addedOld');assert.equal(await order(),'Book A,Book B,Book C');
   await sortBy('nameDesc');assert.equal(await order(),'Book C,Book B,Book A');
   await sortBy('nameAsc');assert.equal(await order(),'Book A,Book B,Book C');
@@ -66,7 +66,7 @@ try{
   await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Book B'`));
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Book B'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
-  assert.equal(await js('shelfSort.value'),'folderOld');assert.equal(await order(),'Book C,Book A,Book B');
+  assert.equal(await js('sortBtn.dataset.sort'),'folderOld');assert.equal(await order(),'Book C,Book A,Book B');
   // 编辑书名：显示名改变并参与排序和搜索，文件夹名不变；留空恢复。
   await sortBy('nameAsc');
   const card=n=>`[...document.querySelectorAll('#books .book')].find(b=>b.querySelector('.name').textContent==='${n}')`;

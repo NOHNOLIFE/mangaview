@@ -65,7 +65,7 @@ try{
   await js(`filters.reset()`);await wait(async()=>(await cards()).length===3);
   await js(`[...tagBar.querySelectorAll('button.tag')].find(x=>x.textContent.startsWith('热血')).click()`);await wait(async()=>JSON.stringify(await cards())==='["Alpha"]');
   assert.equal(await js('filterSummary.hidden'),false,'Active tag filter is shown while the filter panel is closed');
-  await js(`filterSummary.querySelector('.link-btn').click()`);await wait(async()=>(await cards()).length===3);assert.equal(await js('filterSummary.hidden'),true);
+  await js(`clearBtn.click()`);await wait(async()=>(await cards()).length===3);assert.equal(await js('filterSummary.hidden'),true);
   // 批量移动：把筛选结果移入书库。
   await js(`query.value='beta';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await cards())==='["Beta"]');
   await js(`[...bulkActions.querySelectorAll('button')].find(b=>b.textContent.startsWith('全部移入书库')).click()`);await wait(async()=>(await js(`byTitle('Beta')`)).place==='library');
@@ -94,7 +94,7 @@ try{
   // 单本恢复：内容不符时可以强制恢复。
   await js(`(async()=>{await (await navigator.storage.getDirectory()).removeEntry('again',{recursive:true});})()`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);await wait(()=>js(`!document.querySelector('#bar [data-act="refresh"]').disabled`));
-  await open();await js(`document.querySelector('[data-view="expired"]').click()`);await wait(async()=>JSON.stringify(await cards())==='["Beta"]');
+  await open();await js(`document.querySelector('[data-view="expired"][aria-selected="false"]')?.click()`);await wait(async()=>JSON.stringify(await cards())==='["Beta"]'); // 再点已激活的页签会关闭书架
   await js(`(async()=>{await mk('other','Zeta',5,'purple');const d=await dirOf('other/Zeta');window.showDirectoryPicker=async()=>d;document.querySelector('#books .pick').click();})()`);
   await wait(()=>js('restore.open'));assert.equal(await js('restoreGo.textContent'),'强制恢复');
   await js('restoreGo.click()');
