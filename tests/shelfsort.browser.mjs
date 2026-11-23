@@ -59,8 +59,8 @@ try{
   await sortBy('folderOld');assert.equal(await order(),'Book C,Book A,Book B');
   // 设置持久保存；上一本 / 下一本按同一顺序（当前是最后添加的 Book C，folderOld 下它排第一）。
   await js('shelf.close()');await js('reader.focus()');
-  await js(`document.querySelector('#bar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Book A'`));
-  await js(`document.querySelector('#bar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Book B'`));
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Book A'`));
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Book B'`));
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Book B'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
   assert.equal(await js('shelfSort.value'),'folderOld');assert.equal(await order(),'Book C,Book A,Book B');
@@ -80,19 +80,21 @@ try{
   await js(`renameInput.value='';renameForm.requestSubmit()`);await wait(async()=>await order()==='Book A,Book B,Book C');
   assert.equal(await js(`import('./store.mjs').then(async({library})=>'name' in (await library('getAll')).find(b=>b.title==='Book A'))`),false);
   await shot('shelf-sort');
-  // 长按 → / F 切到下一本、← / D 切到上一本（按书架排序：名称正序 A、B、C），按住时显示进度环；短按只翻一屏。
+  // 长按 → / D 切到下一本、← / A 切到上一本（按书架排序：名称正序 A、B、C），按住时显示进度环；短按只翻一屏。
   await js('shelf.close()');await wait(()=>js(`bookTitle.textContent==='Book B'`));await js('reader.focus()');
-  const arrows={ArrowRight:39,ArrowLeft:37,f:70};
-  const down=k=>cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length>1?k:'KeyF',windowsVirtualKeyCode:arrows[k],...(k.length===1?{text:k}:{})});
-  const up=k=>cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length>1?k:'KeyF',windowsVirtualKeyCode:arrows[k]});
+  const arrows={ArrowRight:39,ArrowLeft:37,d:68,a:65};
+  const down=k=>cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length>1?k:'Key'+k.toUpperCase(),windowsVirtualKeyCode:arrows[k],...(k.length===1?{text:k}:{})});
+  const up=k=>cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length>1?k:'Key'+k.toUpperCase(),windowsVirtualKeyCode:arrows[k]});
   await down('ArrowRight');await delay(300);assert.equal(await js('!document.querySelector(".hold").hidden&&document.querySelector(".hold .hold-text").textContent'),'Keep holding for the next book');
   await delay(400);await up('ArrowRight');await wait(()=>js(`bookTitle.textContent==='Book C'`));
   assert.ok(await js('document.querySelector(".hold").classList.contains("done")&&document.querySelector(".hold .hold-text").textContent==="Book C"'),'Ring shows the new book');
   await down('ArrowLeft');await delay(700);await up('ArrowLeft');await wait(()=>js(`bookTitle.textContent==='Book B'`));
-  await js('reader.scrollTop=0');await down('f');await delay(60);await up('f');await wait(()=>js('reader.scrollTop>0'));
+  await down('d');await delay(700);await up('d');await wait(()=>js(`bookTitle.textContent==='Book C'`));
+  await down('a');await delay(700);await up('a');await wait(()=>js(`bookTitle.textContent==='Book B'`));
+  await js('reader.scrollTop=0');await down('d');await delay(60);await up('d');await wait(()=>js('reader.scrollTop>0'));
   assert.equal(await js('reader.scrollTop'),await js('Math.max(1,reader.clientHeight-64)'),'Tap turns one screen');assert.equal(await js('bookTitle.textContent'),'Book B');
   await delay(100);assert.equal(await js('document.querySelector(".hold").hidden'),true,'No ring after a tap');
-  assert.deepEqual(errors,[]);console.log('PASS: B shortcut, shelf sort (added / folder time / name, both directions), persistence, prev/next order, rename and restore, hold arrow keys to change books');
+  assert.deepEqual(errors,[]);console.log('PASS: B shortcut, shelf sort (added / folder time / name, both directions), persistence, prev/next order, rename and restore, hold arrow keys / A / D to change books');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

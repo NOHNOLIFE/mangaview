@@ -28,6 +28,11 @@
 .set-select:hover{border-color:rgba(255,255,255,.2)}
 .set-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .set-select option{background:var(--solid)}
+/* 还原默认设置 */
+.set-foot{display:flex;align-items:center;gap:16px;padding:4px 2px 0}
+.set-foot small{flex:1;min-width:0;color:var(--muted);font-size:12.5px;line-height:1.45}
+.set-foot button{flex:none;height:34px}
+.set-foot button .i{width:18px;height:18px}
 /* 数据分节 */
 .bak-note,.bak-warn{display:flex;align-items:flex-start;gap:10px;margin:0;color:var(--muted);font-size:12.5px;line-height:1.55}
 .bak-note .i,.bak-warn .i{width:18px;height:18px;margin-top:1px;color:var(--accent)}
@@ -45,5 +50,5 @@
 .bak-actions button:first-child{margin-right:auto}
 @media (max-width:560px){
   .set-body{padding:2px 14px 16px}
-  .set-row{flex-wrap:wrap}
+  .set-row,.set-foot{flex-wrap:wrap}
 }

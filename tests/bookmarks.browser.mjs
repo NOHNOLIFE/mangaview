@@ -44,10 +44,11 @@ try{
   const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.id===JSON.parse(localStorage.getItem('mv2:last'))))`);
   const marks=async()=>(await record()).bookmarks.map(b=>[b.name,+b.f.toFixed(3)]);
   const text=()=>js(`document.getElementById('notice').textContent`);
-  const codes={g:['KeyG',71,'g'],Enter:['Enter',13,'\r'],Escape:['Escape',27,'']};
-  async function key(name,type){const [code,vk,t]=codes[name];await cdp('Input.dispatchKeyEvent',{type,key:name,code,windowsVirtualKeyCode:vk,...(type==='keyDown'&&t?{text:t}:{})});}
-  const tap=async(name='g')=>{await key(name,'keyDown');await delay(40);await key(name,'keyUp');};
-  async function hold(name='g'){
+  const codes={f:['KeyF',70,'f'],F:['KeyF',70,'F'],g:['KeyG',71,'g'],Enter:['Enter',13,'\r'],Escape:['Escape',27,'']};
+  // shift：按住 Shift（反向跳转）。
+  async function key(name,type,shift=false){const [code,vk,t]=codes[name];await cdp('Input.dispatchKeyEvent',{type,key:name,code,windowsVirtualKeyCode:vk,...(shift?{modifiers:8}:{}),...(type==='keyDown'&&t?{text:t}:{})});}
+  const tap=async(name='f',shift=false)=>{await key(name,'keyDown',shift);await delay(40);await key(name,'keyUp',shift);};
+  async function hold(name='f'){
     await key(name,'keyDown');await delay(320);
     assert.equal(await js('!document.querySelector(".hold").hidden'),true,'Ring appears while holding');
     assert.equal(await js('document.querySelector(".hold .hold-text").textContent'),'Keep holding to add a bookmark');
@@ -55,7 +56,9 @@ try{
   }
 
   // 没有书签时短按给出提示。
-  await goto(3,.5);await tap();await wait(async()=>await text()==='No bookmarks yet — hold G or Enter to add one');
+  await goto(3,.5);await tap();await wait(async()=>await text()==='No bookmarks yet — hold F or Enter to add one');
+  // G 不再绑定：长按不添加书签。
+  await key('g','keyDown');await delay(700);await key('g','keyUp');await delay(100);assert.equal((await marks()).length,0,'G is no longer bound');
   // 长按 G 添加书签，缩略图存进 thumbs store。
   await hold();await wait(async()=>(await marks()).length===1);
   assert.deepEqual(await marks(),[['3.svg',.5]]);assert.equal(await text(),'Bookmark added');
@@ -76,6 +79,14 @@ try{
   await tap();await wait(async()=>(await center())[0]===10);assert.deepEqual(await center(),[10,.25]);assert.equal(await text(),'Bookmark 2 / 3');
   await tap();await wait(async()=>(await center())[0]===20);assert.equal(await text(),'Bookmark 3 / 3');
   await tap();await wait(async()=>(await center())[0]===3);assert.equal(await text(),'Back to the first bookmark');
+  // Shift+F / Shift+Enter：反向跳到上一个书签，开头之前回到最后一个。
+  await tap('F',true);await wait(async()=>(await center())[0]===20);assert.equal(await text(),'Back to the last bookmark');
+  await tap('F',true);await wait(async()=>(await center())[0]===10);assert.equal(await text(),'Bookmark 2 / 3');
+  await tap('Enter',true);await wait(async()=>(await center())[0]===3);assert.equal(await text(),'Bookmark 1 / 3');
+  // 不是刚跳过来的位置：从屏幕中心往前找。
+  await goto(15,.5);await tap('F',true);await wait(async()=>(await center())[0]===10);assert.deepEqual(await center(),[10,.25]);
+  // 长按 Shift+F 同样添加书签（这里已有书签，提示重复）。
+  await js('notice.textContent=""');await key('F','keyDown',true);await delay(700);await key('F','keyUp',true);await wait(async()=>await text()==='There is already a bookmark here');
 
   // 右键在鼠标处打开面板，“添加书签”按钮正好在鼠标下。
   const mouse=(type,x,y,button='none')=>cdp('Input.dispatchMouseEvent',{type,x,y,button,clickCount:button==='none'?0:1});
@@ -85,7 +96,7 @@ try{
   await menu(300,400);const add=await rect('.bm-add');
   assert.ok(Math.abs(add.x-300)<1&&Math.abs(add.y-400)<1,'Add button sits under the cursor');
   assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Image 4','Image 11','Image 21']);
-  assert.equal(await js(`document.querySelector('.bm-add').textContent`),'Add bookmarkHoldG/Enter');
+  assert.equal(await js(`document.querySelector('.bm-add').textContent`),'Add bookmarkHoldF/Enter');
   await wait(()=>js(`[...document.querySelectorAll('.bm-item img')].every(i=>i.complete&&i.naturalWidth===240)`));
   // 紧凑显示：没有文字；缩略图比例跟随视口但限制在 3:4 ~ 4:3，不显示成长条。
   assert.equal(await js(`document.querySelector('.bm-grid').innerText.trim()`),'');
@@ -136,7 +147,7 @@ try{
   await js(act);await wait(()=>js('!document.querySelector(".bm-panel").hidden'));await delay(200);const mid=await rect('.bm-panel');
   assert.ok(Math.abs(mid.x-await js('reader.clientWidth/2'))<2,'Toolbar action opens the panel centred');
   await js(act);await wait(()=>js('document.querySelector(".bm-panel").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: toolbar action, hold to add with thumbnail, duplicate guard, tap to cycle, context panel, hover jump, leave/Esc, delete, reorder, missing images');
+  assert.deepEqual(errors,[]);console.log('PASS: toolbar action, hold F to add with thumbnail, G unbound, duplicate guard, tap to cycle, Shift reverse, context panel, hover jump, leave/Esc, delete, reorder, missing images');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

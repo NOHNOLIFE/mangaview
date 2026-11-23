@@ -81,14 +81,12 @@
 <button class="tb shelf-btn" data-act="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
 <button class="tb" data-act="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span data-t="refresh"></span></button>
 <hr class="sep">
-<button class="tb" data-act="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg><span data-t="prev"></span></button>
-<button class="tb" data-act="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg><span data-t="next"></span></button>
+<button class="tb" data-act="shelfmarks" data-optional aria-pressed="false" hidden><svg class="i" aria-hidden="true"><use href="#i-tb-shelfmarks"/></svg><span data-t="shelfmarks"></span></button>
+<button class="tb" data-act="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span data-t="preview"></span></button>
 <hr class="sep">
+<button class="tb" data-act="bookmarks" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-bookmark"/></svg><span data-t="bookmarks"></span></button>
 <button class="tb" data-act="sort" aria-haspopup="dialog" aria-controls="sortOptions"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg><span data-t="sort"></span></button>
 <button class="tb" data-act="fit" aria-pressed="true"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg><span data-t="fit"></span></button>
-<button class="tb" data-act="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span data-t="preview"></span></button>
-<button class="tb" data-act="bookmarks" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-bookmark"/></svg><span data-t="bookmarks"></span></button>
-<button class="tb" data-act="shelfmarks" data-optional aria-pressed="false" hidden><svg class="i" aria-hidden="true"><use href="#i-tb-shelfmarks"/></svg><span data-t="shelfmarks"></span></button>
 <hr class="sep">
 <button class="tb" data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
 <button class="tb" data-act="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg><span data-t="files"></span></button>
@@ -100,7 +98,13 @@
 </nav>
 </div>
 
-<div id="endbar" role="toolbar" data-aria="endbar" hidden><button class="eb" data-act="toStart"><svg class="i" aria-hidden="true"><use href="#i-to-top"/></svg><span></span></button><span id="endPos" class="eb-pos"></span><button class="eb" data-act="toEnd"><svg class="i" aria-hidden="true"><use href="#i-to-end"/></svg><span></span></button></div>
+<div id="endbar" role="toolbar" data-aria="endbar" hidden>
+<button class="eb eb-book" data-act="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg><span data-t="prev"></span></button>
+<button class="eb" data-act="toStart"><svg class="i" aria-hidden="true"><use href="#i-to-top"/></svg><span data-t="toTop"></span></button>
+<span id="endPos" class="eb-pos"></span>
+<button class="eb" data-act="toEnd"><svg class="i" aria-hidden="true"><use href="#i-to-end"/></svg><span data-t="toEnd"></span></button>
+<button class="eb eb-book" data-act="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg><span data-t="next"></span></button>
+</div>
 <div id="hud" aria-hidden="true" hidden><svg class="ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle id="ring" class="fill" cx="10" cy="10" r="8" pathLength="100"/></svg><span id="pageNum"></span></div>
 <aside id="panel" hidden><div id="grip" role="separator" tabindex="0" aria-orientation="vertical" data-label="width"></div><div id="preview" tabindex="0" data-aria="preview"><div class="strip"></div></div></aside>
 
