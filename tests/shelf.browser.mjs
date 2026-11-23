@@ -53,7 +53,7 @@ try{
   const count=v=>js(`document.querySelector('[data-view="${v}"] .count').textContent`);
   const cards=()=>js(`[...document.querySelectorAll('#books .book .pick')].map(x=>x.getAttribute('aria-label')).sort()`);
   await open();await wait(async()=>(await cards()).length===3);assert.equal(await count('shelf'),'3');
-  assert.ok(await js(`document.querySelectorAll('#books .col').length>=2`),'Masonry columns');
+  assert.ok(await js(`new Set([...document.querySelectorAll('#books .book')].map(b=>b.style.translate.split(' ')[0])).size>=2`),'Masonry columns');
   await wait(()=>js(`document.querySelectorAll('#books .cover.ready img').length===3`));
   // 标签：添加、按 #标签 搜索、标签栏筛选。
   await js(`[...document.querySelectorAll('#books .book')].find(x=>x.querySelector('.pick').getAttribute('aria-label')==='Alpha').querySelector('[aria-label="编辑标签"]').click()`);
@@ -64,10 +64,11 @@ try{
   await js(`query.value='#动';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await cards())==='["Alpha"]');
   await js(`filters.reset()`);await wait(async()=>(await cards()).length===3);
   await js(`[...tagBar.querySelectorAll('button.tag')].find(x=>x.textContent.startsWith('热血')).click()`);await wait(async()=>JSON.stringify(await cards())==='["Alpha"]');
-  await js(`tagBar.querySelector('.link-btn').click()`);await wait(async()=>(await cards()).length===3);
+  assert.equal(await js('filterSummary.hidden'),false,'Active tag filter is shown while the filter panel is closed');
+  await js(`filterSummary.querySelector('.link-btn').click()`);await wait(async()=>(await cards()).length===3);assert.equal(await js('filterSummary.hidden'),true);
   // 批量移动：把筛选结果移入书库。
   await js(`query.value='beta';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await cards())==='["Beta"]');
-  await js(`bulkActions.querySelector('button').click()`);await wait(async()=>(await js(`byTitle('Beta')`)).place==='library');
+  await js(`[...bulkActions.querySelectorAll('button')].find(b=>b.textContent.startsWith('全部移入书库')).click()`);await wait(async()=>(await js(`byTitle('Beta')`)).place==='library');
   await js(`filters.reset()`);await wait(async()=>(await count('shelf'))==='2'&&(await count('library'))==='1');
   await js(`document.querySelector('[data-view="all"]').click()`);await wait(async()=>(await cards()).length===3);
   await js('shelf.close()');
@@ -79,7 +80,7 @@ try{
   await js(`document.querySelector('[data-view="expired"]').click()`);await wait(async()=>(await cards()).length===3);
   await wait(()=>js(`document.querySelectorAll('#books .book.expired .cover img').length===3`)); // 过期书仍显示缓存的封面
   // 批量恢复：同名同封面自动恢复；改名但封面相同的进入确认列表。
-  await js(`(async()=>{const d=await dirOf('moved');window.showDirectoryPicker=async()=>d;[...bulkActions.querySelectorAll('button')][0].click();})()`);
+  await js(`(async()=>{const d=await dirOf('moved');window.showDirectoryPicker=async()=>d;[...bulkActions.querySelectorAll('button')].find(b=>b.textContent==='批量恢复…').click();})()`);
   await wait(()=>js('restore.open'));
   assert.equal(await js(`restoreList.querySelectorAll('.match').length`),1);assert.equal(await js(`restoreList.querySelector('input').checked`),true);
   await js('restoreGo.click()');

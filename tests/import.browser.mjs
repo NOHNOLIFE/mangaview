@@ -93,7 +93,7 @@ try{
   await js(`(async()=>{await mk('m2','Vol 1',3,'red');await mk('m2','Vol 2',3,'blue');await mk('m2','Vol 3',1,'yellow');await mk('m2','Vol 10',2,'green');await rm('s');await rm('moved');})()`);
   await refresh();await wait(async()=>(await count('expired'))==='2');
   await js(`document.querySelector('[data-view="expired"]').click()`);
-  await js(`(async()=>{const d=await dirOf('m2');window.showDirectoryPicker=async()=>d;[...bulkActions.querySelectorAll('button')][0].click();})()`);
+  await js(`(async()=>{const d=await dirOf('m2');window.showDirectoryPicker=async()=>d;restoreAllBtn.click();})()`);
   await wait(()=>js(`document.querySelector('[data-view="expired"]').hidden`));
   m=await js('merged()');assert.equal(m.pages.length,9);assert.ok(m.sources.every(s=>s.path.startsWith('m2/')));
   assert.equal((await js(`byTitle('Vol 2')`)).path,'m2/Vol 2');

@@ -1,4 +1,4 @@
-/* 书架：书架 / 书库 / 所有书籍 / 过期书籍。瀑布流纯封面，书名与操作在悬停或聚焦时显示。 */
+/* 书架：书架 / 书库 / 所有书籍 / 过期书籍。瀑布流纯封面，书名与操作在选中（鼠标悬停或键盘焦点）时显示。 */
 .views{display:flex;flex-wrap:wrap;gap:3px;padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--raise);app-region:no-drag;-webkit-app-region:no-drag}
 .views button{height:38px;padding:0 14px 0 12px;border:0;border-radius:10px;background:none;color:var(--muted);font-size:14.5px;font-weight:600}
 .views button:not(:disabled):hover{background:rgba(255,255,255,.05);color:var(--text)}
@@ -8,9 +8,40 @@
 .views .count{margin-left:-2px}
 .views .expired-tab{color:var(--faint)}
 .views .expired-tab[aria-selected=true] .i{color:var(--warn)}
-#filters{padding-bottom:0;border-bottom:0}
-.tag-bar{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:6px;padding:12px 36px 0}
-.tag-bar>.i{width:16px;height:16px;margin-right:2px;color:var(--faint)}
+/* 功能区：一行主工具条（搜索、筛选、预设、排序、计数、批量），筛选面板可折叠；任何时候书籍列表都占据绝大部分高度。 */
+#filters{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:8px;padding:0 36px 12px;border-bottom:1px solid var(--line)}
+#filters .search{flex:1 1 11rem;min-width:9rem}
+.search-key{position:absolute;right:9px;top:50%;translate:0 -50%;padding:0 6px;border:1px solid var(--line2);border-radius:5px;color:var(--faint);font:11px/18px inherit;pointer-events:none}
+#query:focus+.search-key,#query:not(:placeholder-shown)+.search-key{display:none}
+#query::-webkit-search-cancel-button{margin-right:2px}
+.chip-btn{flex:none;height:36px;padding:0 12px;gap:7px;font-size:13.5px;max-width:15rem}
+.chip-btn>span:not(.nbadge){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-btn .i{width:18px;height:18px}
+.chip-btn.on{border-color:rgba(255,122,89,.45);background:var(--accent-soft)}
+.chip-btn.on>.i:first-child{color:var(--accent)}
+.chip-btn.modified #presetName::after{content:' •';color:var(--accent)}
+.chip-btn.toggle[aria-pressed=true]{border-color:rgba(255,122,89,.45);background:var(--accent-soft)}
+.chip-btn.toggle[aria-pressed=true] .i{color:var(--accent);fill:currentColor}
+.nbadge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.nbadge:empty{display:none}
+#filters>.count{flex:none}
+.filter-panel{display:grid;flex:1 1 100%;gap:10px;padding:4px 0 2px}
+.fp-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fp-row .range input{width:6.5em}
+.fp-tags{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.tag-search{position:relative;display:flex;flex:none;width:9.5rem}
+.tag-search .i{position:absolute;left:9px;top:7px;width:16px;height:16px;color:var(--faint);pointer-events:none}
+.tag-search input{width:100%;height:30px;padding-left:30px;font-size:13px}
+.tag-bar{display:flex;flex:1;flex-wrap:wrap;align-content:flex-start;gap:6px;min-width:0;max-height:min(30vh,150px);padding:2px;overflow:auto}
+.tag-bar.collapsed{max-height:30px;overflow:hidden}
+.fp-tags .link-btn{flex:none;height:30px}
+.filter-summary{display:flex;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:6px}
+.flabel{color:var(--accent);font-size:12.5px;font-weight:650}
+.fchip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid var(--line2);border-radius:999px;background:var(--s2);font-size:12px;font-weight:600}
+.shelf-note{display:flex;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0}
+.shelf-note .hint{flex:1 1 20rem;margin:0;color:var(--muted);font-size:12.5px;line-height:1.45}
+.shelf-note button{height:32px;font-size:13px}
+p.shelf-note.warn{padding:8px 12px;border:1px solid rgba(255,179,92,.3);border-radius:10px;background:rgba(255,179,92,.08);color:var(--warn);font-size:12.5px;line-height:1.45}
 .link-btn{height:24px;padding:0 6px;border:0;background:none;color:var(--muted);font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .link-btn:not(:disabled):hover{background:none;color:var(--text)}
 .tag{--h:200;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid hsl(var(--h) 70% 60% / .35);border-radius:999px;background:hsl(var(--h) 70% 55% / .15);color:hsl(var(--h) 85% 80%);font-size:12px;font-weight:600;line-height:1;white-space:nowrap}
@@ -22,61 +53,100 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .tag-x{width:16px;height:16px;margin-right:-4px;padding:0;border:0;border-radius:50%;background:none;color:inherit;opacity:.7}
 .tag-x:not(:disabled):hover{background:rgba(0,0,0,.25);opacity:1}
 .tag-x .i{width:12px;height:12px}
-.bulk{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 36px;border-bottom:1px solid var(--line)}
-.bulk .hint{flex:1 1 20rem;margin:0;color:var(--muted);font-size:12.5px;line-height:1.45}
-.bulk .hint+.spacer{display:none}
-.bulk-actions{display:flex;flex-wrap:wrap;gap:6px}
-.bulk-actions button{height:32px;padding:0 12px;font-size:13px}
-.bulk-actions .i{width:16px;height:16px}
 
-/* 瀑布流 */
-#books{display:flex;flex:1;align-items:flex-start;gap:16px;padding:22px 36px 40px;overflow:auto}
-#books>.col{display:flex;flex:1;flex-direction:column;gap:16px;min-width:0}
-.book{position:relative;min-width:0;animation:rise .35s var(--ease) both}
-.pick{position:relative;display:block;width:100%;height:auto;padding:0;overflow:hidden;border:0;border-radius:12px;background:linear-gradient(160deg,#25272d,#16171b);box-shadow:0 6px 18px rgba(0,0,0,.35);text-align:start;white-space:normal;transition:transform .3s var(--ease),box-shadow .3s}
+/* 弹出层：预设、批量操作 */
+.menu-pop{position:fixed;inset:auto;margin:0;width:max-content;min-width:15rem;max-width:min(26rem,calc(100vw - 16px));max-height:min(70vh,32rem);padding:6px;overflow:auto;border:1px solid var(--line2);border-radius:14px;background:var(--solid);color:inherit;box-shadow:var(--shadow)}
+.menu-pop:popover-open{display:grid;gap:4px;animation:drop .16s var(--ease)}
+.bulk-actions{display:grid;gap:2px}
+.menu-pop button:not(.icon-btn):not(.primary){justify-content:flex-start;width:100%;height:auto;min-height:38px;padding:7px 10px;border:0;border-radius:9px;background:none;text-align:start;white-space:normal}
+.menu-pop button:not(.icon-btn):not(.primary):not(:disabled):hover{background:rgba(255,255,255,.06)}
+.menu-pop .danger{color:var(--danger)}
+.pp-add .i{color:var(--accent)}
+.pp-search{position:relative;display:flex}
+.pp-search .i{position:absolute;left:9px;top:9px;width:16px;height:16px;color:var(--faint);pointer-events:none}
+.pp-search input{width:100%;height:34px;padding-left:32px;font-size:13px}
+.pp-list{display:grid;gap:2px;max-height:min(50vh,22rem);overflow:auto;border-top:1px solid var(--line);padding-top:4px}
+.pp-empty{margin:6px 10px 8px;color:var(--faint);font-size:12.5px}
+.pp-row{display:flex;align-items:center;gap:2px;border-radius:9px}
+.pp-row.on{background:var(--accent-soft)}
+.pp-row .pp-apply{flex:1;min-width:0;gap:10px}
+.pp-row.on .pp-apply .i{color:var(--accent)}
+.pp-txt{display:grid;min-width:0}
+.pp-txt strong{overflow:hidden;font-size:13.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.pp-txt small{overflow:hidden;color:var(--muted);font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}
+.pp-row .icon-btn{width:30px;height:30px;border:0;background:none;color:var(--muted);opacity:.75}
+.pp-row .icon-btn:hover{opacity:1;color:var(--text)}
+.pp-row .icon-btn.danger:hover{color:var(--danger)}
+.pp-row .icon-btn .i{width:16px;height:16px}
+.pp-name{display:flex;gap:6px;padding:4px}
+.pp-name input{flex:1;min-width:0;height:34px}
+.pp-name button{height:34px}
+
+/* 书籍列表：绝对定位的瀑布流，只挂载可见范围附近的卡片（shelf.mjs）。 */
+#books{position:relative;display:block;flex:1;min-height:0;padding:20px 36px 40px;overflow:auto;overflow-anchor:none}
+#books>.grid{position:relative}
+.book{position:absolute;left:0;top:0;min-width:0}
+.grid.moving .book{transition:translate .32s var(--ease),width .32s var(--ease),height .32s var(--ease)}
+.grid.intro .book{animation:rise .35s var(--ease) both;animation-delay:var(--d,0ms)}
+.pick{position:relative;display:block;width:100%;height:100%;padding:0;overflow:hidden;border:0;border-radius:12px;background:linear-gradient(160deg,#25272d,#16171b);box-shadow:0 6px 18px rgba(0,0,0,.35);text-align:start;white-space:normal;transition:transform .25s var(--ease),box-shadow .25s}
 .pick:not(:disabled):hover{background:linear-gradient(160deg,#25272d,#16171b)}
 .pick:not(:disabled):active{transform:none}
-.book:hover .pick,.pick:focus-visible{transform:translateY(-3px);box-shadow:0 16px 32px rgba(0,0,0,.55)}
-.pick:focus-visible{outline-offset:3px}
+.pick:focus-visible{outline:none}
+/* 选中的卡片（鼠标悬停或键盘焦点，二者是同一个状态） */
+.book.active .pick{transform:translateY(-3px);box-shadow:0 0 0 2px rgba(255,255,255,.55),0 16px 32px rgba(0,0,0,.55)}
 .book.current .pick{box-shadow:0 0 0 2px var(--accent),0 10px 30px rgba(255,110,80,.28)}
-.cover{position:relative;display:block;width:100%}
+.book.current.active .pick{box-shadow:0 0 0 2px var(--accent),0 0 0 5px rgba(255,255,255,.35),0 16px 32px rgba(0,0,0,.55)}
+.cover{position:absolute;inset:0;display:block}
 .cover img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;animation:fade .25s}
 .cover:not(.ready)::before{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.04) 50%,transparent 65%) 0 0/300% 100%;animation:shimmer 1.8s linear infinite}
 .cover::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
 .veil{position:absolute;inset:auto 0 0;display:grid;gap:5px;padding:36px 12px 12px;background:linear-gradient(180deg,transparent,rgba(6,6,8,.82) 38%,rgba(6,6,8,.94));opacity:0;transform:translateY(6px);transition:opacity .18s,transform .25s var(--ease);pointer-events:none}
-.book:hover .veil,.book:focus-within .veil,.cover:not(.ready)+.veil{opacity:1;transform:none}
+.book.active .veil,.cover:not(.ready)+.veil{opacity:1;transform:none}
 .cover:not(.ready)+.veil{background:none}
 .veil .name{display:-webkit-box;overflow:hidden;color:#fff;font-size:13.5px;font-weight:650;line-height:1.35;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:3}
 .veil .meta{display:flex;justify-content:space-between;gap:6px;color:rgba(255,255,255,.72);font-size:12px;font-variant-numeric:tabular-nums}
 .veil .fresh{color:rgba(255,255,255,.5)}
+.veil .info{display:flex;align-items:center;gap:10px}
+.veil .marks{display:inline-flex;align-items:center;gap:3px}
+.veil .marks .i{width:12px;height:12px;color:var(--accent);fill:currentColor}
 .veil .lost{color:var(--warn)}
 .veil .tags{display:flex;flex-wrap:wrap;gap:4px}
 .veil .tag{height:20px;padding:0 7px;font-size:11px;backdrop-filter:blur(6px)}
 .pick .progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.45)}
 .pick .progress::after{content:'';display:block;width:calc(var(--p,0) * 100%);height:100%;background:var(--accent-grad)}
 .badge{position:absolute;z-index:1;left:8px;top:8px;padding:2px 8px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.bm-flag{position:absolute;z-index:1;left:8px;bottom:10px;display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px 0 5px;border-radius:999px;background:rgba(10,10,12,.72);backdrop-filter:blur(8px);color:#fff;font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;transition:opacity .15s}
+.bm-flag .i{width:13px;height:13px;color:var(--accent);fill:currentColor}
+.book.active .bm-flag{opacity:0}
 .book.expired .cover img{filter:grayscale(1);opacity:.5}
 .book .part{position:absolute;z-index:1;left:8px;top:8px;display:grid;place-items:center;width:22px;height:22px;border-radius:999px;background:rgba(10,10,12,.78);color:#ffb35c;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .book .badge~.part{top:36px}.book .part .i{width:13px;height:13px}
-.book .actions{position:absolute;z-index:1;right:6px;top:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
-.book:hover .actions,.book:focus-within .actions{opacity:1}
+.book .actions{position:absolute;z-index:1;right:6px;top:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s;pointer-events:none}
+.book.active .actions{opacity:1;pointer-events:auto}
 .book .actions .icon-btn{width:30px;height:30px;border-radius:8px;background:rgba(10,10,12,.72);backdrop-filter:blur(8px);color:#fff}
 .book .actions .icon-btn:hover{background:rgba(10,10,12,.92)}
+.book .actions .icon-btn:focus-visible{outline:2px solid #fff;outline-offset:1px}
 .book .actions .danger:hover{color:var(--danger)}
 .book .actions .i{width:16px;height:16px}
-.shelf-empty{display:grid;flex:1;place-items:center;gap:10px;padding:72px 16px;color:var(--faint)}
+.shelf-empty{display:grid;place-items:center;gap:10px;padding:72px 16px;color:var(--faint)}
 .shelf-empty .i{width:44px;height:44px;stroke-width:1.4}
 .shelf-empty p{margin:0}
 
-/* 标签编辑 */
+/* 标签编辑：输入即联想 */
 #tagEditor,#renameBook{width:min(28rem,94vw)}
 #renameBook .tag-book{margin-bottom:18px}
 .tag-book{margin:0 22px 10px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .tag-list{display:flex;flex-wrap:wrap;gap:6px;padding:0 22px 12px}
 .tag-list:empty{display:none}
-.tag-form{display:flex;gap:8px;padding:0 22px 14px}
+.tag-form{display:flex;gap:8px;padding:0 22px 10px}
 .tag-form input{flex:1}
-.tag-list.suggest{max-height:30vh;padding-bottom:20px;overflow:auto}
+.tag-suggest{display:grid;gap:1px;max-height:min(40vh,18rem);margin:0 16px 16px;overflow:auto}
+.tag-suggest:empty{display:none}
+.tag-suggest .sug{justify-content:space-between;height:34px;padding:0 8px;border:0;border-radius:8px;background:none}
+.tag-suggest .sug:not(:disabled):hover,.tag-suggest .sug[aria-selected=true]{background:rgba(255,255,255,.07)}
+.tag-suggest .sug[aria-selected=true]{box-shadow:inset 0 0 0 1px var(--line2)}
+.tag-suggest .sug small{color:var(--faint);font-size:11.5px}
+.sug-hint{margin:4px 8px 0;color:var(--faint);font-size:11.5px}
 
 /* 恢复 */
 #restore{width:min(48rem,94vw)}
@@ -100,17 +170,26 @@ label.match .why{grid-column:2/-1}
 .why .bad{background:rgba(255,179,92,.12);color:var(--warn)}
 #restore footer{display:flex;flex:none;gap:8px;padding:14px 16px 16px}
 
+@media (max-width:900px){
+  #filterToggle>span[data-t]{display:none}
+  #presetName{max-width:8rem}
+  .shelf-sort select{max-width:11rem}
+}
 @media (max-width:560px){
-  #books{gap:10px;padding:14px}
-  #books>.col{gap:10px}
-  .bulk,.tag-bar{padding-inline:18px}
+  #books{padding:14px}
+  #filters .search{flex-basis:100%}
+  #filters{padding:0 14px 10px;gap:6px}
+  .chip-btn{padding:0 10px}
+  .chip-btn>span[data-t],#presetName{display:none}
+  .shelf-sort select{max-width:8rem}
+  .tag-search{width:7.5rem}
   .views button{padding:0 10px}
   .views button>span[data-t]{display:none}
 }
-/* 书籍排序：书架页计数左侧的下拉框 */
+/* 书籍排序：主工具条里的下拉框 */
 .shelf-sort{position:relative;display:flex;align-items:center}
 .shelf-sort .i{position:absolute;left:9px;width:16px;height:16px;color:var(--muted);pointer-events:none}
-.shelf-sort select{height:32px;padding:0 10px 0 31px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;cursor:pointer}
+.shelf-sort select{height:36px;padding:0 10px 0 31px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;cursor:pointer}
 .shelf-sort select:hover{background:var(--s3)}
 .shelf-sort select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .shelf-sort option{background:var(--solid)}

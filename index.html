@@ -128,12 +128,23 @@
 </div>
 </header>
 <form id="filters" role="search">
-<label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="query" type="search" data-placeholder="search" autocomplete="off" autofocus></label>
-<div class="range"><input id="min" type="number" min="0" data-placeholder="min"><span>–</span><input id="max" type="number" min="0" data-placeholder="max"></div>
-<button type="reset" data-t="reset"></button>
+<label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="query" type="search" data-placeholder="search" autocomplete="off"><kbd class="search-key" aria-hidden="true">/</kbd></label>
+<button type="button" id="filterToggle" class="chip-btn" aria-expanded="false" aria-controls="filterPanel"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span data-t="filters"></span><span id="filterBadge" class="nbadge"></span></button>
+<button type="button" id="presetBtn" class="chip-btn" popovertarget="presetPop"><svg class="i" aria-hidden="true"><use href="#i-star"/></svg><span id="presetName"></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+<label class="shelf-sort"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg><select id="shelfSort" data-label="shelfSort"><option value="addedNew" data-t="bsAddedNew"></option><option value="addedOld" data-t="bsAddedOld"></option><option value="folderNew" data-t="bsFolderNew"></option><option value="folderOld" data-t="bsFolderOld"></option><option value="nameAsc" data-t="bsNameAsc"></option><option value="nameDesc" data-t="bsNameDesc"></option></select></label>
+<button type="button" id="layoutBtn" class="icon-btn"></button>
+<span id="shelfCount" class="count"></span><span class="spacer"></span>
+<button type="button" id="bulkBtn" class="icon-btn" popovertarget="bulkPop" data-label="bulk"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg></button>
+<div id="filterPanel" class="filter-panel" hidden>
+<div class="fp-row"><div class="range"><input id="min" type="number" min="0" data-placeholder="min"><span>–</span><input id="max" type="number" min="0" data-placeholder="max"></div><button type="button" id="markedToggle" class="chip-btn toggle" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-bookmark"/></svg><span data-t="hasBookmarks"></span></button><span class="spacer"></span><button type="reset" class="link-btn" data-t="clearFilters"></button></div>
+<div id="tagSection" class="fp-tags"><label class="tag-search"><svg class="i" aria-hidden="true"><use href="#i-tag"/></svg><input id="tagQuery" type="search" data-placeholder="findTag" autocomplete="off"></label><div id="tagBar" class="tag-bar collapsed"></div><button type="button" id="tagMore" class="link-btn" hidden></button></div>
+</div>
+<div id="filterSummary" class="filter-summary" hidden></div>
+<div id="expiredHint" class="shelf-note" hidden><p class="hint" data-t="expiredHint"></p><button type="button" id="restoreAllBtn"><svg class="i" aria-hidden="true"><use href="#i-link"/></svg><span data-t="restoreAll"></span></button></div>
+<p id="storageWarn" class="shelf-note warn" hidden></p>
 </form>
-<div id="tagBar" class="tag-bar" hidden></div>
-<div id="bulk" class="bulk"><label class="shelf-sort"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg><select id="shelfSort" data-label="shelfSort"><option value="addedNew" data-t="bsAddedNew"></option><option value="addedOld" data-t="bsAddedOld"></option><option value="folderNew" data-t="bsFolderNew"></option><option value="folderOld" data-t="bsFolderOld"></option><option value="nameAsc" data-t="bsNameAsc"></option><option value="nameDesc" data-t="bsNameDesc"></option></select></label><span id="shelfCount" class="count"></span><p id="expiredHint" class="hint" data-t="expiredHint" hidden></p><span class="spacer"></span><span id="bulkActions" class="bulk-actions"></span><button class="icon-btn" data-act="copy" data-label="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+<div id="bulkPop" class="menu-pop" popover><div id="bulkActions" class="bulk-actions"></div></div>
+<div id="presetPop" class="menu-pop preset-pop" popover></div>
 <div id="books"></div>
 </dialog>
 
@@ -141,8 +152,8 @@
 <header><h2 id="tagTitle" data-t="editTags"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
 <p id="tagBook" class="tag-book"></p>
 <div id="tagList" class="tag-list"></div>
-<form id="tagForm" class="tag-form"><input id="tagInput" data-placeholder="addTag" autocomplete="off" maxlength="40"><button class="primary" type="submit" data-t="add"></button></form>
-<div id="tagSuggest" class="tag-list suggest"></div>
+<form id="tagForm" class="tag-form"><input id="tagInput" data-placeholder="addTag" autocomplete="off" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="tagSuggest" aria-expanded="true"><button class="primary" type="submit" data-t="add"></button></form>
+<div id="tagSuggest" class="tag-suggest" role="listbox" data-aria="editTags"></div>
 </dialog>
 
 <dialog id="renameBook" aria-labelledby="renameTitle">
