@@ -46,13 +46,13 @@ try{
   const rect=()=>js(`[reader.clientWidth,reader.clientHeight,reader.scrollHeight,reader.scrollTop]`);
   await js('reader.scrollTop=700');await delay(120);const before=await rect();await js('tab.click()');assert.deepEqual(await rect(),before);await js('tab.click()');assert.deepEqual(await rect(),before);
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);
-  await wait(()=>js(`!!document.querySelector('#preview [title="0.svg"] canvas')`));
+  await wait(()=>js(`!!document.querySelector('#preview [title="0.svg"] :is(canvas,img)')`));
   assert.ok(await js('reader.getBoundingClientRect().right<=panel.getBoundingClientRect().left+1'),'Pinned preview docks beside the page instead of covering it');
   await delay(120);const docked=await js('reader.scrollTop');
   await js(`preview.dispatchEvent(new WheelEvent('wheel'));preview.scrollTop=preview.scrollHeight;`);
-  await wait(()=>js(`!!document.querySelector('#preview [title="64.svg"] canvas')`));
+  await wait(()=>js(`!!document.querySelector('#preview [title="64.svg"] :is(canvas,img)')`));
   assert.equal(await js('reader.scrollTop'),docked);
-  await js('preview.scrollTop=0');await wait(()=>js(`!!document.querySelector('#preview [title="0.svg"] canvas')`));
+  await js('preview.scrollTop=0');await wait(()=>js(`!!document.querySelector('#preview [title="0.svg"] :is(canvas,img)')`));
   const coords=await js(`(()=>{const p=document.querySelector('#preview [title="0.svg"]');preview.scrollTop=p.offsetHeight*.7-preview.clientHeight/2;const r=preview.getBoundingClientRect();return [r.left+20,r.top+p.offsetHeight*.7-preview.scrollTop];})()`);
   for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:coords[0],y:coords[1]});
   const frac=()=>js(`(reader.scrollTop+reader.clientHeight/2)/document.querySelector('#reader [data-name="0.svg"]').offsetHeight`);

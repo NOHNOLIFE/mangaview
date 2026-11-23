@@ -91,15 +91,20 @@ try{
   assert.equal(await js(`document.querySelector('.bm-grid').innerText.trim()`),'');
   const want=await js('Math.min(4/3,Math.max(3/4,reader.clientWidth/reader.clientHeight))');
   assert.ok(Math.abs(await js(`(()=>{const r=document.querySelector('.bm-thumb');return r.offsetWidth/r.offsetHeight;})()`)-want)<.02,'Thumbnail ratio follows the viewport within 3:4 ~ 4:3');
-  // 悬停即跳转；Esc 关闭并回到打开面板前的位置。
+  // 悬停不跳转（只高亮）；Esc 关闭，位置不变。
   const item=n=>rect(`.bm-item:nth-child(${n}) .bm-thumb`);
-  let p=await item(3);await mouse('mouseMoved',p.x,p.y);await wait(async()=>(await center())[0]===20);
+  let p=await item(3);await mouse('mouseMoved',p.x,p.y);await delay(300);assert.deepEqual(await center(),start,'Hover does not jump');
   await shot('panel');
   await key('Escape','keyDown');await key('Escape','keyUp');await wait(()=>js('document.querySelector(".bm-panel").hidden'));
-  assert.deepEqual(await center(),start,'Esc restores the original position');
-  // 离开面板：关闭并停在最后跳到的位置。
-  await menu(300,400);p=await item(2);await mouse('mouseMoved',p.x,p.y);await wait(async()=>(await center())[0]===10);
-  const box=await rect('.bm-panel');await mouse('mouseMoved',box.left-30,box.top+20);
+  assert.deepEqual(await center(),start,'Esc keeps the position');
+  // 鼠标移出面板不关闭；点面板外关闭，位置不变。
+  await menu(300,400);p=await item(2);await mouse('mouseMoved',p.x,p.y);
+  const box=await rect('.bm-panel');await mouse('mouseMoved',box.left-30,box.top+20);await delay(300);
+  assert.equal(await js('document.querySelector(".bm-panel").hidden'),false,'Leaving the panel keeps it open');
+  await mouse('mousePressed',box.left-30,box.top+20,'left');await mouse('mouseReleased',box.left-30,box.top+20,'left');
+  await wait(()=>js('document.querySelector(".bm-panel").hidden'));assert.deepEqual(await center(),start,'Clicking outside keeps the position');
+  // 点击第二个书签：跳转并关闭。
+  await menu(300,400);p=await item(2);await mouse('mouseMoved',p.x,p.y);await mouse('mousePressed',p.x,p.y,'left');await mouse('mouseReleased',p.x,p.y,'left');
   await wait(()=>js('document.querySelector(".bm-panel").hidden'));assert.deepEqual(await center(),[10,.25]);
   // 点击缩略图：跳转并关闭。
   await menu(300,400);p=await item(1);await mouse('mouseMoved',p.x,p.y);await mouse('mousePressed',p.x,p.y,'left');await mouse('mouseReleased',p.x,p.y,'left');
@@ -127,7 +132,8 @@ try{
   await js('reader.focus()');await menu(300,400);
   assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.classList.contains('gone'),e.getAttribute('aria-label')])`),[[false,'Image 19'],[true,'Image missing']]);
   await shot('panel-gone');
-  const before=await center();p=await item(2);await mouse('mouseMoved',p.x,p.y);await delay(200);assert.deepEqual(await center(),before,'Missing bookmark does not jump');
+  const before=await center();p=await item(2);await mouse('mouseMoved',p.x,p.y);await mouse('mousePressed',p.x,p.y,'left');await mouse('mouseReleased',p.x,p.y,'left');await delay(200);
+  assert.deepEqual(await center(),before,'Missing bookmark does not jump');assert.equal(await js('document.querySelector(".bm-panel").hidden'),false);
   const del2=await rect('.bm-item:nth-child(2) .bm-del');await mouse('mouseMoved',del2.x,del2.y);await mouse('mousePressed',del2.x,del2.y,'left');await mouse('mouseReleased',del2.x,del2.y,'left');
   await wait(async()=>(await marks()).length===1);
   // 工具栏按钮（data-act="bookmarks"）：在阅读区中央打开，再按一次关闭。
@@ -136,7 +142,7 @@ try{
   await js(act);await wait(()=>js('!document.querySelector(".bm-panel").hidden'));await delay(200);const mid=await rect('.bm-panel');
   assert.ok(Math.abs(mid.x-await js('reader.clientWidth/2'))<2,'Toolbar action opens the panel centred');
   await js(act);await wait(()=>js('document.querySelector(".bm-panel").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: toolbar action, hold to add with thumbnail, duplicate guard, tap to cycle, context panel, hover jump, leave/Esc, delete, reorder, missing images');
+  assert.deepEqual(errors,[]);console.log('PASS: toolbar action, hold to add with thumbnail, duplicate guard, tap to cycle, context panel, click to jump (no hover jump), leave / outside click / Esc, delete, reorder, missing images');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();
