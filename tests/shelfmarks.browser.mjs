@@ -76,7 +76,7 @@ try{
   // 紧凑显示：不显示书名、文件名或页码文字；缩略图比例限制在 3:4 ~ 4:3。
   assert.equal(await js(`document.querySelector('#shelfmarks .sm-list').innerText.trim()`),'');
   const ar=await js(`(()=>{const r=document.querySelector('#shelfmarks .bm-thumb').getBoundingClientRect();return r.width/r.height;})()`);assert.ok(ar>=.74&&ar<=1.34,'Thumbnail is not a strip: '+ar);
-  assert.equal(await js(`document.querySelector('#shelfmarks .sm-head').textContent`),'Shelf bookmarks3');
+  assert.equal(await js(`document.querySelector('#shelfmarks .sm-head').textContent`),'Full screen3');
   await wait(()=>js(`[...document.querySelectorAll('#shelfmarks .bm-item img')].every(i=>i.complete&&i.naturalWidth>0)`));
   await shot('shelfmarks');
   // 悬停不跳转，点击才跳转（跨书）。
@@ -138,6 +138,13 @@ try{
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&!document.getElementById('shelfmarks').hidden`));
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   // 书架页「清空书架」：二次确认，取消则不删除；确认后删除书架上全部书目，书签列表随之清空。
+  // 书架筛选生效且结果里没有书签：提示可能是筛选导致的；清除筛选后恢复。没有筛选时才提示书架上还没有书签。
+  const filterBy=q=>js(`(()=>{shelf.showModal();query.value=${JSON.stringify(q)};query.dispatchEvent(new Event('input',{bubbles:true}));shelf.close();})()`);
+  await filterBy('zzz-no-match');await wait(()=>js(`!document.querySelector('#shelfmarks .bm-item')`));
+  assert.equal(await js(`document.querySelector('#shelfmarks .bm-empty').firstChild.textContent`),'No bookmarks in the current shelf filter results — clear or change the filters');
+  await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'c',code:'KeyC',windowsVirtualKeyCode:67,text:'c'});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC',windowsVirtualKeyCode:67});
+  await wait(()=>js(`notice.textContent.startsWith('No bookmarks in the current shelf filter results')`));assert.equal(await js('shelfOverview.open'),false);
+  await filterBy('');await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   const total=()=>js('import("./store.mjs").then(async({library})=>(await library("getAll")).length)');
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
   await js(`document.querySelector('#views [data-view="shelf"][aria-selected="false"]')?.click()`); // 再点已激活的页签会关闭书架
@@ -147,6 +154,7 @@ try{
   await js(`window.confirm=m=>(window.asked=m,true);${clear}.click()`);await wait(async()=>await total()===0);
   assert.match(await js('window.asked'),/^Clear the shelf\? .* all 2 books/);assert.equal(await js(`!!${clear}`),false);
   await js('shelf.close()');await wait(()=>js(`!!document.querySelector('#shelfmarks .bm-empty')&&!document.querySelector('#shelfmarks .bm-item')`));
+  assert.match(await js(`document.querySelector('#shelfmarks .bm-empty').textContent`),/^No bookmarks on the shelf yet/,'No filter: the shelf has no bookmarks');
   // 关闭：正文恢复全宽。
   await js(`document.querySelector('${btn}').click()`);await wait(()=>js('document.getElementById("shelfmarks").hidden'));
   assert.equal((await box('#reader')).left,0);assert.equal(await js(`document.querySelector('${btn}').getAttribute('aria-pressed')`),'false');
@@ -156,7 +164,7 @@ try{
   await wait(()=>js(`(s=>!s.hidden&&s.classList.contains('floating'))(document.getElementById('shelfmarks'))`));assert.equal((await box('#reader')).left,0,'Floating list overlays the reader');
   await mouse('mouseMoved',100,300);await delay(300);assert.equal(await js('document.getElementById("shelfmarks").hidden'),false,'Stays open while hovered');
   await mouse('mouseMoved',600,300);await wait(()=>js('document.getElementById("shelfmarks").classList.contains("leaving")'));await wait(()=>js('document.getElementById("shelfmarks").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, floating at the left edge');
+  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, floating at the left edge');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

@@ -6,7 +6,7 @@ extend({
   tbEdgeBottom:['Show the action bar at the bottom edge','鼠标移到底缘时弹出操作栏','下端で操作バーを表示','아래쪽 가장자리에서 작업 표시줄 표시'],
   ebScoped:['Only switches within the shelf filter results','仅在书架筛选结果内切换','本棚の絞り込み結果の中だけで切り替え','책장 필터 결과 안에서만 전환']
 });
-const EDGE=24,DWELL=120,LEAVE=450;
+const DWELL=120,LEAVE=450; // 边缘触发区的距离四边统一，见 app.mjs 的 ctx.atEdge
 export function install(ctx){
   const $=id=>document.getElementById(id), toolbar=$('toolbar'), bar=$('bar'), tab=$('tab'), main=ctx.main, end=$('endbar');
   // 书签、设置由其他模块注册 action；模块在本模块之后安装，所以延后检查，未注册时隐藏按钮。
@@ -21,7 +21,7 @@ export function install(ctx){
     s.classList.toggle('edge',!a||!b||a.offsetTop!==b.offsetTop);}};
   new ResizeObserver(edges).observe(bar);
   const dialog=()=>document.querySelector('dialog[open]');
-  // 顶缘：窗口控件覆盖区（--top）以下 EDGE 像素内。菜单按钮平时不可见，但位置仍在左上角（--top + 8px）。
+  // 顶缘：窗口控件覆盖区（--top）以下的边缘触发区内。菜单按钮平时不可见，但位置仍在左上角（--top + 8px）。
   const topInset=()=>tab.getBoundingClientRect().top-8;
   // 正在显示的侧栏（常驻或浮动弹出）顶部是它们的头部行（含“打开全屏”按钮），这一段不算顶缘，避免在按钮上停留时误弹工具栏。
   const sides=[$('panel'),$('shelfmarks')];
@@ -36,8 +36,13 @@ export function install(ctx){
   ctx.actions.toStart=()=>{if(!ctx.atStart())ctx.toStart();};ctx.actions.toEnd=()=>{if(!ctx.atEnd())ctx.toEnd();};
   function syncEnd(){
     if(end.hidden)return;startBtn.disabled=ctx.atStart();endBtn.disabled=ctx.atEnd();
-    $('endPos').textContent=$('bookMeta').textContent;
+    syncPos();
   }
+  // 位置只显示“已读 / 总张数”（滚到书尾即 n / n）。按总张数的位数预留宽度：零高度的隐藏占位串（::after）撑开宽度（等宽数字），
+  // 滚动中位数变化时两侧按钮不左右移动。
+  const pos=$('endPos');
+  function syncPos(){const p=ctx.current&&ctx.view.position(),n=p?.n??ctx.current?.pages.length??0,d=String(n).length;
+    pos.textContent=p?`${ctx.atEnd()?n:p.i+1} / ${n}`:'';pos.dataset.room=n?`${'0'.repeat(d)} / ${'0'.repeat(d)}`:'';}
   // 列表里没有别的书时，上一本 / 下一本变灰。
   // 书架页设了筛选条件时，上一本 / 下一本只在筛选结果内切换：按钮带一个小圆点，提示文字说明原因。
   function syncBooks(){if(end.hidden)return;const others=!!ctx.current&&ctx.readingList(ctx.current).some(b=>b!==ctx.current);prevBtn.disabled=nextBtn.disabled=!others;
@@ -47,7 +52,7 @@ export function install(ctx){
   let endTimer=0,endLeave=0;
   const endCancel=()=>{clearTimeout(endTimer);endTimer=0;}, endStay=()=>{clearTimeout(endLeave);endLeave=0;};
   function showEnd(open){endStay();ctx.fade(end,open);document.body.classList.toggle('endbar-open',open);if(open){syncEnd();syncBooks();fitEnd();}}
-  const nearBottom=e=>{const r=main.getBoundingClientRect();return e.clientY>=innerHeight-EDGE&&e.clientX>=r.left&&e.clientX<=r.right;};
+  const nearBottom=e=>{const r=main.getBoundingClientRect();return ctx.atEdge('bottom',e)&&e.clientX>=r.left&&e.clientX<=r.right;};
   main.addEventListener('scroll',()=>{if(ctx.showing(end))requestAnimationFrame(syncEnd);},{passive:true});
   new ResizeObserver(()=>{if(ctx.showing(end))fitEnd();}).observe(main); // 窗口缩放、侧栏停靠时阅读区宽度变化
   end.addEventListener('click',()=>main.focus()); // 按钮不留焦点，F / Enter / 空格继续作用于正文
@@ -57,7 +62,7 @@ export function install(ctx){
   document.addEventListener('pointermove',e=>{
     const mouse=e.pointerType==='mouse'&&!e.buttons;
     // 顶缘弹出工具栏
-    const near=mouse&&e.clientY-topInset()<=EDGE&&bar.hidden&&!dialog()&&!overSide(e.clientX)&&ctx.get('edgeTop',true);
+    const near=mouse&&ctx.atEdge('top',e,topInset())&&bar.hidden&&!dialog()&&!overSide(e.clientX)&&ctx.get('edgeTop',true);
     if(!near)cancel();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(bar.hidden&&!dialog()){ctx.showBar(true);auto=true;}},DWELL);
     // 面板在指针下方出现时浏览器未必补发 pointerenter，指针直接移走就收不到 pointerleave，这里兜底收起。
     if(auto&&!bar.hidden&&e.pointerType==='mouse'){

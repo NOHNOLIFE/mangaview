@@ -26,6 +26,9 @@ button{display:inline-flex;align-items:center;justify-content:center;gap:8px;hei
 button:not(:disabled):hover{background:var(--s3);border-color:rgba(255,255,255,.18)}
 button:not(:disabled):active{transform:scale(.96)}
 button:disabled{opacity:.32;cursor:default}
+/* 交互控件里的文字不可选中：快速点击、拖动时不会误选出一片文字。输入框照常可选；书名等要复制的文本不在按钮里。 */
+button,[role=button],[role=tab],[role=switch],[role=option],summary,label,a.tb,.tag{-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);font-weight:600}
 .primary:not(:disabled):hover{background:var(--accent-hi);border-color:transparent}
@@ -115,14 +118,15 @@ body.docked #panel{background:var(--solid);backdrop-filter:none;box-shadow:none;
 
 /* 拖放提示 */
 /* popover：放在顶层，书架等模态对话框打开时也看得见；鼠标事件穿透到下层，由 window 上的拖放监听统一处理。 */
-#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:22px;width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;padding:0;overflow:visible;color:inherit;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
-#dropOverlay .merge{display:flex;align-items:center;gap:14px;min-width:340px;padding:18px 28px;border:2px dashed var(--line2);border-radius:18px;background:rgba(255,255,255,.04);transition:border-color .12s,background-color .12s}
-#dropOverlay .merge span{display:grid;gap:3px}#dropOverlay .merge small{color:var(--faint);font-size:12.5px;font-weight:500}
-#dropOverlay .merge .i{width:30px;height:30px;color:var(--faint)}
-#dropOverlay .merge.over{border-color:var(--accent);background:var(--accent-soft)}#dropOverlay .merge.over .i{color:var(--accent)}
-#dropOverlay:has(.merge.over) .box{opacity:.45;border-color:var(--line2);background:transparent}
-#dropOverlay .box{display:grid;justify-items:center;gap:14px;padding:48px 64px;border:2px dashed var(--accent);border-radius:24px;background:var(--accent-soft);font-size:17px;font-weight:600}
-#dropOverlay .i{width:48px;height:48px;color:var(--accent)}
+#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:clamp(10px,2.4vh,22px);width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;padding:0;overflow:visible;color:inherit;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
+/* 下方两块区域等宽、互不重叠；悬停的一块高亮，默认区域随之变淡。窗口矮或窄时缩小内边距，不溢出。 */
+#dropOverlay .zone{display:flex;align-items:center;gap:14px;width:min(400px,calc(100vw - 32px));padding:clamp(10px,2vh,18px) clamp(16px,4vw,28px);border:2px dashed var(--line2);border-radius:18px;background:rgba(255,255,255,.04);transition:border-color .12s,background-color .12s}
+#dropOverlay .zone span{display:grid;gap:3px;min-width:0}#dropOverlay .zone small{color:var(--faint);font-size:12.5px;font-weight:500}
+#dropOverlay .zone .i{width:30px;height:30px;color:var(--faint)}
+#dropOverlay .zone.over{border-color:var(--accent);background:var(--accent-soft)}#dropOverlay .zone.over .i{color:var(--accent)}
+#dropOverlay:has(.zone.over) .box{opacity:.45;border-color:var(--line2);background:transparent}
+#dropOverlay .box{display:grid;justify-items:center;gap:14px;width:min(400px,calc(100vw - 32px));padding:clamp(20px,6vh,48px) 24px;border:2px dashed var(--accent);border-radius:24px;background:var(--accent-soft);font-size:17px;font-weight:600;text-align:center}
+#dropOverlay .box .i{width:clamp(32px,6vh,48px);height:clamp(32px,6vh,48px);color:var(--accent)}
 
 /* 对话框 */
 dialog{max-width:94vw;max-height:min(88vh,56rem);padding:0;border:1px solid var(--line2);border-radius:20px;background:var(--solid);color:inherit;box-shadow:0 28px 90px rgba(0,0,0,.6)}

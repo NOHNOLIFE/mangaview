@@ -117,6 +117,25 @@ try{
   assert.ok(await js('dropOverlay.hidden&&!dropOverlay.matches(":popover-open")'));
   await js(`drag('dragenter',10,10)`);await js(`(async()=>{window.queue=[await dirOf('drop/C')];drag('drop',10,10);})()`);
   await wait(async()=>(await js(`byTitle('C')`))?.place==='library');
+  // 拖到「添加到散图图集」：拖入内容里的所有图（含文件夹里的，递归）都作为散图加入散图图集，不按文件夹建书；页名带相对路径，各文件夹的同名文件不冲突。
+  assert.equal(await js(`document.querySelector('#shelf [data-act="files"]').title`),'添加到散图图集');
+  await js(`mk('drop/A','deep',1,'olive')`);await js(`drag('dragenter',10,10)`);
+  const areas=()=>js(`[dropOverlay.querySelector('.box'),dropMerge,dropLoose].map(e=>{const r=e.getBoundingClientRect();return {l:r.left,t:r.top,r:r.right,b:r.bottom};})`);
+  const stacked=(a,w,h)=>a[0].b<=a[1].t&&a[1].b<=a[2].t&&a.every(r=>r.l>=0&&r.t>=0&&r.r<=w&&r.b<=h);
+  let rects=await areas();assert.ok(stacked(rects,await js('innerWidth'),await js('innerHeight')),'Default, merge and loose areas stack without overlapping: '+JSON.stringify(rects));
+  assert.equal(await js('dropLoose.textContent'),'添加到散图图集拖到这里，所有图片（包括文件夹里的）都作为散图添加');
+  const lzone=[(rects[2].l+rects[2].r)/2,(rects[2].t+rects[2].b)/2];
+  await js(`drag('dragover',${lzone[0]},${lzone[1]})`);assert.ok(await js(`dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`));await shot('drop-over-loose');
+  await js(`drag('dragover',10,10)`);assert.ok(await js(`!dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`),'Outside the two areas: default import');
+  const total=(await js('records()')).length;
+  await js(`(async()=>{window.queue=[await dirOf('drop/A'),await dirOf('drop/B')];drag('drop',${lzone[0]},${lzone[1]},2);})()`);
+  const loose=await wait(async()=>(await js('records()')).find(b=>!b.title&&b.pages.some(p=>p.name==='A/deep/1.svg')));
+  assert.deepEqual(loose.pages.map(p=>p.name),['A/1.svg','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']);assert.equal(loose.place,'library');
+  assert.equal((await js('records()')).length,total+1,'Only the loose album is added, no folder books');
+  // 小窗口：三块区域都在窗口内、互不重叠。
+  await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:480,deviceScaleFactor:1,mobile:false});await wait(()=>js('innerWidth===360'));
+  await js(`drag('dragenter',10,10)`);await delay(250);rects=await areas();await shot('drop-small');assert.ok(stacked(rects,360,480),'Fits a small window: '+JSON.stringify(rects));
+  await js(`drag('dragleave',10,10)`);await cdp('Emulation.clearDeviceMetricsOverride');
   await js('shelf.close()');await js(`drag('dragenter',10,10)`);assert.equal(await js('dropText.textContent'),'松开即可添加到书架');await js(`drag('dragleave',10,10)`);
   assert.ok(await js('dropOverlay.hidden'));
   // 8. 旧版记录（单个 dir / title / path）和损坏的记录：载入时归一化，不报错、不白屏。
@@ -219,7 +238,7 @@ try{
   assert.deepEqual(lz.sources.map(s=>[s.key,s.title]),[['','L']]);assert.equal(lz.path,'L');assert.equal(lz.pages.length,2);
   assert.deepEqual(lz.tags,['scraps']);assert.deepEqual(lz.bookmarks.map(m=>m.id),['lb']);
   assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="L"]')`),false);
-  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, loose restore');
+  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, no overlapping areas, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, loose restore');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();
