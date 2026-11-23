@@ -87,7 +87,7 @@ try{
   await wait(async()=>(await js(`byTitle('Gamma2')`))?.missing===undefined&&(await count('expired'))==='1');
   const alpha=await js(`byTitle('Alpha')`);assert.deepEqual(alpha.tags,['动作','热血']);assert.equal(alpha.path,'moved/Alpha');
   await js('shelf.close()');
-  // 重新打开文件夹：同名同封面的过期书接回原记录，不产生重复条目，并回到书架。
+  // 重新添加文件夹：同名同封面的过期书接回原记录，不产生重复条目，并回到书架。
   await js(`(async()=>{await mk('again','Beta',4,'blue');const d=await dirOf('again');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();})()`);
   await wait(async()=>{const b=await js(`byTitle('Beta')`);return b.path==='again/Beta'&&b.place==='shelf';});
   assert.equal((await js('records()')).length,3);

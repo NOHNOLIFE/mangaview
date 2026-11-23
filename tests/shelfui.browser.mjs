@@ -180,6 +180,11 @@ try{
   await js(`query.value='B21';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(async()=>JSON.stringify(await names())==='["B21"]');
   await js(`document.querySelector('#books .book [aria-label="Tags"]').click()`);await wait(()=>js('tagEditor.open'));
   assert.deepEqual(await js(`[...tagSuggest.querySelectorAll('.sug')].slice(0,1).map(s=>[s.querySelector('.tag').textContent,s.querySelector('small').textContent])`),[['xtag','Recent']]);
+  // 关闭后立刻（同一任务内）重新打开：异步派发的 close 事件晚于重新打开到达，编辑器仍要正常联想。
+  await js(`(async()=>{const closed=new Promise(r=>tagEditor.addEventListener('close',r,{once:true}));tagEditor.close();document.querySelector('#books .book [aria-label="Tags"]').click();await closed;})()`);
+  assert.equal(await js('tagEditor.open'),true);await js(`tagInput.value='oth';tagInput.dispatchEvent(new Event('input'))`);
+  assert.equal(await js(`tagSuggest.querySelector('.sug .tag').textContent`),'other','Reopened editor still suggests after the late close event');
+  await js(`tagInput.value='';tagInput.dispatchEvent(new Event('input'))`);
   // 联想是浮层：一行排多个；输入不同内容时对话框和输入框的位置、大小都不动。
   assert.equal(await js(`getComputedStyle(tagSuggest).position+'|'+(tagSuggest.children[0].offsetTop===tagSuggest.children[1].offsetTop)`),'absolute|true','Suggestions float and sit side by side');
   const box=()=>js(`[tagInput,tagEditor].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height].join(' ');}).join(' / ')`);

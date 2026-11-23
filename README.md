@@ -231,6 +231,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `bookmarks.mjs`, `bookmarks.css` | Bookmarks, bookmark panel, shelf bookmark list |
 | `focus.mjs`, `focus.css` | Focus mode |
 | `overview.mjs`, `overview.css` | Full-screen thumbnails and shelf bookmarks (grid / masonry) |
+| `help.mjs`, `help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
 | `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
 | `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), session cache of page thumbnails |
 | `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
@@ -257,6 +258,7 @@ node tests/bookmarks.browser.mjs "<path>"
 node tests/shelfmarks.browser.mjs "<path>"
 node tests/overview.browser.mjs "<path>"
 node tests/settings.browser.mjs "<path>"
+node tests/help.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:

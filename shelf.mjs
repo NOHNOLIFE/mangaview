@@ -500,7 +500,8 @@ export function install(ctx){
     if(v&&v!==(b.title??t('loose')))b.name=v;else delete b.name;
     await ctx.persist(b);$('renameBook').close();if(shelf.open)draw();ctx.toolsState();ctx.emit('books');
   })();};
-  $('renameBook').addEventListener('close',()=>{renaming=null;});
+  // close 事件异步派发：关闭后立刻为另一本书重新打开时，迟到的事件不能清掉新的编辑对象。
+  $('renameBook').addEventListener('close',()=>{if(!$('renameBook').open)renaming=null;});
 
   // ---- 标签编辑：输入即联想已有标签（前缀匹配优先，再按包含），↑ ↓ 选择、回车添加；输入为空时列出最近用过和常用的标签。
   let tagging=null,hl=-1,sugs=[],sugOff=false; // sugOff：联想浮层被 Esc 收起，再输入或按 ↑ ↓ 时重新显示
@@ -546,7 +547,7 @@ export function install(ctx){
     if(step){e.preventDefault();if(!sugs.length)return;if(sugOff){sugOff=false;hl=-1;}hl=step>0?(hl+1)%sugs.length:hl<=0?sugs.length-1:hl-1;drawTagEditor();}
     else if(e.key==='Escape'&&!$('tagSuggest').hidden){e.preventDefault();hl=-1;sugOff=true;drawTagEditor();}
   };
-  $('tagEditor').addEventListener('close',()=>{tagging=null;});
+  $('tagEditor').addEventListener('close',()=>{if(!$('tagEditor').open)tagging=null;}); // 同上：迟到的 close 不能让刚重新打开的编辑器失效
 
   // ---- 恢复：以源（文件夹）为单位。待恢复的“槽”是过期书的每个源，以及其他书中暂时找不到的卷；
   // 单文件夹书按整本书的名称和封面摘要匹配，合并作品按每一卷的名称和封面摘要匹配。用户选的文件夹作为源，可同时恢复所有引用它的书。
@@ -586,7 +587,7 @@ export function install(ctx){
     for(const [b,links] of per)if(books.has(b.id))await ctx.relinkAll(b,links);
     return per.size;
   }
-  // 普通“打开文件夹”时：同名且封面摘要一致的过期书或缺失的卷直接接回原记录，避免产生重复条目。返回可自动接回的配对。
+  // 普通“添加文件夹”时：同名且封面摘要一致的过期书或缺失的卷直接接回原记录，避免产生重复条目。返回可自动接回的配对。
   ctx.autoMatch=async group=>{
     const k=norm(group.title),slots=[...books.values()].flatMap(b=>slotsOf(b,x=>norm(x)===k));if(!slots.length)return [];
     const c={...group,names:group.pages.map(p=>p.name)},ps=[];

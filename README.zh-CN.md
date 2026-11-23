@@ -231,6 +231,7 @@ MangaView 会在三种情况下检查文件夹里图片的增删（第一种可�
 | `bookmarks.mjs`、`bookmarks.css` | 书签、书签面板、书架书签列表 |
 | `focus.mjs`、`focus.css` | 专注模式 |
 | `overview.mjs`、`overview.css` | 全屏缩略图、全屏书架书签（网格 / 瀑布流） |
+| `help.mjs`、`help.css` | 键鼠操作图示（左手、右手、鼠标三种用法的键位图） |
 | `settings.mjs`、`backup.mjs`、`settings.css` | 设置面板、导出与导入 |
 | `thumbs.mjs` | 压缩缩略图（封面、书签）、页面缩略图的会话缓存 |
 | `view.mjs` | 虚拟化正文、缩略图栏、图片加载队列 |
@@ -257,6 +258,7 @@ node tests/bookmarks.browser.mjs "<路径>"
 node tests/shelfmarks.browser.mjs "<路径>"
 node tests/overview.browser.mjs "<路径>"
 node tests/settings.browser.mjs "<路径>"
+node tests/help.browser.mjs "<路径>"
 ```
 
 以下几项自动化测试覆盖不到，需要人工验收：

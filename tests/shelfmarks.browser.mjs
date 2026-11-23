@@ -193,7 +193,26 @@ try{
   await wait(()=>js(`(s=>!s.hidden&&s.classList.contains('floating'))(document.getElementById('shelfmarks'))`));assert.equal((await box('#reader')).left,0,'Floating list overlays the reader');
   await mouse('mouseMoved',100,300);await delay(300);assert.equal(await js('document.getElementById("shelfmarks").hidden'),false,'Stays open while hovered');
   await mouse('mouseMoved',600,300);await wait(()=>js('document.getElementById("shelfmarks").classList.contains("leaving")'));await wait(()=>js('document.getElementById("shelfmarks").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, list locating the nearest bookmark, floating at the left edge');
+  // 散图图集（页名带相对目录、同名图加序号）：书架书签的当前标记、F 跳转按页名工作，不受显示名影响。
+  await js(`(async()=>{const root=await navigator.storage.getDirectory();
+    for(const r of ['LA','LB']){const d=await (await root.getDirectoryHandle(r,{create:true})).getDirectoryHandle('P',{create:true});
+      for(let i=0;i<3;i++){const out=await (await d.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1120"><rect width="100%" height="100%" fill="hsl('+(r==='LA'?i*40:200+i*40)+',50%,40%)"/></svg>');await out.close();}}
+    const q=[await (await root.getDirectoryHandle('LA')).getDirectoryHandle('P'),await (await root.getDirectoryHandle('LB')).getDirectoryHandle('P')];
+    DataTransferItem.prototype.getAsFileSystemHandle=function(){return Promise.resolve(q.shift()??null);};
+    const drag=(type,x,y)=>{const dt=new DataTransfer();for(let i=0;i<2;i++)dt.items.add(new File([],'dir'+i));window.dispatchEvent(new DragEvent(type,{dataTransfer:dt,clientX:x,clientY:y,bubbles:true,cancelable:true}));};
+    drag('dragenter',10,10);const z=dropLoose.getBoundingClientRect();drag('drop',z.left+z.width/2,z.top+z.height/2);})()`);
+  await wait(()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title)?.pages.map(p=>p.name).join()==='P/0.svg,P/0.svg (2),P/1.svg,P/1.svg (2),P/2.svg,P/2.svg (2)')`));
+  await wait(()=>js(`bookTitle.textContent==='Loose images'&&document.querySelector('#reader [data-name="P/0.svg (2)"] img')?.naturalHeight===1120`));
+  await js('reader.focus()');await js(`document.querySelector('${btn}').click()`);await wait(()=>js('!document.getElementById("shelfmarks").hidden'));
+  await goto(1,.5);await hold();await wait(async()=>await count()===1);await goto(3,.5);await hold();await wait(async()=>await count()===2);
+  assert.deepEqual(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>m.name))`),['P/0.svg (2)','P/1.svg (2)']);
+  await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
+  const looseMarked=()=>js(`[...document.querySelectorAll('#shelfmarks .sm-book.current .bm-item.active')].map(a=>a.getAttribute('aria-label')).join()`);
+  await wait(async()=>await looseMarked()==='Loose images · Image 4');
+  await goto(1,.4);await wait(async()=>await looseMarked()==='Loose images · Image 2');
+  await js('reader.scrollTop=0');await tap();await wait(async()=>{const c=await center();return c[1]===1&&c[2]===.5;});
+  await tap();await wait(async()=>{const c=await center();return c[1]===3&&c[2]===.5;});
+  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, list locating the nearest bookmark, floating at the left edge, loose album page names');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();
