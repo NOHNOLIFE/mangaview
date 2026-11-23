@@ -7,15 +7,17 @@ import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive} f
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
+import {install as overview} from './overview.mjs';
 import {install as settingsPanel} from './settings.mjs';
 import {install as backup} from './backup.mjs';
 import {install as bookmarks} from './bookmarks.mjs';
+import {install as focusMode} from './focus.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
 const langPref=()=>{try{return JSON.parse(localStorage.getItem('mv2:lang'));}catch{return null;}};
 let lang=langPref()||detect(navigator.languages||[navigator.language]);
-const t=key=>translate(key,lang), title=b=>b.title??t('loose');
+const t=key=>translate(key,lang), title=b=>b.name||(b.title??t('loose')); // name：用户编辑的书名；title 是文件夹名，用于识别和恢复，不改
 function localize(){
   document.documentElement.lang=lang;
   for(const el of document.querySelectorAll('[data-t]'))el.textContent=t(el.dataset.t);
@@ -41,6 +43,16 @@ function iconButton(name,label,action,className=''){
   el.append(icon(name));el.onclick=safe(action);return el;
 }
 localize();
+// 长按进度环（长按 G / Enter 添加书签、长按翻页键切书共用）：show 开始填充，done 显示完成后自动消失。
+const ring=(()=>{
+  const el=make('div','hold'),dial=make('span','hold-dial'),text=make('span','hold-text'),glyph=icon('bookmark');let timer=0;
+  dial.innerHTML='<svg class="hold-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg>';
+  dial.append(glyph);el.append(dial,text);el.hidden=true;el.setAttribute('aria-hidden','true');document.body.append(el);
+  function set(name,label,done){clearTimeout(timer);el.hidden=true;void el.offsetWidth; // 先隐藏再显示，重新开始填充动画
+    el.classList.toggle('done',done);glyph.firstChild.setAttribute('href','#i-'+name);text.textContent=label;el.hidden=false;
+    if(done)timer=setTimeout(()=>{el.hidden=true;},900);}
+  return {show:(name,label)=>set(name,label,false),done:(name,label)=>set(name,label,true),hide(){clearTimeout(timer);el.hidden=true;}};
+})();
 let noticeTimer;
 const fmt=(key,vars)=>t(key).replace(/\{(\w+)\}/g,(_,k)=>vars[k]);
 function notice(key,text=t(key),ms=3800){clearTimeout(noticeTimer);$('notice').textContent=text;noticeTimer=setTimeout(()=>$('notice').textContent='',ms);}
@@ -62,7 +74,16 @@ const view=new Reader(main,nav,{
 let defaultSort=get('defaultSort',{mode:'nameAsc',revision:0});
 view.fit=get('fit',true);let pinned=get('preview',false);
 // 临时弹出时浮在正文上方；常驻时停靠在右侧，正文让出宽度，不被遮挡。
-function preview(open){$('panel').hidden=!open||!current;document.body.classList.toggle('docked',pinned&&!!current);
+// 浮动面板淡出后再隐藏，鼠标快速划过时不会一闪；淡出途中再次打开会直接取消淡出。
+function fade(el,show){
+  if(show){clearTimeout(el.fadeTimer);el.classList.remove('leaving');el.hidden=false;return;}
+  if(el.hidden||el.classList.contains('leaving'))return;
+  el.classList.add('leaving');el.fadeTimer=setTimeout(()=>{el.hidden=true;el.classList.remove('leaving');},170);
+}
+const showing=el=>!el.hidden&&!el.classList.contains('leaving');
+function preview(open){const panel=$('panel'),floating=!document.body.classList.contains('docked');
+  if(open&&current)fade(panel,true);else if(floating&&current)fade(panel,false);else{clearTimeout(panel.fadeTimer);panel.classList.remove('leaving');panel.hidden=true;}
+  document.body.classList.toggle('docked',pinned&&!!current);
   document.querySelector('[data-act="preview"][aria-pressed]').setAttribute('aria-pressed',String(pinned));}
 function toolsState(){
   $('bookTitle').textContent=$('bookTitle').title=current?title(current):'MangaView';$('empty').hidden=!!current;$('hud').hidden=!current;
@@ -85,7 +106,7 @@ function readRatio(book){
   const i=book.pages.findIndex(p=>p.name===pos.name);
   return i<0?0:Math.min(1,(i+pos.f)/n);
 }
-function select(book){flush();current=book||null;queueMicrotask(()=>emit('select',current));hintState='';queueMicrotask(()=>zoneHint());put('last',current?.id??null);$('access').hidden=true;
+function select(book){flush();current=book||null;queueMicrotask(()=>emit('select',current));put('last',current?.id??null);$('access').hidden=true;
   view.show(current,current?get('pos:'+current.id):null);toolsState();
   if(book && needsSort(book,defaultSort))safe(arrange)(book);
 }
@@ -93,7 +114,8 @@ function reloadView(anchor=view.anchor()){if(!current)return;$('access').hidden=
 // 过期：文件夹找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
 function expired(b){return !!b.missing||!b.dir&&!b.pages.some(p=>p.handle)&&!isLive(b);}
 // 上一本 / 下一本在当前书所在的列表（书架或书库）内切换，跳过过期书。
-function readingList(book){const place=book?.place??'shelf';return [...books.values()].filter(b=>b.place===place&&!expired(b)).sort((a,b)=>natural(title(a),title(b)));}
+// 顺序与书架页相同（ctx.orderBooks，由 shelf.mjs 按“书籍排序”设置提供）。
+function readingList(book){const place=book?.place??'shelf';return ctx.orderBooks([...books.values()].filter(b=>b.place===place&&!expired(b)));}
 function step(d){
   const list=readingList(current);if(!list.length)return;
   const i=list.indexOf(current);
@@ -119,7 +141,7 @@ async function relink(book,group){
     const fresh=new Map(group.pages.map(p=>[p.name,p]));
     const retained=book.pages.filter(p=>fresh.delete(p.name));
     for(const p of retained)delete p.lastModified;
-    book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;
+    book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;delete book.folderTime;
     if(group.path)book.path=group.path;if(group.title)book.title=group.title;delete book.missing;
   }else book.pages.push(...group.pages);
   await arrange(book,false,before);emit('books');
@@ -185,7 +207,7 @@ async function check(book,ask){
   const fresh=names.filter(n=>!old.has(n)).sort(natural),removed=book.pages.length-book.pages.filter(p=>now.has(p.name)).length;
   if(!fresh.length&&!removed)return 'same';
   const before=book===current?view.anchor():null;
-  book.pages=book.pages.filter(p=>now.has(p.name)).concat(fresh.map(name=>({name})));
+  book.pages=book.pages.filter(p=>now.has(p.name)).concat(fresh.map(name=>({name})));delete book.folderTime; // 文件夹时间待重新计算
   await arrange(book,false,before);
   return {added:fresh.length,removed};
 }
@@ -297,16 +319,16 @@ const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();else{const action=e.target.closest('[data-act]')?.dataset.act;if(action)safe(actions[action])();}});
 
 const bar=$('bar'),toolbar=$('toolbar'),tab=$('tab');let barTimer,edgeTimer=0;
-function showBar(open){clearTimeout(barTimer);bar.hidden=!open;toolbar.classList.toggle('open',open);tab.setAttribute('aria-expanded',String(open));if(open)updateProgress();}
+function showBar(open){clearTimeout(barTimer);fade(bar,open);toolbar.classList.toggle('open',open);tab.setAttribute('aria-expanded',String(open));if(open)updateProgress();}
 // 鼠标移入立即展开；点击只负责打开（触屏和键盘），不再收起，避免“刚打开就被点关”。
-tab.onclick=()=>showBar(true);toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&bar.hidden)showBar(true);};
+tab.onclick=()=>showBar(true);toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&!showing(bar))showBar(true);};
 toolbar.onpointerleave=()=>{clearTimeout(barTimer);if(!toolbar.querySelector(':focus-visible'))barTimer=setTimeout(()=>showBar(false),450);};
 toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeElement)&&!toolbar.matches(':hover'))showBar(false);});
 // 鼠标贴近窗口右缘稍作停留即弹出缩略图栏，离开后自动收起。
 function cancelEdge(){clearTimeout(edgeTimer);edgeTimer=0;}
 document.addEventListener('pointermove',e=>{
-  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&$('panel').hidden&&innerWidth-e.clientX<=24&&!document.querySelector('dialog[open]');
-  if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned)preview(true);},120);
+  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&!showing($('panel'))&&innerWidth-e.clientX<=24&&!document.querySelector('dialog[open]');
+  if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!ctx.autoOverview?.())preview(true);},120); // 开启全屏缩略图时由 overview.mjs 接管
 });
 document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
 $('panel').onpointerleave=()=>{if(!pinned&&!resizing)preview(false);};
@@ -321,27 +343,15 @@ function drag(el,click){let start=null;
   el.addEventListener('pointermove',e=>{if(!start)return;const dy=e.clientY-start.y;if(Math.abs(dy)>4||Math.abs(e.clientX-start.x)>4)start.moved=true;if(start.moved)el.scrollTop=start.top-dy;});
   el.addEventListener('pointerup',e=>{if(e.button!==0||!start)return;const moved=start.moved;start=null;if(!moved)click(e);});el.onlostpointercapture=()=>{start=null;};
 }
-// 点击上 / 下 15% 区域：回到书首 / 书尾，已在首尾时切换上 / 下一本；中部左右半屏各翻一屏。
+// 点击正文：左半屏前一屏、右半屏后一屏。回到书首 / 滚到书尾在底缘弹出的首尾栏里（toolbar.mjs），首尾时变为上 / 下一本。
 const atStart=()=>main.scrollTop<1, atEnd=()=>main.scrollHeight-main.scrollTop-main.clientHeight<=1;
 function toStart(){if(atStart())step(-1);else main.scrollTop=0;}
 function toEnd(){if(atEnd())step(1);else main.scrollTop=main.scrollHeight;}
-function zone(y){const r=main.getBoundingClientRect(),f=(y-r.top)/r.height;return f<.15?'top':f>.85?'bottom':null;}
-drag(main,e=>{const z=zone(e.clientY);if(z==='top')toStart();else if(z==='bottom')toEnd();else screenStep(e.clientX<main.clientWidth/2?-1:1);zoneHint();});
-// 鼠标停在点击区时提示本次点击的效果，避免误跳。
-let pointerY=null,pressed=false,hintState='';
-function zoneHint(){
-  const z=pointerY!=null&&!pressed&&current?zone(pointerY):null, swap=z==='top'?atStart():z==='bottom'&&atEnd();
-  const state=z?z+(swap?':swap':''):'';if(state===hintState)return;hintState=state;
-  const hint=$('zoneHint');hint.hidden=!z;if(z)main.dataset.zone=z;else delete main.dataset.zone;if(!z)return;
-  hint.dataset.zone=z;
-  $('zoneIcon').setAttribute('href','#i-'+(z==='top'?(swap?'skip-back':'to-top'):(swap?'skip-forward':'to-end')));
-  $('zoneText').textContent=t(z==='top'?(swap?'prev':'toTop'):(swap?'next':'toEnd'));
-}
-main.addEventListener('pointermove',e=>{pointerY=e.pointerType==='mouse'?e.clientY:null;pressed=!!e.buttons;zoneHint();});
-main.addEventListener('pointerup',()=>{pressed=false;zoneHint();});
-main.addEventListener('pointerleave',()=>{pointerY=null;zoneHint();});
-main.addEventListener('scroll',zoneHint,{passive:true});drag(nav,e=>view.fromPreview(e.clientY-nav.getBoundingClientRect().top));
+drag(main,e=>screenStep(e.clientX-main.getBoundingClientRect().left<main.clientWidth/2?-1:1));
+drag(nav,e=>view.fromPreview(e.clientY-nav.getBoundingClientRect().top));
 let hold=null,frame;function stop(){hold=null;cancelAnimationFrame(frame);}
+const HOLD_SHOW=150,HOLD_FIRE=550;let pageHold=null; // 长按翻页键切书
+function cancelPage(){const p=pageHold;if(!p)return;clearTimeout(p.show);clearTimeout(p.fire);if(!p.done)ring.hide();pageHold=null;}
 function startHold(code,d){if(hold===code)return;stop();hold=code;let prev=performance.now(),carry=0;function tick(now){carry+=Math.min(60,now-prev)*.65*d;const delta=Math.trunc(carry);carry-=delta;main.scrollTop+=delta;prev=now;frame=requestAnimationFrame(tick);}frame=requestAnimationFrame(tick);}
 window.addEventListener('keydown',e=>{
   if(e.isComposing||e.target.closest('input,textarea,[contenteditable="true"]'))return;
@@ -351,18 +361,27 @@ window.addEventListener('keydown',e=>{
     }
     return;
   }
+  // B：打开 / 关闭书架（书架页的搜索框等输入框内不拦截，上面已经返回）。
+  if(shelf.open&&!e.altKey&&e.key.toLowerCase()==='b'&&document.querySelectorAll('dialog[open]').length===1){e.preventDefault();if(!e.repeat)shelf.close();return;}
   if(document.querySelector('dialog[open]'))return;
   if(e.key==='Escape'){showBar(false);if(!pinned)preview(false);main.focus();return;}
-  if(e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();if(!e.repeat){showBar(bar.hidden);(bar.hidden?main:bar.querySelector('button')).focus();}return;}
+  if(e.altKey)return;if(e.key.toLowerCase()==='b'){e.preventDefault();if(!e.repeat)actions.shelf();return;}
+  if(e.key.toLowerCase()==='t'){e.preventDefault();if(!e.repeat){showBar(!showing(bar));(showing(bar)?bar.querySelector('button'):main).focus();}return;}
   if(!current||e.target.closest('button')&&[' ','Enter'].includes(e.key))return;
   for(const h of ctx.keys)if(h.down?.(e))return; // 功能模块的按键（如书签 G / Enter）
   const k=e.key.toLowerCase();if([' ','arrowdown','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k==='arrowup'||e.shiftKey?-1:1);return;}
-  if(['f','arrowright','d','arrowleft'].includes(k)){e.preventDefault();screenStep(['d','arrowleft'].includes(k)?-1:1);return;}
+  // F / → 、D / ←：短按（松开时）翻一屏；长按 150ms 显示进度环，满 550ms 切到下一本 / 上一本。
+  if(['f','arrowright','d','arrowleft'].includes(k)){e.preventDefault();if(e.repeat||pageHold)return;
+    const p=pageHold={code:e.code,d:['d','arrowleft'].includes(k)?-1:1,done:false};
+    p.show=setTimeout(()=>ring.show(p.d>0?'skip-forward':'skip-back',t(p.d>0?'holdNext':'holdPrev')),HOLD_SHOW);
+    p.fire=setTimeout(()=>{p.done=true;const before=current;step(p.d);if(current&&current!==before)ring.done(p.d>0?'skip-forward':'skip-back',title(current));else ring.hide();},HOLD_FIRE);
+    return;}
   if(!['home','end','pageup','pagedown','delete'].includes(k))return;e.preventDefault();if(e.repeat)return;
   if(k==='home')toStart();else if(k==='end')toEnd();
   else if(k==='delete')safe(remove)(current);else step(k==='pageup'?-1:1);
 });
-window.addEventListener('keyup',e=>{if(e.code===hold)stop();for(const h of ctx.keys)h.up?.(e);});window.addEventListener('blur',()=>{stop();for(const h of ctx.keys)h.blur?.();});
+window.addEventListener('keyup',e=>{if(e.code===hold)stop();if(pageHold?.code===e.code){const p=pageHold;cancelPage();if(!p.done)screenStep(p.d);}for(const h of ctx.keys)h.up?.(e);});
+window.addEventListener('blur',()=>{stop();cancelPage();for(const h of ctx.keys)h.blur?.();});
 window.addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden){flush();stop();}});
 function relocalize(){localize();toolsState();if(sortOptions.open)showSortChoices();ctx.redrawShelf();emit('lang',lang);}
 function setLang(code){put('lang',code||null);lang=code||detect(navigator.languages||[navigator.language]);relocalize();}
@@ -374,7 +393,7 @@ function normalize(b){b.place??='shelf';b.tags??=[];b.bookmarks??=[];b.added??=D
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
-  drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
+  orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
   expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
@@ -383,9 +402,9 @@ ctx.settings.push(
   {id:'edgeRight',group:'reading',label:'edgeRight',type:'toggle',get:()=>get('edgeRight',true),set:v=>put('edgeRight',v)});
 
 
-try{for(const b of await library('getAll')){delete b.missing;books.set(b.id,normalize(b));}}catch{notice('storage');}
+try{for(const b of await library('getAll')){delete b.missing;const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);
+shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);
 toolPanel(ctx);
 
 select(books.get(get('last'))||books.values().next().value);

@@ -1,0 +1,17 @@
+/* 专注模式：常驻侧栏（书架书签列表、停靠的缩略图栏）没有悬停、没有键盘焦点时隐藏内容但保留位置，
+   底色为阅读区当前画面左 / 右边缘颜色沿高度的渐变。悬停或用键盘进入时恢复。
+   渐变画在侧栏里的两层 .ambient>i 上（focus.mjs 生成），换色时新的一层淡入、旧的一层淡出：
+   只过渡 opacity（由合成器处理），不过渡颜色变量，连续滚动时每帧不需要重算样式。 */
+.ambient{display:none;position:absolute;inset:0;z-index:-2;pointer-events:none}
+.ambient>i{position:absolute;inset:0;opacity:0;transition:opacity .22s linear;will-change:opacity}
+.ambient>i.on{opacity:1}
+body.focus-mode.shelfmarks .sm-dock>.ambient,body.focus-mode.docked #panel>.ambient{display:block}
+/* 只作用于常驻（停靠）的侧栏：底色层之上叠一层不透明底色（::before）和内容，一起淡入淡出。
+   显示稍等 80ms 再开始、隐藏等 250ms，鼠标快速划过时不会闪；::before 与底色层的负 z-index 落在面板自己的层叠上下文里。 */
+body.focus-mode.shelfmarks .sm-dock,body.focus-mode.docked #panel{border-color:transparent;background:var(--reader);transition:border-color .3s ease .25s}
+body.focus-mode.shelfmarks .sm-dock::before,body.focus-mode.docked #panel::before{content:'';position:absolute;inset:0;z-index:-1;background:var(--solid);pointer-events:none}
+body.focus-mode.shelfmarks .sm-dock::before,body.focus-mode.docked #panel::before,
+body.focus-mode.shelfmarks .sm-dock>:not(.ambient),body.focus-mode.docked #panel>:not(.ambient){opacity:0;transition:opacity .3s ease .25s}
+body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible)),body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible)){border-color:var(--line2);transition-delay:.08s}
+body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible))::before,body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible))::before,
+body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible))>:not(.ambient),body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible))>:not(.ambient){opacity:1;transition:opacity .18s ease .08s}

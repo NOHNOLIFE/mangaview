@@ -52,7 +52,7 @@ New versions arrive automatically. There is nothing to download, unzip or set up
 
 ## How to use
 
-Open a folder or images from the welcome screen, or drop them anywhere in the window. Move the mouse to the left edge of the window (or hover the menu button in the top-left corner, or press **T**) to open the tool panel.
+Open a folder or images from the welcome screen, or drop them anywhere in the window. Move the mouse to the top edge of the window (or hover the menu button in the top-left corner, or press **T**) to open the toolbar.
 
 ### Mouse
 
@@ -60,11 +60,16 @@ Open a folder or images from the welcome screen, or drop them anywhere in the wi
 | --- | --- |
 | Wheel / left-drag | Scroll |
 | Middle click | Browser auto-scroll (where your OS and browser support it) |
-| Click the top 15% | Jump to the start. At the start, go to the previous book |
-| Click the bottom 15% | Jump to the end. At the end, go to the next book |
-| Click the middle, left / right half | Back / forward one screen |
-| Move to the left window edge | Open the tool panel |
+| Click the left / right half | Back / forward one screen |
+| Move to the top window edge | Open the toolbar |
+| Move to the bottom window edge | Open the start / end bar. At either end its buttons switch to the previous / next book |
+| Move to the left window edge | Pop out the shelf bookmarks (when not pinned) |
+| Move from the page into the top-left corner | Open full-screen shelf bookmarks |
 | Move to the right window edge | Pop out the thumbnail strip |
+| Move from the page into the top-right corner | Open full-screen thumbnails |
+| `V` / `]` | Open or close full-screen thumbnails |
+| `C` / `[` | Open or close full-screen shelf bookmarks |
+| `W` `A` `S` `D` / arrow keys (in full-screen views) | Choose a thumbnail; `Space` / `Enter` jumps to it |
 | Click a thumbnail | Jump to that exact point |
 | Right click | Open the bookmark panel |
 
@@ -74,21 +79,22 @@ Open a folder or images from the welcome screen, or drop them anywhere in the wi
 | --- | --- |
 | `Space` / `↓` | Scroll down (hold to keep scrolling) |
 | `Shift+Space` / `↑` | Scroll up |
-| `F` / `→` | Forward one screen |
-| `D` / `←` | Back one screen |
+| `F` / `→` | Tap: forward one screen. Hold: next book (a ring fills while you hold) |
+| `D` / `←` | Tap: back one screen. Hold: previous book |
 | `G` / `Enter` | Tap: next bookmark. Hold: add a bookmark |
 | `Home` / `End` | Start / end of the book. Press again to change books |
 | `Page Up` / `Page Down` | Previous / next book |
 | `Delete` | Delete the current book's record |
 | `Ctrl+C` | Copy the titles currently listed on the shelf |
-| `T` | Show or hide the tool panel |
-| `Esc` | Close the tool panel and the thumbnail strip |
+| `B` | Open or close the shelf |
+| `T` | Show or hide the toolbar |
+| `Esc` | Close the toolbar, the start / end bar and floating side panels |
 
 The keyboard button in the toolbar shows this list inside the app.
 
-### Tool panel
+### Toolbar and start / end bar
 
-The tool panel slides in from the left edge and closes when the mouse leaves it. The book title and progress sit on top; the buttons below can be laid out in one or two columns (**Settings → Toolbar**). Edge pop-out can be turned off there too; the menu button and **T** still work.
+Rest the mouse at the top edge and the toolbar appears, centred over the page: one row of icons (hover one to see its name), with the book title and progress just below. Rest it at the bottom edge for the start / end bar: **Back to top**, **Jump to end** and the current page; at the start or end the buttons become **Previous book** / **Next book**. Both fade out when the mouse leaves, and each edge pop-out can be turned off in **Settings → Toolbar**; the menu button and **T** still work. Clicking the page only turns it (left half back, right half forward); there are no top / bottom click zones any more.
 
 ### Shelf, library and tags
 
@@ -99,7 +105,7 @@ The **Bookshelf** button opens a full-screen view with four lists:
 - **All books**: both together, for searching everything.
 - **Missing**: only shown when some books' folders can't be found (see below).
 
-Search matches titles, folder paths and tags. Type `#tag` to filter by tag, or click tags in the tag bar (several tags must all match). **Move all to shelf / library** applies to everything the current filters show. Hover or focus a cover to see its title, progress and tags, and buttons to edit tags, move, copy the title or delete the record. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
+Search matches titles, folder paths and tags. Type `#tag` to filter by tag, or click tags in the tag bar (several tags must all match). The drop-down at the top left sorts books by date added (newest first by default), folder time or name, in either direction. Shelf, library and all books share this setting, and previous / next book and the shelf bookmark list follow the same order. Browsers can't read a folder's own modification time, so *folder time* is the newest modification time of the images inside; it is worked out in the background only when you pick that sort (file info only, no image reading), and books not done yet go last. The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. **Move all to shelf / library** applies to everything the current filters show, while **Clear shelf / library** deletes the records of every book in that list (filters don't apply) after asking for confirmation; image files are never deleted. Hover or focus a cover to see its title, progress and tags, and buttons to edit tags, move, copy the title or delete the record. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
 
 ### Bookmarks
 
@@ -109,9 +115,17 @@ Search matches titles, folder paths and tags. Type `#tag` to filter by tag, or c
 
 Bookmarks are stored with a small picture of the page and follow the image, not the scroll position, so they survive re-sorting.
 
+**Shelf bookmarks**: works like the thumbnail strip. By default a list is pinned on the left that gathers the bookmarks of every book on the shelf (not the library or missing books), in shelf order; the page narrows to make room, and you can drag the list's right edge to resize it. The **Shelf bookmarks** button in the toolbar unpins it; it then pops out over the page when you rest the mouse at the left edge and fades out when the mouse leaves (turn this off in **Settings → Reading**). Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted), with no titles or file names. While the list is pinned, tapping `G` / `Enter` follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
+
+**Focus mode** (on by default, turn it off in **Settings → Reading**): when the mouse isn't over them and they don't have keyboard focus, the shelf bookmark list and the docked thumbnail strip hide their content but keep their space. Their background becomes a slightly dimmed extension of the left / right edge colours of the page you're reading, following you as you scroll, so there is less to distract you. Move the mouse over them to bring the content back. Showing and hiding fade with a short delay, so sweeping the mouse past them does not flicker.
+
 ### Thumbnail strip
 
 Move the mouse to the right edge to pop it out over the page. It closes when the mouse leaves. The thumbnail button in the toolbar pins it instead: pinned, it sits beside the page and the page narrows so nothing is covered. Drag its left edge to resize it.
+
+**Full-screen thumbnails** (on by default, turn it off in **Settings → Reading**): moving from the page into the top-right corner opens a full-screen overview of the whole book. The corner is the upper 30% of the right edge, or of the docked strip while focus mode is on; the lower part still pops out or reveals the strip as before. It only triggers when the mouse comes in from the page: entering from the top or bottom band, or sliding up the edge or the strip into the corner, does nothing. `V` or `]` opens and closes it at any time, whether or not the setting is on. Thumbnails are packed in a tight masonry layout with a wide scrollbar on the right, so long books can be skimmed and located quickly. The current page is selected; `A` `D` / `←` `→` move in page order, `W` `S` / `↑` `↓` move within a column, `Page Up` / `Page Down`, `Home` / `End` also work. Click a thumbnail, or press `Space` / `Enter`, to jump to the top of that page and close the overview; `Esc` closes it. After it closes, the mouse has to go back to the page before it triggers again.
+
+**Full-screen shelf bookmarks** (on by default, separate switch in **Settings → Reading**): the left side works the same way. Moving from the page into the top-left corner (the upper 30% of the left edge, or of the pinned shelf bookmark list while focus mode is on) opens every shelf bookmark full screen, grouped by book with the book title as a heading (the current book is highlighted). `C` or `[` opens and closes it. The bookmark nearest the middle of the screen is selected; `A` `D` / `←` `→` move in order, `W` `S` / `↑` `↓` move to the nearest bookmark in the row above or below. Click or `Space` / `Enter` jumps to it, switching books if needed. Pressing `V` / `]` or `C` / `[` in one full-screen view switches to the other. With no bookmarks on the shelf, the corner shows the list as before.
 
 ### Sorting
 
@@ -175,8 +189,10 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `app.mjs` | Core logic: books, input, sorting, refresh, keyboard; installs the feature modules |
 | `shelf.mjs`, `shelf.css` | Shelf, library, missing books, tags, restore |
 | `match.mjs` | Matching missing books to folders, tag colours |
-| `toolbar.mjs`, `toolbar.css` | Left tool panel |
-| `bookmarks.mjs`, `bookmarks.css` | Bookmarks |
+| `toolbar.mjs`, `toolbar.css` | Top toolbar, bottom start / end bar |
+| `bookmarks.mjs`, `bookmarks.css` | Bookmarks, shelf bookmark list |
+| `focus.mjs`, `focus.css` | Focus mode |
+| `overview.mjs`, `overview.css` | Full-screen thumbnails and shelf bookmarks |
 | `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
 | `thumbs.mjs` | Compressed thumbnails |
 | `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
@@ -196,6 +212,8 @@ node tests/browser.mjs "<path to chrome.exe or msedge.exe>"
 node tests/shelf.browser.mjs "<path>"
 node tests/toolbar.browser.mjs "<path>"
 node tests/bookmarks.browser.mjs "<path>"
+node tests/shelfmarks.browser.mjs "<path>"
+node tests/shelfsort.browser.mjs "<path>"
 node tests/settings.browser.mjs "<path>"
 ```
 

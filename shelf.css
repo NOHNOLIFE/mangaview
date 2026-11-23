@@ -67,7 +67,8 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .shelf-empty p{margin:0}
 
 /* 标签编辑 */
-#tagEditor{width:min(28rem,94vw)}
+#tagEditor,#renameBook{width:min(28rem,94vw)}
+#renameBook .tag-book{margin-bottom:18px}
 .tag-book{margin:0 22px 10px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .tag-list{display:flex;flex-wrap:wrap;gap:6px;padding:0 22px 12px}
 .tag-list:empty{display:none}
@@ -104,3 +105,10 @@ label.match .why{grid-column:2/-1}
   .views button{padding:0 10px}
   .views button>span[data-t]{display:none}
 }
+/* 书籍排序：书架页计数左侧的下拉框 */
+.shelf-sort{position:relative;display:flex;align-items:center}
+.shelf-sort .i{position:absolute;left:9px;width:16px;height:16px;color:var(--muted);pointer-events:none}
+.shelf-sort select{height:32px;padding:0 10px 0 31px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;cursor:pointer}
+.shelf-sort select:hover{background:var(--s3)}
+.shelf-sort select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.shelf-sort option{background:var(--solid)}

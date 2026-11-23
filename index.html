@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0e0f11"><title>MangaView v2.1.0</title>
 <link rel="icon" href="./icons/192.png"><link rel="manifest" href="./app.webmanifest">
-<link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./shelf.css"><link rel="stylesheet" href="./toolbar.css"><link rel="stylesheet" href="./settings.css"><link rel="stylesheet" href="./bookmarks.css"><script type="module" src="./app.mjs"></script>
+<link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./shelf.css"><link rel="stylesheet" href="./toolbar.css"><link rel="stylesheet" href="./settings.css"><link rel="stylesheet" href="./bookmarks.css"><link rel="stylesheet" href="./focus.css"><link rel="stylesheet" href="./overview.css"><script type="module" src="./app.mjs"></script>
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
@@ -12,6 +12,8 @@
 <symbol id="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="url(#logoFill)"/><rect x="13" y="9" width="22" height="30" rx="3.5" fill="#fff"/><path d="M13 20.5h22M13 29.5h22M25 20.5v9" stroke="url(#logoFill)" stroke-width="2.6" fill="none"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
 <symbol id="i-tb-bookmark" viewBox="0 0 24 24"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+<symbol id="i-tb-shelfmarks" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M10.5 3v18M5.5 7.5h2.5v5l-1.25-1-1.25 1z"/></symbol>
 <symbol id="i-tb-settings" viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.2a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.2a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.2a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.2a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol><symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></symbol><symbol id="i-library" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><path d="m17.2 5.3 2.9-.8 3 14.4-2.9.8z"/></symbol>
 <symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 19 9 12l9-7z"/><path d="M6 5v14"/></symbol>
@@ -74,10 +76,10 @@
 <div id="win-drag"></div>
 <div id="toolbar">
 <button id="tab" class="icon-btn" data-label="tools" aria-expanded="false" aria-controls="bar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
-<nav id="bar" hidden data-aria="tools" data-cols="2">
-<div class="heading"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small><div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div></div>
-<button class="tb wide shelf-btn" data-act="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
-<button class="tb wide" data-act="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span data-t="refresh"></span></button>
+<div id="barTitle"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small><div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div></div>
+<nav id="bar" hidden data-aria="tools">
+<button class="tb shelf-btn" data-act="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
+<button class="tb" data-act="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span data-t="refresh"></span></button>
 <hr class="sep">
 <button class="tb" data-act="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg><span data-t="prev"></span></button>
 <button class="tb" data-act="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg><span data-t="next"></span></button>
@@ -86,6 +88,7 @@
 <button class="tb" data-act="fit" aria-pressed="true"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg><span data-t="fit"></span></button>
 <button class="tb" data-act="preview" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span data-t="preview"></span></button>
 <button class="tb" data-act="bookmarks" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-bookmark"/></svg><span data-t="bookmarks"></span></button>
+<button class="tb" data-act="shelfmarks" data-optional aria-pressed="false" hidden><svg class="i" aria-hidden="true"><use href="#i-tb-shelfmarks"/></svg><span data-t="shelfmarks"></span></button>
 <hr class="sep">
 <button class="tb" data-act="folder"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"/></svg><span data-t="folder"></span></button>
 <button class="tb" data-act="files"><svg class="i" aria-hidden="true"><use href="#i-image-plus"/></svg><span data-t="files"></span></button>
@@ -97,7 +100,7 @@
 </nav>
 </div>
 
-<div id="zoneHint" aria-hidden="true" hidden><span class="pill"><svg class="i"><use id="zoneIcon" href="#i-to-top"/></svg><span id="zoneText"></span></span></div>
+<div id="endbar" role="toolbar" data-aria="endbar" hidden><button class="eb" data-act="toStart"><svg class="i" aria-hidden="true"><use href="#i-to-top"/></svg><span></span></button><span id="endPos" class="eb-pos"></span><button class="eb" data-act="toEnd"><svg class="i" aria-hidden="true"><use href="#i-to-end"/></svg><span></span></button></div>
 <div id="hud" aria-hidden="true" hidden><svg class="ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle id="ring" class="fill" cx="10" cy="10" r="8" pathLength="100"/></svg><span id="pageNum"></span></div>
 <aside id="panel" hidden><div id="grip" role="separator" tabindex="0" aria-orientation="vertical" data-label="width"></div><div id="preview" tabindex="0" data-aria="preview"><div class="strip"></div></div></aside>
 
@@ -125,7 +128,7 @@
 <button type="reset" data-t="reset"></button>
 </form>
 <div id="tagBar" class="tag-bar" hidden></div>
-<div id="bulk" class="bulk"><span id="shelfCount" class="count"></span><p id="expiredHint" class="hint" data-t="expiredHint" hidden></p><span class="spacer"></span><span id="bulkActions" class="bulk-actions"></span><button class="icon-btn" data-act="copy" data-label="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+<div id="bulk" class="bulk"><label class="shelf-sort"><svg class="i" aria-hidden="true"><use href="#i-sort"/></svg><select id="shelfSort" data-label="shelfSort"><option value="addedNew" data-t="bsAddedNew"></option><option value="addedOld" data-t="bsAddedOld"></option><option value="folderNew" data-t="bsFolderNew"></option><option value="folderOld" data-t="bsFolderOld"></option><option value="nameAsc" data-t="bsNameAsc"></option><option value="nameDesc" data-t="bsNameDesc"></option></select></label><span id="shelfCount" class="count"></span><p id="expiredHint" class="hint" data-t="expiredHint" hidden></p><span class="spacer"></span><span id="bulkActions" class="bulk-actions"></span><button class="icon-btn" data-act="copy" data-label="copy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
 <div id="books"></div>
 </dialog>
 
@@ -135,6 +138,12 @@
 <div id="tagList" class="tag-list"></div>
 <form id="tagForm" class="tag-form"><input id="tagInput" data-placeholder="addTag" autocomplete="off" maxlength="40"><button class="primary" type="submit" data-t="add"></button></form>
 <div id="tagSuggest" class="tag-list suggest"></div>
+</dialog>
+
+<dialog id="renameBook" aria-labelledby="renameTitle">
+<header><h2 id="renameTitle" data-t="rename"></h2><button class="icon-btn" data-close data-label="close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+<form id="renameForm" class="tag-form"><input id="renameInput" autocomplete="off" maxlength="200" data-placeholder="renameHolder"><button class="primary" type="submit" data-t="renameSave"></button></form>
+<p id="renameHint" class="tag-book"></p>
 </dialog>
 
 <dialog id="restore" aria-labelledby="restoreTitle">

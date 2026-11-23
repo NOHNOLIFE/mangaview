@@ -29,7 +29,7 @@ try{
   const js=async expression=>{const r=await cdp('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
   const shot=async name=>{if(!process.env.MV_SHOTS)return;const {data}=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(process.env.MV_SHOTS,name+'.png'),Buffer.from(data,'base64'));};
   await cdp('Runtime.enable');await cdp('Page.enable');
-  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});`});
+  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});try{localStorage.setItem('mv2:shelfmarks','false');}catch{}`});
   await cdp('Page.navigate',{url:origin});await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
   // 与默认尺寸 800×1120 相同的图：未加载的页也不会因测量而移位，便于按像素换算位置。
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Marked',{create:true});
@@ -49,8 +49,8 @@ try{
   const tap=async(name='g')=>{await key(name,'keyDown');await delay(40);await key(name,'keyUp');};
   async function hold(name='g'){
     await key(name,'keyDown');await delay(320);
-    assert.equal(await js('!document.querySelector(".bm-hold").hidden'),true,'Ring appears while holding');
-    assert.equal(await js('document.querySelector(".bm-hold .bm-text").textContent'),'Keep holding to add a bookmark');
+    assert.equal(await js('!document.querySelector(".hold").hidden'),true,'Ring appears while holding');
+    assert.equal(await js('document.querySelector(".hold .hold-text").textContent'),'Keep holding to add a bookmark');
     await delay(380);await key(name,'keyUp');
   }
 
@@ -59,7 +59,7 @@ try{
   // 长按 G 添加书签，缩略图存进 thumbs store。
   await hold();await wait(async()=>(await marks()).length===1);
   assert.deepEqual(await marks(),[['3.svg',.5]]);assert.equal(await text(),'Bookmark added');
-  assert.ok(await js('document.querySelector(".bm-hold").classList.contains("done")'),'Completion state is shown');
+  assert.ok(await js('document.querySelector(".hold").classList.contains("done")'),'Completion state is shown');
   await shot('hold-done');
   const book=await record(),thumbKey=book.id+':bm:'+book.bookmarks[0].id;
   const thumb=await wait(()=>js(`import('./store.mjs').then(async({thumbs})=>{const t=await thumbs('get','${thumbKey}');return t&&[t.blob.type,t.w,t.h];})`));
@@ -84,9 +84,13 @@ try{
   await goto(5,.5);const start=await center();
   await menu(300,400);const add=await rect('.bm-add');
   assert.ok(Math.abs(add.x-300)<1&&Math.abs(add.y-400)<1,'Add button sits under the cursor');
-  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item .bm-page')].map(e=>e.textContent)`),['Image 4','Image 11','Image 21']);
+  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Image 4','Image 11','Image 21']);
   assert.equal(await js(`document.querySelector('.bm-add').textContent`),'Add bookmarkHoldG/Enter');
   await wait(()=>js(`[...document.querySelectorAll('.bm-item img')].every(i=>i.complete&&i.naturalWidth===240)`));
+  // 紧凑显示：没有文字；缩略图比例跟随视口但限制在 3:4 ~ 4:3，不显示成长条。
+  assert.equal(await js(`document.querySelector('.bm-grid').innerText.trim()`),'');
+  const want=await js('Math.min(4/3,Math.max(3/4,reader.clientWidth/reader.clientHeight))');
+  assert.ok(Math.abs(await js(`(()=>{const r=document.querySelector('.bm-thumb');return r.offsetWidth/r.offsetHeight;})()`)-want)<.02,'Thumbnail ratio follows the viewport within 3:4 ~ 4:3');
   // 悬停即跳转；Esc 关闭并回到打开面板前的位置。
   const item=n=>rect(`.bm-item:nth-child(${n}) .bm-thumb`);
   let p=await item(3);await mouse('mouseMoved',p.x,p.y);await wait(async()=>(await center())[0]===20);
@@ -115,13 +119,13 @@ try{
   await wait(async()=>(await record()).sortMode==='nameDesc');await js('reader.focus()');
   await js('reader.scrollTop=0');await tap();await wait(async()=>(await center())[0]===9);assert.equal(await text(),'Bookmark 1 / 2');
   await wait(()=>js(`document.querySelector('#reader [data-name="20.svg"]')?.style.top===${9*ph}+'px'`));
-  await menu(300,400);assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item .bm-page')].map(e=>e.textContent)`),['Image 10','Image 20']);
+  await menu(300,400);assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Image 10','Image 20']);
   await key('Escape','keyDown');await key('Escape','keyUp');
   // 图片已不存在的书签显示为不可用，仍可删除。
   await js(`navigator.storage.getDirectory().then(r=>r.getDirectoryHandle('Marked')).then(d=>d.removeEntry('20.svg'))`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);await wait(async()=>(await record()).pages.length===29);
   await js('reader.focus()');await menu(300,400);
-  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.classList.contains('gone'),e.querySelector('.bm-page').textContent])`),[[false,'Image 19'],[true,'Image missing']]);
+  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.classList.contains('gone'),e.getAttribute('aria-label')])`),[[false,'Image 19'],[true,'Image missing']]);
   await shot('panel-gone');
   const before=await center();p=await item(2);await mouse('mouseMoved',p.x,p.y);await delay(200);assert.deepEqual(await center(),before,'Missing bookmark does not jump');
   const del2=await rect('.bm-item:nth-child(2) .bm-del');await mouse('mouseMoved',del2.x,del2.y);await mouse('mousePressed',del2.x,del2.y,'left');await mouse('mouseReleased',del2.x,del2.y,'left');

@@ -65,13 +65,19 @@ try{
   await cdp('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
   const tap=async(y,x=300)=>{await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x,y});};
   const height=await js('innerHeight');
-  await tap(height-20);await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
-  assert.equal(await js('zoneText.textContent'),'다음 책','At the end the bottom zone offers the next book');
-  await tap(20);await wait(()=>js('reader.scrollTop===0'));
-  await tap(height/2,480);await wait(()=>js('reader.scrollTop>0'));
+  // 底缘弹出首尾栏：滚到书尾后按钮变为“下一本”；回到书首。点击正文右半屏后一屏。
+  const rr=JSON.parse(await js('JSON.stringify(reader.getBoundingClientRect())')),move=(x,y)=>cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
+  const endBtn=async n=>{const [x,y]=await js(`(()=>{const r=endbar.querySelectorAll('.eb')[${n}].getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`);await tap(y,x);};
+  await move(rr.left+rr.width/2,height-4);await wait(()=>js('!endbar.hidden'));
+  await endBtn(1);await wait(()=>js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
+  await wait(()=>js(`endbar.querySelectorAll('.eb')[1].textContent==='다음 책'`));
+  await endBtn(0);await wait(()=>js('reader.scrollTop===0'));await wait(()=>js(`endbar.querySelectorAll('.eb')[0].textContent==='이전 책'`));
+  await move(rr.left+rr.width/2,height/2);await wait(()=>js('endbar.hidden'));
+  await tap(height/2,rr.left+rr.width*.75);await wait(()=>js('reader.scrollTop>0'));
   // 取消常驻后，鼠标贴近右缘临时弹出缩略图栏，移开即收起。
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);assert.equal(await js('panel.hidden'),true);
   const width=await js('innerWidth');
+  // 右缘中上部照旧弹出窄条（全屏缩略图只在右下角触发，见 overview.browser.mjs）。
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:width-2,y:height/2});
   await wait(()=>js('!panel.hidden&&!document.body.classList.contains("docked")'));
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:100,y:height/2});await wait(()=>js('panel.hidden'));

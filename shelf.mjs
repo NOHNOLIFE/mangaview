@@ -1,6 +1,6 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 所有书籍 / 过期书籍；瀑布流纯封面、标签筛选、批量移动与恢复。
 import {natural} from './model.mjs';
-import {scan} from './sources.mjs';
+import {scan,readMissingTimes} from './sources.mjs';
 import {norm,coverName,grade,assign,hue} from './match.mjs';
 
 const $=id=>document.getElementById(id);
@@ -14,7 +14,34 @@ export function install(ctx){
   let view=get('shelfView','shelf');if(!['shelf','library','all'].includes(view))view='shelf';
   const activeTags=new Map(); // norm → 显示名
   const tagsOf=b=>b.tags||[];
-  const byTitle=list=>list.sort((a,b)=>natural(ctx.title(a),ctx.title(b)));
+  // ---- 书籍排序：书架、书库、所有书籍共用一个设置，上一本 / 下一本和书架书签列表也按此顺序（ctx.orderBooks）。
+  // 文件夹时间：浏览器读不到文件夹本身的修改时间，用其中最新一张图片的修改时间代替；未知的排在最后。
+  const SORTS=['addedNew','addedOld','folderNew','folderOld','nameAsc','nameDesc'];
+  let sortBy=get('shelfSort','addedNew');if(!SORTS.includes(sortBy))sortBy='addedNew';
+  const byName=(a,b)=>natural(ctx.title(a),ctx.title(b));
+  const byNumber=(key,dir)=>(a,b)=>{const ka=Number.isFinite(a[key]),kb=Number.isFinite(b[key]);
+    return ka!==kb?(ka?-1:1):ka&&a[key]!==b[key]?dir*(a[key]-b[key]):byName(a,b);};
+  const compare={addedNew:byNumber('added',-1),addedOld:byNumber('added',1),folderNew:byNumber('folderTime',-1),folderOld:byNumber('folderTime',1),nameAsc:byName,nameDesc:(a,b)=>byName(b,a)};
+  const byTitle=list=>list.sort(compare[sortBy]);ctx.orderBooks=byTitle;
+  const sortSelect=$('shelfSort');sortSelect.value=sortBy;
+  sortSelect.onchange=()=>{sortBy=sortSelect.value;put('shelfSort',sortBy);draw();ctx.emit('books');sweepTimes();};
+  // 按文件夹时间排序时才计算（只读文件元数据，串行，不与阅读抢硬盘）；算出新值后刷新列表。
+  let timing=false;
+  async function sweepTimes(){
+    if(timing||!sortBy.startsWith('folder'))return;timing=true;let changed=false,drawn=Date.now();
+    const refresh=()=>{changed=false;drawn=Date.now();if(shelf.open)draw();ctx.emit('books');};
+    try{for(const b of [...books.values()]){
+      if(Number.isFinite(b.folderTime)||ctx.expired(b)||!books.has(b.id))continue;
+      while(document.hidden)await new Promise(r=>document.addEventListener('visibilitychange',r,{once:true}));
+      await queue(async()=>{
+        await readMissingTimes(b,()=>books.has(b.id));if(!books.has(b.id))return;
+        let t=-Infinity;for(const p of b.pages)if(Number.isFinite(p.lastModified)&&p.lastModified>t)t=p.lastModified;
+        if(t>-Infinity){b.folderTime=t;await ctx.persist(b);changed=true;}
+      });
+      if(changed&&Date.now()-drawn>1000)refresh();
+    }}finally{timing=false;if(changed)refresh();}
+  }
+  setTimeout(sweepTimes,1500);ctx.on('books',()=>setTimeout(sweepTimes,800));
   const coverPage=b=>{const n=coverName(b.pages.map(p=>p.name));return b.pages.find(p=>p.name===n);};
   // 过期书只出现在“过期书籍”里，其他列表不显示，避免被当成可读的书。
   const inView=(b,v=view)=>ctx.expired(b)?v==='expired':v==='all'||b.place===v;
@@ -27,7 +54,7 @@ export function install(ctx){
       const mine=tagsOf(b).map(norm);
       for(const k of activeTags.keys())if(!mine.includes(k))return false;
       for(const k of tags)if(!mine.some(x=>x.startsWith(k)))return false;
-      if(words.length){const hay=norm([ctx.title(b),b.path??'',...tagsOf(b)].join(' '));if(!words.every(w=>hay.includes(w)))return false;}
+      if(words.length){const hay=norm([ctx.title(b),b.title??'',b.path??'',...tagsOf(b)].join(' '));if(!words.every(w=>hay.includes(w)))return false;}
       return true;
     });
   }
@@ -96,8 +123,8 @@ export function install(ctx){
     if(ratio>0){const bar=make('span','progress');bar.style.setProperty('--p',ratio);pick.append(bar);}
     if(b===ctx.current)pick.append(make('span','badge',t('nowReading')));
     const tools=make('div','actions');
-    if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
-    else tools.append(iconButton('tag',t('editTags'),()=>editTags(b)),
+    if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('pencil',t('rename'),()=>editName(b)),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
+    else tools.append(iconButton('pencil',t('rename'),()=>editName(b)),iconButton('tag',t('editTags'),()=>editTags(b)),
       b.place==='library'?iconButton('library',t('toShelf'),()=>move([b],'shelf')):iconButton('archive',t('toLibrary'),()=>move([b],'library')),
       iconButton('copy',t('titleCopy'),()=>ctx.copy(ctx.title(b))),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
     el.append(pick,tools);return el;
@@ -124,6 +151,9 @@ export function install(ctx){
       const toShelf=list.filter(b=>b.place!=='shelf'),toLib=list.filter(b=>b.place!=='library');
       if(toShelf.length)acts.append(btn('library',fmt('allToShelf',{n:toShelf.length}),()=>move(toShelf,'shelf')));
       if(toLib.length)acts.append(btn('archive',fmt('allToLibrary',{n:toLib.length}),()=>move(toLib,'library')));
+      // 清空：书架 / 书库整个列表（不受搜索和标签筛选影响），确认后删除记录。
+      const place=view,whole=place==='all'?[]:[...books.values()].filter(b=>inView(b,place));
+      if(whole.length)acts.append(btn('trash',fmt(place==='shelf'?'clearShelf':'clearLibrary',{n:whole.length}),()=>clearPlace(place),'danger'));
     }
     if(!list.length){cleanup();const box=make('div','shelf-empty');box.append(icon('book-open'),make('p','',t(counts[view]?'noBooks':{library:'emptyLibrary',expired:'emptyExpired'}[view]??'emptyShelf')));holder.append(box);return;}
     layout(list);
@@ -131,6 +161,12 @@ export function install(ctx){
   async function move(list,place){
     for(const b of list){b.place=place;await ctx.persist(b);}
     notice(null,fmt(place==='shelf'?'movedShelfN':'movedLibraryN',{n:list.length}));draw();
+  }
+  async function clearPlace(place){
+    const list=[...books.values()].filter(b=>inView(b,place));
+    if(!list.length||!confirm(fmt(place==='shelf'?'confirmClearShelf':'confirmClearLibrary',{n:list.length})))return;
+    for(const b of list)if(books.has(b.id))await ctx.discard(b);
+    notice(null,fmt('clearedN',{n:list.length}));draw();ctx.emit('books');
   }
   async function removeAll(list){
     if(!confirm(fmt('confirmRemoveAll',{n:list.length})))return;
@@ -140,9 +176,20 @@ export function install(ctx){
   $('views').onkeydown=e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;const tabs=[...$('views').querySelectorAll('[data-view]:not([hidden])')],i=tabs.findIndex(x=>x.dataset.view===view);
     const next=tabs[(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];next.click();next.focus();};
   $('filters').oninput=draw;$('filters').onreset=()=>{activeTags.clear();queueMicrotask(draw);};$('filters').onsubmit=e=>e.preventDefault();
-  shelf.addEventListener('close',()=>{cleanup();shown=[];});
+  // close 事件异步派发：关闭后立刻重新打开时，迟到的事件不能清空新画好的列表。
+  shelf.addEventListener('close',()=>{if(!shelf.open){cleanup();shown=[];}});
   ctx.drawShelf=draw;
   ctx.actions.copy=()=>ctx.copy(filtered().map(ctx.title).join('\n'));
+
+  // ---- 书名编辑：只改显示名（b.name），文件夹名 b.title 仍用于识别同一文件夹和恢复过期书；留空恢复原名。
+  let renaming=null;
+  function editName(b){renaming=b;$('renameInput').value=ctx.title(b);$('renameHint').textContent=fmt('renameHint',{name:b.title??t('loose')});$('renameBook').showModal();$('renameInput').select();}
+  $('renameForm').onsubmit=e=>{e.preventDefault();safe(async()=>{
+    const b=renaming,v=$('renameInput').value.trim();if(!b)return;
+    if(v&&v!==(b.title??t('loose')))b.name=v;else delete b.name;
+    await ctx.persist(b);$('renameBook').close();if(shelf.open)draw();ctx.toolsState();ctx.emit('books');
+  })();};
+  $('renameBook').addEventListener('close',()=>{renaming=null;});
 
   // ---- 标签编辑
   let tagging=null;
