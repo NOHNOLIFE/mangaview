@@ -21,7 +21,7 @@ extend({
   smEdgeLeft:['Show shelf bookmarks at the left edge (when not pinned)','书架书签未常驻时，鼠标移到左缘弹出','本棚のしおりを固定していないとき、左端で表示','책장 책갈피를 고정하지 않았을 때 왼쪽 가장자리에서 표시'],
   smWidth:['Bookmark list width','书签列表宽度','しおり一覧の幅','책갈피 목록 너비']
 });
-const SHOW=150,ADD=550,DWELL=150,MIN_W=160; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）
+const SHOW=150,ADD=550,DWELL=150,MIN_W=160,BROWSE=1500; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
 export function install(ctx){
   const {main,view,t,fmt,notice,make,icon}=ctx;
   const sprite=document.querySelector('svg.sprite'),mark='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
@@ -34,7 +34,7 @@ export function install(ctx){
   function list(book){const pos=new Map(book.pages.map((p,i)=>[p.name,i]));
     return (book.bookmarks||[]).map(bm=>({bm,i:pos.get(bm.name)??-1})).sort((a,b)=>(a.i<0)-(b.i<0)||a.i-b.i||a.bm.f-b.bm.f||a.bm.at-b.bm.at);}
   let last=null; // 最近一次跳到的书签：滚动位置被夹住（书首 / 书尾）时仍能接着跳下一个。
-  function go(x){view.jump({i:x.i,f:x.bm.f});last={id:x.bm.id,top:main.scrollTop,book:ctx.current};markDock();}
+  function go(x){view.jump({i:x.i,f:x.bm.f});last={id:x.bm.id,top:main.scrollTop,book:ctx.current};markDock();reveal();}
   const repeat=book=>last&&last.book===book&&Math.abs(main.scrollTop-last.top)<2;
   // d=1：下一个书签，到末尾回到第一个；d=-1（Shift）：上一个，到开头回到最后一个。
   function next(d=1){
@@ -137,7 +137,7 @@ export function install(ctx){
     up(e){if(!press||e.code!==press.code)return;const p=press;cancel();if(!p.done)(pinned?nextShelf:next)(p.d);},
     blur(){cancel();}
   });
-  ctx.on('select',()=>{cancel();close();if(last?.book!==ctx.current)last=null;renderDock();});
+  ctx.on('select',()=>{cancel();close();if(last?.book!==ctx.current)last=null;renderDock();reveal();});
   ctx.on('lang',()=>{if(!panel.hidden)render();renderDock();});
 
   // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。
@@ -165,19 +165,44 @@ export function install(ctx){
     dockLabel.textContent=t('smOpenLabel');dockCount.textContent=groups.reduce((n,g)=>n+g.items.length,0)||'';if(!dockOpen.isConnected)dockHead.append(dockOpen);
     dock.style.setProperty('--bm-ar',ratio());
     if(!groups.length){dockList.replaceChildren(emptyNote());return;}
-    dockList.replaceChildren(...groups.map(({book,items})=>{
+    marked=null;dockList.replaceChildren(...groups.map(({book,items})=>{
       // 每本书一组，不显示书名；当前书的一组高亮。
       const section=make('section','sm-book');section.dataset.book=book.id;section.setAttribute('aria-label',ctx.title(book));
       section.append(...items.map(x=>tile(book,x,true)));return section;
     }));
     markDock();
   }
-  // 标出当前书和最近跳到的书签，并把后者滚入可见范围。
+  // 标出当前书的一组，以及其中离阅读视窗中心最近的书签（当前标记，.active）。只改样式，不滚动列表。
   function markDock(){
-    if(dock.hidden)return;let active=null;
+    if(dock.hidden)return;
     for(const s of dockList.querySelectorAll('.sm-book'))s.classList.toggle('current',s.dataset.book===ctx.current?.id);
-    for(const item of dockList.querySelectorAll('.bm-item')){const on=!!last&&item.dataset.id===last.id;item.classList.toggle('active',on);if(on)active=item;}
-    active?.scrollIntoView({block:'nearest'});
+    markNear();
+  }
+  // 离屏幕中心最近的有效书签；刚跳到的书签被夹在书首 / 书尾时仍是它。还没有版面时返回 null。
+  function nearest(book){
+    if(repeat(book))return last.id;const s=starts();if(!s)return null;
+    const y=main.scrollTop+main.clientHeight/2;let best=null,gap=Infinity;
+    for(const x of list(book))if(x.i>=0){const d=Math.abs(point(s,{i:x.i,f:x.bm.f})-y);if(d<gap){gap=d;best=x.bm.id;}}
+    return best;
+  }
+  let marked=null;
+  function markNear(){
+    const book=ctx.current,group=book&&dockList.querySelector('.sm-book.current'),id=group&&nearest(book);
+    const item=id?group.querySelector(`.bm-item[data-id="${CSS.escape(id)}"]`):null;
+    if(item!==marked){marked?.classList.remove('active');item?.classList.add('active');marked=item;}
+  }
+  // 阅读滚动时当前标记跟随更新：节流到每 200ms 至多一次，只改前后两个格子，不滚动列表。
+  let nearTimer=0;
+  main.addEventListener('scroll',()=>{if(!nearTimer&&!dock.hidden)nearTimer=setTimeout(()=>{nearTimer=0;if(!dock.hidden)markNear();},200);},{passive:true});
+  // 列表定位：切书、跳转书签、列表弹出 / 显示时，把当前标记（还没有版面时为当前书那一组）滚入可见范围；当前书没有书签则不动。
+  // 用户正在浏览列表（指针在列表上，或刚手动滚动过）时不抢滚动位置；列表刚显示时（force）除外。只滚动列表本身，不影响正文。
+  let browsedAt=-Infinity;
+  for(const type of ['wheel','pointerdown','keydown','touchstart'])dockList.addEventListener(type,()=>{browsedAt=performance.now();},{passive:true});
+  function reveal(force=false){
+    if(dock.hidden||!force&&(dock.matches(':hover')||performance.now()-browsedAt<BROWSE))return;
+    const target=marked||dockList.querySelector('.sm-book.current');if(!target)return;
+    const l=dockList.getBoundingClientRect(),r=target.getBoundingClientRect();if(r.top>=l.top&&r.bottom<=l.bottom)return;
+    dockList.scrollTop+=r.top-l.top-Math.max(0,(l.height-r.height)/2);
   }
   // 跳到某本书的某个书签；不是当前书时先打开那本书（select 会先恢复它的阅读位置，同一帧内再跳转）。
   function goShelf(book,x){if(book!==ctx.current)ctx.select(book);if(ctx.current===book&&starts())go(x);}
@@ -210,9 +235,9 @@ export function install(ctx){
   function setDock(pin){
     pinned=pin;dock.classList.toggle('floating',!pin);document.body.classList.toggle('shelfmarks',pin);pressed();
     if(pin){clearTimeout(dock.fadeTimer);dock.classList.remove('leaving');dock.hidden=false;}else dock.hidden=true;
-    renderDock();
+    renderDock();reveal(true);
   }
-  function float(open){if(pinned)return;const was=!dock.hidden;ctx.fade(dock,open);if(open&&!was)renderDock();}
+  function float(open){if(pinned)return;const was=!dock.hidden;ctx.fade(dock,open);if(open&&!was){renderDock();reveal(true);}}
   ctx.actions.shelfmarks=()=>{ctx.put('shelfmarks',!pinned);setDock(!pinned);};
   let edgeTimer=0;const cancelEdge=()=>{clearTimeout(edgeTimer);edgeTimer=0;};
   document.addEventListener('pointermove',e=>{

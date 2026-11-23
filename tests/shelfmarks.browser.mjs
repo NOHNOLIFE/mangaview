@@ -137,6 +137,35 @@ try{
   // 开关状态持久保存。
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&!document.getElementById('shelfmarks').hidden`));
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
+  // 列表定位：书签多到列表需要滚动时，切书后列表滚到当前书里离阅读位置最近的书签（淡色描边 .active）；阅读滚动时标记跟随（节流），但不滚动列表；
+  // 鼠标在列表上时不抢滚动位置；切到没有书签的书时列表不动。
+  const original=await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).map(b=>[b.id,b.bookmarks]))`);
+  await js(`(async()=>{const {library}=await import('./store.mjs');for(const b of await library('getAll')){
+    b.bookmarks=[...b.bookmarks,...Array.from({length:20},(_,k)=>({id:b.title+k,name:(k>>1)+'.svg',f:k%2?.75:.25,at:k+10}))];await library('put',b);}})()`);
+  await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&document.querySelectorAll('#shelfmarks .bm-item').length===42`));
+  const smList='document.querySelector("#shelfmarks .sm-list")';
+  assert.ok(await js(`${smList}.scrollHeight>${smList}.clientHeight+200`),'The list scrolls');
+  const marked=()=>js(`(()=>{const all=document.querySelectorAll('#shelfmarks .bm-item.active'),a=all[0],l=${smList}.getBoundingClientRect();if(all.length!==1)return all.length+' marked';
+    const r=a.getBoundingClientRect();return (r.top>=l.top-1&&r.bottom<=l.bottom+1?'':'hidden ')+a.getAttribute('aria-label');})()`);
+  const listTop=()=>js(`${smList}.scrollTop`),nav=d=>js(`document.querySelector('#endbar [data-act="${d}"]').click()`);
+  await mouse('mouseMoved',600,400);let top=await listTop();
+  await goto(8,.75);await wait(async()=>await marked()==='Alpha · Image 9');assert.equal(await listTop(),top,'Reading does not scroll the list');
+  await goto(1,.2);await wait(async()=>/^(hidden )?Alpha · Image 2$/.test(await marked()));
+  await nav('next');await wait(async()=>(await marked())==='Beta · Image 4'&&await listTop()>0); // 切到 Beta：滚到它离阅读位置最近的书签
+  await shot('shelfmarks-locate');
+  // 指针在列表上：切书不抢滚动位置。
+  const dk=await box('#shelfmarks');await mouse('mouseMoved',dk.x,dk.y);
+  await js(`${smList}.scrollTop=1e6`);top=await listTop();await nav('prev');await wait(()=>js(`bookTitle.textContent==='Alpha'`));await delay(300);
+  assert.equal(await listTop(),top,'No auto-scroll while hovered');assert.match(await marked(),/^hidden Alpha/);
+  await mouse('mouseMoved',600,400);await nav('next');await wait(()=>js(`bookTitle.textContent==='Beta'`));await nav('prev');
+  await wait(async()=>/^Alpha · Image \d+$/.test(await marked()));
+  // 没有书签的书：列表不动。
+  top=await listTop();await book('Gamma',false);await delay(300);assert.equal(await listTop(),top,'Book without bookmarks leaves the list alone');
+  assert.equal(await js(`document.querySelectorAll('#shelfmarks .bm-item.active').length`),0);
+  await js(`(async()=>{const {library}=await import('./store.mjs');const all=await library('getAll'),keep=new Map(${JSON.stringify(original)});
+    for(const b of all){if(b.title==='Gamma')await library('delete',b.id);else{b.bookmarks=keep.get(b.id);await library('put',b);}}
+    localStorage.setItem('mv2:last',JSON.stringify(all.find(b=>b.title==='Alpha').id));})()`);
+  await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   // 书架页「清空书架」：二次确认，取消则不删除；确认后删除书架上全部书目，书签列表随之清空。
   // 书架筛选生效且结果里没有书签：提示可能是筛选导致的；清除筛选后恢复。没有筛选时才提示书架上还没有书签。
   const filterBy=q=>js(`(()=>{shelf.showModal();query.value=${JSON.stringify(q)};query.dispatchEvent(new Event('input',{bubbles:true}));shelf.close();})()`);
@@ -164,7 +193,7 @@ try{
   await wait(()=>js(`(s=>!s.hidden&&s.classList.contains('floating'))(document.getElementById('shelfmarks'))`));assert.equal((await box('#reader')).left,0,'Floating list overlays the reader');
   await mouse('mouseMoved',100,300);await delay(300);assert.equal(await js('document.getElementById("shelfmarks").hidden'),false,'Stays open while hovered');
   await mouse('mouseMoved',600,300);await wait(()=>js('document.getElementById("shelfmarks").classList.contains("leaving")'));await wait(()=>js('document.getElementById("shelfmarks").hidden'));
-  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, floating at the left edge');
+  assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, list locating the nearest bookmark, floating at the left edge');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

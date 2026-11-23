@@ -48,13 +48,13 @@ Handles huge libraries, works offline, and never uploads your files.
 
 1. Open **https://nohnolife.github.io/mangaview/** in the latest desktop **Chrome** or **Edge**.
 2. *(Optional)* Install it: click the install icon at the right end of the address bar, or open the browser menu and choose *Install MangaView*. It opens in its own window, can be pinned to the taskbar and works offline.
-3. Open a folder or drop images into the window.
+3. Add a folder or drop images into the window.
 
 New versions arrive automatically. There is nothing to download, unzip or set up.
 
 ## How to use
 
-Open a folder or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Drop on the **Add to Loose images** area at the bottom of the drop overlay to add every image, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
+Use **Add folder** or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Dropping only image files adds them to the loose images. When the drop includes folders, the overlay shows **Import as one book** and **Add to Loose images** side by side at the bottom; drop on **Add to Loose images** to add every image, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
 
 ### Mouse
 
@@ -110,8 +110,8 @@ Both fade out when the mouse leaves, and each edge pop-out can be turned off in 
 
 The **Bookshelf** button (or **B**) opens a full-screen view with four lists (click the tab of the current list again, or press **B** again, to go back to reading):
 
-- **Shelf**: what you are reading now. Newly opened folders, and folders you open again, land here.
-- **Library**: everything else, for managing large collections. Books you open or drop while the shelf view is showing the library go to the library.
+- **Shelf**: what you are reading now. Newly added folders, and folders you add again, land here.
+- **Library**: everything else, for managing large collections. Books you add or drop while the shelf view is showing the library go to the library.
 - **All**: both together, for searching everything.
 - **Missing**: only shown when some books' folders can't be found (see below).
 
@@ -145,7 +145,7 @@ When a series is split across several folders (one per volume, for example), you
 
 Bookmarks are stored with a small picture of the page and follow the image, not the scroll position, so they survive re-sorting.
 
-**Shelf bookmarks**: works like the thumbnail strip. It gathers the bookmarks of every book on the shelf, in shelf order (not the library or missing books; with shelf filters active, only the filtered books; if that leaves it empty, it suggests clearing or changing the filters). It isn't pinned by default: rest the mouse at the left edge and it pops out over the page, then fades out when the mouse leaves (turn this off in **Settings → Reading**). The **Shelf bookmarks** button in the toolbar pins it on the left, and the page narrows to make room; drag the list's right edge to resize it. Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted), with no titles or file names. The full-width button at its top opens full-screen shelf bookmarks. While the list is pinned, tapping `F` / `Enter` (`Shift` for backwards) follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
+**Shelf bookmarks**: works like the thumbnail strip. It gathers the bookmarks of every book on the shelf, in shelf order (not the library or missing books; with shelf filters active, only the filtered books; if that leaves it empty, it suggests clearing or changing the filters). It isn't pinned by default: rest the mouse at the left edge and it pops out over the page, then fades out when the mouse leaves (turn this off in **Settings → Reading**). The **Shelf bookmarks** button in the toolbar pins it on the left, and the page narrows to make room; drag the list's right edge to resize it. Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted, and the bookmark nearest your reading position has a faint outline), with no titles or file names. When you switch books, jump to a bookmark or the list pops out, it scrolls to the current book's bookmarks (it stays put if the current book has none, and never scrolls while the mouse is over it or right after you scrolled it yourself). The full-width button at its top opens full-screen shelf bookmarks. While the list is pinned, tapping `F` / `Enter` (`Shift` for backwards) follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
 
 **Focus mode** (on by default, turn it off in **Settings → Reading**): when the mouse isn't over them and they don't have keyboard focus, the pinned shelf bookmark list and thumbnail strip hide their content but keep their space, on the same background as the page, so there is less to distract you. Move the mouse over them to bring the content back. Showing and hiding fade with a short delay, so sweeping the mouse past them does not flicker.
 
@@ -171,7 +171,7 @@ MangaView checks your folders for added or removed images in three cases (the fi
 - when you switch back to the window, it checks the current book;
 - when you press a **Refresh** button (next to **Bookshelf** in the toolbar, and on the shelf), it checks everything. A manual refresh can also ask for access to the current book again.
 
-New subfolders are not detected: open the parent folder again to add them.
+New subfolders are not detected: add the parent folder again to pick them up.
 
 ### Missing books and moving your files
 
@@ -179,7 +179,7 @@ A book whose folder can't be found is **never** deleted automatically, because t
 
 Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **cover** (the first image by file name). Joined books are matched volume by volume:
 
-- **Open the parent folder again**: a missing book or volume with the same folder name and cover is reconnected automatically instead of being added twice.
+- **Add the parent folder again**: a missing book or volume with the same folder name and cover is reconnected automatically instead of being added twice.
 - **Restore from folder…** (in *Missing*): pick a folder that contains your books, at any depth. Exact matches are restored at once. Likely matches (renamed folder with the same cover, or same name with a different cover) are listed for you to tick. Anything else stays missing.
 - **Restore** on a single book: pick its folder. If it doesn't match, you can still **Restore anyway** to keep the tags, bookmarks and progress. For a joined book that is entirely missing and where no volume matches, this rebuilds the book from the chosen folder, and volumes at the same relative paths keep their bookmarks and progress. If only one volume of a joined book is missing, you can link the chosen folder to that volume anyway; the other volumes are left untouched. When several volumes are missing, a folder that doesn't match is reported as not found rather than guessed at.
 

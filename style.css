@@ -118,14 +118,20 @@ body.docked #panel{background:var(--solid);backdrop-filter:none;box-shadow:none;
 
 /* 拖放提示 */
 /* popover：放在顶层，书架等模态对话框打开时也看得见；鼠标事件穿透到下层，由 window 上的拖放监听统一处理。 */
-#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:clamp(10px,2.4vh,22px);width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;padding:0;overflow:visible;color:inherit;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
-/* 下方两块区域等宽、互不重叠；悬停的一块高亮，默认区域随之变淡。窗口矮或窄时缩小内边距，不溢出。 */
-#dropOverlay .zone{display:flex;align-items:center;gap:14px;width:min(400px,calc(100vw - 32px));padding:clamp(10px,2vh,18px) clamp(16px,4vw,28px);border:2px dashed var(--line2);border-radius:18px;background:rgba(255,255,255,.04);transition:border-color .12s,background-color .12s}
-#dropOverlay .zone span{display:grid;gap:3px;min-width:0}#dropOverlay .zone small{color:var(--faint);font-size:12.5px;font-weight:500}
-#dropOverlay .zone .i{width:30px;height:30px;color:var(--faint)}
-#dropOverlay .zone.over{border-color:var(--accent);background:var(--accent-soft)}#dropOverlay .zone.over .i{color:var(--accent)}
+#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:clamp(14px,3.2vh,28px);width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;padding:0;overflow:visible;color:inherit;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
+/* 下方两块区域左右并排、紧贴（中间只有一条分隔线），指针在两者之间移动不会经过空白、不会闪回默认区域；与上方默认区域留出间距以便区分。
+   命中判定就是这两块的矩形（app.mjs 的 zoneAt）。底色近乎不透明，说明文字在任何画面上都清晰。悬停的一块高亮，默认区域随之变淡；切换不加过渡。窗口矮或窄时缩小内边距，不溢出。 */
+#dropOverlay .zones{display:grid;grid-template-columns:1fr 1fr;width:min(480px,calc(100vw - 32px))}
+#dropOverlay .zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;padding:clamp(10px,2vh,18px) clamp(10px,2.4vw,18px);border:2px dashed rgba(255,255,255,.24);background:rgba(22,23,28,.94);text-align:center}
+#dropMerge{border-radius:18px 0 0 18px}#dropLoose{border-left:0;border-radius:0 18px 18px 0}
+#dropOverlay .zone span{display:grid;gap:4px;min-width:0}#dropOverlay .zone strong{font-size:14.5px}#dropOverlay .zone small{color:#c4c5cd;font-size:12.5px;font-weight:500;line-height:1.45}
+#dropOverlay .zone .i{width:28px;height:28px;color:var(--muted)}
+#dropOverlay .zone.over{border-color:var(--accent);background:linear-gradient(rgba(255,122,89,.18),rgba(255,122,89,.18)),rgba(22,23,28,.94)}#dropOverlay .zone.over .i{color:var(--accent)}
+#dropOverlay .zones:has(#dropLoose.over) #dropMerge{border-right-color:var(--accent)}
 #dropOverlay:has(.zone.over) .box{opacity:.45;border-color:var(--line2);background:transparent}
-#dropOverlay .box{display:grid;justify-items:center;gap:14px;width:min(400px,calc(100vw - 32px));padding:clamp(20px,6vh,48px) 24px;border:2px dashed var(--accent);border-radius:24px;background:var(--accent-soft);font-size:17px;font-weight:600;text-align:center}
+/* 只拖入图片文件：整个覆盖层就是「添加到散图图集」，不显示下方两块区域。 */
+#dropOverlay.images .zones{display:none}
+#dropOverlay .box{display:grid;justify-items:center;gap:14px;width:min(480px,calc(100vw - 32px));padding:clamp(20px,6vh,48px) 24px;border:2px dashed var(--accent);border-radius:24px;background:var(--accent-soft);font-size:17px;font-weight:600;text-align:center}
 #dropOverlay .box .i{width:clamp(32px,6vh,48px);height:clamp(32px,6vh,48px);color:var(--accent)}
 
 /* 对话框 */
