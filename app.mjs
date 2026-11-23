@@ -1,7 +1,7 @@
 import {detect,translate,languageList} from './lang.mjs';
 import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.mjs';
 import {library,thumbs} from './store.mjs';
-import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
+import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
 import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
@@ -64,7 +64,7 @@ function dropKey(key){try{localStorage.removeItem(prefix+key);}catch{notice('sto
 // 偏好（界面设置与布局）：「还原默认设置」只清除这些键，再重新载入页面，各模块按默认值重新安装。
 // 书目、书签、标签、阅读位置（pos:*）、最近打开的书（last）等数据不在其中。
 // 功能模块新增偏好时调用 ctx.prefs.add('键名')（不含 mv2: 前缀；以 * 结尾表示该前缀下的所有键）。
-const prefs=new Set(['lang','autoCheck','fit','preview','width','defaultSort','edgeRight','edgeLeft','shelfmarks','shelfmarksWidth','overview','smOverview','focusMode','shelfSort','shelfView']);
+const prefs=new Set(['lang','autoCheck','fit','preview','width','defaultSort','edgeRight','edgeLeft','shelfmarks','shelfmarksWidth','focusMode','shelfSort','shelfView']);
 function resetPrefs(){
   flush();
   const match=k=>prefs.has(k)||[...prefs].some(p=>p.endsWith('*')&&k.startsWith(p.slice(0,-1)));
@@ -167,8 +167,9 @@ function link(book,cand,s){
   if(!s.key){book.title=cand.title;if(cand.path)book.path=cand.path;}
 }
 async function relink(book,cand,s=book.sources[0]){return relinkAll(book,[{cand,source:s}]);}
+// 接到别的文件夹后同名文件可能是不同的图：丢弃这本书在内存里的页面小图（thumbs.mjs），下次显示时重新生成。
 async function relinkAll(book,links){
-  const before=book===current?view.anchor():null;
+  const before=book===current?view.anchor():null;forgetPages(book.id+':');
   for(const {cand,source:s} of links){
     if(cand.dir&&s)link(book,cand,s);else book.pages.push(...cand.pages);
   }
@@ -238,7 +239,7 @@ async function findMerged(roots,folders){
 // 用新的扫描结果重建合并作品：同一文件夹（或相对路径相同）的卷保留原 key，页名不变，书签和进度随之保留；
 // 新文件夹追加为新卷；不在其中的卷连同其页面一起移除。order 为 mergeKeys 的结果，决定各卷的顺序。
 async function rebuild(book,order){
-  const before=book===current?view.anchor():null,old=[...book.sources],next=[];
+  const before=book===current?view.anchor():null,old=[...book.sources],next=[];forgetPages(book.id+':');
   for(const {group:g,key} of order){
     let i=-1;for(let j=0;j<old.length&&i<0;j++)if(old[j].title===g.title&&await sameDir(old[j].dir,g.dir))i=j;
     if(i<0)i=old.findIndex(s=>s.key===key);
@@ -321,7 +322,7 @@ async function sync(list,ask){
     u.refs.push({book:b,source:s});
   }
   // 合并作品先向当初选的文件夹请求一次授权，其下各卷随之可读，不必逐卷弹窗。
-  if(ask&&current?.roots)for(const r of current.roots)if(await r.queryPermission?.({mode:'read'})==='prompt')await r.requestPermission({mode:'read'}).catch(()=>{});
+  if(ask&&current?.roots&&list.includes(current))for(const r of current.roots)if(await r.queryPermission?.({mode:'read'})==='prompt')await r.requestPermission({mode:'read'}).catch(()=>{});
   for(const u of units)u.result=await listDir(u.dir,ask&&u.refs.some(r=>r.book===current));
   const per=new Map();
   for(const u of units)for(const r of u.refs){if(!per.has(r.book))per.set(r.book,[]);per.get(r.book).push([r.source,u.result]);}
@@ -350,7 +351,12 @@ function refreshAll(manual){
   if(refreshing)return refreshing;
   refreshing=(async()=>{
     busy(true);if(manual)notice('refreshing');
-    const r=await sync([...books.values()],manual);
+    // 当前书先查（只列它的几个文件夹），结果立即生效；其余的书等浏览器空闲后再串行列目录，不与首屏读图抢硬盘。
+    const r={updated:0,gone:0,partial:0,denied:0,added:0,removed:0},sum=x=>{for(const k in r)r[k]+=x[k];};
+    const first=current&&books.has(current.id)?current:null;
+    if(first)sum(await sync([first],manual));
+    if(!manual)await new Promise(ok=>window.requestIdleCallback?requestIdleCallback(ok,{timeout:2000}):setTimeout(ok,300));
+    sum(await sync([...books.values()].filter(b=>b!==first),manual));
     ctx.redrawShelf();emit('books');
     const parts=[];
     if(r.updated)parts.push(fmt('updatedN',{n:r.updated}));

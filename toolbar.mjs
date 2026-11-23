@@ -3,7 +3,8 @@
 import {extend} from './lang.mjs';
 extend({
   tbEdgeTop:['Show tools at the top edge','鼠标移到顶缘时弹出工具栏','上端でツールを表示','위쪽 가장자리에서 도구 표시'],
-  tbEdgeBottom:['Show the action bar at the bottom edge','鼠标移到底缘时弹出操作栏','下端で操作バーを表示','아래쪽 가장자리에서 작업 표시줄 표시']
+  tbEdgeBottom:['Show the action bar at the bottom edge','鼠标移到底缘时弹出操作栏','下端で操作バーを表示','아래쪽 가장자리에서 작업 표시줄 표시'],
+  ebScoped:['Only switches within the shelf filter results','仅在书架筛选结果内切换','本棚の絞り込み結果の中だけで切り替え','책장 필터 결과 안에서만 전환']
 });
 const EDGE=24,DWELL=120,LEAVE=450;
 export function install(ctx){
@@ -12,7 +13,7 @@ export function install(ctx){
   const sync=()=>{for(const el of bar.querySelectorAll('[data-optional]'))el.hidden=!ctx.actions[el.dataset.act];};
   ctx.dropKey('toolbarColumns'); // 旧版的单列 / 双列设置
   // 按钮只显示图标（操作栏放不下时也只显示图标）：把（已本地化的）文字写进 title 作为悬停提示，切换语言时同步。
-  const tips=()=>{for(const el of [...bar.querySelectorAll('.tb'),...end.querySelectorAll('.eb')])el.title=el.querySelector('span')?.textContent??'';syncEnd();fitEnd();};
+  const tips=()=>{for(const el of [...bar.querySelectorAll('.tb'),...end.querySelectorAll('.eb')])el.title=el.querySelector('span')?.textContent??'';syncEnd();syncBooks();fitEnd();};
   queueMicrotask(sync);ctx.on('select',sync);
   // 换行后，落在行首或行尾的分隔线隐藏：前后两个可见按钮不在同一行即是。
   const edges=()=>{if(bar.hidden)return;for(const s of bar.querySelectorAll('.sep')){
@@ -22,6 +23,9 @@ export function install(ctx){
   const dialog=()=>document.querySelector('dialog[open]');
   // 顶缘：窗口控件覆盖区（--top）以下 EDGE 像素内。菜单按钮平时不可见，但位置仍在左上角（--top + 8px）。
   const topInset=()=>tab.getBoundingClientRect().top-8;
+  // 正在显示的侧栏（常驻或浮动弹出）顶部是它们的头部行（含“打开全屏”按钮），这一段不算顶缘，避免在按钮上停留时误弹工具栏。
+  const sides=[$('panel'),$('shelfmarks')];
+  const overSide=x=>sides.some(el=>{if(!el||el.hidden)return false;const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&x>=r.left&&x<=r.right;});
   let edgeTimer=0,leaveTimer=0,auto=false;
   const cancel=()=>{clearTimeout(edgeTimer);edgeTimer=0;}, stay=()=>{clearTimeout(leaveTimer);leaveTimer=0;};
   new MutationObserver(()=>{if(bar.hidden){auto=false;stay();}else{sync();edges();}}).observe(bar,{attributes:true,attributeFilter:['hidden']});
@@ -35,7 +39,9 @@ export function install(ctx){
     $('endPos').textContent=$('bookMeta').textContent;
   }
   // 列表里没有别的书时，上一本 / 下一本变灰。
-  function syncBooks(){if(end.hidden)return;const others=!!ctx.current&&ctx.readingList(ctx.current).some(b=>b!==ctx.current);prevBtn.disabled=nextBtn.disabled=!others;}
+  // 书架页设了筛选条件时，上一本 / 下一本只在筛选结果内切换：按钮带一个小圆点，提示文字说明原因。
+  function syncBooks(){if(end.hidden)return;const others=!!ctx.current&&ctx.readingList(ctx.current).some(b=>b!==ctx.current);prevBtn.disabled=nextBtn.disabled=!others;
+    const scoped=!!ctx.filtering?.();for(const b of [prevBtn,nextBtn]){b.classList.toggle('scoped',scoped);b.title=(b.querySelector('span')?.textContent??'')+(scoped?' · '+ctx.t('ebScoped'):'');}}
   // 宽度不够放下文字时只显示图标：先按完整宽度量一次，再决定。
   function fitEnd(){if(end.hidden)return;end.classList.remove('compact');if(end.scrollWidth>end.clientWidth+1)end.classList.add('compact');}
   let endTimer=0,endLeave=0;
@@ -51,7 +57,7 @@ export function install(ctx){
   document.addEventListener('pointermove',e=>{
     const mouse=e.pointerType==='mouse'&&!e.buttons;
     // 顶缘弹出工具栏
-    const near=mouse&&e.clientY-topInset()<=EDGE&&bar.hidden&&!dialog()&&ctx.get('edgeTop',true);
+    const near=mouse&&e.clientY-topInset()<=EDGE&&bar.hidden&&!dialog()&&!overSide(e.clientX)&&ctx.get('edgeTop',true);
     if(!near)cancel();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(bar.hidden&&!dialog()){ctx.showBar(true);auto=true;}},DWELL);
     // 面板在指针下方出现时浏览器未必补发 pointerenter，指针直接移走就收不到 pointerleave，这里兜底收起。
     if(auto&&!bar.hidden&&e.pointerType==='mouse'){

@@ -37,6 +37,9 @@
 #endbar .eb:disabled{opacity:.38}
 #endbar .eb .i{width:18px;height:18px;color:var(--accent)}
 #endbar .eb-book .i{color:var(--accent-hi)}
+/* 书架筛选生效时，上一本 / 下一本只在筛选结果内切换：图标右上角一个小圆点（说明在 title 提示里）。 */
+#endbar .eb-book.scoped{position:relative}
+#endbar .eb-book.scoped::after{content:'';position:absolute;top:7px;left:23px;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px rgba(16,17,20,.92)}
 /* 放不下文字时（toolbar.mjs 加 .compact）只显示图标，文字视觉隐藏，读屏和悬停提示仍可用。 */
 #endbar.compact .eb{padding:0 10px}
 #endbar.compact .eb span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

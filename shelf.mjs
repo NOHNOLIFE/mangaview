@@ -45,6 +45,8 @@ export function install(ctx){
   const {books,t,fmt,notice,make,icon,iconButton,safe,get,put,shelf}=ctx, holder=$('books');
   addIcons({'layout-grid':'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     'layout-masonry':'<rect x="4" y="4" width="7" height="10" rx="1.5"/><rect x="13" y="4" width="7" height="6" rx="1.5"/><rect x="4" y="16" width="7" height="4" rx="1.5"/><rect x="13" y="12" width="7" height="8" rx="1.5"/>',star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>','chevron-down':'<path d="m6 9 6 6 6-6"/>',plus:'<path d="M12 5v14M5 12h14"/>'});
+  // 布局、筛选面板展开状态和当前筛选条件随「还原默认设置」重置；预设（shelfPresets）和最近用过的标签（recentTags）是用户数据，保留。
+  ctx.prefs.add('shelfLayout');ctx.prefs.add('shelfPanel');ctx.prefs.add('shelfFilter');
   let view=get('shelfView','shelf');if(!['shelf','library','all'].includes(view))view='shelf';
   const tagsOf=b=>Array.isArray(b.tags)?b.tags:[], marksOf=b=>Array.isArray(b.bookmarks)?b.bookmarks.length:0, pagesOf=b=>b.pages?.length??0;
   // ---- 书籍排序：书架、书库、所有书籍共用一个设置，上一本 / 下一本和书架书签列表也按此顺序（ctx.orderBooks）。
@@ -103,9 +105,9 @@ export function install(ctx){
     parsed={words,qtags,min:+F.min||0,max:F.max!==''?+F.max:Infinity,tags:F.tags.map(norm),marked:F.marked};
   }
   compile();
-  // 搜索文本按书缓存，书名、路径或标签变化时才重新归一化。
+  // 搜索文本按书缓存，书名、路径、标签或合并作品各卷（源文件夹）的名称、路径变化时才重新归一化。
   const hays=new WeakMap();
-  function hay(b){const key=[ctx.title(b),b.title??'',b.path??'',...tagsOf(b)].join('\n');let h=hays.get(b);if(h?.key!==key){h={key,text:norm(key.replace(/\n/g,' '))};hays.set(b,h);}return h.text;}
+  function hay(b){const key=[ctx.title(b),b.title??'',b.path??'',...tagsOf(b),...(Array.isArray(b.sources)&&b.sources.length>1?b.sources.flatMap(s=>[s.title??'',s.path??'']):[])].join('\n');let h=hays.get(b);if(h?.key!==key){h={key,text:norm(key.replace(/\n/g,' '))};hays.set(b,h);}return h.text;}
   function matches(b){
     const p=parsed,n=pagesOf(b);if(n<p.min||n>p.max||p.marked&&!marksOf(b))return false;
     if(p.tags.length||p.qtags.length){const mine=tagsOf(b).map(norm);
@@ -115,7 +117,7 @@ export function install(ctx){
     return true;
   }
   ctx.matchFilter=matches;
-  const filtering=()=>!!(F.q.trim()||F.min||F.max||F.tags.length||F.marked);
+  const filtering=()=>!!(F.q.trim()||F.min||F.max||F.tags.length||F.marked);ctx.filtering=filtering; // 底部操作栏据此标出“只在筛选结果内切书”
   const extraFilters=()=>F.tags.length+(F.min||F.max?1:0)+(F.marked?1:0);
   function setFilter(next,{preset=presetId,inputs=true}={}){
     F=clean(next);presetId=preset;compile();storeFilter();if(inputs)syncInputs();draw('filter');

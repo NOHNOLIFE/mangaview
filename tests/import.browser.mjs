@@ -73,6 +73,10 @@ try{
   m=await js('merged()');assert.equal((await js('records()')).length,2);
   assert.deepEqual(m.pages.map(p=>p.name),['Vol 1/1.svg','Vol 1/2.svg','Vol 1/3.svg','Vol 2/1.svg','Vol 2/2.svg','Vol 3/1.svg','Vol 10/1.svg','Vol 10/2.svg']);
   assert.deepEqual(m.bookmarks.map(x=>x.name),['Vol 2/1.svg']);
+  // 搜索也匹配合并作品各卷的文件夹名（刚加入的一卷同样可搜到，搜索文本缓存随源变化失效）。
+  await js(`query.value='vol 3';query.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await wait(()=>js(`[...document.querySelectorAll('#books .book .name')].map(n=>n.textContent).join()==='s'`));
+  await js(`filters.reset()`);await wait(()=>js(`document.querySelectorAll('#books .book').length===2`));
   // 4. 刷新以源为单位：共用的一卷新增图片后，两本书都更新。
   await js(`(async()=>{const d=await dirOf('s/Vol 2');const w=await (await d.getFileHandle('3.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="403"/>');await w.close();})()`);
   await refresh();

@@ -190,7 +190,16 @@ try{
   await move(400,300);await delay(500);
   assert.equal(await js(`getComputedStyle(document.querySelector('#panel .side-open')).visibility`),'hidden');
   const pb=await center('#panel .side-open');await move(pb.x,pb.y);await wait(()=>js(`getComputedStyle(document.querySelector('#panel .side-open')).visibility==='visible'`));
-  await shot('docked-heads');await click(pb.x,pb.y);await wait(isOpen);await delay(300);await shot('overview');await press('Escape');await wait(closed);
+  await shot('docked-heads');
+  // 两个侧栏的头部行等高、按钮在内侧上角且边距相同（左右镜像）。
+  const heads=await js(`(()=>{const q=s=>document.querySelector(s).getBoundingClientRect(),a=q('#shelfmarks .sm-head'),b=q('#panel .pv-head'),d=q('#shelfmarks'),p=q('#panel'),x=q('#shelfmarks .side-open'),y=q('#panel .side-open');
+    return {ha:a.height,hb:b.height,ta:a.top,tb:b.top,ia:d.right-x.right,ib:y.left-p.left,ya:x.top,yb:y.top};})()`);
+  assert.ok(Math.abs(heads.ha-heads.hb)<1&&Math.abs(heads.ta-heads.tb)<1&&Math.abs(heads.ia-heads.ib)<1.5&&Math.abs(heads.ya-heads.yb)<1,'Sidebar heads mirror each other '+JSON.stringify(heads));
+  // 顶缘触发区避开正在显示的侧栏：停在侧栏顶部按钮的上半部不弹工具栏，阅读区上方照常弹出。
+  const sb=await center('#shelfmarks .side-open');
+  for(const [x,y] of [[pb.x,pb.y-10],[sb.x,sb.y-10]]){await move(x,y);await delay(400);assert.equal(await js('document.getElementById("bar").hidden'),true,'Sidebar heads are not part of the top edge');}
+  await move(400,8);await wait(()=>js('!document.getElementById("bar").hidden'));await move(400,300);await wait(()=>js('document.getElementById("bar").hidden'));
+  await move(pb.x,pb.y);await wait(()=>js(`getComputedStyle(document.querySelector('#panel .side-open')).visibility==='visible'`));await click(pb.x,pb.y);await wait(isOpen);await delay(300);await shot('overview');await press('Escape');await wait(closed);
   assert.equal(await js('document.body.classList.contains("docked")'),true,'Docked strip stays');
   // 两个侧栏的最小宽度一致（160px）：保存的过小宽度在读取时也被夹住。
   await js(`localStorage.setItem('mv2:width','60');localStorage.setItem('mv2:shelfmarksWidth','60')`);await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Short'`));

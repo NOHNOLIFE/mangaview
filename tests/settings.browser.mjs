@@ -172,7 +172,10 @@ try{
   await wait(()=>js(`notice.textContent.includes('导入完成：已恢复 2 本书')`));
 
   // 7. 还原默认设置：需确认；只清除设置和布局（偏好键），书籍、书签、标签、缩略图、阅读位置和未知键都保留；重新载入后提示。
-  await js(`localStorage.setItem('mv2:fit','false');localStorage.setItem('mv2:shelfmarks','true');localStorage.setItem('mv2:width','300');localStorage.setItem('mv2:edgeTop','false');localStorage.setItem('mv2:custom','1')`);
+  await js(`localStorage.setItem('mv2:fit','false');localStorage.setItem('mv2:shelfmarks','true');localStorage.setItem('mv2:width','300');localStorage.setItem('mv2:edgeTop','false');localStorage.setItem('mv2:custom','1');
+    localStorage.setItem('mv2:ovLayout','"masonry"');localStorage.setItem('mv2:shelfLayout','"masonry"');localStorage.setItem('mv2:shelfPanel','true');localStorage.setItem('mv2:shelfFilter','{"q":"Al","min":"","max":"","tags":[],"marked":false,"preset":null}');
+    localStorage.setItem('mv2:shelfSort','"nameDesc"');localStorage.setItem('mv2:shelfView','"library"');localStorage.setItem('mv2:shelfmarksWidth','300');
+    localStorage.setItem('mv2:shelfPresets','[{"id":"p1","name":"Mine","f":{"q":"Al"}}]');localStorage.setItem('mv2:recentTags','["action"]')`);
   await go(other);await wait(()=>js(`document.body.classList.contains('shelfmarks')`));
   await openSettings();const resetBtn=`settings.querySelector('.set-foot button')`;
   assert.equal(await js(`${resetBtn}.textContent`),'还原默认设置');assert.match(await js(`settings.querySelector('.set-foot small').textContent`),/书籍、书签、标签和阅读进度不受影响/);
@@ -183,7 +186,8 @@ try{
   await wait(()=>js('!window.before&&!!document.getElementById("settings")&&document.readyState==="complete"'));
   s=await state();
   assert.deepEqual(s.books,kept.books);assert.deepEqual(s.thumbs,kept.thumbs);
-  const prefKeys=['lang','autoCheck','edgeRight','fit','shelfmarks','width','edgeTop'].map(k=>'mv2:'+k);
+  // 书架的布局、筛选、排序、视图与全屏总览的布局属于偏好；书架预设和最近用过的标签是用户数据，保留（由下面的“其余键保留”检查）。
+  const prefKeys=['lang','autoCheck','edgeRight','fit','shelfmarks','width','edgeTop','ovLayout','shelfLayout','shelfPanel','shelfFilter','shelfSort','shelfView','shelfmarksWidth'].map(k=>'mv2:'+k);
   for(const k of prefKeys)assert.equal(s.ls[k],undefined,k+' is reset');
   for(const [k,v] of Object.entries(kept.ls))if(!prefKeys.includes(k))assert.equal(s.ls[k],v,k+' is kept');
   assert.equal(await js('document.documentElement.lang'),'en');assert.equal(await js(`document.body.classList.contains('shelfmarks')`),false);

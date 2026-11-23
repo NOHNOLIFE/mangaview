@@ -119,6 +119,11 @@ try{
   assert.deepEqual(await js(`[...document.querySelectorAll('#shelfmarks .sm-book')].map(s=>s.getAttribute('aria-label'))`),['B10','B35']);
   await js('reader.focus()');await press('pgdn');await wait(()=>js(`bookTitle.textContent==='B35'`));
   await press('pgdn');await wait(()=>js(`bookTitle.textContent==='B10'`));await press('pgup');await wait(()=>js(`bookTitle.textContent==='B35'`));
+  // 底部操作栏的上一本 / 下一本标出“只在筛选结果内切换”。
+  const ih=await js('innerHeight');await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:500,y:ih-60});await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:500,y:ih-4});
+  await wait(()=>js('!endbar.hidden'));
+  assert.deepEqual(await js(`[...endbar.querySelectorAll('.eb-book')].map(b=>b.classList.contains('scoped')+'|'+b.title)`),['true|Previous book · Only switches within the shelf filter results','true|Next book · Only switches within the shelf filter results']);
+  await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:500,y:300});
   // 6. 筛选条件持久保存；切换书架 / 书库时保持。
   await delay(700);await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='B35'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));

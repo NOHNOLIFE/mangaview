@@ -28,6 +28,7 @@ const plain=e=>!e.ctrlKey&&!e.metaKey&&!e.altKey;
 export function install(ctx){
   const {t,fmt,make,main,view}=ctx;
   ctx.dropKey('overview');ctx.dropKey('smOverview'); // 旧版“鼠标移入上角打开”的两个开关已移除
+  ctx.prefs.add('ovLayout');
   const sheets=[],masonry=()=>ctx.get('ovLayout','grid')==='masonry';
   function syncLayout(){for(const s of sheets){const m=masonry(),label=t(m?'ovMasonry':'ovGrid');
     s.lay.querySelector('use').setAttribute('href','#i-'+(m?'masonry':'overview'));s.lay.title=label;s.lay.setAttribute('aria-label',label);}}

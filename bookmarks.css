@@ -27,11 +27,12 @@ body.shelfmarks{--dockL:min(var(--sm-w,260px),45vw)}
 .sm-dock.floating{--leave-x:-16px;background:rgba(16,17,20,.94);backdrop-filter:blur(20px);box-shadow:14px 0 44px rgba(0,0,0,.45);animation:sm-in .22s var(--ease)}
 @keyframes sm-in{from{opacity:0;transform:translateX(-24px)}}
 .sm-dock{position:fixed;z-index:4;left:0;top:var(--top);bottom:0;display:flex;flex-direction:column;width:min(var(--sm-w,260px),45vw);border-right:1px solid var(--line2);background:var(--solid);user-select:none}
-.sm-head{display:flex;flex:none;align-items:center;gap:8px;min-height:52px;padding:0 12px 0 54px;color:var(--muted);font-size:12.5px;font-weight:600}
+.sm-head{display:flex;flex:none;align-items:center;gap:8px;min-height:52px;padding:0 12px;color:var(--muted);font-size:12.5px;font-weight:600}
 .sm-head .count{color:var(--faint);font-variant-numeric:tabular-nums}
-/* 顶部内侧（靠阅读区一端）是打开全屏书架书签的按钮，与右侧缩略图栏的 .pv-head 镜像对称（.side-* 样式在 overview.css）。 */
+/* 顶部内侧（靠阅读区一端）是打开全屏书架书签的按钮，与右侧缩略图栏的 .pv-head 镜像对称：等高，按钮距内侧边缘同为 12px（.side-* 样式在 overview.css）。
+   左上角的菜单按钮（#tab）已不常驻、只在 Tab 键聚焦时浮现，头部行不再为它留出左侧空位。 */
 .sm-head .side-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sm-head .side-open{margin:0 -6px 0 auto}
+.sm-head .side-open{margin:0 0 0 auto}
 .sm-list{flex:1;min-height:0;padding:0 10px 16px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 /* 每本书一组缩略图，不显示书名；组间留空，当前书的一组淡色高亮。 */
 .sm-book{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:6px;padding:6px;border-radius:12px;background:rgba(255,255,255,.03)}
