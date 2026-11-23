@@ -15,17 +15,21 @@ export function needsSort(book,defaults){
   return sortMode(book)!==mode || (override===null && mode==='shuffle' && book.shuffleRevision!==defaults.revision);
 }
 export const byTime=mode=>mode==='timeAsc'||mode==='timeDesc';
-export function sortedPages(pages,mode){
+// 合并作品（多个源文件夹）的页名为“源 key/文件名”，page.src 为源的 key，保证整本书内唯一；单文件夹书的页名就是文件名。
+export const fileOf=p=>p.src?p.name.slice(p.src.length+1):p.name;
+// rank(page)：所属源的次序。按名称排序时先按源、再按文件名，各卷不会交错。
+export function sortedPages(pages,mode,rank){
   if(mode==='shuffle')return shuffled(pages);
   const direction=mode==='nameDesc'||mode==='timeDesc'?-1:1;
+  const byName=(a,b)=>(rank?rank(a)-rank(b):0)||natural(fileOf(a),fileOf(b));
   return [...pages].sort((a,b)=>{
     if(byTime(mode)){
       const knownA=Number.isFinite(a.lastModified), knownB=Number.isFinite(b.lastModified);
       if(knownA!==knownB)return knownA?-1:1;
       if(knownA && a.lastModified!==b.lastModified)return direction*(a.lastModified-b.lastModified);
-      return natural(a.name,b.name);
+      return byName(a,b);
     }
-    return direction*natural(a.name,b.name);
+    return direction*byName(a,b);
   });
 }
 // 只为可见项创建元素；累计高度同时用于虚拟窗口、长图内跳转和续读。

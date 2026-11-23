@@ -56,6 +56,8 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .pick .progress::after{content:'';display:block;width:calc(var(--p,0) * 100%);height:100%;background:var(--accent-grad)}
 .badge{position:absolute;z-index:1;left:8px;top:8px;padding:2px 8px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .book.expired .cover img{filter:grayscale(1);opacity:.5}
+.book .part{position:absolute;z-index:1;left:8px;top:8px;display:grid;place-items:center;width:22px;height:22px;border-radius:999px;background:rgba(10,10,12,.78);color:#ffb35c;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.book .badge~.part{top:36px}.book .part .i{width:13px;height:13px}
 .book .actions{position:absolute;z-index:1;right:6px;top:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
 .book:hover .actions,.book:focus-within .actions{opacity:1}
 .book .actions .icon-btn{width:30px;height:30px;border-radius:8px;background:rgba(10,10,12,.72);backdrop-filter:blur(8px);color:#fff}

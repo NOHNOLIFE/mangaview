@@ -13,12 +13,16 @@ export function grade(book,cand){
   const level=same&&(cover||files>=.9)?2:cover||same?1:0;
   return {level,same,cover,files,score:level*10+(cover?4:0)+(same?2:0)+files};
 }
-// 一对一分配：按匹配强度从高到低，每本书、每个文件夹最多用一次。
+// 分配：按匹配强度从高到低，每个待恢复的源（p.source，旧调用为整本书）最多用一次。
+// 一个文件夹只能作为一本单文件夹书的源，但可以同时是任意多本合并作品（p.merged）中的一卷，每本最多一卷。
 export function assign(pairs){
-  const books=new Set(),cands=new Set(),out=[];
+  const slots=new Set(),singles=new Set(),used=new Map(),out=[];
   for(const p of [...pairs].sort((x,y)=>y.score-x.score)){
-    if(!p.level||books.has(p.book)||cands.has(p.cand))continue;
-    books.add(p.book);cands.add(p.cand);out.push(p);
+    const slot=p.source??p.book;
+    if(!p.level||slots.has(slot))continue;
+    if(p.merged){const mine=used.get(p.book)??new Set();if(mine.has(p.cand))continue;used.set(p.book,mine.add(p.cand));}
+    else{if(singles.has(p.cand))continue;singles.add(p.cand);}
+    slots.add(slot);out.push(p);
   }
   return out;
 }

@@ -114,7 +114,13 @@ body.docked #panel{background:var(--solid);backdrop-filter:none;box-shadow:none;
 #notice:empty{display:none}
 
 /* 拖放提示 */
-#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
+/* popover：放在顶层，书架等模态对话框打开时也看得见；鼠标事件穿透到下层，由 window 上的拖放监听统一处理。 */
+#dropOverlay{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:22px;width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;padding:0;overflow:visible;color:inherit;background:rgba(8,8,12,.62);backdrop-filter:blur(6px);pointer-events:none;animation:fade .15s}
+#dropOverlay .merge{display:flex;align-items:center;gap:14px;min-width:340px;padding:18px 28px;border:2px dashed var(--line2);border-radius:18px;background:rgba(255,255,255,.04);transition:border-color .12s,background-color .12s}
+#dropOverlay .merge span{display:grid;gap:3px}#dropOverlay .merge small{color:var(--faint);font-size:12.5px;font-weight:500}
+#dropOverlay .merge .i{width:30px;height:30px;color:var(--faint)}
+#dropOverlay .merge.over{border-color:var(--accent);background:var(--accent-soft)}#dropOverlay .merge.over .i{color:var(--accent)}
+#dropOverlay:has(.merge.over) .box{opacity:.45;border-color:var(--line2);background:transparent}
 #dropOverlay .box{display:grid;justify-items:center;gap:14px;padding:48px 64px;border:2px dashed var(--accent);border-radius:24px;background:var(--accent-soft);font-size:17px;font-weight:600}
 #dropOverlay .i{width:48px;height:48px;color:var(--accent)}
 

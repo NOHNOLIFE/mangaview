@@ -1,9 +1,9 @@
 import {detect,translate,languageList} from './lang.mjs';
-import {byTime,sortedPages,folderSort,needsSort,isImage,natural} from './model.mjs';
+import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.mjs';
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive} from './sources.mjs';
+import {source,scan,fileGroups,handleGroups,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -121,8 +121,12 @@ function select(book){flush();current=book||null;queueMicrotask(()=>emit('select
   if(book && needsSort(book,defaultSort))safe(arrange)(book);
 }
 function reloadView(anchor=view.anchor()){if(!current)return;$('access').hidden=true;view.show(current,anchor);updateProgress();}
-// 过期：文件夹找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
-function expired(b){return !!b.missing||!b.dir&&!b.pages.some(p=>p.handle)&&!isLive(b);}
+// 过期：全部源（文件夹）都找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
+function expired(b){return b.sources?.length?b.sources.every(s=>down(b,s)):!b.pages.some(p=>p.handle)&&!isLive(b);}
+// 合并作品中暂时找不到的卷数（整本过期时为 0）：只在书籍卡片上给一个小提示。
+const lostSources=b=>b.sources?.length>1&&!expired(b)?b.sources.filter(s=>down(b,s)).length:0;
+// 合并作品按卷的顺序排序（先按卷、再按文件名）；单文件夹书不需要。
+const rankOf=b=>{if(!(b.sources?.length>1))return undefined;const m=new Map(b.sources.map((s,i)=>[s.key,i]));return p=>m.get(keyOf(p))??m.size;};
 // 上一本 / 下一本在当前书所在的列表（书架或书库）内切换，跳过过期书。
 // 顺序与书架页相同（ctx.orderBooks，由 shelf.mjs 按“书籍排序”设置提供）。
 function readingList(book){const place=book?.place??'shelf';return ctx.orderBooks([...books.values()].filter(b=>b.place===place&&!expired(b)));}
@@ -134,47 +138,130 @@ function step(d){
 }
 
 // 不对未打开的书读取原图；目录本身的只读句柄可跨启动保存。
-// 同一个文件夹（句柄相同）合并为同一本书；同名但位置不同的文件夹是不同的书。
-// 找不到时再看过期书：文件夹名和封面摘要都一致时接回原记录，标签、书签和进度随之恢复。
-async function addGroup(group){
+// 同一个文件夹（句柄相同）对应同一本单文件夹书；同名但位置不同的文件夹是不同的书。
+// 同一个文件夹还可以是任意多本合并作品中的一卷：导入它时，这些书里的这一卷也按最新内容更新。
+// 找不到时再看过期书或缺失的卷：文件夹名和封面摘要都一致时接回原记录，标签、书签和进度随之恢复。
+const sameDir=async(a,b)=>!!a&&!!b&&(a===b||await a.isSameEntry(b).catch(()=>false));
+async function refsTo(dir,title){const out=[];for(const b of books.values())for(const s of b.sources)if(s.title===title&&await sameDir(s.dir,dir))out.push({book:b,source:s});return out;}
+// later：合并作品中的卷先记下，整批导入完后每本书只排序保存一次（一次导入很多卷时不反复写整本书的记录）。
+async function addGroup(group,place='shelf',later=null){
   let book;
-  if(group.dir)for(const b of books.values())if(b.title===group.title&&b.dir&&await group.dir.isSameEntry(b.dir).catch(()=>false)){book=b;break;}
-  if(!book&&group.dir)book=await ctx.autoMatch?.(group);
+  const vol=(b,s)=>{if(!later)return relink(b,group,s);if(!later.has(b))later.set(b,[]);later.get(b).push({cand:group,source:s});};
+  if(group.dir){
+    for(const r of await refsTo(group.dir,group.title))if(r.source.key)await vol(r.book,r.source);else book=r.book;
+    // 过期书或合并作品中缺失的卷：同名同封面的接回（一个文件夹只接回一本单文件夹书，但可同时接回多本合并作品中的卷）。
+    for(const p of await ctx.autoMatch?.(group)??[])if(p.merged)await vol(p.book,p.source);else book??=p.book;
+  }
   if(!group.title){const names=new Set(group.pages.map(p=>p.name));book=[...books.values()].find(b=>!b.title&&!b.pages.some(p=>names.has(p.name)));}
-  if(book){book.place='shelf';await relink(book,group);}else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group});books.set(book.id,book);await persist(book);}
+  if(book){book.place=place;await relink(book,group);}else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group,place});books.set(book.id,book);await persist(book);}
   return book;
 }
-// 把书目接到（新的）文件夹上：保留仍存在的页面及其尺寸，追加新图，去掉已不存在的图。
-async function relink(book,group){
+// 把书的一个源接到（新的）文件夹上：保留仍存在的页面及其尺寸，追加新图，去掉已不存在的图。
+// links：[{cand,source}]，同一本书的多个源一次处理完再排序保存。
+function link(book,cand,s){
+  applyNames(book,s,cand.pages.map(p=>p.name),true);
+  s.dir=cand.dir;s.title=cand.title;if(cand.path)s.path=cand.path;delete s.missing;
+  if(!s.key){book.title=cand.title;if(cand.path)book.path=cand.path;}
+}
+async function relink(book,cand,s=book.sources[0]){return relinkAll(book,[{cand,source:s}]);}
+async function relinkAll(book,links){
   const before=book===current?view.anchor():null;
-  if(group.dir){
-    const fresh=new Map(group.pages.map(p=>[p.name,p]));
-    const retained=book.pages.filter(p=>fresh.delete(p.name));
-    for(const p of retained)delete p.lastModified;
-    book.pages=retained.concat([...fresh.values()]);book.dir=group.dir;delete book.folderTime;
-    if(group.path)book.path=group.path;if(group.title)book.title=group.title;delete book.missing;
-  }else book.pages.push(...group.pages);
+  for(const {cand,source:s} of links){
+    if(cand.dir&&s)link(book,cand,s);else book.pages.push(...cand.pages);
+  }
+  delete book.folderTime;settle(book);
   await arrange(book,false,before);emit('books');
 }
-async function add(groups){
-  let first=true;
-  notice('scanning');
-  for await(const group of groups){
-    const book=await addGroup(group);
-    if(first){select(book);first=false;}
-  }
-  if(first)notice('noImages');
-  else if($('notice').textContent===t('scanning'))$('notice').textContent='';
+// 书架页正显示「书库」时导入到书库，其他情况导入到书架。书架页开着时不切换正在读的书，只提示导入结果。
+const importPlace=()=>shelf.open&&ctx.shelfView?.()==='library'?'library':'shelf';
+function imported(list,place){
+  if(!list.length){notice('noImages');return;}
+  if($('notice').textContent===t('scanning'))$('notice').textContent='';
+  if(shelf.open&&current)notice(null,fmt(place==='library'?'addedLibraryN':'addedShelfN',{n:list.length}));
   ctx.redrawShelf();emit('books');
 }
-let pendingInput=null;
-function input(kind,book){pendingInput=book;const el=$(kind+'Input');el.value='';el.click();}
+async function add(groups,place=importPlace()){
+  const list=[],quiet=shelf.open&&!!current,later=new Map();
+  notice('scanning');
+  for await(const group of groups){
+    const book=await addGroup(group,place,later);
+    if(!list.includes(book))list.push(book);
+    if(list.length===1&&!quiet&&current!==book)select(book);
+  }
+  for(const [b,links] of later)if(books.has(b.id))await relinkAll(b,links);
+  imported(list,place);
+}
+// 导入为单个作品：所选的一个或多个文件夹（含其下所有带图片的子文件夹）合成一本书，每个文件夹是一个源。
+// 同一组所选文件夹（或同一组源）再次导入时更新已有的那本；只有一个带图片的文件夹时按普通导入处理。散图仍单独导入。
+async function addMerged(roots,groups,place=importPlace()){
+  const folders=[],loose=[];
+  notice('scanning');
+  for await(const g of groups){(g.path?folders:loose).push(g);if(folders.length%50===0&&folders.length)notice(null,fmt('scanningN',{n:folders.length}),120000);}
+  if(folders.length<2)return add(folders.concat(loose),place);
+  const order=mergeKeys(folders);
+  // 先按普通导入的规则更新引用这些文件夹的书、接回缺失的卷（单文件夹书与合并作品可以共用一个源）；每本书只排序保存一次。
+  const links=new Map(),push=(b,cand,source)=>{if(!links.has(b))links.set(b,[]);links.get(b).push({cand,source});};
+  for(const {group} of order){
+    if(!group.dir)continue;
+    for(const r of await refsTo(group.dir,group.title))push(r.book,group,r.source);
+    for(const p of await ctx.autoMatch?.(group)??[])push(p.book,group,p.source);
+  }
+  for(const [b,list] of links)await relinkAll(b,list);
+  let book=await findMerged(roots,folders);
+  if(book){book.place=place;if(roots?.length)book.roots=roots;await rebuild(book,order);}
+  else{
+    const names=roots?.length?roots.map(r=>r.name):[...new Set(folders.map(g=>g.path.split('/')[0]))];
+    const first=names.sort(natural)[0];
+    const pages=order.flatMap(({group,key})=>group.pages.map(p=>{p.src=key;p.name=key+'/'+p.name;return p;})); // 保持页对象本身（回退模式下与本次会话的 File 绑定）
+    book=normalize({id:crypto.randomUUID(),sortOverride:null,title:first,...names.length===1&&{path:names[0]},...roots?.length&&{roots},place,
+      sources:order.map(({group,key})=>({key,title:group.title,...group.path&&{path:group.path},...group.dir&&{dir:group.dir}})),pages});
+    books.set(book.id,book);await persist(book);
+  }
+  const list=[book];
+  for(const g of loose)list.push(await addGroup(g,place));
+  if(!(shelf.open&&current)&&current!==book)select(book);
+  imported(list,place);
+  notice(null,fmt('mergedDone',{name:title(book),n:book.sources.length}));
+}
+async function findMerged(roots,folders){
+  const same=async(a,b,name)=>a.length===b.length&&(await Promise.all(b.map(async x=>{for(const y of a)if(name(y)===name(x)&&await sameDir(y.dir??y,x.dir??x))return true;return false;}))).every(Boolean);
+  for(const b of books.values()){
+    if(!isMerged(b))continue;
+    if(roots?.length&&b.roots?.length&&await same(b.roots,roots,x=>x.name))return b;
+    if(await same(b.sources,folders,x=>x.title))return b;
+  }
+  return null;
+}
+// 用新的扫描结果重建合并作品：同一文件夹（或相对路径相同）的卷保留原 key，页名不变，书签和进度随之保留；
+// 新文件夹追加为新卷；不在其中的卷连同其页面一起移除。order 为 mergeKeys 的结果，决定各卷的顺序。
+async function rebuild(book,order){
+  const before=book===current?view.anchor():null,old=[...book.sources],next=[];
+  for(const {group:g,key} of order){
+    let i=-1;for(let j=0;j<old.length&&i<0;j++)if(old[j].title===g.title&&await sameDir(old[j].dir,g.dir))i=j;
+    if(i<0)i=old.findIndex(s=>s.key===key);
+    let s;
+    if(i>=0){s=old.splice(i,1)[0];link(book,g,s);}
+    else{let k=key;for(let n=2;old.some(x=>x.key===k)||next.some(x=>x.key===k);n++)k=key+' ('+n+')';
+      s={key:k,title:g.title,...g.path&&{path:g.path},...g.dir&&{dir:g.dir}};book.pages.push(...g.pages.map(p=>makePage(k,p.name)));}
+    next.push(s);
+  }
+  const gone=new Set(old.map(s=>s.key));
+  if(gone.size){const keep=p=>!gone.has(keyOf(p));book.pages=book.pages.filter(keep);if(book.parked)book.parked=book.parked.filter(keep);}
+  book.sources=next;delete book.folderTime;settle(book);
+  await arrange(book,false,before);emit('books');
+}
+let pendingInput=null,pendingMerge=false;
+function input(kind,book,merge=false){pendingInput=book;pendingMerge=merge;const el=$(kind+'Input');el.value='';el.click();}
 for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
-  const groups=fileGroups(e.target.files),book=pendingInput;pendingInput=null;
-  if(book){let count=0;for(const g of groups)if(!book.title||g.title===book.title||groups.length===1)count+=reconnect(book,g);await rebound(book,count);}
+  const groups=fileGroups(e.target.files),book=pendingInput,merge=pendingMerge;pendingInput=null;pendingMerge=false;
+  if(book){let count=0;
+    for(const g of groups){const s=isMerged(book)?book.sources.find(s=>s.title===g.title):book.sources[0];
+      if(isMerged(book)?s:!book.title||g.title===book.title||groups.length===1)count+=reconnect(book,g,s);}
+    await rebound(book,count);}
+  else if(merge)await addMerged(null,groups);
   else await add(groups);
 });
-async function rebound(book,count){if(!count){notice('noImages');return;}await arrange(book);}
+async function rebound(book,count){if(!count){notice('noImages');return;}settle(book);await arrange(book);}
 async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
     if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
@@ -183,16 +270,31 @@ async function pick(kind,book=null){
     if(book){for await(const g of handleGroups(handles))await rebound(book,reconnect(book,g));}else await add(handleGroups(handles));
   }else input(kind,book);
 }
-let dragDepth=0;const dropOverlay=$('dropOverlay');
-window.addEventListener('dragenter',e=>{if(e.dataTransfer.types.includes('Files')){dragDepth++;dropOverlay.hidden=false;}});
-window.addEventListener('dragleave',e=>{if(e.dataTransfer.types.includes('Files')&&--dragDepth<=0){dragDepth=0;dropOverlay.hidden=true;}});
-window.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';}});
+// 不依赖拖拽的「导入为单个作品」：选一个文件夹，其下所有带图片的文件夹合成一本。
+async function pickMerged(){
+  if(!window.showDirectoryPicker)return input('folder',null,true);
+  const dir=await showDirectoryPicker({mode:'read'});await addMerged([dir],scan(dir));
+}
+// 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。下方一小块区域是「导入为单个作品」。
+let dragDepth=0;const dropOverlay=$('dropOverlay'),dropMerge=$('dropMerge');
+const overMerge=e=>{if(dropOverlay.hidden)return false;const r=dropMerge.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;};
+function overlay(show){
+  if(show){$('dropText').textContent=t(importPlace()==='library'?'dropLibrary':'dropHere');dropOverlay.hidden=false;
+    if(dropOverlay.showPopover&&!dropOverlay.matches(':popover-open'))try{dropOverlay.showPopover();}catch{}}
+  else{dropOverlay.hidden=true;dropMerge.classList.remove('over');if(dropOverlay.hidePopover&&dropOverlay.matches(':popover-open'))try{dropOverlay.hidePopover();}catch{}}
+}
+window.addEventListener('dragenter',e=>{if(e.dataTransfer.types.includes('Files')){dragDepth++;if(dropOverlay.hidden)overlay(true);}});
+window.addEventListener('dragleave',e=>{if(e.dataTransfer.types.includes('Files')&&--dragDepth<=0){dragDepth=0;overlay(false);}});
+window.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';dropMerge.classList.toggle('over',overMerge(e));}});
 window.addEventListener('drop',e=>{
-  dragDepth=0;dropOverlay.hidden=true;
+  const merge=overMerge(e),place=importPlace();
+  dragDepth=0;overlay(false);
   if(!e.dataTransfer.types.includes('Files'))return;e.preventDefault();
   const items=[...e.dataTransfer.items].filter(x=>x.kind==='file');
-  if(items.length&&items[0].getAsFileSystemHandle){const handles=items.map(x=>x.getAsFileSystemHandle());safe(async()=>add(handleGroups((await Promise.all(handles)).filter(Boolean))))();}
-  else safe(add)(fileGroups(e.dataTransfer.files));
+  if(items.length&&items[0].getAsFileSystemHandle){const handles=items.map(x=>x.getAsFileSystemHandle());safe(async()=>{
+    const list=(await Promise.all(handles)).filter(Boolean);
+    if(merge)await addMerged(list.filter(h=>h.kind==='directory'),handleGroups(list),place);else await add(handleGroups(list),place);})();}
+  else safe(merge?addMerged:add)(...merge?[null,fileGroups(e.dataTransfer.files),place]:[fileGroups(e.dataTransfer.files),place]);
 });
 
 async function copy(value){await navigator.clipboard.writeText(value);notice('copied');}
@@ -202,24 +304,42 @@ async function discard(book){
 }
 async function remove(book){if(!book||!confirm(t('confirmRemove')+'\n'+title(book)))return;await discard(book);ctx.redrawShelf();}
 
-// 刷新：只列目录、不读图。浏览器无法区分“文件夹已删除”和“移动硬盘未连接”，
-// 所以找不到的书只标记为过期（书架“过期书籍”分类），记录、标签和书签都保留，用户手动删除才清除。
-async function check(book,ask){
-  let state=await book.dir.queryPermission?.({mode:'read'})??'granted';
-  if(state==='prompt'&&ask)state=await book.dir.requestPermission({mode:'read'}).catch(()=>'prompt');
-  if(state!=='granted')return 'denied';
-  const names=[];
-  try{for await(const h of book.dir.values())if(h.kind==='file'&&isImage(h.name))names.push(h.name);}
-  catch(e){if(e.name==='NotFoundError')return 'gone';if(['NotAllowedError','SecurityError'].includes(e.name))return 'denied';throw e;}
-  if(!names.length||!books.has(book.id))return books.has(book.id)?'gone':'same';
-  delete book.missing;
-  const now=new Set(names),old=new Set(book.pages.map(p=>p.name));
-  const fresh=names.filter(n=>!old.has(n)).sort(natural),removed=book.pages.length-book.pages.filter(p=>now.has(p.name)).length;
-  if(!fresh.length&&!removed)return 'same';
-  const before=book===current?view.anchor():null;
-  book.pages=book.pages.filter(p=>now.has(p.name)).concat(fresh.map(name=>({name})));delete book.folderTime; // 文件夹时间待重新计算
-  await arrange(book,false,before);
-  return {added:fresh.length,removed};
+// 刷新：以源（文件夹）为单位，只列目录、不读图；同一个文件夹被多本书引用时只列一次，结果同步到所有引用它的书。
+// 浏览器无法区分“文件夹已删除”和“移动硬盘未连接”，所以找不到的源只做标记：全部源都找不到的书归入「过期书籍」，
+// 部分找不到的书照常可读，缺失那几卷的页暂时不显示。记录、标签和书签都保留，用户手动删除才清除。
+async function sync(list,ask){
+  const byTitle=new Map(),units=[];
+  for(const b of list)for(const s of b.sources){
+    if(!s.dir)continue;
+    const group=byTitle.get(s.title)??[];byTitle.set(s.title,group);
+    let u=group.find(u=>u.dir===s.dir);
+    if(!u)for(const x of group)if(await sameDir(x.dir,s.dir)){u=x;break;}
+    if(!u){u={dir:s.dir,refs:[]};group.push(u);units.push(u);}
+    u.refs.push({book:b,source:s});
+  }
+  // 合并作品先向当初选的文件夹请求一次授权，其下各卷随之可读，不必逐卷弹窗。
+  if(ask&&current?.roots)for(const r of current.roots)if(await r.queryPermission?.({mode:'read'})==='prompt')await r.requestPermission({mode:'read'}).catch(()=>{});
+  for(const u of units)u.result=await listDir(u.dir,ask&&u.refs.some(r=>r.book===current));
+  const per=new Map();
+  for(const u of units)for(const r of u.refs){if(!per.has(r.book))per.set(r.book,[]);per.get(r.book).push([r.source,u.result]);}
+  const out={updated:0,gone:0,partial:0,denied:0,added:0,removed:0};
+  for(const [book,results] of per){
+    if(!books.has(book.id))continue;
+    const before=book===current?view.anchor():null;let changed=false,added=0,removed=0,denied=false;
+    for(const [s,r] of results){
+      if(!book.sources.includes(s))continue; // 列目录期间这一卷已被移除或重建
+      if(r==='denied')denied=true;
+      else if(r==='gone'){if(!s.missing){s.missing=true;changed=true;}}
+      else{if(s.missing){delete s.missing;changed=true;}const d=applyNames(book,s,r);added+=d.added;removed+=d.removed;}
+    }
+    if(added||removed)delete book.folderTime; // 文件夹时间待重新计算
+    if(settle(book)||added||removed){await arrange(book,false,before);changed=true;}
+    if(denied)out.denied++;
+    if(expired(book))out.gone++;else if(book.sources.length>1&&book.sources.some(s=>down(book,s)))out.partial++;
+    if(changed&&!expired(book))out.updated++;
+    out.added+=added;out.removed+=removed;
+  }
+  return out;
 }
 let refreshing=null;
 function busy(on){for(const el of document.querySelectorAll('[data-act="refresh"]')){el.classList.toggle('busy',on);el.disabled=on;}}
@@ -227,17 +347,13 @@ function refreshAll(manual){
   if(refreshing)return refreshing;
   refreshing=(async()=>{
     busy(true);if(manual)notice('refreshing');
-    let updated=0,denied=0,gone=0;
-    for(const b of [...books.values()]){
-      if(!b.dir||!books.has(b.id))continue;
-      const r=await check(b,manual&&b===current);
-      if(r==='denied')denied++;else if(r==='gone'){b.missing=true;gone++;}else if(r!=='same')updated++;
-    }
+    const r=await sync([...books.values()],manual);
     ctx.redrawShelf();emit('books');
     const parts=[];
-    if(updated)parts.push(fmt('updatedN',{n:updated}));
-    if(gone)parts.push(fmt('expiredN',{n:gone}));
-    if(denied&&manual)parts.push(fmt('deniedN',{n:denied}));
+    if(r.updated)parts.push(fmt('updatedN',{n:r.updated}));
+    if(r.gone)parts.push(fmt('expiredN',{n:r.gone}));
+    if(r.partial)parts.push(fmt('partialN',{n:r.partial}));
+    if(r.denied&&manual)parts.push(fmt('deniedN',{n:r.denied}));
     if(parts.length)notice(null,parts.join(' · '));else if(manual)notice('refreshDone');
   })().finally(()=>{refreshing=null;busy(false);});
   return refreshing;
@@ -245,10 +361,11 @@ function refreshAll(manual){
 // 切回窗口时只检查当前书：在资源管理器里增删图片后回来即可看到变化。
 let focusCheck=0;
 window.addEventListener('focus',safe(async()=>{
-  const book=current;if(!book?.dir||refreshing||Date.now()-focusCheck<1500)return;focusCheck=Date.now();
-  const r=await check(book,false);
-  if(r==='gone'){book.missing=true;notice(null,fmt('expiredN',{n:1}));ctx.redrawShelf();}
-  else if(typeof r==='object'&&book===current)notice(null,fmt('pagesChanged',{a:r.added,r:r.removed}));
+  const book=current;if(!book?.sources.some(s=>s.dir)||refreshing||Date.now()-focusCheck<1500)return;focusCheck=Date.now();
+  const r=await sync([book],false);
+  if(r.gone){notice(null,fmt('expiredN',{n:1}));ctx.redrawShelf();}
+  else if((r.added||r.removed)&&book===current)notice(null,fmt('pagesChanged',{a:r.added,r:r.removed}));
+  else if(r.updated){ctx.redrawShelf();emit('books');}
 }));
 async function clearAll(){if(!books.size||!confirm(t('confirmClear')))return;
   for(const book of books.values())sortRequests.delete(book);
@@ -276,7 +393,7 @@ async function arrange(book,manual=false,anchor){
     else if($('notice').textContent===t('readingTimes'))$('notice').textContent='';
   }
   if(book===current && anchor===undefined)anchor=view.anchor();
-  if(reorder)book.pages=sortedPages(book.pages,mode);
+  if(reorder)book.pages=sortedPages(book.pages,mode,rankOf(book));
   if(!override && mode==='shuffle')book.shuffleRevision=defaultSort.revision;
   else delete book.shuffleRevision;
   book.sortMode=mode;delete book.random;
@@ -323,9 +440,13 @@ const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf
   fit:()=>{view.fit=!view.fit;put('fit',view.fit);view.layout();toolsState();},
   full:()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(),
   preview:()=>{pinned=!pinned;put('preview',pinned);preview(pinned);},refresh:()=>refreshAll(true),clear:clearAll,
-  allow:async()=>{const b=current;if(!b)return;const h=b.dir||unavailablePage?.handle;
-    if(!h)return pick(b.title?'folder':'file',b);if(await h.requestPermission({mode:'read'})==='granted'&&current===b)reloadView();},
-  locate:()=>current&&pick(current.title?'folder':'file',current)};
+  // 合并作品先向用户当初选的文件夹请求授权，一次即可覆盖其下各卷。
+  allow:async()=>{const b=current;if(!b)return;const h=(unavailablePage&&sourceOf(b,unavailablePage)?.dir)||b.sources.find(s=>s.dir)?.dir||unavailablePage?.handle;
+    if(!h)return pick(b.title?'folder':'file',b);let ok=false;
+    for(const x of [...b.roots||[],h])if(await x.requestPermission({mode:'read'}).catch(()=>'denied')==='granted')ok=true;
+    if(ok&&current===b)reloadView();},
+  locate:()=>current&&(isMerged(current)&&window.showDirectoryPicker&&ctx.restoreOne?ctx.restoreOne(current):pick(current.title?'folder':'file',current)),
+  merge:pickMerged};
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();else{const action=e.target.closest('[data-act]')?.dataset.act;if(action)safe(actions[action])();}});
 
 const bar=$('bar'),toolbar=$('toolbar'),tab=$('tab');let barTimer,edgeTimer=0;
@@ -403,13 +524,24 @@ function setLang(code){put('lang',code||null);lang=code||detect(navigator.langua
 window.addEventListener('languagechange',()=>{if(langPref())return;lang=detect(navigator.languages);relocalize();});
 
 // 旧记录补齐新字段：place 区分书架 / 书库；tags、bookmarks 随书目保存，导出时一并带走。
-function normalize(b){b.place??='shelf';b.tags??=[];b.bookmarks??=[];b.added??=Date.now();return b;}
+// v2.1 及以前的书只有一个文件夹（b.dir / b.title / b.path），转为一个 key 为 '' 的源。找不到的标记只在本次会话有效，
+// 载入时清掉并把暂存的页放回原位，由启动时的检查重新判断。
+function normalize(b){
+  b.place??='shelf';b.added??=Date.now();
+  for(const k of ['tags','bookmarks','pages'])if(!Array.isArray(b[k]))b[k]=[];if(b.parked!=null&&!Array.isArray(b.parked))delete b.parked;
+  if(!Array.isArray(b.sources))b.sources=b.dir||b.title!=null?[{key:'',title:b.title??null,...b.path&&{path:b.path},...b.dir&&{dir:b.dir}}]:[];
+  b.sources=b.sources.filter(s=>s&&typeof s==='object'&&typeof s.key==='string');
+  if(b.roots!=null&&!Array.isArray(b.roots))delete b.roots;
+  for(const s of b.sources)delete s.missing;delete b.dir;delete b.missing;
+  if(b.parked?.length){b.pages=b.pages.concat(b.parked);delete b.parked;if(sortMode(b)!=='shuffle')b.pages=sortedPages(b.pages,sortMode(b),rankOf(b));}
+  return b;
+}
 // 功能模块共用的上下文。keys：{down(e)→true 表示已处理, up(e), blur()}；settings：设置面板条目，见 settings 描述。
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
-  expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
+  expired,readingList,relink,relinkAll,rebuild,mergeKeys,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -417,7 +549,7 @@ ctx.settings.push(
   {id:'edgeRight',group:'reading',label:'edgeRight',type:'toggle',get:()=>get('edgeRight',true),set:v=>put('edgeRight',v)});
 
 
-try{for(const b of await library('getAll')){delete b.missing;const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
+try{for(const b of await library('getAll')){try{const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);
 toolPanel(ctx);

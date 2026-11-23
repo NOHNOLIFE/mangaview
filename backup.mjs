@@ -28,11 +28,16 @@ extend({
   bakReplaced:['Import complete: {books} books restored.','导入完成：已恢复 {books} 本书。','読み込み完了：{books} 冊を復元しました。','가져오기 완료: 책 {books}권 복원.'],
   bakRelink:['Reconnect their folders to read imported books.','导入的书需重新关联文件夹后才能阅读。','読み込んだ本はフォルダーを再度関連付けると読めます。','가져온 책은 폴더를 다시 연결해야 읽을 수 있습니다.']
 });
-const APP='MangaView', FORMAT=1, PREFIX='mv2:', DONE='mv-backup-result', types=[{description:'MangaView backup',accept:{'application/json':['.json']}}];
+const APP='MangaView', FORMAT=2, PREFIX='mv2:', DONE='mv-backup-result', types=[{description:'MangaView backup',accept:{'application/json':['.json']}}];
 const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const size=n=>!Number.isFinite(n)?'?':n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB';
 // 去掉不能序列化或只在本次会话有效的字段：目录 / 文件句柄、失效标记。
-export function strip(book){const {dir,missing,...rest}=book;return {...rest,pages:(book.pages||[]).map(({handle,...p})=>p)};}
+// 格式 2：书目带 sources（每个源一个文件夹）；格式 1 的单文件夹记录在载入时转为一个源（见 app.mjs normalize）。
+const page=({handle,...p})=>p;
+export function strip(book){const {dir,missing,roots,...rest}=book,out={...rest,pages:(book.pages||[]).map(page)};
+  if(Array.isArray(book.parked))out.parked=book.parked.map(page);
+  if(Array.isArray(book.sources))out.sources=book.sources.map(({dir,missing,...s})=>s);
+  return out;}
 const noHandles=(k,v)=>(typeof FileSystemHandle!=='undefined'&&v instanceof FileSystemHandle)||v instanceof Blob?undefined:v;
 const mv2Keys=()=>Object.keys(localStorage).filter(k=>k.startsWith(PREFIX));
 function base64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.slice(r.result.indexOf(',')+1));r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});}
@@ -69,12 +74,14 @@ class BackupError extends Error{constructor(key){super(key);this.key=key;}}
 export async function parse(file){
   let data;try{data=JSON.parse(await file.text());}catch{throw new BackupError('bakInvalid');}
   if(!isObj(data)||data.app!==APP)throw new BackupError('bakNotBackup');
-  if(data.format!==FORMAT)throw new BackupError(Number(data.format)>FORMAT?'bakNewer':'bakInvalid');
+  if(data.format!==FORMAT&&data.format!==1)throw new BackupError(Number(data.format)>FORMAT?'bakNewer':'bakInvalid');
   const list=data.thumbs??[];
   if(!isObj(data.storage)||!Array.isArray(data.books)||!Array.isArray(list))throw new BackupError('bakInvalid');
   const ids=new Set();
   for(const b of data.books){
-    if(!isObj(b)||typeof b.id!=='string'||!b.id||ids.has(b.id)||!Array.isArray(b.pages)||b.pages.some(p=>!isObj(p)||typeof p.name!=='string'))throw new BackupError('bakInvalid');
+    const bad=list=>list!=null&&(!Array.isArray(list)||list.some(p=>!isObj(p)||typeof p.name!=='string'));
+    if(!isObj(b)||typeof b.id!=='string'||!b.id||ids.has(b.id)||!Array.isArray(b.pages)||bad(b.pages)||bad(b.parked)
+      ||b.sources!=null&&(!Array.isArray(b.sources)||b.sources.some(s=>!isObj(s)||typeof s.key!=='string')))throw new BackupError('bakInvalid');
     ids.add(b.id);
   }
   const storage=Object.entries(data.storage).filter(([k,v])=>k.startsWith(PREFIX)&&typeof v==='string');
