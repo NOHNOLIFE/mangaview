@@ -100,7 +100,14 @@ try{
   await js('restoreGo.click()');
   await wait(async()=>{const r=await js('records()');return r.length===3&&r.some(b=>b.title==='Zeta'&&b.place==='shelf'&&!b.missing);});
   await wait(async()=>(await count('shelf'))==='3');assert.ok(await js(`document.querySelector('[data-view="expired"]').hidden`));
-  assert.deepEqual(errors,[]);console.log('PASS: cover thumbnails, masonry, tags, tag search, bulk move, missing books, batch restore, auto relink, forced restore');
+  // 删除后晚到的保存（这里用删除前打开的书名编辑框模拟后台任务）不会把刚删的记录写回。
+  await js(`[...document.querySelectorAll('#books .book')].find(x=>x.querySelector('.pick').getAttribute('aria-label')==='Zeta').querySelector('[aria-label="编辑书名"]').click()`);
+  await wait(()=>js('renameBook.open'));
+  await js(`window.confirm=()=>true;[...document.querySelectorAll('#books .book')].find(x=>x.querySelector('.pick').getAttribute('aria-label')==='Zeta').querySelector('[aria-label="删除记录"]').click()`);
+  await wait(async()=>(await js('records()')).length===2);
+  await js(`renameInput.value='Zeta again';renameForm.requestSubmit()`);await delay(400);
+  assert.deepEqual((await js('records()')).map(b=>b.title).sort(),['Alpha','Gamma2'],'已删除的书不被写回');
+  assert.deepEqual(errors,[]);console.log('PASS: cover thumbnails, masonry, tags, tag search, bulk move, missing books, batch restore, auto relink, forced restore, no write-back after delete');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

@@ -18,10 +18,8 @@ extend({
   presetSaved:['Preset saved','已保存预设','プリセットを保存しました','프리셋을 저장했습니다'],presetAll:['All books (no filter)','全部书籍（无筛选）','すべての本（絞り込みなし）','모든 책 (필터 없음)'],
   tagRecent:['Recent','最近','最近','최근'],tagHint:['↑ ↓ to choose · Enter to add','↑ ↓ 选择 · 回车添加','↑ ↓ で選択 · Enter で追加','↑ ↓ 선택 · Enter 추가'],
   storageHigh:['Browser storage is {p}% full. Delete records of books you no longer need (covers and bookmark thumbnails take most of the space).','浏览器存储空间已用 {p}%，建议删除不再需要的旧书记录（主要占用来自封面和书签缩略图）。','ブラウザーの保存領域が {p}% 使用されています。不要になった本の記録を削除してください（主に表紙としおりのサムネイルが容量を使います）。','브라우저 저장 공간이 {p}% 찼습니다. 더 이상 필요 없는 책 기록을 삭제하세요(표지와 책갈피 썸네일이 대부분을 차지합니다).'],
-  storageLabel:['Storage used','存储占用','使用中の保存領域','저장 공간 사용량'],storageValue:['{used} of {quota} ({p}%)','{used} / {quota}（{p}%）','{used} / {quota}（{p}%）','{used} / {quota} ({p}%)'],
   layoutGrid:['Grid','普通网格','グリッド','격자'],layoutMasonry:['Masonry','瀑布流','マソンリー','메이슨리'],
-  layoutSwitch:['Layout: {now} — click for {next}','布局：{now}（点击切换为{next}）','レイアウト：{now}（クリックで{next}に切替）','레이아웃: {now} (클릭하면 {next}(으)로 전환)'],
-  storageHint:['Book records, covers and bookmark thumbnails. Image files are never copied.','书目记录、封面和书签缩略图；不保存原图。','本の記録・表紙・しおりのサムネイル。元画像はコピーしません。','책 기록, 표지, 책갈피 썸네일. 원본 이미지는 복사하지 않습니다.']
+  layoutSwitch:['Layout: {now} — click for {next}','布局：{now}（点击切换为{next}）','レイアウト：{now}（クリックで{next}に切替）','레이아웃: {now} (클릭하면 {next}(으)로 전환)']
 });
 const $=id=>document.getElementById(id);
 // 图标直接补进页面的 sprite，避免多个模块同时改 index.html。
@@ -154,6 +152,7 @@ export function install(ctx){
     const page=coverPage(b);
     if(page&&!coverFresh(b)){
       const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
+      if(!books.has(b.id))return; // 生成期间这本书已被删除
       await ctx.saveThumb(b.id+':cover',th);
       b.fp={cover:{name:page.name,size:file.size,hash:await digest(file)},thumb:true};b.coverRatio=th.h/th.w;
     }
@@ -472,7 +471,6 @@ export function install(ctx){
 
   // ---- 存储空间：低频检查（启动后一次、打开书架时最多每 10 分钟一次）。占用达到配额的 85% 时提示删除旧书记录。
   let storageAt=0,storageInfo=null,storageWarned=false;
-  const size=n=>n>=1e9?(n/1e9).toFixed(1)+' GB':(n/1e6).toFixed(n>=1e8?0:1)+' MB';
   async function checkStorage(force=false){
     if(!navigator.storage?.estimate)return null;if(!force&&storageInfo&&Date.now()-storageAt<6e5)return storageInfo;storageAt=Date.now();
     const {usage=0,quota=0}=await navigator.storage.estimate();storageInfo={usage,quota,p:quota?usage/quota:0};
@@ -482,10 +480,6 @@ export function install(ctx){
   }
   // 启动后：检查占用；并申请持久存储，避免磁盘紧张时浏览器自动清除书目（不弹窗，由浏览器自行决定）。
   setTimeout(safe(async()=>{await checkStorage(true);if(navigator.storage?.persisted&&!await navigator.storage.persisted())await navigator.storage.persist().catch(()=>{});}),8000);
-  queueMicrotask(()=>ctx.settings.push({id:'storage',group:'data',type:'custom',render(){
-    const el=make('div','set-text'),value=make('small','','…');el.append(make('span','set-label',t('storageLabel')),value,make('small','',t('storageHint')));
-    checkStorage(true).then(i=>{value.textContent=i?fmt('storageValue',{used:size(i.usage),quota:size(i.quota),p:Math.round(i.p*100)}):'—';}).catch(()=>{value.textContent='—';});
-    return el;}}));
 
   // ---- 书名编辑：只改显示名（b.name），文件夹名 b.title 仍用于识别同一文件夹和恢复过期书；留空恢复原名。
   let renaming=null;
@@ -550,7 +544,9 @@ export function install(ctx){
   // 槽：{book,source,merged,t}，t 是供 grade 比较的 {title,pages,fp}。
   // want(title)：只要名称相符的槽（普通导入时用，避免为大量无关的书构造比较对象）；all：不论是否缺失（定位原文件）。
   function slotsOf(b,want,all=false){
-    if(!b.sources?.length)return [];const ex=all||ctx.expired(b);
+    const ex=all||ctx.expired(b);
+    // 散图书没有源：过期时整本作为一个槽，接回后按单文件夹书处理（见 app.mjs relinkAll）。
+    if(!b.sources?.length)return ex&&(!want||want(b.title))?[{book:b,source:null,merged:false,t:b}]:[];
     return b.sources.filter(s=>(ex||ctx.isDown(b,s))&&(!want||want(s.key?s.title:b.title))).map(s=>s.key
       ?{book:b,source:s,merged:true,t:{title:s.title,pages:allPages(b).filter(p=>keyOf(p)===s.key).map(p=>({name:fileOf(p)})),fp:s.fp&&{cover:s.fp}}}
       :{book:b,source:s,merged:false,t:b});
@@ -615,12 +611,20 @@ export function install(ctx){
       if(best.level===2)return done();
       return openRestore({title:t('restoreTitle'),hint:t('forceHint'),go:t(best.level?'restore':'forceRestore'),rows:[best],onGo:done});
     }
-    // 合并作品：逐卷匹配；完全匹配的直接接回，可能匹配的勾选确认。一卷都对不上时，可以按所选文件夹重建（相对路径相同的卷保留书签和进度）。
+    // 合并作品：逐卷匹配；完全匹配的直接接回，可能匹配的勾选确认。一卷都对不上时：整本过期才可以按所选文件夹重建（相对路径相同的卷保留书签和进度）；
+    // 只缺一卷时可以把所选文件夹强制接到这一卷，其他卷不动；缺多卷时不猜，提示没有匹配。
     const matched=assign(await pairs(mine,cands)),sure=matched.filter(p=>p.level===2),maybe=matched.filter(p=>p.level===1);
     if(!matched.length){
-      const row={book:b,cand:{title:dir.name,dir,names:cands.flatMap(c=>c.names),path:dir.name,cover:cands[0]},same:norm(dir.name)===norm(b.title),cover:null};
-      return openRestore({title:t('restoreTitle'),hint:t('forceMergedHint'),go:t('forceRestore'),rows:[row],async onGo(){
-        await ctx.rebuild(b,ctx.mergeKeys(cands));await extra();draw();summary(1,0,0);}});
+      if(ctx.expired(b)){
+        const row={book:b,cand:{title:dir.name,dir,names:cands.flatMap(c=>c.names),path:dir.name,cover:cands[0]},same:norm(dir.name)===norm(b.title),cover:null};
+        return openRestore({title:t('restoreTitle'),hint:t('forceMergedHint'),go:t('forceRestore'),rows:[row],async onGo(){
+          await ctx.rebuild(b,ctx.mergeKeys(cands));await extra();draw();summary(1,0,0);}});
+      }
+      const lost=b.sources.filter(s=>ctx.isDown(b,s)),cand=cands.find(c=>c.dir===dir)??(cands.length===1?cands[0]:null);
+      if(lost.length!==1||!cand)return notice('noMatch');
+      const x=mine.find(x=>x.source===lost[0]),row={book:b,source:x.source,merged:true,cand,...grade(x.t,cand)};
+      return openRestore({title:t('restoreTitle'),hint:t('forceVolumeHint'),go:t('forceVolume'),rows:[row],async onGo(){
+        await ctx.relinkAll(b,[{cand,source:x.source}]);await extra();draw();summary(1,0,0);}});
     }
     await apply(sure);await extra();draw();
     if(!maybe.length)return summary(1,0,0);

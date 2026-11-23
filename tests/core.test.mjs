@@ -131,3 +131,11 @@ test('刷新只列目录：找不到为 gone，没有权限为 denied，不读�
   assert.equal(await listDir(dir([],'prompt')),'denied');
   assert.equal(await listDir({queryPermission:async()=>'granted',async *values(){throw new DOMException('','NotFoundError');}}),'gone');
 });
+test('快捷键说明：Delete 是确认后删除这本书的记录（不删原图），四语一致',()=>{
+  const want={en:/Delete the current book's record.*image files are kept/,zh:/删除当前书的记录.*不删除原图/,ja:/記録を削除.*元画像は削除しません/,ko:/기록 삭제.*원본 이미지는 유지/};
+  for(const [lang,re] of Object.entries(want)){
+    const rows=translate('shortcuts',lang);
+    assert.match(rows.find(([keys])=>keys.join()==='Delete')[1],re,lang);
+    assert.doesNotMatch(rows.at(-1)[1],/Delete: remove|Delete 移除|Delete で外す|Delete 제거/,lang);
+  }
+});

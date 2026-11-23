@@ -8,7 +8,7 @@ extend({
   bakImportHint:['Restore from a backup file by merging or replacing.','从备份文件恢复，可选择合并或替换。','バックアップから復元します。統合か置き換えを選べます。','백업 파일에서 복원합니다. 병합 또는 바꾸기를 선택할 수 있습니다.'],
   bakStorage:['Storage','存储占用','ストレージ','저장 공간'],
   bakCounts:['{books} books · {thumbs} thumbnails','{books} 本书 · {thumbs} 张缩略图','{books} 冊 · サムネイル {thumbs} 枚','책 {books}권 · 썸네일 {thumbs}개'],
-  bakUsage:['{used} of {quota}','{used} / 上限 {quota}','{used} / 上限 {quota}','{used} / 한도 {quota}'],
+  bakUsage:['{used} of {quota} ({p}%)','{used} / 上限 {quota}（{p}%）','{used} / 上限 {quota}（{p}%）','{used} / 한도 {quota} ({p}%)'],
   bakClear:['Clear all data','清除全部数据','すべてのデータを消去','모든 데이터 지우기'],bakClearBtn:['Clear','清除','消去','지우기'],
   bakClearHint:['Removes books, reading positions and thumbnails from this browser. Image files are not deleted.','清空本浏览器中的书目、阅读进度和缩略图，不会删除原图。','このブラウザーの本・読書位置・サムネイルを消去します。元画像は削除されません。','이 브라우저의 책, 읽기 위치, 썸네일을 지웁니다. 원본 이미지는 삭제되지 않습니다.'],
   bakExporting:['Exporting…','正在导出…','書き出し中…','내보내는 중…'],bakImporting:['Importing…','正在导入…','読み込み中…','가져오는 중…'],
@@ -113,8 +113,9 @@ export async function merge(ctx,data){
   return {added,merged};
 }
 // 替换：先放下当前书，避免之后 pagehide 把本机阅读位置写回；再清空全部数据写入备份。
+// 内存中的书目也先清空，后台任务晚到的保存不会把旧记录写回（见 app.mjs persist）。
 export async function replace(ctx,data){
-  ctx.select(null);
+  ctx.select(null);ctx.books.clear();
   await ctx.library('clear');await ctx.thumbs('clear');for(const k of mv2Keys())localStorage.removeItem(k);
   for(const b of data.books)await ctx.library('put',b);
   for(const x of data.thumbs)await ctx.thumbs('put',x.value,x.key);
@@ -167,7 +168,7 @@ function usage(ctx){
   const counts=make('small','',ctx.fmt('bakCounts',{books:ctx.books.size,thumbs:'…'}));text.append(make('span','set-label',t('bakStorage')),counts);out.append(text,value);
   Promise.all([ctx.thumbs('count'),navigator.storage?.estimate?.()]).then(([n,est])=>{
     counts.textContent=ctx.fmt('bakCounts',{books:ctx.books.size,thumbs:n});
-    value.textContent=est?ctx.fmt('bakUsage',{used:size(est.usage),quota:size(est.quota)}):'';
+    value.textContent=est?ctx.fmt('bakUsage',{used:size(est.usage),quota:size(est.quota),p:est.quota?Math.round(est.usage/est.quota*100):0}):'';
   }).catch(()=>{value.textContent='';});
   return out;
 }

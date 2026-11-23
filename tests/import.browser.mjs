@@ -136,7 +136,90 @@ try{
   await js('restoreGo.click()');
   await wait(async()=>{const b=await js('merged()');return b.sources.map(s=>s.key).join()==='P,Q'&&b.pages.length===3;});
   assert.equal((await js('merged()')).title,'s');
-  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, legacy records, forced rebuild');
+  const card=name=>`document.querySelector('#books .book .pick[aria-label=${JSON.stringify(name)}]')`;
+  const restoreCard=(name,path)=>js(`(async()=>{const d=await dirOf(${JSON.stringify(path)});window.showDirectoryPicker=async()=>d;${card(name)}.closest('.book').querySelector('[aria-label="恢复"]').click();})()`);
+  // 10. 阅读位置落在暂时缺失的卷里：正文退回书首，但保存的位置不被覆盖；卷找回后回到原处。缺失期间主动滚到别处阅读才保存新位置。
+  await js(`(async()=>{await mk('r','R1',2,'red');await mk('r','R2',2,'blue');await mk('r','R3',2,'purple');})()`);
+  await js(`document.querySelector('[data-view="all"]').click()`);await pick('r','merge');
+  await wait(async()=>(await js(`byTitle('r')`))?.sources?.length===3);
+  await wait(()=>js(`byTitle('r').then(b=>b.sources.every(s=>s.fp?.hash))`));
+  const rid=(await js(`byTitle('r')`)).id,pos=()=>js(`JSON.parse(localStorage.getItem('mv2:pos:${rid}'))`);
+  await wait(()=>js(`!!${card('r')}`));await js(`${card('r')}.click()`);
+  await wait(()=>js(`!shelf.open&&bookTitle.textContent==='r'&&!!document.querySelector('#reader [data-name="R1/1.svg"] img')`));
+  await js('reader.scrollTop=reader.scrollHeight');await wait(async()=>(await pos())?.name?.startsWith('R3/'));
+  const inR3=(await pos()).name;
+  const barRefresh=async()=>{await js(`document.querySelector('#bar [data-act="refresh"]').click()`);await delay(50);await wait(()=>js(`!document.querySelector('#bar [data-act="refresh"]').disabled`));};
+  await js(`rm('r/R3')`);await barRefresh();await wait(async()=>(await js(`byTitle('r')`)).parked?.length===2);
+  await delay(600);assert.equal((await pos())?.name,inR3,'缺失卷里的阅读位置不被覆盖');
+  // 直接打开这类书（先切到别的书再切回来）：同样不覆盖。
+  await open();await wait(()=>js(`!!${card('A')}`));await js(`${card('A')}.click()`);await wait(()=>js(`!shelf.open&&bookTitle.textContent==='A'`));
+  await js('reader.scrollTop=200');await delay(300);
+  await open();await wait(()=>js(`!!${card('r')}`));await js(`${card('r')}.click()`);await wait(()=>js(`!shelf.open&&bookTitle.textContent==='r'`));
+  await delay(600);assert.equal((await pos())?.name,inR3,'重新打开时不覆盖');
+  await js(`mk('r','R3',2,'purple')`);await barRefresh();await wait(async()=>{const b=await js(`byTitle('r')`);return !b.parked&&b.pages.length===6;});
+  await wait(()=>js('reader.scrollTop>0'));await delay(600);assert.equal((await pos())?.name,inR3,'卷找回后回到原位置');
+  await js(`rm('r/R3')`);await barRefresh();await wait(async()=>(await js(`byTitle('r')`)).parked?.length===2);
+  await js('reader.scrollTop=300');await wait(async()=>{const p=await pos();return !!p&&!p.name.startsWith('R3/');}); // 主动阅读别处：保存新位置
+  // 11. 部分卷缺失时「恢复」选了对不上的文件夹：只缺一卷时可强制接到这一卷，其他卷不动；缺多卷时提示没有匹配，不重建整本书。
+  await open();await js(`mk('junk','J',1,'black')`);await wait(()=>js(`!!${card('r')}?.closest('.book').querySelector('.part')`));
+  await restoreCard('r','junk');await wait(()=>js('restore.open'));
+  assert.equal(await js('restoreGo.textContent'),'强制接到这一卷');await js('restoreGo.click()');
+  await wait(async()=>{const b=await js(`byTitle('r')`);return !b.parked&&b.sources.find(s=>s.key==='R3').path==='junk/J';});
+  let rb=await js(`byTitle('r')`);assert.deepEqual(rb.sources.map(s=>s.key),['R1','R2','R3']);
+  assert.deepEqual(rb.pages.map(p=>p.name).sort(),['R1/1.svg','R1/2.svg','R2/1.svg','R2/2.svg','R3/1.svg']);
+  await js(`(async()=>{await rm('r/R2');await rm('junk');await mk('other2','X',1,'gray');})()`);await refresh();
+  await wait(async()=>(await js(`byTitle('r')`)).parked?.length===3);
+  await js('notice.textContent=""');await restoreCard('r','other2');
+  await wait(()=>js(`notice.textContent==='没有找到匹配的文件夹'`));assert.equal(await js('restore.open'),false);
+  rb=await js(`byTitle('r')`);assert.deepEqual(rb.sources.map(s=>s.key),['R1','R2','R3']);assert.equal(rb.pages.length+rb.parked.length,5);
+  // 12. 重建时先按目录句柄配对卷，再按 key：根文件夹自己也放进图片后，它按名称得到的 key 与原有一卷相同，原卷不会被接到根文件夹的内容上。
+  await js(`(async()=>{await mk('q9','q9',2,'teal');await mk('q9','r9',2,'navy');})()`);await pick('q9','merge');
+  await wait(async()=>(await js(`byTitle('q9')`))?.sources?.length===2);
+  assert.deepEqual((await js(`byTitle('q9')`)).sources.map(s=>s.key),['q9','r9']);
+  await js(`(async()=>{const w=await (await (await dirOf('q9')).getFileHandle('1.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="500"><rect width="100%" height="100%" fill="gold"/></svg>');await w.close();})()`);
+  await pick('q9','merge');await wait(async()=>(await js(`byTitle('q9')`)).sources.length===3);
+  const q9=await js(`byTitle('q9')`);assert.equal(q9.sources.find(s=>s.key==='q9').path,'q9/q9');assert.equal(q9.sources.find(s=>s.path==='q9').key,'q9 (2)');
+  assert.equal((await js('records()')).filter(b=>b.title==='q9').length,1);
+  // 13. 再次导入为单个作品时有的源没有目录句柄：回退模式（无 File System Access）按相对路径找到原书，不报错、不重复，重新载入后再导入页面可读；
+  // 备份导入后尚未接回的卷同样按相对路径对上。
+  const fallback=`window.fallbackMerge=async()=>{delete window.showDirectoryPicker;document.querySelector('#shelf [data-act="merge"]').click();await new Promise(r=>setTimeout(r,50));
+    const files=['fb/X/1.svg','fb/X/2.svg','fb/Y/1.svg'].map(p=>{const f=new File(['<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40"/>'],p.split('/').pop(),{type:'image/svg+xml'});Object.defineProperty(f,'webkitRelativePath',{value:p});return f;});
+    notice.textContent='';folderInput.onchange({target:{files}});};`;
+  const fb=()=>js('records()').then(r=>r.filter(b=>b.title==='fb'));
+  await js(fallback);await js('fallbackMerge()');await wait(async()=>(await fb()).length===1);
+  await wait(()=>js(`notice.textContent.includes('已合成一本：fb')`));
+  await js('fallbackMerge()');await wait(()=>js(`notice.textContent.includes('已合成一本：fb')`));assert.equal((await fb()).length,1);
+  await reload();await js(fallback);await open();await wait(()=>js(`!!document.querySelector('#books .book.expired .pick[aria-label="fb"]')||document.querySelector('[data-view="expired"] .count').textContent!==''`));
+  await js('fallbackMerge()');await wait(()=>js(`notice.textContent.includes('已合成一本：fb')`));assert.equal((await fb()).length,1);
+  await js(`document.querySelector('[data-view="all"]').click()`);await wait(()=>js(`!!${card('fb')}`));
+  assert.deepEqual((await fb())[0].sources.map(s=>s.key),['X','Y']);
+  await js(`(async()=>{await mk('t','P',2,'red');await mk('t','Q',2,'blue');})()`);await pick('t','merge');
+  await wait(async()=>(await js(`byTitle('t')`))?.sources?.every(s=>s.fp?.hash));
+  await js(`(async()=>{const {library}=await import('./store.mjs');const b=await byTitle('t');delete b.roots;const s=b.sources.find(s=>s.key==='Q');delete s.dir;s.fp={name:'1.svg',size:1,hash:'bogus:1'};await library('put',b);})()`);
+  await reload();await open();await pick('t','merge');await wait(()=>js(`notice.textContent.includes('已合成一本：t')`));
+  assert.equal((await js('records()')).filter(b=>b.title==='t').length,1);
+  assert.equal(await js(`byTitle('t').then(b=>b.sources.map(s=>s.key+':'+!!s.dir).join())`),'P:true,Q:true');
+  // 14. 没有任何目录句柄的合并作品点「重新授权」：按卷匹配所选文件夹，不默认绑到第一卷。
+  await js(`(async()=>{await mk('u','U1',2,'red');await mk('u','U2',3,'blue');})()`);await pick('u','merge');
+  await wait(async()=>(await js(`byTitle('u')`))?.sources?.every(s=>s.fp?.hash));
+  await js(`(async()=>{const {library}=await import('./store.mjs');const b=await byTitle('u');delete b.roots;for(const s of b.sources)delete s.dir;await library('put',b);localStorage.setItem('mv2:last',JSON.stringify(b.id));})()`);
+  await reload();await wait(()=>js(`bookTitle.textContent==='u'`));
+  await js(`(async()=>{const d=await dirOf('u/U2');window.showDirectoryPicker=async()=>d;document.querySelector('[data-act="allow"]').click();})()`);
+  await wait(()=>js(`byTitle('u').then(b=>b.sources.map(s=>s.key+':'+!!s.dir).join()==='U1:false,U2:true')`));
+  assert.equal((await js(`byTitle('u')`)).sources[1].path,'U2');
+  // 15. 过期的散图书（没有源）可以恢复：接到所选文件夹，成为单文件夹书，标签和书签保留。
+  await js(`(async()=>{const {library}=await import('./store.mjs');await mk('lz','L',2,'orange');
+    await library('put',{id:'loose',title:null,pages:[{name:'1.svg'},{name:'2.svg'}],sortOverride:null,place:'shelf',tags:['scraps'],bookmarks:[{id:'lb',name:'2.svg',f:0,at:1}],added:3});})()`);
+  await reload();await open();await js(`document.querySelector('[data-view="expired"]').click()`);
+  await wait(()=>js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`));
+  await js(`(async()=>{const d=await dirOf('lz/L');window.showDirectoryPicker=async()=>d;document.querySelector('#books .book.expired .pick[aria-label="散图图集"]').click();})()`);
+  await wait(()=>js('restore.open'));assert.equal(await js('restoreGo.textContent'),'强制恢复');await js('restoreGo.click()');
+  await wait(async()=>(await js('records()')).find(b=>b.id==='loose')?.title==='L');
+  const lz=(await js('records()')).find(b=>b.id==='loose');
+  assert.deepEqual(lz.sources.map(s=>[s.key,s.title]),[['','L']]);assert.equal(lz.path,'L');assert.equal(lz.pages.length,2);
+  assert.deepEqual(lz.tags,['scraps']);assert.deepEqual(lz.bookmarks.map(m=>m.id),['lb']);
+  assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="L"]')`),false);
+  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, loose restore');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

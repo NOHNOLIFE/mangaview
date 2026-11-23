@@ -72,7 +72,9 @@ try{
   await checkKnobs('default');
   await js(`settings.style.fontSize='22px';settings.style.lineHeight='2.2'`);await checkKnobs('large font');await js(`settings.style.fontSize='';settings.style.lineHeight=''`);
   await cdp('Emulation.setDeviceMetricsOverride',{width:900,height:900,deviceScaleFactor:1.5,mobile:false});await checkKnobs('scale 1.5');await cdp('Emulation.clearDeviceMetricsOverride');
-  await wait(()=>js(`/\\d+ books · \\d+ thumbnails/.test(settings.querySelector('[data-id=bakStorage]').textContent)&&/ of /.test(settings.querySelector('.bak-usage').textContent)`));
+  await wait(()=>js(`/\\d+ books · \\d+ thumbnails/.test(settings.querySelector('[data-id=bakStorage]').textContent)&&/ of .+ \\(\\d+%\\)$/.test(settings.querySelector('.bak-usage').textContent)`));
+  // 存储占用只有一行（已用 / 配额与百分比）。
+  assert.equal(await js(`[...settings.querySelectorAll('.set-label')].filter(x=>/storage/i.test(x.textContent)).length`),1);
   await shot('settings-en');
   await js(`(()=>{const s=settings.querySelector('[data-id=lang] select');s.value='zh';s.dispatchEvent(new Event('change'));})()`);
   await wait(async()=>JSON.stringify(await headings())===JSON.stringify(['设置','常规','阅读','工具栏','数据']));
