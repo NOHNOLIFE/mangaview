@@ -20,4 +20,26 @@ export async function getThumb(key){
 }
 export async function saveThumb(key,{blob,w,h}){await thumbs('put',{blob,w,h},key);forget(key);}
 export function forget(prefix){for(const [k,v] of cache)if(k===prefix||k.startsWith(prefix)){URL.revokeObjectURL(v.url);cache.delete(k);}}
-export async function dropThumbs(bookId){forget(bookId+':');await thumbs('delete',IDBKeyRange.bound(bookId+':',bookId+':\u{ffff}'));}
+export async function dropThumbs(bookId){forget(bookId+':');forgetPages(bookId+':');await thumbs('delete',IDBKeyRange.bound(bookId+':',bookId+':\u{ffff}'));}
+
+// 页面小图（缩略图栏与全屏缩略图共用）：会话级内存缓存，不写 IndexedDB，关闭应用即清空。
+// 每项是缩小到宽 ≤256px 的 WebP Blob（漫画页约 10–40KB），按字节 LRU 封顶 PAGE_BYTES；不缓存原尺寸位图。
+// 键按页对象标识生成（同一会话里页对象在排序、刷新后保留），不依赖文件名，多文件夹的书也不会串图。
+// stamp 是生成时文件的 lastModified + size；窗口重新获得焦点后（可能在别处改过文件），每项下次显示时校验一次。
+const PAGE_BYTES=64*1024*1024,pageIds=new WeakMap(),pages=new Map();let pageBytes=0,nextPage=0,epoch=0;
+addEventListener('focus',()=>{epoch++;});
+export function pageKey(book,page){let id=pageIds.get(page);if(id==null)pageIds.set(page,id=++nextPage);return book.id+':'+id;}
+export const fileStamp=file=>file.lastModified+':'+file.size;
+// 命中时移到最近使用的一端；对象 URL 首次显示时才创建。
+export function pageThumb(key){const e=pages.get(key);if(!e)return null;pages.delete(key);pages.set(key,e);e.url??=URL.createObjectURL(e.blob);return e;}
+export const hasPageThumb=key=>pages.has(key);
+export const pageStale=e=>e.epoch!==epoch;
+export function pageChecked(e){e.epoch=epoch;}
+export function keepPageThumb(key,blob,w,h,stamp){
+  dropPage(key);pages.set(key,{blob,w,h,stamp,epoch,url:null});pageBytes+=blob.size;
+  for(const k of pages.keys()){if(pageBytes<=PAGE_BYTES)break;dropPage(k);}
+}
+// 对象 URL 延后释放：刚设给 <img> 还没加载完的不会失效。
+export function dropPage(key){const e=pages.get(key);if(!e)return;pages.delete(key);pageBytes-=e.blob.size;if(e.url)setTimeout(URL.revokeObjectURL,10000,e.url);}
+export function forgetPages(prefix){for(const k of [...pages.keys()])if(k.startsWith(prefix))dropPage(k);}
+export const pageCacheSize=()=>({count:pages.size,bytes:pageBytes});

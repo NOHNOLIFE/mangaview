@@ -19,7 +19,7 @@ extend({
   smEdgeLeft:['Show shelf bookmarks at the left edge (when not pinned)','书架书签未常驻时，鼠标移到左缘弹出','本棚のしおりを固定していないとき、左端で表示','책장 책갈피를 고정하지 않았을 때 왼쪽 가장자리에서 표시'],
   smWidth:['Bookmark list width','书签列表宽度','しおり一覧の幅','책갈피 목록 너비']
 });
-const SHOW=150,ADD=550,HOVER=60;
+const SHOW=150,ADD=550,EDGE=32,DWELL=150,MIN_W=160; // EDGE / DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致
 export function install(ctx){
   const {main,view,t,fmt,notice,make,icon}=ctx;
   const sprite=document.querySelector('svg.sprite'),mark='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
@@ -66,10 +66,9 @@ export function install(ctx){
     forget(key(book,bm));await ctx.thumbs('delete',key(book,bm));if(!panel.hidden)render();renderDock();
   }
 
-  // 面板：右键呼出，“添加书签”按钮正好在鼠标下；悬停缩略图即跳转，离开面板关闭，Esc 回到原位。
+  // 面板：右键呼出，“添加书签”按钮正好在鼠标下；点击缩略图才跳转并关闭，点面板外或 Esc 关闭（位置不变）。
   const panel=make('div','bm-panel'),addBtn=make('button','bm-add'),head=make('div','bm-head'),grid=make('div','bm-grid');
   panel.hidden=true;panel.setAttribute('role','dialog');addBtn.type='button';panel.append(addBtn,head,grid);document.body.append(panel);
-  let saved=null,origin=null,armed=false,hovered=null,hoverTimer=0,pointer=null;
   function render(){
     const book=ctx.current;if(!book)return;
     panel.setAttribute('aria-label',t('bookmarks'));
@@ -94,7 +93,6 @@ export function install(ctx){
   const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
   function open(x,y){
     if(!ctx.current)return;
-    const p=here();saved=p&&{name:p.name,f:p.f};origin=x==null?pointer:{x,y};armed=false;hovered=null;
     panel.style.setProperty('--bm-ar',ratio());
     render();panel.style.left=panel.style.top='0px';panel.hidden=false;
     // 用布局尺寸而非 getBoundingClientRect：弹出动画的缩放会让后者偏几像素。
@@ -103,33 +101,23 @@ export function install(ctx){
     else{left=x-panel.clientLeft-addBtn.offsetLeft-addBtn.offsetWidth/2;top=y-panel.clientTop-addBtn.offsetTop-addBtn.offsetHeight/2;}
     panel.style.left=clamp(left,8,innerWidth-w-8)+'px';panel.style.top=clamp(top,8,innerHeight-h-8)+'px';
   }
-  function close(restore){
-    if(panel.hidden)return;clearTimeout(hoverTimer);panel.hidden=true;hovered=null;
-    if(restore&&saved&&ctx.current){const i=ctx.current.pages.findIndex(p=>p.name===saved.name);if(i>=0)view.jump({i,f:saved.f});}
-    saved=null;if(document.activeElement&&panel.contains(document.activeElement))main.focus();
+  function close(){
+    if(panel.hidden)return;panel.hidden=true;
+    if(document.activeElement&&panel.contains(document.activeElement))main.focus();
   }
   function jumpTo(id){const book=ctx.current,x=book&&list(book).find(x=>x.bm.id===id);if(x&&x.i>=0)go(x);}
   main.addEventListener('contextmenu',e=>{if(!ctx.current)return;e.preventDefault();open(e.clientX,e.clientY);});
   panel.addEventListener('contextmenu',e=>e.preventDefault());
-  // 弹出后鼠标真正移动过才响应悬停和离开：面板出现在鼠标下时不误跳，浏览器补发的离开事件也不会立刻关掉面板。
-  document.addEventListener('pointermove',e=>{pointer={x:e.clientX,y:e.clientY};},{passive:true});
-  const moved=e=>!origin||Math.hypot(e.clientX-origin.x,e.clientY-origin.y)>3;
-  panel.addEventListener('pointermove',e=>{
-    if(!armed&&moved(e))armed=true;if(!armed)return;
-    const item=e.target.closest('.bm-item');if(item===hovered)return;hovered=item;clearTimeout(hoverTimer);
-    grid.querySelector('.bm-item.active')?.classList.remove('active');
-    if(item&&!item.classList.contains('gone')){item.classList.add('active');hoverTimer=setTimeout(()=>jumpTo(item.dataset.id),HOVER);}
-  });
-  panel.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse'&&(armed||moved(e)))close(false);});
   panel.addEventListener('click',e=>{
     if(e.target.closest('.bm-del'))return;
     if(e.target.closest('.bm-add')){ctx.safe(add)();main.focus();return;}
     const item=e.target.closest('.bm-item');if(!item||item.classList.contains('gone'))return;
-    clearTimeout(hoverTimer);jumpTo(item.dataset.id);close(false);main.focus();
+    jumpTo(item.dataset.id);close();main.focus();
   });
-  document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target))close(false);},true);
-  window.addEventListener('keydown',e=>{if(!panel.hidden&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close(true);}},true);
-  ctx.actions.bookmarks=()=>{if(!panel.hidden)close(false);else open(null,null);};
+  // 点面板外关闭；点在正文上时这一下只用来关闭面板，不再翻屏。
+  document.addEventListener('pointerdown',e=>{if(panel.hidden||panel.contains(e.target))return;close();if(main.contains(e.target))e.stopPropagation();},true);
+  window.addEventListener('keydown',e=>{if(!panel.hidden&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close();}},true);
+  ctx.actions.bookmarks=()=>{if(!panel.hidden)close();else open(null,null);};
 
   // F / Enter：短按跳到下一个书签（按住 Shift 为上一个）；长按 150ms 后显示进度环，满 550ms 添加书签。
   let press=null;
@@ -147,12 +135,14 @@ export function install(ctx){
     up(e){if(!press||e.code!==press.code)return;const p=press;cancel();if(!p.done)(pinned?nextShelf:next)(p.d);},
     blur(){cancel();}
   });
-  ctx.on('select',()=>{cancel();close(false);if(last?.book!==ctx.current)last=null;renderDock();});
+  ctx.on('select',()=>{cancel();close();if(last?.book!==ctx.current)last=null;renderDock();});
   ctx.on('lang',()=>{if(!panel.hidden)render();renderDock();});
 
   // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。
   // 悬停不跳转，点击才跳转（可跨书）；此时短按 F / Enter（Shift 反向）也按这个列表跳到下一个书签，必要时切换书。
   const dock=make('aside','sm-dock'),dockHead=make('div','sm-head'),dockList=make('div','sm-list'),dockGrip=make('div','sm-grip');
+  // 顶部内侧（靠阅读区一端）：打开全屏书架书签（overview.mjs）；浮动时点开后先收起列表。没有书签时不可用。
+  const dockOpen=ctx.iconButton('overview','',()=>{if(ctx.overview?.shelfmarks.open()&&!pinned)float(false);},'side-open');
   dock.id='shelfmarks';dock.hidden=true;dockGrip.setAttribute('role','separator');dockGrip.setAttribute('aria-orientation','vertical');dockGrip.tabIndex=0;
   dock.append(dockHead,dockList,dockGrip);document.getElementById('toolbar').before(dock);
   // 书架上（不含书库和过期书）有书签的书，顺序与上一本 / 下一本相同。
@@ -161,7 +151,8 @@ export function install(ctx){
     if(dock.hidden)return;
     const groups=shelfBooks().map(book=>({book,items:list(book)})).filter(g=>g.items.length);
     dock.setAttribute('aria-label',t('shelfmarks'));dockGrip.title=t('smWidth');dockGrip.setAttribute('aria-label',t('smWidth'));
-    dockHead.replaceChildren(make('span','',t('shelfmarks')),make('span','count',groups.reduce((n,g)=>n+g.items.length,0)||''));
+    dockOpen.title=t('smOvOpen');dockOpen.setAttribute('aria-label',dockOpen.title);dockOpen.disabled=!groups.some(g=>g.items.some(x=>x.i>=0));
+    dockHead.replaceChildren(make('span','side-title',t('shelfmarks')),make('span','count',groups.reduce((n,g)=>n+g.items.length,0)||''),dockOpen);
     dock.style.setProperty('--bm-ar',ratio());
     if(!groups.length){dockList.replaceChildren(make('p','bm-empty',t('smEmpty')));return;}
     dockList.replaceChildren(...groups.map(({book,items})=>{
@@ -215,15 +206,17 @@ export function install(ctx){
   ctx.actions.shelfmarks=()=>{ctx.put('shelfmarks',!pinned);setDock(!pinned);};
   let edgeTimer=0;const cancelEdge=()=>{clearTimeout(edgeTimer);edgeTimer=0;};
   document.addEventListener('pointermove',e=>{
-    const near=e.pointerType==='mouse'&&!e.buttons&&!pinned&&e.clientX<=24&&!ctx.showing(dock)&&!document.querySelector('dialog[open]')&&ctx.get('edgeLeft',true);
-    if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!document.querySelector('dialog[open]')&&!ctx.autoShelfmarks?.())float(true);},120); // 开启全屏书架书签时由 overview.mjs 接管
+    const near=e.pointerType==='mouse'&&!e.buttons&&!pinned&&e.clientX<=EDGE&&!ctx.showing(dock)&&!document.querySelector('dialog[open]')&&ctx.get('edgeLeft',true);
+    if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!document.querySelector('dialog[open]'))float(true);},DWELL);
+    // 与右侧缩略图栏相同的兜底：在静止的指针下弹出后没有 pointerleave，指针离开列表和左缘即收起。
+    if(e.pointerType==='mouse'&&!pinned&&!resizing&&ctx.showing(dock)&&e.clientX>EDGE&&!dock.contains(e.target))float(false);
   });
   document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
   dock.addEventListener('pointerleave',()=>{if(!pinned&&!resizing)float(false);});
   window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pinned)float(false);});
   ctx.on('books',renderDock);ctx.shelf.addEventListener('close',renderDock); // 在书架页移动、删除书目后同步
   // 拖动右缘或用左右方向键调整宽度，与右侧缩略图栏的拖动条一致。
-  const width=v=>{const w=Math.round(Math.max(180,Math.min(innerWidth*.45,v)));document.documentElement.style.setProperty('--sm-w',w+'px');return w;};
+  const width=v=>{const w=Math.round(Math.max(MIN_W,Math.min(innerWidth*.45,v)));document.documentElement.style.setProperty('--sm-w',w+'px');return w;};
   width(ctx.get('shelfmarksWidth',260));let resizing=false;
   dockGrip.onpointerdown=e=>{if(e.button!==0)return;resizing=true;dockGrip.setPointerCapture(e.pointerId);};
   dockGrip.onpointermove=e=>{if(resizing)width(e.clientX);};

@@ -29,110 +29,175 @@ try{
   const js=async expression=>{const r=await cdp('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
   const shot=async name=>{if(!process.env.MV_SHOTS)return;const {data}=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(process.env.MV_SHOTS,name+'.png'),Buffer.from(data,'base64'));};
   await cdp('Runtime.enable');await cdp('Page.enable');
-  // 书架书签列表默认不再常驻；这里沿用常驻的列表（专注模式下固定的栏）测试。
-  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});if(localStorage.getItem('mv2:shelfmarks')===null)localStorage.setItem('mv2:shelfmarks','true');`});
+  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});`});
   await cdp('Page.navigate',{url:origin});await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
+  // 本测试固定侧栏状态：书架书签常驻、缩略图栏不常驻（默认值由其他测试覆盖）。
+  await js(`localStorage.setItem('mv2:shelfmarks','true');localStorage.setItem('mv2:preview','false')`);await cdp('Page.reload');await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
+  // 统计读取原图的次数（getFile 只在读图或校验文件信息时调用；目录列表不调用）。
+  await js(`(()=>{const g=FileSystemFileHandle.prototype.getFile;window.reads=[];FileSystemFileHandle.prototype.getFile=function(){reads.push(this.name);return g.call(this);};})()`);
   // 一本 40 张的书：两种比例交替，第 10 张是超长条。
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long',{create:true});
-    for(let i=0;i<40;i++){const [w,h]=i===9?[400,4000]:i%2?[600,1400]:[600,900];const out=await (await dir.getFileHandle(String(i).padStart(2,'0')+'.svg',{create:true})).createWritable();
+    for(let i=0;i<40;i++){const [w,h]=i===9?[400,4000]:i%2?[600,1000]:[600,900];const out=await (await dir.getFileHandle(String(i).padStart(2,'0')+'.svg',{create:true})).createWritable();
       await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'"><rect width="100%" height="100%" fill="hsl('+i*9+',60%,45%)"/></svg>');await out.close();}
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
   await wait(()=>js(`bookTitle.textContent==='Long'`));
   const W=await js('innerWidth');
   const move=(x,y=150)=>cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
-  const keys={d:['KeyD',68],s:['KeyS',83],w:['KeyW',87],a:['KeyA',65],v:['KeyV',86],']':['BracketRight',221],ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37],ArrowDown:['ArrowDown',40],ArrowUp:['ArrowUp',38],Home:['Home',36],End:['End',35],Enter:['Enter',13],' ':['Space',32],Escape:['Escape',27],g:['KeyG',71],c:['KeyC',67],'[':['BracketLeft',219]};
+  const click=async(x,y)=>{await move(x,y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,x,y,button:'left',clickCount:1});};
+  const center=sel=>js(`(()=>{const r=document.querySelector('${sel}').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width};})()`);
+  const keys={d:['KeyD',68],s:['KeyS',83],w:['KeyW',87],a:['KeyA',65],v:['KeyV',86],']':['BracketRight',221],ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37],ArrowDown:['ArrowDown',40],ArrowUp:['ArrowUp',38],Home:['Home',36],End:['End',35],Enter:['Enter',13],' ':['Space',32],Escape:['Escape',27],g:['KeyG',71],c:['KeyC',67],'[':['BracketLeft',219],PageDown:['PageDown',34]};
   const press=async k=>{const [code,vk]=keys[k],text=k.length===1?k:k==='Enter'?'\r':undefined,modifiers=0;
     await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code,windowsVirtualKeyCode:vk,modifiers,...(text?{text}:{})});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code,windowsVirtualKeyCode:vk,modifiers});};
   const isOpen=()=>js('overview.open&&!overview.classList.contains("closing")'),closed=()=>js('!overview.open');
   const sel=()=>js(`(()=>{const n=document.querySelector('.ov-item.sel');return n&&{i:+n.dataset.i,x:parseFloat(n.style.left),y:parseFloat(n.style.top)};})()`);
   const pos=()=>js('document.querySelector(".ov-pos").textContent');
-  // 右缘悬停：直接打开全屏总览，不弹窄条；选中当前页。
-  await move(400);await move(W-2);await wait(isOpen);
-  assert.equal(await js('document.getElementById("panel").hidden'),true,'No strip when the overview opens');
+  const panelHidden=()=>js('document.getElementById("panel").hidden');
+  // 鼠标从阅读区移入右上角不再打开全屏缩略图：右缘照常弹出缩略图栏。右缘热区 32px：距右缘 40px 不触发，30px 触发。
+  await move(400);await move(W-2);await delay(500);assert.equal(await js('overview.open'),false,'Corner gesture is gone');
+  await wait(async()=>!await panelHidden());await move(400,500);await wait(panelHidden);
+  await move(W-40,500);await delay(400);assert.equal(await panelHidden(),true,'40px from the edge does not trigger');
+  await move(W-30,500);await delay(60);assert.equal(await panelHidden(),true,'Edge needs a short dwell');
+  await wait(async()=>!await panelHidden());
+  // 缩略图栏顶部：打开全屏缩略图的按钮（内侧，靠阅读区）、标题和页数；点击打开并收起浮动的窄条。
+  assert.equal(await js('document.querySelector("#panel .pv-head").textContent'),'Thumbnails40');
+  const pvBtn=await center('#panel .pv-head .side-open'),pvBox=await js('(r=>({left:r.left,top:r.top}))(document.getElementById("panel").getBoundingClientRect())');
+  assert.ok(pvBtn.x<pvBox.left+48&&pvBtn.y<pvBox.top+52,'Button sits at the inner top corner');
+  assert.equal(await js('document.querySelector("#panel .side-open").title'),'Full-screen thumbnails (V)');
+  await shot('strip-head');await click(pvBtn.x,pvBtn.y);await wait(isOpen);await wait(panelHidden);
   assert.equal(await pos(),'Page 1 / 40');assert.equal((await sel()).i,0);
-  // 瀑布流：多列、互不重叠；滚动条加宽。
-  const boxes=await js(`[...document.querySelectorAll('.ov-item')].map(n=>[parseFloat(n.style.left),parseFloat(n.style.top),parseFloat(n.style.width),parseFloat(n.style.height)])`);
-  assert.ok(new Set(boxes.map(b=>b[0])).size>=4,'Several columns');
-  for(const [i,a] of boxes.entries())for(const b of boxes.slice(i+1))assert.ok(a[0]+a[2]<=b[0]||b[0]+b[2]<=a[0]||a[1]+a[3]<=b[1]||b[1]+b[3]<=a[1],'Tiles do not overlap');
+  // 规整网格：等宽等高，按行对齐，多列，不重叠；超长条页的格子不比别的高，只显示顶部。滚动条加宽。
+  const boxes=await js(`[...document.querySelectorAll('.ov-item')].map(n=>[+n.dataset.i,parseFloat(n.style.left),parseFloat(n.style.top),parseFloat(n.style.width),parseFloat(n.style.height)]).sort((a,b)=>a[0]-b[0])`);
+  const cols=new Set(boxes.map(b=>b[1])).size;assert.ok(cols>=4,'Several columns: '+cols);
+  assert.equal(new Set(boxes.map(b=>b[3])).size,1,'Equal widths');assert.equal(new Set(boxes.map(b=>b[4])).size,1,'Equal heights');
+  for(const b of boxes){assert.equal(b[2],boxes[b[0]-b[0]%cols][2],'Rows are aligned');assert.equal(b[1],boxes[b[0]%cols][1],'Columns are aligned');}
   assert.equal(await js('(s=>s.offsetWidth-s.clientWidth)(document.querySelector(".ov-scroll"))'),20,'Wide scrollbar');
-  await wait(()=>js('document.querySelectorAll(".ov-item canvas").length>=10'));
-  assert.ok(await js('(n=>n.offsetHeight<=n.offsetWidth*3+1)(document.querySelector(\'.ov-item[data-i="9"]\'))'),'Long strips are capped');
-  // 键盘：A/D、←/→ 按页序；W/S、↑/↓ 在同一列移动。
+  await wait(()=>js('document.querySelectorAll(".ov-item :is(canvas,img)").length>=12'));
+  await wait(()=>js(`document.querySelector('.ov-item[data-i="9"]').classList.contains('tall')`));
+  assert.equal(await js(`document.querySelector('.ov-item[data-i="8"]').classList.contains('tall')`),false);
+  // 先把整本书滚一遍，让每页都生成过一次缩略图（之后测缓存）。
+  for(let k=0;k<8;k++){await js('(s=>s.scrollTop=s.clientHeight*'+k+'/2)(document.querySelector(".ov-scroll"))');await delay(60);await wait(()=>js('[...document.querySelectorAll(".ov-item")].every(n=>n.querySelector(".ov-img>*"))'));}
+  // 键盘：A/D、←/→ 按页序；W/S、↑/↓ 按网格行（同一列）移动。
   await press('d');await press('ArrowRight');assert.equal((await sel()).i,2);assert.equal(await pos(),'Page 3 / 40');
-  const a=await sel();await press('s');const b=await sel();assert.equal(b.x,a.x);assert.ok(b.y>a.y&&b.i>a.i,'S moves down the same column');
-  await press('ArrowDown');const c=await sel();assert.equal(c.x,a.x);assert.ok(c.y>b.y);
+  const a=await sel();await press('s');const b=await sel();assert.equal(b.x,a.x);assert.equal(b.i,a.i+cols,'S moves one row down');
+  await press('ArrowDown');const c=await sel();assert.equal(c.i,a.i+2*cols);
   await press('w');await press('ArrowUp');assert.deepEqual(await sel(),a);await press('a');await press('ArrowLeft');assert.equal((await sel()).i,0);
   await press('End');await wait(async()=>(await sel())?.i===39);await delay(300);assert.ok(await js('(s=>{const n=document.querySelector(".ov-item.sel").getBoundingClientRect(),r=s.getBoundingClientRect();return n.top>=r.top&&n.bottom<=r.bottom;})(document.querySelector(".ov-scroll"))'),'Selection scrolled into view');
+  await press('ArrowDown');assert.equal((await sel()).i,39,'Nothing below the last row');
+  await press('Home');await press('PageDown');const pd=await wait(sel);assert.ok(pd.i>0&&pd.i%cols===0,'Page Down stays in the column');
+  // 选中样式：缩小（不放大遮挡邻居）加描边；鼠标移到哪格就选中哪格，同一时间只有一格选中。
+  await press('Home');await delay(250);
+  const scale=()=>js(`(m=>m==='none'?1:new DOMMatrix(m).a)(getComputedStyle(document.querySelector('.ov-item.sel')).transform)`);
+  assert.ok(await scale()<1,'Selected tile shrinks');
+  const t5=await center('.ov-item[data-i="5"]');await move(t5.x,t5.y);await wait(async()=>(await sel())?.i===5);
+  assert.equal(await js('document.querySelectorAll(".ov-item.sel").length'),1);assert.equal(await pos(),'Page 6 / 40');
+  await press('d');assert.equal((await sel()).i,6,'Keyboard continues from the hovered tile');
+  await move(t5.x,t5.y);assert.equal((await sel()).i,6,'A stationary pointer does not steal the selection');
+  // 瀑布流：标题行的按钮切换（图标、提示随模式变化），按页面比例逐列排布，长条封顶 3 倍列宽；键盘、悬停、缩小式选中照常。
+  const lay=()=>js('(b=>[b.title,b.getAttribute("aria-label"),b.querySelector("use").getAttribute("href")])(document.querySelector("#overview .ov-layout"))');
+  assert.deepEqual(await lay(),['Layout: grid (click for masonry)','Layout: grid (click for masonry)','#i-overview']);
+  const lb=await center('#overview .ov-layout');await click(lb.x,lb.y);
+  assert.deepEqual(await lay(),['Layout: masonry (click for grid)','Layout: masonry (click for grid)','#i-masonry']);
+  assert.equal(await js('document.activeElement.classList.contains("ov-scroll")'),true,'Focus returns to the list');
+  assert.equal(await js(`localStorage.getItem('mv2:ovLayout')`),'"masonry"');await delay(200);await shot('overview-masonry');
+  const mbox=await js(`[...document.querySelectorAll('.ov-item')].map(n=>[+n.dataset.i,parseFloat(n.style.left),parseFloat(n.style.top),parseFloat(n.style.width),parseFloat(n.style.height)])`);
+  assert.ok(new Set(mbox.map(b=>b[4])).size>1,'Heights follow the pages');
+  for(const [i,p] of mbox.entries())for(const q of mbox.slice(i+1))assert.ok(p[1]+p[3]<=q[1]||q[1]+q[3]<=p[1]||p[2]+p[4]<=q[2]||q[2]+q[4]<=p[2],'Tiles do not overlap');
+  await press('Home');for(let i=0;i<9;i++)await press('d');const m9=await wait(sel);assert.equal(m9.i,9);
+  assert.ok(await js('(n=>n.offsetHeight<=n.offsetWidth*3+1&&n.classList.contains("tall"))(document.querySelector(\'.ov-item[data-i="9"]\'))'),'Long strips are capped');
+  await press('s');const m10=await wait(sel);assert.equal(m10.x,m9.x);assert.ok(m10.y>m9.y,'S stays in the column');await press('w');assert.equal((await sel()).i,9);
+  await delay(250);assert.ok(await scale()<1,'Masonry selection shrinks');
+  const vis=await js(`(s=>{const r=s.getBoundingClientRect();const n=[...document.querySelectorAll('.ov-item:not(.sel)')].find(n=>{const b=n.getBoundingClientRect();return b.top>=r.top&&b.bottom<=r.bottom;});const b=n.getBoundingClientRect();return {i:+n.dataset.i,x:b.x+b.width/2,y:b.y+b.height/2};})(document.querySelector('.ov-scroll'))`);
+  await move(vis.x,vis.y);await wait(async()=>(await sel())?.i===vis.i);
+  await press('Escape');await wait(closed);await press('v');await wait(isOpen);assert.equal((await lay())[2],'#i-masonry','Layout is remembered');
+  await click(lb.x,lb.y);assert.equal((await lay())[2],'#i-overview');assert.equal(await js(`localStorage.getItem('mv2:ovLayout')`),'"grid"');
   // Enter 跳到该页顶部并关闭。
   await press('Home');for(let i=0;i<9;i++)await press('d');await wait(async()=>(await sel())?.i===9);await press('Enter');await wait(closed);
   const at=n=>js(`Math.abs(parseFloat(document.querySelector('#reader .page[data-n="${n}"]').style.top)-reader.scrollTop)<2`);
   await wait(()=>at(10));
-  // 关闭后鼠标仍在右缘：不再打开，也不弹窄条；离开后回来才再打开。
-  await move(W-3);await delay(400);assert.equal(await js('overview.open'),false,'No reopen while still at the edge');assert.equal(await js('document.getElementById("panel").hidden'),true);
-  await move(400);await move(W-2);await wait(isOpen);assert.equal((await sel()).i,9,'Opens at the current page');
+  // 缓存：等正文读完，再打开全屏缩略图——缩略图立即显示（缓存命中是 <img>），不再读任何原图。
+  await move(400,500);await delay(600);await js('reads.length=0');
+  await js('reader.focus()');await press('v');await wait(isOpen);
+  assert.equal((await sel()).i,9,'Opens at the current page');
+  assert.equal(await js('[...document.querySelectorAll(".ov-item")].filter(n=>!n.querySelector(".ov-img>img")).map(n=>n.dataset.i).join()'),'','Cached thumbnails show at once');
+  await delay(500);assert.deepEqual(await js('reads'),[],'Reopening reads no images');
   // 点击缩略图跳转并关闭。
-  const box=await js(`(()=>{const r=document.querySelector('.ov-item[data-i="11"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-  await move(box.x,box.y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,x:box.x,y:box.y,button:'left',clickCount:1});
-  await wait(closed);await wait(()=>at(12));
-  // V / | 打开、关闭；Esc 关闭；空格选择。
+  const box=await center('.ov-item[data-i="11"]');await click(box.x,box.y);await wait(closed);await wait(()=>at(12));
+  // V / ] 打开、关闭；Esc 关闭；空格选择。
   await move(400);await js('reader.focus()');await press('v');await wait(isOpen);await press('v');await wait(closed);
   await press(']');await wait(isOpen);await press('Escape');await wait(closed);
   await press(']');await wait(isOpen);await press('d');await press(' ');await wait(closed);await wait(()=>at(13));
-  // 不是从阅读区进入的不触发：从顶部边带进入右缘再往下移。
-  await move(400,5);await move(W-2,5);await move(W-2,150);await delay(400);assert.equal(await js('overview.open'),false,'Entering from the top band does not trigger');
-  // 只在右上角触发：右缘下方照旧弹出窄条；在窄条里往上移进上角不触发。
-  await move(400,500);await delay(500);await move(W-2,500);await wait(()=>js('!document.getElementById("panel").hidden'));assert.equal(await js('overview.open'),false,'Lower right edge shows the strip');
-  await move(W-60,500);await move(W-60,150);await move(W-2,150);await delay(400);assert.equal(await js('overview.open'),false,'Moving up inside the strip does not trigger');
-  await move(400,500);await wait(()=>js('document.getElementById("panel").hidden'));
   // 全屏书架书签：先在两本书里加书签（长按 F）。
   const holdG=async()=>{await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'f',code:'KeyF',windowsVirtualKeyCode:70,text:'f'});await delay(750);await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'f',code:'KeyF',windowsVirtualKeyCode:70});};
   const count=()=>js('document.querySelectorAll("#shelfmarks .bm-item").length');
+  assert.equal(await js('document.querySelector("#shelfmarks .side-open").disabled'),true,'No bookmarks: button disabled');
   await move(400);await js('reader.scrollTop=3000');await delay(100);await holdG();await wait(async()=>await count()===1);
   await js('reader.scrollTop=9000');await delay(100);await holdG();await wait(async()=>await count()===2);
+  assert.equal(await js('document.querySelector("#shelfmarks .side-open").disabled'),false);
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Short',{create:true});
     for(let i=0;i<4;i++){const out=await (await dir.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="navy"/></svg>');await out.close();}
     window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
   await wait(()=>js(`bookTitle.textContent==='Short'`));await js('reader.scrollTop=500');await delay(100);await holdG();await wait(async()=>await count()===3);
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');await delay(100);
-  // C 打开：按书分组（书架顺序：最后添加的 Short 在前），当前书高亮，选中屏幕中心处的书签。
+  // 切书后回来：缓存仍在，全屏缩略图不再读图。
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');
+  await delay(800);await js('reads.length=0');await js('reader.focus()');await press('v');await wait(isOpen);await delay(400);
+  assert.equal(await js('[...document.querySelectorAll(".ov-item")].every(n=>n.querySelector(".ov-img>img"))'),true,'Cache survives switching books');
+  assert.deepEqual(await js('reads'),[],'No reads after switching back');await press('Escape');await wait(closed);
+  // 文件改动：窗口重新获得焦点后，显示时校验文件信息（只读元数据），变了的页重新生成。
+  await js(`navigator.storage.getDirectory().then(r=>r.getDirectoryHandle('Long')).then(d=>d.getFileHandle('12.svg')).then(h=>h.createWritable()).then(async o=>{await o.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="white"/><circle cx="300" cy="450" r="200" fill="red"/></svg>');await o.close();})`);
+  await delay(50);await js('reads.length=0;window.dispatchEvent(new Event("focus"))');await delay(100);
+  await js('reader.focus()');await press('v');await wait(isOpen);
+  await wait(()=>js(`!!document.querySelector('.ov-item[data-i="12"] .ov-img>canvas')`));
+  assert.ok(await js(`(c=>{const p=c.getContext('2d').getImageData(c.width/2,c.height/2,1,1).data;return p[0]>200&&p[1]<80;})(document.querySelector('.ov-item[data-i="12"] canvas'))`),'Changed page regenerated');
+  assert.equal(await js(`!!document.querySelector('.ov-item[data-i="11"] .ov-img>img')`),true,'Unchanged pages stay cached');
+  await press('Escape');await wait(closed);
+  // 书架书签列表顶部的按钮（内侧上角，与缩略图栏镜像）：专注模式下内容隐藏时不可点，悬停显示后才能点。
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Short'`));
+  const smOpen=()=>js('shelfOverview.open&&!shelfOverview.classList.contains("closing")'),mClosed=()=>js('!shelfOverview.open');
+  const smBtn=await center('#shelfmarks .side-open'),dockRight=await js('document.getElementById("shelfmarks").getBoundingClientRect().right');assert.ok(smBtn.x>dockRight-48&&smBtn.y<52,'Left button at the inner top corner');
+  await move(400,300);await delay(500);
+  assert.equal(await js(`getComputedStyle(document.querySelector('#shelfmarks .side-open')).visibility`),'hidden','Hidden button cannot be clicked');
+  await move(smBtn.x,smBtn.y);await wait(()=>js(`getComputedStyle(document.querySelector('#shelfmarks .side-open')).visibility==='visible'`));
+  await click(smBtn.x,smBtn.y);await wait(smOpen);
+  // 按书分组（书架顺序：最后添加的 Short 在前），当前书高亮，选中屏幕中心附近的书签。
   const msel=()=>js('(n=>n&&+n.dataset.k)(document.querySelector("#shelfOverview .ov-mark.sel"))');
-  const mOpen=()=>js('shelfOverview.open&&!shelfOverview.classList.contains("closing")'),mClosed=()=>js('!shelfOverview.open');
-  await js('reader.focus()');await press('c');await wait(mOpen);
   assert.equal(await js('[...document.querySelectorAll("#shelfOverview .ov-sec-head strong")].map(n=>n.textContent).join()'),'Short,Long');
-  assert.equal(await js('document.querySelector("#shelfOverview .ov-sec.current strong").textContent'),'Long');
-  assert.equal(await msel(),2);assert.equal(await js('document.querySelector("#shelfOverview .ov-pos").textContent'),'Bookmark 3 / 3 · Long');
+  assert.equal(await js('document.querySelector("#shelfOverview .ov-sec.current strong").textContent'),'Short');
+  assert.equal(await msel(),0);await press('Escape');await wait(mClosed);
+  await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');await delay(100);
+  await move(400,300);await js('reader.focus()');await press('c');await wait(smOpen);
+  assert.equal(await msel(),2);assert.equal(await js('document.querySelector("#shelfOverview .ov-pos").textContent'),'Bookmark 3 / 3 · Long');await shot('shelf-overview');
   await press('a');assert.equal(await msel(),1);await press('w');assert.equal(await msel(),0,'W goes to the row above');await press('s');assert.equal(await msel(),1);
   await press('ArrowLeft');assert.equal(await msel(),0);
-  // Enter 跨书跳转并关闭；' 再打开时选中刚跳到的书签；V 切到全屏缩略图。
+  // 鼠标悬停同样移动选中（与键盘同一样式）。
+  const m2=await center('#shelfOverview .ov-mark[data-k="2"]');await move(m2.x,m2.y);await wait(async()=>await msel()===2);
+  assert.equal(await js('document.querySelectorAll("#shelfOverview .ov-mark.sel").length'),1);
+  await delay(250);assert.ok(await js(`new DOMMatrix(getComputedStyle(document.querySelector('#shelfOverview .ov-mark.sel')).transform).a<1`),'Bookmark selection shrinks too');
+  await press('ArrowLeft');await press('ArrowLeft');assert.equal(await msel(),0);
+  // 全屏书架书签也能切换瀑布流（与全屏缩略图共用偏好），键盘照常。
+  const sl=await center('#shelfOverview .ov-layout');await click(sl.x,sl.y);
+  assert.equal(await js('document.querySelector("#shelfOverview .ov-marks").classList.contains("masonry")'),true);
+  assert.equal(await js('getComputedStyle(document.querySelector("#shelfOverview .ov-mark")).position'),'absolute');await delay(200);await shot('shelf-masonry');
+  await press('d');assert.equal(await msel(),1);await press('w');assert.equal(await msel(),0);await press('s');assert.equal(await msel(),1);await press('a');assert.equal(await msel(),0);
+  await click(sl.x,sl.y);assert.equal(await js('document.querySelector("#shelfOverview .ov-marks").classList.contains("masonry")'),false);
+  // Enter 跨书跳转并关闭；[ 再打开时选中刚跳到的书签；V 切到全屏缩略图，C 切回。
   await press('Enter');await wait(mClosed);await wait(()=>js(`bookTitle.textContent==='Short'`));
-  await press('[');await wait(mOpen);assert.equal(await msel(),0);await press('v');await wait(isOpen);assert.equal(await js('shelfOverview.open'),false,'V switches to thumbnails');
-  await press('c');await wait(mOpen);assert.equal(await js('overview.open'),false,'C switches back');await press('[');await wait(mClosed);
-  // 左侧：专注模式下固定的书架书签列表，从阅读区移入即打开；在列表里上下移动、从顶部边带进入都不触发。
-  const lx=await js('(r=>r.left+r.width/2)(document.getElementById("shelfmarks").getBoundingClientRect())');
-  await move(400);await move(lx);await wait(mOpen);await press('Escape');await wait(mClosed);
-  await move(400,500);await move(lx,500);await move(lx,150);await delay(300);assert.equal(await js('shelfOverview.open'),false,'Entering the lower list and moving up does not trigger');
-  await move(400,5);await move(lx,5);await move(lx,150);await delay(300);assert.equal(await js('shelfOverview.open'),false,'Entering from the top band does not trigger');
-  await move(400);await move(lx);await wait(mOpen);await shot('shelf-overview');
-  const mark1=await js(`(()=>{const r=document.querySelectorAll('#shelfOverview .ov-mark')[2].getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-  await move(mark1.x,mark1.y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,x:mark1.x,y:mark1.y,button:'left',clickCount:1});
-  await wait(mClosed);await wait(()=>js(`bookTitle.textContent==='Long'`));
-  // 专注模式下固定的缩略图栏：鼠标一进入就打开；关闭后在栏内移动不会再开，离开再进入才开。
+  await press('[');await wait(smOpen);assert.equal(await msel(),0);await press('v');await wait(isOpen);assert.equal(await js('shelfOverview.open'),false,'V switches to thumbnails');
+  await press('c');await wait(smOpen);assert.equal(await js('overview.open'),false,'C switches back');await press('[');await wait(mClosed);
+  // 鼠标移入左上角不再打开。
+  const lx=(await center('#shelfmarks')).x;await move(400);await move(lx,100);await delay(400);assert.equal(await js('shelfOverview.open'),false,'Left corner gesture is gone');
+  // 常驻的缩略图栏（专注模式）：按钮同样在悬停显示后可点。
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);await wait(()=>js('document.body.classList.contains("docked")&&document.body.classList.contains("focus-mode")'));
-  const px=await js('(r=>r.left+r.width/2)(document.getElementById("panel").getBoundingClientRect())');
-  await move(300);await move(px);await wait(isOpen);await press('Escape');await wait(closed);
-  await move(px+5);await move(px-5);await delay(300);assert.equal(await js('overview.open'),false,'No reopen inside the strip');
-  await move(300,500);await move(px,500);await move(px,150);await delay(300);assert.equal(await js('overview.open'),false,'Lower part of the pinned strip does not trigger');
-  await move(300);await move(px);await wait(isOpen);await press('Escape');await wait(closed);
-  // 拖宽度的把手不触发。
-  const gx=await js('(r=>r.left+r.width/2)(document.getElementById("grip").getBoundingClientRect())');
-  await move(300);await move(gx);await delay(300);assert.equal(await js('overview.open'),false,'Grip does not open it');
-  // 关闭专注模式：固定栏照常显示，不打开总览。
-  await move(300);await js('document.body.classList.remove("focus-mode")');await move(px);await delay(300);assert.equal(await js('overview.open'),false);
-  // 关闭设置：右缘恢复弹出窄条；V 仍可打开。
-  await js(`document.querySelector('#bar [data-act="preview"]').click();localStorage.setItem('mv2:overview','false')`);
-  await move(300);await move(W-2);await wait(()=>js('!document.getElementById("panel").hidden'));assert.equal(await js('overview.open'),false,'Setting off: strip instead');
-  await move(300);await js('reader.focus()');await press('v');await wait(isOpen);await shot('overview');await press('Escape');await wait(closed);
-  assert.deepEqual(errors,[]);console.log('PASS: full-screen shelf bookmarks (left edge / pinned list, C and [ keys, grouping, navigation, cross-book jump), entry only from the page, full-screen thumbnails from the right edge and the focus-mode strip, masonry layout, wide scrollbar, WASD / arrows, Space / Enter / click to jump, V and ] toggle, re-arm after closing, setting off');
+  await move(400,300);await delay(500);
+  assert.equal(await js(`getComputedStyle(document.querySelector('#panel .side-open')).visibility`),'hidden');
+  const pb=await center('#panel .side-open');await move(pb.x,pb.y);await wait(()=>js(`getComputedStyle(document.querySelector('#panel .side-open')).visibility==='visible'`));
+  await shot('docked-heads');await click(pb.x,pb.y);await wait(isOpen);await delay(300);await shot('overview');await press('Escape');await wait(closed);
+  assert.equal(await js('document.body.classList.contains("docked")'),true,'Docked strip stays');
+  // 两个侧栏的最小宽度一致（160px）：保存的过小宽度在读取时也被夹住。
+  await js(`localStorage.setItem('mv2:width','60');localStorage.setItem('mv2:shelfmarksWidth','60')`);await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Short'`));
+  assert.deepEqual(await js('[document.getElementById("panel").offsetWidth,document.getElementById("shelfmarks").offsetWidth]'),[160,160]);
+  // 旧版的两个开关已不存在。
+  assert.equal(await js(`localStorage.getItem('mv2:overview')??localStorage.getItem('mv2:smOverview')`),null);
+  assert.deepEqual(errors,[]);console.log('PASS: sidebar buttons open full-screen thumbnails / shelf bookmarks (floating, docked, focus mode), corner gestures removed, wider edge zone, regular grid, long strips capped, grid keyboard navigation, hover selection shared with keyboard, shrinking selection, grid / masonry toggle (both views, remembered), thumbnail cache across reopen and book switches, revalidation after focus, C / V / [ / ] keys, equal minimum widths');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

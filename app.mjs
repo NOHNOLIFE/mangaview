@@ -334,15 +334,19 @@ function showBar(open){clearTimeout(barTimer);fade(bar,open);toolbar.classList.t
 tab.onclick=()=>{const keyboard=document.activeElement===tab;showBar(true);if(keyboard)bar.querySelector('.tb:not([hidden])')?.focus();};toolbar.onpointerenter=e=>{clearTimeout(barTimer);if(e.pointerType==='mouse'&&!showing(bar))showBar(true);};
 toolbar.onpointerleave=()=>{clearTimeout(barTimer);if(!toolbar.querySelector(':focus-visible'))barTimer=setTimeout(()=>showBar(false),450);};
 toolbar.onfocusout=()=>queueMicrotask(()=>{if(!toolbar.contains(document.activeElement)&&!toolbar.matches(':hover'))showBar(false);});
-// 鼠标贴近窗口右缘稍作停留即弹出缩略图栏，离开后自动收起。
+// 鼠标贴近窗口右缘（SIDE_EDGE 像素内）停留 SIDE_DWELL 毫秒即弹出缩略图栏，离开后自动收起；左侧书架书签（bookmarks.mjs）相同。
+// 两侧栏拖宽度的下限也统一为 SIDE_MIN。
+const SIDE_EDGE=32,SIDE_DWELL=150,SIDE_MIN=160;
 function cancelEdge(){clearTimeout(edgeTimer);edgeTimer=0;}
 document.addEventListener('pointermove',e=>{
-  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&!showing($('panel'))&&innerWidth-e.clientX<=24&&!document.querySelector('dialog[open]');
-  if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!ctx.autoOverview?.())preview(true);},120); // 开启全屏缩略图时由 overview.mjs 接管
+  const near=e.pointerType==='mouse'&&!e.buttons&&current&&!pinned&&get('edgeRight',true)&&!showing($('panel'))&&innerWidth-e.clientX<=SIDE_EDGE&&!document.querySelector('dialog[open]');
+  if(!near)cancelEdge();else if(!edgeTimer)edgeTimer=setTimeout(()=>{edgeTimer=0;if(!pinned&&!document.querySelector('dialog[open]'))preview(true);},SIDE_DWELL);
+  // 窄条在静止的指针下弹出时浏览器未必补发 pointerenter，之后也就没有 pointerleave：指针已离开窄条和右缘就直接收起。
+  if(e.pointerType==='mouse'&&!pinned&&!resizing&&showing($('panel'))&&innerWidth-e.clientX>SIDE_EDGE&&!$('panel').contains(e.target))preview(false);
 });
 document.addEventListener('pointerout',e=>{if(!e.relatedTarget)cancelEdge();});
 $('panel').onpointerleave=()=>{if(!pinned&&!resizing)preview(false);};
-let resizing=false;function setWidth(value){const w=Math.max(80,Math.min(innerWidth*.55,value));document.documentElement.style.setProperty('--panel',w+'px');return w;}
+let resizing=false;function setWidth(value){const w=Math.max(SIDE_MIN,Math.min(innerWidth*.55,value));document.documentElement.style.setProperty('--panel',w+'px');return w;}
 setWidth(get('width',190));const grip=$('grip');grip.onpointerdown=e=>{if(e.button!==0)return;resizing=true;grip.setPointerCapture(e.pointerId);};
 grip.onpointermove=e=>{if(resizing)setWidth(innerWidth-e.clientX);};grip.onlostpointercapture=()=>{resizing=false;put('width',$('panel').offsetWidth);};
 grip.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();e.stopPropagation();put('width',setWidth($('panel').offsetWidth+(e.key==='ArrowLeft'?16:-16)));}};

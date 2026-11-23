@@ -30,7 +30,7 @@ try{
   const shot=async name=>{if(!process.env.MV_SHOTS)return;const {data}=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(process.env.MV_SHOTS,name+'.png'),Buffer.from(data,'base64'));};
   await cdp('Runtime.enable');await cdp('Page.enable');
   // 全屏缩略图 / 全屏书架书签由 overview.browser.mjs 覆盖；这里关掉，避免悬停列表左上部时打开全屏。
-  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});localStorage.setItem('mv2:overview','false');localStorage.setItem('mv2:smOverview','false');`});
+  await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});`});
   await cdp('Page.navigate',{url:origin});await wait(()=>js('document.querySelector("#empty")?.hidden===false'));
   // 默认不常驻（缩略图栏同样默认不常驻）。
   assert.equal(await js(`document.getElementById('shelfmarks').hidden&&!document.body.classList.contains('shelfmarks')&&!document.body.classList.contains('docked')`),true,'Not pinned by default');
@@ -115,26 +115,19 @@ try{
   await shot('toolbar-over-dock');
   await mouse('mouseMoved',bar.x,bar.y);await mouse('mouseMoved',400,600);await wait(()=>js('bar.hidden'));
   assert.equal(await js('getComputedStyle(barTitle).display'),'none','Title hides with the toolbar');
-  // 专注模式（默认开）：鼠标不在列表上时内容透明但仍占位，底色为当前画面左缘颜色的渐变；悬停时恢复。
+  // 专注模式（默认开）：鼠标不在列表上时内容透明但仍占位，底色是阅读区的中性深色（不再取画面边缘颜色）；悬停时恢复。
   const opacity=sel=>js(`getComputedStyle(document.querySelector('${sel}')).opacity`);
   await wait(async()=>await opacity('#shelfmarks .sm-list')==='0');assert.ok(Math.abs((await box('#reader')).left-dock.right)<=1,'Dock keeps its space');
-  const bg=sel=>js(`(l=>l?getComputedStyle(l).backgroundImage:'none')(document.querySelector('${sel}>.ambient>i.on'))`); // 专注模式底色画在侧栏里当前显示的那层上
-  const tint=await js(`(()=>{const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d');g.fillStyle='hsl(${3*47},55%,38%)';g.fillRect(0,0,1,1);return [...g.getImageData(0,0,1,1).data].slice(0,3).map(v=>Math.round(v*.85));})()`);
-  await wait(async()=>(await bg('#shelfmarks')).includes('rgb('+tint.join(', ')+')'));await shot('focus-idle');
-  // 跨书跳到书签（画面换成别的颜色）后，底色跟着变；滚动途中任何时刻都不回落成纯黑。
-  const color=n=>js(`(()=>{const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d');g.fillStyle='hsl(${n*47},55%,38%)';g.fillRect(0,0,1,1);return 'rgb('+[...g.getImageData(0,0,1,1).data].slice(0,3).map(v=>Math.round(v*.85)).join(', ')+')';})()`);
-  await tap();await wait(async()=>(await center())[0]==='Alpha');const want=await color((await center())[1]);
-  await wait(async()=>(await bg('#shelfmarks')).split('rgb(').length>5&&(await bg('#shelfmarks')).split(want).length>5);
-  // 连续滚动期间不更新（停下约 200ms 后才取色），也不回落成纯黑。
-  const b0=await bg('#shelfmarks'),dark=[],changed=[];for(let y=0;y<12;y++){await js('reader.scrollTop+=180');await delay(30);const b=await bg('#shelfmarks');if(b==='none'||b.includes('rgb(10, 10, 12)'))dark.push(y);if(b!==b0)changed.push(y);}
-  assert.deepEqual(dark,[],'No fallback to black while scrolling');assert.deepEqual(changed,[],'No update while scrolling');
-  await wait(async()=>await bg('#shelfmarks')!==b0);
+  assert.equal(await js('document.querySelector(".ambient")'),null,'No ambient colour layers');
+  assert.equal(await js(`getComputedStyle(document.getElementById('shelfmarks')).backgroundColor`),await js('getComputedStyle(reader).backgroundColor'),'Neutral reader-coloured background');
+  await shot('focus-idle');
+  await tap();await wait(async()=>(await center())[0]==='Alpha'); // 跨书跳到下一个书签（后面的检查以 Alpha 为当前书）
   await mouse('mouseMoved',dock.x,dock.y);await wait(async()=>await opacity('#shelfmarks .sm-list')==='1');
   assert.equal(await js(`getComputedStyle(document.getElementById('shelfmarks'),'::before').opacity`),'1','Solid layer fades in on hover');await mouse('mouseMoved',400,600);await wait(async()=>await opacity('#shelfmarks .sm-list')==='0');
-  // 停靠的缩略图栏同样处理，底色取右缘颜色。
+  // 停靠的缩略图栏同样处理。
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);await wait(()=>js(`document.body.classList.contains('docked')`));
-  await wait(async()=>await opacity('#preview')==='0'&&(await bg('#panel')).startsWith('linear-gradient(rgb('));
-  // 停靠栏中上部悬停显示内容（下角才打开全屏缩略图，见 overview.browser.mjs）。
+  await wait(async()=>await opacity('#preview')==='0');
+  assert.equal(await js(`getComputedStyle(document.getElementById('panel')).backgroundColor`),await js('getComputedStyle(reader).backgroundColor'));
   const pv=await box('#panel');await mouse('mouseMoved',pv.x,pv.y);await wait(async()=>await opacity('#preview')==='1');
   await mouse('mouseMoved',400,600);await js(`document.querySelector('#bar [data-act="preview"]').click()`);
   // 关闭专注模式：内容始终显示。
@@ -157,7 +150,8 @@ try{
   await js(`document.querySelector('${btn}').click()`);await wait(()=>js('document.getElementById("shelfmarks").hidden'));
   assert.equal((await box('#reader')).left,0);assert.equal(await js(`document.querySelector('${btn}').getAttribute('aria-pressed')`),'false');
   // 未常驻：鼠标贴近左缘稍停弹出浮动列表（不挤压正文），移开后淡出收起。
-  await mouse('mouseMoved',400,400);await mouse('mouseMoved',2,400);await delay(40);assert.equal(await js('document.getElementById("shelfmarks").hidden'),true,'Edge needs a short dwell');
+  await mouse('mouseMoved',400,400);await mouse('mouseMoved',40,400);await delay(400);assert.equal(await js('document.getElementById("shelfmarks").hidden'),true,'40px from the edge does not trigger');
+  await mouse('mouseMoved',30,400);await delay(40);assert.equal(await js('document.getElementById("shelfmarks").hidden'),true,'Edge needs a short dwell');
   await wait(()=>js(`(s=>!s.hidden&&s.classList.contains('floating'))(document.getElementById('shelfmarks'))`));assert.equal((await box('#reader')).left,0,'Floating list overlays the reader');
   await mouse('mouseMoved',100,300);await delay(300);assert.equal(await js('document.getElementById("shelfmarks").hidden'),false,'Stays open while hovered');
   await mouse('mouseMoved',600,300);await wait(()=>js('document.getElementById("shelfmarks").classList.contains("leaving")'));await wait(()=>js('document.getElementById("shelfmarks").hidden'));

@@ -1,17 +1,41 @@
 import {at,point,offsets} from './model.mjs';
+import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageThumb,dropPage} from './thumbs.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
-const jobs=new Map();
+// 小图（缩略图栏、全屏缩略图）走 thumbs.mjs 的会话内存缓存：命中即显示、不读原图；正文解码后也顺手生成小图，
+// 缩略图栏和全屏缩略图就不必为同一页再读一次硬盘。
+const jobs=new Map(),SMALL_W=256,SMALL_H=4096;
 let running=0;
 export function release(slot){
   const job=jobs.get(slot);
   if(job){job.dead=true;if(job.url)URL.revokeObjectURL(job.url);jobs.delete(slot);}
   slot.replaceChildren();
 }
-export function imageJob(slot,file,priority,small,ready,fail){
+// key：页面缓存键（thumbs.mjs 的 pageKey），省略则不用缓存。
+export function imageJob(slot,file,priority,small,ready,fail,key=null){
   const job=jobs.get(slot);
   if(job){job.priority=priority;return;}
-  jobs.set(slot,{slot,file,priority,small,ready,fail});queueMicrotask(pump);
+  const j={slot,file,priority,small,ready,fail,key};jobs.set(slot,j);
+  const hit=small&&key&&pageThumb(key);
+  if(hit){j.started=true;show(j,hit);return;}
+  queueMicrotask(pump);
+}
+function show(j,e){
+  const img=new Image();img.alt='';img.draggable=false;img.decoding='async';img.src=e.url;j.slot.replaceChildren(img);
+  queueMicrotask(()=>{if(!j.dead)j.ready?.(e.w,e.h);});
+  if(pageStale(e))verify(j,e);
+}
+// 校验只读文件信息（不读图），单独两个名额，不占读图队列；文件变了就丢掉缓存、重新排队读图。
+const checks=[];let checking=0;
+function verify(j,e){if(e.checking)return;e.checking=true;checks.push([j,e]);drain();}
+function drain(){
+  while(checking<2&&checks.length){
+    const [j,e]=checks.shift();if(j.dead){e.checking=false;continue;}checking++;
+    Promise.resolve().then(j.file).then(f=>{
+      if(fileStamp(f)===e.stamp)pageChecked(e);
+      else{dropPage(j.key);if(!j.dead){j.started=false;pump();}}
+    }).catch(()=>{}).finally(()=>{e.checking=false;checking--;drain();});
+  }
 }
 function pump(){
   while(running<2){
@@ -22,18 +46,28 @@ function pump(){
     load(best).finally(()=>{running--;pump();});
   }
 }
+function shrink(img,w,h){
+  const scale=Math.min(1,SMALL_W/w,SMALL_H/h), canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+  canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);return canvas;
+}
+function keep(key,canvas,w,h,file){const stamp=fileStamp(file);canvas.toBlob(b=>{if(b)keepPageThumb(key,b,w,h,stamp);},'image/webp',.8);}
+const idle=window.requestIdleCallback?fn=>requestIdleCallback(fn,{timeout:1500}):fn=>setTimeout(fn,60);
 async function load(j){
   try{
+    if(j.small&&j.key){const hit=pageThumb(j.key);if(hit){show(j,hit);return;}} // 排队期间正文已生成
     const file=await j.file();if(j.dead)return;
     const img=new Image();img.alt=file.name;img.draggable=false;
     j.url=URL.createObjectURL(file);img.src=j.url;await img.decode();if(j.dead)return;
     const w=img.naturalWidth,h=img.naturalHeight;
     if(j.small){
-      const scale=Math.min(1,256/w,4096/h), canvas=document.createElement('canvas');
-      canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);j.slot.replaceChildren(canvas);
-      URL.revokeObjectURL(j.url);j.url=null;
-    }else j.slot.replaceChildren(img);
+      const canvas=shrink(img,w,h);j.slot.replaceChildren(canvas);
+      URL.revokeObjectURL(j.url);j.url=null;if(j.key)keep(j.key,canvas,w,h,file);
+    }else{
+      j.slot.replaceChildren(img);
+      // 正文的图已在内存里解码：空闲时缩成小图存进缓存（只占 CPU，不读硬盘）。
+      if(j.key&&!hasPageThumb(j.key)){const key=j.key;idle(()=>{if(!hasPageThumb(key))try{keep(key,shrink(img,w,h),w,h,file);}catch{}});}
+    }
     j.ready?.(w,h);
   }catch(e){if(!j.dead){if(j.url){URL.revokeObjectURL(j.url);j.url=null;}j.fail?.(e);}}
 }
@@ -117,9 +151,10 @@ export class Reader {
         if(!k && !this.fit && page.w)node.style.maxWidth=page.w+'px';else node.style.maxWidth='';
         const ahead=this.up ? i<first : i>last;
         const priority=(k?8:0)+(ahead?2:i<first||i>last?4:0);
-        imageJob(node,()=>this.hooks.file(this.book,page),priority,k,(w,h)=>{
+        const book=this.book;
+        imageJob(node,()=>this.hooks.file(book,page),priority,k,(w,h)=>{
           if(page.w!==w||page.h!==h){const anchor=this.anchor();page.w=w;page.h=h;this.layout(anchor);this.hooks.measured();}
-        },e=>{node.classList.add('failed');node.textContent=this.hooks.invalid()+' · '+page.name;this.hooks.error(e,page);});
+        },e=>{node.classList.add('failed');node.textContent=this.hooks.invalid()+' · '+page.name;this.hooks.error(e,page);},pageKey(book,page));
       }
     }
   }
