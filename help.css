@@ -1,45 +1,41 @@
-/* 键鼠操作（help.mjs）：左手 / 右手两块键盘局部 + 鼠标示意 + 补充按键。键帽按 1/4 键宽的网格列排布，字号随区块宽度缩放。 */
-#help{--hk-shift:#8fb3ff;--hk-row:36px;--hk-row1:30px;width:min(58rem,94vw)}
+/* 键鼠操作（help.mjs）：左手 / 右手两块键盘局部 + 鼠标示意 + 补充按键。键帽按 1/4 键宽的网格列排布，键名字号随区块宽度缩放；说明只在提示框里。 */
+#help{--hk-hold:#ffc95a;--hk-shift:#8fb3ff;--hk-row:36px;--hk-row1:30px;width:min(62rem,94vw)}
 #helpBody{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 22px;min-height:0;padding:0 20px 18px;overflow:auto}
 #help>header{gap:10px 16px}
 #help>header>h2{flex:none;white-space:nowrap}
 .hk-legend{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0;color:var(--muted);font-size:12px;user-select:none}
-.hk-legend .lg-tap::before{content:'';display:inline-block;width:10px;height:10px;margin-right:5px;border:1px solid rgba(255,122,89,.45);border-radius:3px;background:var(--accent-soft);vertical-align:-1px}
-.hk-legend .lg-shift::before{content:'⇧';margin-right:4px;color:var(--hk-shift);font-weight:700}
+.em-hold{color:var(--hk-hold);font-weight:700}.em-shift{color:var(--hk-shift);font-weight:700}
+.hk-legend .lg-hold::before{content:'';display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;background:var(--hk-hold);vertical-align:2px}
+.hk-legend .lg-shift::before{content:'⇧';margin-right:3px}
 .hk-legend .lg-hint{color:var(--faint)}
 .hk-zone{min-width:0}
 .hk-zone>h3{margin:0 0 6px;color:var(--muted);font-size:12px;font-weight:600}
 .hk-left{flex:32 1 300px}.hk-right{flex:31 1 290px}
 .hk-mouse,.hk-more{flex:1 0 100%}
 
-/* 键帽 */
+/* 键帽：只写键名；长按（右上圆点）/ 受 Shift 影响（左上 ⇧）的角标用 CSS 画，不进入文本 */
 .hk-keys{display:grid;row-gap:3px;container-type:inline-size}
 .hk-keys.fade-r{mask-image:linear-gradient(to right,#000 88%,transparent)}
 .hk-keys.fade-l{mask-image:linear-gradient(to left,#000 88%,transparent)}
-.hk-key{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;margin:0 1.5px;padding:0 1px;overflow:hidden;border:1px solid var(--line);border-radius:5px;background:rgba(255,255,255,.02);font-size:clamp(8px,2.5cqi,10.5px);line-height:1.12;text-align:center;user-select:none}
-.hk-key:not(.on)::after{content:attr(data-cap);color:var(--faint);font-size:.9em;opacity:.4}
+.hk-key{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;margin:0 1.5px;padding:0 2px;overflow:hidden;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.02);font-size:clamp(12px,4.2cqi,18px);line-height:1;text-align:center;user-select:none}
+.hk-key:not(.on)::after{content:attr(data-cap);color:var(--faint);font-size:.68em;opacity:.4}
 .hk-key.cut-l{margin-left:0;border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
 .hk-key.cut-r{margin-right:0;border-right:0;border-top-right-radius:0;border-bottom-right-radius:0}
-.hk-key.on{border-color:rgba(255,122,89,.42);border-bottom-width:2px;background:var(--accent-soft);color:var(--text);cursor:default}
-.hk-key.on:hover,.hk-key.on:focus-visible{border-color:var(--accent);background:rgba(255,122,89,.26);outline:none}
-.hk-key.mod{border-color:rgba(143,179,255,.42);background:rgba(143,179,255,.12)}
-.hk-key.mod:hover,.hk-key.mod:focus-visible{border-color:var(--hk-shift);background:rgba(143,179,255,.24)}
-.hk-key.mod .hk-cap,.hk-key.mod .hk-tap{color:var(--hk-shift)}
-.hk-key.shift .hk-cap::after{content:' ⇧';color:var(--hk-shift)}
-.hk-cap,.hk-tap,.hk-hold{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hk-cap{color:var(--accent-hi);font-size:.86em;font-weight:700}
-.hk-tap{font-weight:600}
-.hk-tap .i{width:1em;height:1em;margin-right:.15em;vertical-align:-.15em;stroke-width:2.2}
-.hk-hold{color:var(--muted)}
-/* 长按：与长按时出现的进度环同一个意象 */
-.hk-hold::before,.hk-legend .lg-hold::before{content:'';display:inline-block;width:.75em;height:.75em;margin-right:.25em;border-radius:50%;background:conic-gradient(var(--accent) 0 70%,rgba(255,255,255,.25) 0);mask:radial-gradient(circle,transparent 0 38%,#000 42%);vertical-align:-.08em}
-.hk-legend .lg-hold::before{width:11px;height:11px;margin-right:5px}
+.hk-key.on{border-color:rgba(255,122,89,.62);border-bottom-width:2px;background:rgba(255,122,89,.2);cursor:default}
+.hk-key.on:hover,.hk-key.on:focus-visible{border-color:var(--accent);background:rgba(255,122,89,.36);outline:none}
+.hk-key.mod{border-color:rgba(143,179,255,.6);background:rgba(143,179,255,.16)}
+.hk-key.mod:hover,.hk-key.mod:focus-visible{border-color:var(--hk-shift);background:rgba(143,179,255,.3)}
+.hk-cap{max-width:100%;overflow:hidden;color:var(--text);font-weight:700;white-space:nowrap}
+.hk-key.mod .hk-cap{color:var(--hk-shift)}
+.hk-key.long{padding:0 1px}.hk-key.long .hk-cap{font-size:.84em}
+.hk-key.has-hold::before{content:'';position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--hk-hold)}
+.hk-key.has-shift::after{content:'⇧';position:absolute;top:2px;left:3px;color:var(--hk-shift);font-size:10px;font-weight:700;line-height:1}
 
 /* 鼠标 */
 .hk-mouse-body{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
 .hk-buttons{display:grid;flex:1 1 180px;gap:2px;min-width:0}
 .hk-btn{display:flex;align-items:center;gap:10px;min-width:0;padding:5px 8px;border-radius:8px;color:var(--text);font-size:12.5px;user-select:none}
-.hk-btn:hover,.hk-btn:focus-visible,.hk-area:hover,.hk-area:focus-visible{background:rgba(255,122,89,.2);outline:none}
+.hk-area[data-tip]:hover,.hk-area[data-tip]:focus-visible{background:rgba(255,122,89,.24);outline:none}
 .hk-mouse-ico{position:relative;flex:none;width:14px;height:20px;overflow:hidden;border:1.5px solid var(--muted);border-radius:7px 7px 8px 8px}
 .hk-mouse-ico i{position:absolute;top:0;width:50%;height:42%;border-bottom:1.5px solid var(--muted)}
 .hk-mouse-ico .l{left:0;border-right:1px solid var(--muted)}.hk-mouse-ico .r{right:0}
@@ -51,7 +47,6 @@
 .hk-a-top{grid-column:1/-1}.hk-a-bottom{grid-column:1/-1;grid-row:3}
 .hk-a-left{grid-row:2;grid-column:1}.hk-a-right{grid-row:2;grid-column:4}
 .hk-a-half-l{grid-row:2;grid-column:2;border-right:1px dashed var(--line2);border-radius:5px 0 0 5px}.hk-a-half-r{grid-row:2;grid-column:3}
-.hk-area small{color:var(--faint);font-size:10px}
 :lang(ko) .hk-area,:lang(ko) .hk-btn,:lang(ko) .hk-more dd,:lang(ko) .hk-legend{word-break:keep-all}
 
 /* 补充按键 */
@@ -61,6 +56,7 @@
 .hk-more kbd{min-width:20px;height:20px;padding:0 5px;font-size:11px}
 .hk-more dd{min-width:0;margin:0;color:var(--muted);font-size:12px}
 
-.hk-tip{position:absolute;z-index:1;max-width:min(22rem,calc(100% - 16px));padding:7px 11px;border:1px solid var(--line2);border-radius:9px;background:rgba(36,37,43,.98);box-shadow:var(--shadow);color:var(--text);font-size:12.5px;line-height:1.4;pointer-events:none}
+.hk-tip{position:absolute;z-index:1;max-width:min(24rem,calc(100% - 16px));padding:7px 11px;border:1px solid var(--line2);border-radius:9px;background:rgba(36,37,43,.98);box-shadow:var(--shadow);color:var(--text);font-size:13px;line-height:1.45;pointer-events:none}
+.hk-tip kbd{min-width:22px;height:20px;padding:0 5px;font-size:12px;vertical-align:1px}
 @media (max-width:560px){#helpBody{padding:0 12px 14px}}
 @media (max-width:440px){#help>header{flex-wrap:wrap}.hk-legend{order:3;flex-basis:100%}}
