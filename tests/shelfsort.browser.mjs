@@ -45,10 +45,13 @@ try{
   await js('reader.focus()');await press('b');await wait(()=>js('shelf.open'));
   await js(`document.querySelector('#views [data-view="shelf"]').focus()`);await press('b');await wait(()=>js('!shelf.open'));
   await press('b');await wait(()=>js('shelf.open'));
-  assert.equal(await js('document.activeElement.id'),'query');await press('b');await delay(150);
+  // 打开时焦点落在当前书（最后添加的 Book C）的卡片上，而不是搜索框；/ 聚焦搜索框。
+  assert.equal(await js(`document.activeElement.closest('.book')?.querySelector('.name').textContent`),'Book C');
+  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'/',code:'Slash',windowsVirtualKeyCode:191,text:'/'});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'/',code:'Slash',windowsVirtualKeyCode:191});
+  assert.equal(await js('document.activeElement.id'),'query');assert.equal(await js('query.value'),'');await press('b');await delay(150);
   assert.equal(await js('shelf.open&&query.value'),'b','Typing B in the search box does not close the shelf');await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
-  // 卡片按瀑布流分列，DOM 顺序不等于列表顺序；用入场动画延迟（按序号递增）还原顺序。
-  const order=()=>js(`[...document.querySelectorAll('#books .book')].map(b=>[parseFloat(b.style.animationDelay),b.querySelector('.name').textContent]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join()`);
+  // 卡片按瀑布流绝对定位，DOM 顺序不等于列表顺序；用卡片上的序号还原顺序。
+  const order=()=>js(`[...document.querySelectorAll('#books .book')].map(b=>[+b.dataset.i,b.querySelector('.name').textContent]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join()`);
   const sortBy=v=>js(`shelfSort.value='${v}';shelfSort.dispatchEvent(new Event('change'))`);
   assert.equal(await js('shelfSort.value'),'addedNew','Default: newest added first');assert.equal(await order(),'Book C,Book B,Book A');
   await sortBy('addedOld');assert.equal(await order(),'Book A,Book B,Book C');

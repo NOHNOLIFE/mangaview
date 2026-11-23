@@ -57,6 +57,8 @@ const strings = {
   expiredN:['{n} folders not found — moved to Missing','{n} 本找不到文件夹，已归入「过期书籍」','{n} 冊のフォルダーが見つからず「見つからない本」に移動','{n}권의 폴더를 찾지 못해 「찾을 수 없는 책」으로 이동'],
   editTags:['Tags','编辑标签','タグを編集','태그 편집'],addTag:['New tag, press Enter','输入标签，回车添加','タグを入力して Enter','태그 입력 후 Enter'],add:['Add','添加','追加','추가'],cancel:['Cancel','取消','キャンセル','취소'],
   clearTags:['Clear tag filter','清除标签筛选','タグ絞り込みを解除','태그 필터 해제'],
+  filters:['Filters','筛选','絞り込み','필터'],bulk:['Batch actions','批量操作','一括操作','일괄 작업'],filterOn:['Filtered','筛选中','絞り込み中','필터 적용 중'],
+  hasBookmarks:['Has bookmarks','包含书签','しおりあり','책갈피 있음'],clearFilters:['Clear filters','清除筛选','絞り込みを解除','필터 지우기'],findTag:['Find tag','查找标签','タグを検索','태그 찾기'],
   restore:['Restore','恢复','復元','복원'],restoreAll:['Restore from folder…','批量恢复…','フォルダーから復元…','폴더에서 복원…'],removeAll:['Delete all ({n})','全部删除（{n}）','すべて削除（{n}）','모두 삭제 ({n})'],
   rename:['Edit title','编辑书名','書名を編集','제목 편집'],renameSave:['Save','保存','保存','저장'],renameHolder:['Title','书名','書名','제목'],
   renameHint:['Original name: {name}. Leave empty to restore it.','原名：{name}。留空即恢复原名。','元の名前：{name}。空欄にすると元に戻ります。','원래 이름: {name}. 비워 두면 원래 이름으로 돌아갑니다.'],

@@ -113,14 +113,17 @@ function select(book){flush();current=book||null;queueMicrotask(()=>emit('select
 function reloadView(anchor=view.anchor()){if(!current)return;$('access').hidden=true;view.show(current,anchor);updateProgress();}
 // 过期：文件夹找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
 function expired(b){return !!b.missing||!b.dir&&!b.pages.some(p=>p.handle)&&!isLive(b);}
-// 上一本 / 下一本在当前书所在的列表（书架或书库）内切换，跳过过期书。
-// 顺序与书架页相同（ctx.orderBooks，由 shelf.mjs 按“书籍排序”设置提供）。
-function readingList(book){const place=book?.place??'shelf';return ctx.orderBooks([...books.values()].filter(b=>b.place===place&&!expired(b)));}
+// 当前导航范围：上一本 / 下一本在当前书所在的列表（书架或书库）内、且符合书架页当前筛选条件的书中切换，跳过过期书；
+// 书架书签列表（bookmarks.mjs、overview.mjs）用 ctx.readingList({place:'shelf'}) 取同一范围。
+// 顺序与书架页相同（ctx.orderBooks、ctx.matchFilter 由 shelf.mjs 按“书籍排序”和筛选条件提供）。
+function readingList(book){const place=book?.place??'shelf';return ctx.orderBooks([...books.values()].filter(b=>b.place===place&&!expired(b)&&ctx.matchFilter(b)));}
 function step(d){
   const list=readingList(current);if(!list.length)return;
-  const i=list.indexOf(current);
-  const next=i<0 ? (d<0?list.length-1:0) : (i+d+list.length)%list.length;
-  select(list[next]);
+  let i=list.indexOf(current),next;
+  // 当前书不在筛选结果里（仍可正常阅读）：按排序从它所在的位置走到最近的一本结果。
+  if(i<0&&current){const all=ctx.orderBooks([...list,current]);i=all.indexOf(current);next=all[(i+d+all.length)%all.length];}
+  else next=list[i<0 ? (d<0?list.length-1:0) : (i+d+list.length)%list.length];
+  select(next);
 }
 
 // 不对未打开的书读取原图；目录本身的只读句柄可跨启动保存。
@@ -393,7 +396,7 @@ function normalize(b){b.place??='shelf';b.tags??=[];b.bookmarks??=[];b.added??=D
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
-  orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
+  orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
   expired,readingList,relink,discard,remove,copy,normalize,isLive,refreshAll};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
