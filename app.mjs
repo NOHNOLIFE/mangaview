@@ -3,7 +3,7 @@ import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage} from './sources.mjs';
+import {source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -133,8 +133,6 @@ function reloadView(anchor=here()){if(!current)return;$('access').hidden=true;vi
 function expired(b){return b.sources?.length?b.sources.every(s=>down(b,s)):!b.pages.some(p=>p.handle)&&!isLive(b);}
 // 合并作品中暂时找不到的卷数（整本过期时为 0）：只在书籍卡片上给一个小提示。
 const lostSources=b=>b.sources?.length>1&&!expired(b)?b.sources.filter(s=>down(b,s)).length:0;
-// 合并作品按卷的顺序排序（先按卷、再按文件名）；单文件夹书不需要。
-const rankOf=b=>{if(!(b.sources?.length>1))return undefined;const m=new Map(b.sources.map((s,i)=>[s.key,i]));return p=>m.get(keyOf(p))??m.size;};
 // 当前导航范围：上一本 / 下一本在当前书所在的列表（书架或书库）内、且符合书架页当前筛选条件的书中切换，跳过过期书；
 // 书架书签列表（bookmarks.mjs、overview.mjs）用 ctx.readingList({place:'shelf'}) 取同一范围。
 // 顺序与书架页相同（ctx.orderBooks、ctx.matchFilter 由 shelf.mjs 按“书籍排序”和筛选条件提供）。
@@ -163,7 +161,8 @@ async function addGroup(group,place='shelf',later=null){
     // 过期书或合并作品中缺失的卷：同名同封面的接回（一个文件夹只接回一本单文件夹书，但可同时接回多本合并作品中的卷）。
     for(const p of await ctx.autoMatch?.(group)??[])if(p.merged)await vol(p.book,p.source);else book??=p.book;
   }
-  if(!group.title){const names=new Set(group.pages.map(p=>p.name));book=[...books.values()].find(b=>!b.title&&!b.pages.some(p=>names.has(p.name)));}
+  // 散图（title 为 null）一律加入唯一的散图图集，没有时新建。
+  if(!group.title&&!(book=[...books.values()].find(isLoose))){book=normalize({id:crypto.randomUUID(),sortOverride:null,title:null,pages:[],place});books.set(book.id,book);}
   if(book){book.place=place;await relink(book,group);}else{book=normalize({id:crypto.randomUUID(),sortOverride:null,...group,place});books.set(book.id,book);await persist(book);}
   return book;
 }
@@ -179,11 +178,7 @@ async function relink(book,cand,s=book.sources[0]){return relinkAll(book,[{cand,
 // 接到别的文件夹后同名文件可能是不同的图：丢弃这本书在内存里的页面小图（thumbs.mjs），下次显示时重新生成。
 async function relinkAll(book,links){
   const before=book===current?here():null;forgetPages(book.id+':');
-  for(const {cand,source} of links){let s=source;
-    // 过期的散图书接到文件夹上（恢复）：补上一个源，此后按单文件夹书处理。
-    if(cand.dir&&!s&&!book.sources.length)book.sources.push(s={key:'',title:cand.title});
-    if(cand.dir&&s)link(book,cand,s);else book.pages.push(...cand.pages);
-  }
+  for(const {cand,source:s} of links){if(cand.dir&&s)link(book,cand,s);else await addLoose(book,cand.pages);} // 无源：加入散图图集
   delete book.folderTime;settle(book);
   await arrange(book,false,before);emit('books');
 }
@@ -273,7 +268,8 @@ let pendingInput=null,pendingMerge=false;
 function input(kind,book,merge=false){pendingInput=book;pendingMerge=merge;const el=$(kind+'Input');el.value='';el.click();}
 for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
   const groups=fileGroups(e.target.files),book=pendingInput,merge=pendingMerge;pendingInput=null;pendingMerge=false;
-  if(book){let count=0;
+  if(book&&isLoose(book)){const [g]=looseFiles(e.target.files);await rebound(book,g?reconnect(book,g):0);}
+  else if(book){let count=0;
     for(const g of groups){const s=isMerged(book)?book.sources.find(s=>s.title===g.title):book.sources[0];
       if(isMerged(book)?s:!book.title||g.title===book.title||groups.length===1)count+=reconnect(book,g,s);}
     await rebound(book,count);}
@@ -281,12 +277,15 @@ for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
   else await add(groups);
 });
 async function rebound(book,count){if(!count){notice('noImages');return;}settle(book);await arrange(book);}
+// 散图图集定位原文件 / 恢复：在所选文件夹里（递归）按“相对目录 + 文件名”找回各页，见 sources.mjs reconnect。返回找回的页数。
+async function relocate(book,dir){const [g]=await looseImages([dir]);const n=g?reconnect(book,g):0;await rebound(book,n);return n;}
 async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
-    if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
+    if(book&&isLoose(book))await relocate(book,dir);
+    else if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
     else await add(scan(dir));
   }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('imageTypes'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg']}}]});
-    if(book){for await(const g of handleGroups(handles))await rebound(book,reconnect(book,g));}else await add(handleGroups(handles));
+    await add(handleGroups(handles));
   }else input(kind,book);
 }
 // 不依赖拖拽的「导入为单个作品」：选一个文件夹，其下所有带图片的文件夹合成一本。
@@ -422,7 +421,7 @@ async function arrange(book,manual=false,anchor){
     else if($('notice').textContent===t('readingTimes'))$('notice').textContent='';
   }
   if(book===current && anchor===undefined)anchor=here();
-  if(reorder)book.pages=sortedPages(book.pages,mode,rankOf(book));
+  if(reorder)book.pages=sortedPages(book.pages,mode,dirOf(book));
   if(!override && mode==='shuffle')book.shuffleRevision=defaultSort.revision;
   else delete book.shuffleRevision;
   book.sortMode=mode;delete book.random;
@@ -471,10 +470,11 @@ const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf
   preview:()=>{pinned=!pinned;put('preview',pinned);preview(pinned);},refresh:()=>refreshAll(true),clear:clearAll,
   // 合并作品先向用户当初选的文件夹请求授权，一次即可覆盖其下各卷。
   allow:async()=>{const b=current;if(!b)return;const h=(unavailablePage&&sourceOf(b,unavailablePage)?.dir)||b.sources.find(s=>s.dir)?.dir||unavailablePage?.handle;
-    if(!h)return isMerged(b)?actions.locate():pick(b.title?'folder':'file',b);let ok=false; // 合并作品没有任何句柄时按卷匹配，不默认绑到第一卷
+    if(!h)return actions.locate();let ok=false; // 合并作品没有任何句柄时按卷匹配，不默认绑到第一卷
     for(const x of [...b.roots||[],h])if(await x.requestPermission({mode:'read'}).catch(()=>'denied')==='granted')ok=true;
     if(ok&&current===b)reloadView();},
-  locate:()=>current&&(isMerged(current)&&window.showDirectoryPicker&&ctx.restoreOne?ctx.restoreOne(current):pick(current.title?'folder':'file',current)),
+  // 散图图集也选文件夹：按相对目录 + 文件名找回各页。
+  locate:()=>current&&(isMerged(current)&&window.showDirectoryPicker&&ctx.restoreOne?ctx.restoreOne(current):pick('folder',current)),
   merge:pickMerged};
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();else{const action=e.target.closest('[data-act]')?.dataset.act;if(action)safe(actions[action])();}});
 
@@ -563,15 +563,32 @@ function normalize(b){
   b.sources=b.sources.filter(s=>s&&typeof s==='object'&&typeof s.key==='string');
   if(b.roots!=null&&!Array.isArray(b.roots))delete b.roots;
   for(const s of b.sources)delete s.missing;delete b.dir;delete b.missing;
-  if(b.parked?.length){b.pages=b.pages.concat(b.parked);delete b.parked;if(sortMode(b)!=='shuffle')b.pages=sortedPages(b.pages,sortMode(b),rankOf(b));}
+  looseNames(b);
+  if(b.parked?.length){b.pages=b.pages.concat(b.parked);delete b.parked;if(sortMode(b)!=='shuffle')b.pages=sortedPages(b.pages,sortMode(b),dirOf(b));}
   return b;
+}
+// 只保留一个散图图集：旧版本遇到同名图片会另建一本，载入时并入一本（最近打开的那本，否则最新添加的那本，它的书名、位置、排序和阅读位置保留）。
+// 各本的页按 addLoose 规则并入（同一个文件只留一份，同名的不同图片页名加序号），书签随之改写页名，标签取并集；
+// 先保存并入后的图集，再删除其余记录，中途关闭也不丢数据（下次载入再并一次，重复的页按同一规则去掉）。
+async function joinLoose(list){
+  const last=get('last'),keep=list.find(b=>b.id===last)??list.reduce((a,b)=>(b.added??0)>(a.added??0)?b:a),moved=[];
+  for(const b of list){
+    if(b===keep)continue;
+    const names=await addLoose(keep,allPages(b)),have=new Set(keep.bookmarks.map(m=>m?.id));
+    for(const m of b.bookmarks){if(!m||have.has(m.id))continue;if(typeof m.name==='string')m.name=names.get(m.name)??m.name;keep.bookmarks.push(m);if(m.id!=null)moved.push([b,m]);}
+    keep.tags=[...new Set([...keep.tags,...b.tags])];if(keep.name==null&&b.name)keep.name=b.name;
+  }
+  if(sortMode(keep)!=='shuffle')keep.pages=sortedPages(keep.pages,sortMode(keep),dirOf(keep));
+  delete keep.folderTime;await persist(keep);
+  for(const [b,m] of moved){const th=await thumbs('get',b.id+':bm:'+m.id).catch(()=>null);if(th)await thumbs('put',th,keep.id+':bm:'+m.id);} // 书签缩略图键带书的 id（bookmarks.mjs）
+  for(const b of list)if(b!==keep){books.delete(b.id);await library('delete',b.id);await dropThumbs(b.id);dropKey('pos:'+b.id);}
 }
 // 功能模块共用的上下文。keys：{down(e)→true 表示已处理, up(e), blur()}；settings：设置面板条目，见 settings 描述。
 const listeners={};function emit(type,...args){for(const fn of listeners[type]||[])try{fn(...args);}catch(e){console.warn(e);}}
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,atEdge,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
-  expired,readingList,relink,relinkAll,rebuild,mergeKeys,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
+  expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -580,6 +597,7 @@ ctx.settings.push(
 
 
 try{for(const b of await library('getAll')){try{const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
+{const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);
 toolPanel(ctx);

@@ -1,4 +1,4 @@
-import {at,point,offsets} from './model.mjs';
+import {at,point,offsets,shownName} from './model.mjs';
 import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageThumb,dropPage} from './thumbs.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
@@ -146,7 +146,7 @@ export class Reader {
       for(const [i,node] of slots)if(i<lo||i>hi){release(node);node.remove();slots.delete(i);}
       for(let i=lo;i<=hi;i++){
         const page=this.book.pages[i];let node=slots.get(i);
-        if(!node){node=document.createElement('div');node.className='page';node.dataset.name=page.name;node.dataset.n=i+1;/* 只有缩略图悬停时显示文件名 */if(k)node.title=page.name;p.strip.append(node);slots.set(i,node);}
+        if(!node){node=document.createElement('div');node.className='page';node.dataset.name=page.name;node.dataset.n=i+1;/* 只有缩略图悬停时显示文件名 */if(k)node.title=shownName(page);p.strip.append(node);slots.set(i,node);}
         node.style.top=starts[i]+'px';node.style.height=starts[i+1]-starts[i]+'px';
         if(!k && !this.fit && page.w)node.style.maxWidth=page.w+'px';else node.style.maxWidth='';
         const ahead=this.up ? i<first : i>last;
@@ -154,7 +154,7 @@ export class Reader {
         const book=this.book;
         imageJob(node,()=>this.hooks.file(book,page),priority,k,(w,h)=>{
           if(page.w!==w||page.h!==h){const anchor=this.anchor();page.w=w;page.h=h;this.layout(anchor);this.hooks.measured();}
-        },e=>{node.classList.add('failed');node.textContent=this.hooks.invalid()+' · '+page.name;this.hooks.error(e,page);},pageKey(book,page));
+        },e=>{node.classList.add('failed');node.textContent=this.hooks.invalid()+' · '+shownName(page);this.hooks.error(e,page);},pageKey(book,page));
       }
     }
   }

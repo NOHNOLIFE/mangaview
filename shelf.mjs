@@ -1,6 +1,6 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 全部 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
-import {natural,fileOf} from './model.mjs';
-import {scan,readMissingTimes,allPages,keyOf} from './sources.mjs';
+import {natural,fileOf,nameOrder} from './model.mjs';
+import {scan,readMissingTimes,allPages,keyOf,dirOf,isLoose} from './sources.mjs';
 import {norm,coverName,grade,assign,hue} from './match.mjs';
 import {extend} from './lang.mjs';
 
@@ -84,14 +84,12 @@ export function install(ctx){
     }}finally{timing=false;if(changed)refresh();if(retime)setTimeout(sweepTimes,800);}
   }
   setTimeout(sweepTimes,1500);ctx.on('books',()=>setTimeout(sweepTimes,800));
-  // 封面页按文件名自然顺序取第一张；合并作品取第一个可见卷的第一张。
-  // 结果按页表缓存，后台检查数千本书时不必每次重新比较全部文件名。
-  const firstPage=pages=>{const n=coverName(pages.map(fileOf));return pages.find(p=>fileOf(p)===n);};
-  const pickCover=(b,pages)=>{if(!(b.sources?.length>1))return firstPage(pages);
-    for(const s of b.sources){const mine=pages.filter(p=>keyOf(p)===s.key);if(mine.length)return firstPage(mine);}};
+  // 封面页取「文件名」正序（按路径，与当前排序无关）的第一张：单文件夹书即文件名自然顺序的第一张（与 match.mjs coverName 一致），
+  // 合并作品即第一个可见卷的第一张。结果按页表缓存，后台检查数千本书时不必每次重新比较全部文件名。
+  const firstPage=(b,pages)=>{const order=nameOrder(dirOf(b));return pages.reduce((a,p)=>!a||order(p,a)<0?p:a,null);};
   const coverNames=new WeakMap();
   const coverPage=b=>{const pages=b.pages||[];let c=coverNames.get(b);
-    if(!c||c.pages!==pages||c.n!==pages.length||c.src!==b.sources){c={pages,n:pages.length,src:b.sources,name:pickCover(b,pages)?.name};coverNames.set(b,c);}
+    if(!c||c.pages!==pages||c.n!==pages.length||c.src!==b.sources){c={pages,n:pages.length,src:b.sources,name:firstPage(b,pages)?.name};coverNames.set(b,c);}
     return pages.find(p=>p.name===c.name);};
   // 过期书只出现在“过期书籍”里，其他列表不显示，避免被当成可读的书。
   const inView=(b,v=view)=>ctx.expired(b)?v==='expired':v==='all'||b.place===v;
@@ -152,7 +150,7 @@ export function install(ctx){
   // 合并作品的每一卷另记一份封面摘要（只读各卷首张图的前 64KB，每卷一次），恢复时按卷匹配。
   const bySource=b=>{const m=new Map();for(const p of b.pages){const k=keyOf(p);if(!m.has(k))m.set(k,[]);m.get(k).push(p);}return m;};
   const staleFp=b=>{if(!(b.sources?.length>1))return [];const m=bySource(b);
-    return b.sources.map(s=>[s,m.get(s.key)&&firstPage(m.get(s.key))]).filter(([s,p])=>p&&s.fp?.name!==fileOf(p)&&!ctx.isDown(b,s));};
+    return b.sources.map(s=>[s,m.get(s.key)&&firstPage(b,m.get(s.key))]).filter(([s,p])=>p&&s.fp?.name!==fileOf(p)&&!ctx.isDown(b,s));};
   const needsFp=b=>staleFp(b).length>0;
   const coverFresh=b=>{const p=coverPage(b);return !p||b.fp?.thumb&&b.fp.cover?.name===p.name;};
   const fresh=b=>coverFresh(b)&&!needsFp(b);
@@ -561,8 +559,8 @@ export function install(ctx){
   // want(title)：只要名称相符的槽（普通导入时用，避免为大量无关的书构造比较对象）；all：不论是否缺失（定位原文件）。
   function slotsOf(b,want,all=false){
     const ex=all||ctx.expired(b);
-    // 散图书没有源：过期时整本作为一个槽，接回后按单文件夹书处理（见 app.mjs relinkAll）。
-    if(!b.sources?.length)return ex&&(!want||want(b.title))?[{book:b,source:null,merged:false,t:b}]:[];
+    // 散图图集没有源，不按文件夹匹配：它的恢复是按相对目录 + 文件名逐页找回（restoreOne → ctx.relocate）。
+    if(isLoose(b))return [];
     return b.sources.filter(s=>(ex||ctx.isDown(b,s))&&(!want||want(s.key?s.title:b.title))).map(s=>s.key
       ?{book:b,source:s,merged:true,t:{title:s.title,pages:allPages(b).filter(p=>keyOf(p)===s.key).map(p=>({name:fileOf(p)})),fp:s.fp&&{cover:s.fp}}}
       :{book:b,source:s,merged:false,t:b});
@@ -611,6 +609,7 @@ export function install(ctx){
   }
   async function restoreOne(b){
     const dir=await pickRoot();if(!dir)return;
+    if(isLoose(b)){if(await ctx.relocate(b,dir)){draw();summary(1,0,0);}else notice('noMatch');return;}
     const cands=await candidates(dir);if(!cands.length)return notice('noImages');
     let mine=slotsOf(b);if(!mine.length&&b.sources?.length>1)mine=slotsOf(b,null,true);
     const others=allSlots().filter(x=>x.book!==b);

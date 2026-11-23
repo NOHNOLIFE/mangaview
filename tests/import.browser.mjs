@@ -132,6 +132,17 @@ try{
   const loose=await wait(async()=>(await js('records()')).find(b=>!b.title&&b.pages.some(p=>p.name==='A/deep/1.svg')));
   assert.deepEqual(loose.pages.map(p=>p.name),['A/1.svg','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']);assert.equal(loose.place,'library');
   assert.equal((await js('records()')).length,total+1,'Only the loose album is added, no folder books');
+  // 只有一个散图图集：直接拖入已在图集里的图（同一个文件，路径不同）不重复；另一个同名文件夹里的同名图（不同文件）加入同一个图集，页名加序号，显示原文件名。
+  const looseNames=()=>js(`records().then(r=>r.filter(b=>!b.title).map(b=>b.pages.map(p=>p.name)))`);
+  await js(`(async()=>{notice.textContent='';window.queue=[await (await dirOf('drop/B')).getFileHandle('1.svg')];drag('dragenter',10,10);drag('drop',10,10);})()`);
+  await wait(()=>js(`notice.textContent.includes('已添加 1 本')`));
+  assert.deepEqual(await looseNames(),[['A/1.svg','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']]);
+  await js(`mk('drop2','A',1,'black')`);
+  await js(`(async()=>{window.queue=[await dirOf('drop2/A'),await dirOf('drop/A')];drag('dragenter',10,10);drag('drop',${lzone[0]},${lzone[1]},2);})()`);
+  await wait(async()=>(await looseNames())[0]?.length===6);
+  assert.deepEqual(await looseNames(),[['A/1.svg','A/1.svg (2)','A/2.svg','A/deep/1.svg','B/1.svg','B/2.svg']]);
+  assert.equal((await js('records()')).length,total+1);
+  assert.equal(await js(`records().then(r=>r.find(b=>!b.title).pages.find(p=>p.name==='A/1.svg (2)')).then(p=>p.file+'|'+p.path+'|'+!!p.handle)`),'1.svg|A|true');
   // 小窗口：三块区域都在窗口内、互不重叠。
   await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:480,deviceScaleFactor:1,mobile:false});await wait(()=>js('innerWidth===360'));
   await js(`drag('dragenter',10,10)`);await delay(250);rects=await areas();await shot('drop-small');assert.ok(stacked(rects,360,480),'Fits a small window: '+JSON.stringify(rects));
@@ -226,19 +237,29 @@ try{
   await js(`(async()=>{const d=await dirOf('u/U2');window.showDirectoryPicker=async()=>d;document.querySelector('[data-act="allow"]').click();})()`);
   await wait(()=>js(`byTitle('u').then(b=>b.sources.map(s=>s.key+':'+!!s.dir).join()==='U1:false,U2:true')`));
   assert.equal((await js(`byTitle('u')`)).sources[1].path,'U2');
-  // 15. 过期的散图书（没有源）可以恢复：接到所选文件夹，成为单文件夹书，标签和书签保留。
-  await js(`(async()=>{const {library}=await import('./store.mjs');await mk('lz','L',2,'orange');
-    await library('put',{id:'loose',title:null,pages:[{name:'1.svg'},{name:'2.svg'}],sortOverride:null,place:'shelf',tags:['scraps'],bookmarks:[{id:'lb',name:'2.svg',f:0,at:1}],added:3});})()`);
-  await reload();await open();await js(`document.querySelector('[data-view="expired"]').click()`);
+  // 15. 旧版的多个散图图集（同名图片曾另建一本）：载入时并成一本（最近打开的那本），书签改写到新页名、书签缩略图随之移动，标签取并集；
+  // 过期的散图图集（没有句柄）恢复时不变成文件夹书，而是在所选文件夹里按相对目录 + 文件名逐页找回。
+  await js(`(async()=>{const {library,thumbs}=await import('./store.mjs');await mk('lz','L',2,'orange');await mk('lz/L','sub',1,'teal');
+    for(const b of await library('getAll'))if(!b.title)await library('delete',b.id);
+    await library('put',{id:'loose',title:null,pages:[{name:'1.svg'},{name:'2.svg'}],sortOverride:null,place:'shelf',tags:['scraps'],bookmarks:[{id:'lb',name:'2.svg',f:0,at:1}],added:3});
+    await library('put',{id:'loose2',title:null,pages:[{name:'2.svg'},{name:'sub/1.svg'}],sortOverride:null,place:'shelf',tags:['more'],bookmarks:[{id:'lb2',name:'2.svg',f:.5,at:2},{id:'lb3',name:'sub/1.svg',f:0,at:3}],added:4});
+    await thumbs('put',{blob:new Blob(['x'],{type:'image/webp'}),w:1,h:1},'loose2:bm:lb2');
+    localStorage.setItem('mv2:pos:loose2',JSON.stringify({name:'2.svg',f:0}));localStorage.setItem('mv2:last',JSON.stringify('loose'));})()`);
+  await reload();
+  const albums=()=>js('records()').then(r=>r.filter(b=>!b.title));
+  await wait(async()=>(await albums()).length===1);
+  let lz=(await albums())[0];
+  assert.equal(lz.id,'loose');assert.deepEqual(lz.pages.map(p=>p.name),['1.svg','2.svg','2.svg (2)','sub/1.svg']);
+  assert.deepEqual(lz.bookmarks.map(m=>m.id+':'+m.name),['lb:2.svg','lb2:2.svg (2)','lb3:sub/1.svg']);assert.deepEqual(lz.tags,['scraps','more']);
+  assert.ok(await js(`import('./store.mjs').then(async({thumbs})=>!!await thumbs('get','loose:bm:lb2')&&!await thumbs('get','loose2:bm:lb2'))`));
+  assert.equal(await js(`localStorage.getItem('mv2:pos:loose2')`),null);
+  await open();await js(`document.querySelector('[data-view="expired"]').click()`);
   await wait(()=>js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`));
   await js(`(async()=>{const d=await dirOf('lz/L');window.showDirectoryPicker=async()=>d;document.querySelector('#books .book.expired .pick[aria-label="散图图集"]').click();})()`);
-  await wait(()=>js('restore.open'));assert.equal(await js('restoreGo.textContent'),'强制恢复');await js('restoreGo.click()');
-  await wait(async()=>(await js('records()')).find(b=>b.id==='loose')?.title==='L');
-  const lz=(await js('records()')).find(b=>b.id==='loose');
-  assert.deepEqual(lz.sources.map(s=>[s.key,s.title]),[['','L']]);assert.equal(lz.path,'L');assert.equal(lz.pages.length,2);
-  assert.deepEqual(lz.tags,['scraps']);assert.deepEqual(lz.bookmarks.map(m=>m.id),['lb']);
-  assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="L"]')`),false);
-  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, no overlapping areas, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, loose restore');
+  await wait(()=>js(`records().then(r=>r.find(b=>b.id==='loose').pages.map(p=>p.name+':'+!!p.handle).join())`).then(v=>v==='1.svg:true,2.svg:true,2.svg (2):false,sub/1.svg:true'));
+  lz=(await albums())[0];assert.equal(lz.title,null);assert.deepEqual(lz.sources??[],[]);assert.equal((await albums()).length,1);
+  assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`),false);
+  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, no overlapping areas, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, one loose album (dedupe, same-name images, legacy albums merged, restore by relative path)');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

@@ -135,7 +135,11 @@ When a series is split across several folders (one per volume, for example), you
 
 - Importing the same set of folders again updates that book instead of adding a second copy: new volumes are added, volumes that are gone are removed, and bookmarks and progress are kept.
 - The same folder can be a book of its own and a volume in one or more joined books at the same time; refreshing or re-importing it updates all of them.
-- If only one folder contains images, it is imported as a normal book. Loose images are still imported separately.
+- If only one folder contains images, it is imported as a normal book. Loose images go to **Loose images**.
+
+### Loose images
+
+There is a single **Loose images** album: images picked with **Add to Loose images**, images dropped on their own, and everything dropped on the **Add to Loose images** area all go there. Different images with the same name can live side by side, and adding the same file again doesn't duplicate it. If some of its images can't be found, the album stays readable and those images show as unreadable; use **Locate originals** (or **Restore** on its cover when the whole album is missing) and pick the folder that holds them, at any depth, to find them again by relative path and file name.
 
 ### Bookmarks
 
