@@ -15,13 +15,26 @@ export function needsSort(book,defaults){
   return sortMode(book)!==mode || (override===null && mode==='shuffle' && book.shuffleRevision!==defaults.revision);
 }
 export const byTime=mode=>mode==='timeAsc'||mode==='timeDesc';
-// 合并作品（多个源文件夹）的页名为“源 key/文件名”，page.src 为源的 key，保证整本书内唯一；单文件夹书的页名就是文件名。
-export const fileOf=p=>p.src?p.name.slice(p.src.length+1):p.name;
-// rank(page)：所属源的次序。按名称排序时先按源、再按文件名，各卷不会交错。
-export function sortedPages(pages,mode,rank){
+// 页名是页在书内的唯一标识（书签、阅读位置靠它），不一定等于文件名：
+// 合并作品（多个源文件夹）的页名为“源 key/文件名”，page.src 为源的 key；单文件夹书的页名就是文件名；
+// 散图另记 file（文件名）和 path（来自文件夹时的相对目录），同名的不同图片页名加序号区分（见 sources.mjs addLoose）。
+export const fileOf=p=>p.file??(p.src?p.name.slice(p.src.length+1):p.name);
+// 界面上显示的名称：散图为“相对目录/文件名”（不带区分用的序号），其他书为页名。
+export const shownName=p=>p.file!=null?(p.path?p.path+'/':'')+p.file:p.name;
+// 目录路径逐段自然比较（'' 为根）：父目录在其子目录之前。
+export function compareDirs(a,b){
+  if(a===b)return 0;const A=a?a.split('/'):[],B=b?b.split('/'):[];
+  for(let i=0;i<Math.min(A.length,B.length);i++){const c=natural(A[i],B[i]);if(c)return c;}
+  return A.length-B.length;
+}
+// 「文件名」排序实际按完整路径：先比较所在目录（dir(page)，见 sources.mjs dirOf），同一目录内比较文件名；
+// 单文件夹书的目录都相同，即按文件名；合并作品即先按卷、再按文件名；目录完全相同的两卷按 key 分开，不交错；
+// 同名散图最后按页名（加入先后的序号）定次序。所有书共用这一个比较。
+export const nameOrder=(dir=p=>p.path??'')=>(a,b)=>compareDirs(dir(a),dir(b))||natural(a.src??'',b.src??'')||natural(fileOf(a),fileOf(b))||natural(a.name,b.name);
+export function sortedPages(pages,mode,dir){
   if(mode==='shuffle')return shuffled(pages);
   const direction=mode==='nameDesc'||mode==='timeDesc'?-1:1;
-  const byName=(a,b)=>(rank?rank(a)-rank(b):0)||natural(fileOf(a),fileOf(b));
+  const byName=nameOrder(dir);
   return [...pages].sort((a,b)=>{
     if(byTime(mode)){
       const knownA=Number.isFinite(a.lastModified), knownB=Number.isFinite(b.lastModified);

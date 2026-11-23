@@ -1,6 +1,7 @@
 import {extend} from './lang.mjs';
 import {imageJob,release} from './view.mjs';
 import {pageKey} from './thumbs.mjs';
+import {shownName} from './model.mjs';
 // 全屏总览：
 // · 全屏缩略图：缩略图栏顶部的按钮，或快捷键 V / ]。整本书的页面排成规整网格（默认）或瀑布流，只为可见范围创建元素；
 //   缩略图与缩略图栏共用会话内存缓存（thumbs.mjs），再次打开、切书后回来都不必重读原图。
@@ -114,7 +115,7 @@ export function install(ctx){
       if(it.y+it.h<lo||it.y>hi)return;
       const visible=it.y+it.h>=top&&it.y<=top+H,page=b.pages[i];let node=nodes.get(i);
       if(!node){
-        node=make('div','ov-item');node.dataset.i=i;node.setAttribute('role','option');node.title=page.name;
+        node=make('div','ov-item');node.dataset.i=i;node.setAttribute('role','option');node.title=shownName(page);
         node.append(make('div','ov-img'),make('span','ov-n',String(i+1)));node.classList.toggle('sel',i===sel);node.classList.toggle('here',i===here);
         node.setAttribute('aria-selected',String(i===sel));place(node,i);grid.append(node);nodes.set(i,node);
       }
