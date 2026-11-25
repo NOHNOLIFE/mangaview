@@ -594,7 +594,7 @@ export function install(ctx){
     for(const x of slots){if(x.t.fp?.cover?.hash)await candHash(c);ps.push({book:x.book,source:x.source,merged:x.merged,cand:c,...grade(x.t,c)});}
     return assign(ps).filter(p=>p.level===2);
   };
-  async function pickRoot(){if(!window.showDirectoryPicker){notice('needFsa');return null;}return showDirectoryPicker({mode:'read'});}
+  async function pickRoot(){if(!window.showDirectoryPicker){notice('needFsa');return null;}return showDirectoryPicker({mode:'read',id:'mv-restore'});} // id：选择框开在上次恢复时选的位置
   function summary(done,pending,left){const parts=[];if(done)parts.push(fmt('restoredN',{n:done}));if(pending)parts.push(fmt('pendingN',{n:pending}));if(left)parts.push(fmt('unmatchedN',{n:left}));notice(null,parts.join(' · ')||t('noMatch'));}
   const stillExpired=slots=>[...new Set(slots.map(x=>x.book))].filter(b=>books.has(b.id)&&ctx.expired(b)).length;
   async function restoreBatch(){
@@ -602,21 +602,23 @@ export function install(ctx){
     const slots=allSlots();notice(null,fmt('scanningN',{n:0}),120000);
     const cands=await candidates(dir,n=>{if(n%25===0)notice(null,fmt('scanningN',{n}),120000);});
     const matched=assign(await pairs(slots,cands)),sure=matched.filter(p=>p.level===2),maybe=matched.filter(p=>p.level===1);
-    const done=await apply(sure);draw();
+    const done=await apply(sure)+await looseBack(dir);draw();ctx.emit('books');
     if(!maybe.length)return summary(done,0,stillExpired(slots));
     openRestore({title:t('reviewTitle'),hint:t('reviewHint'),go:t('restoreSelected'),rows:maybe,checks:true,async onGo(chosen){
       const more=await apply(chosen);draw();summary(done+more,0,stillExpired(slots));}});
     summary(done,new Set(maybe.map(p=>p.book)).size,0);
   }
+  // 恢复只接回已有的记录，不新增书：所选文件夹里对不上任何记录的文件夹一律忽略。散图图集按相对目录 + 文件名逐页找回。
+  async function looseBack(dir){const lb=[...books.values()].find(ctx.looseLost);return lb&&await ctx.relocate(lb,dir,true)?1:0;}
   async function restoreOne(b){
     const dir=await pickRoot();if(!dir)return;
-    if(isLoose(b)){if(await ctx.relocate(b,dir)){draw();summary(1,0,0);}else notice('noMatch');return;}
+    if(isLoose(b)){const n=await ctx.relocate(b,dir,true)?1:0,more=await apply(assign(await pairs(allSlots(),await candidates(dir))).filter(p=>p.level===2));draw();ctx.emit('books');if(n+more)summary(n+more,0,0);else notice('noMatch');return;}
     const cands=await candidates(dir);if(!cands.length)return notice('noImages');
-    let mine=slotsOf(b);if(!mine.length&&b.sources?.length>1)mine=slotsOf(b,null,true);
+    let mine=slotsOf(b);if(!mine.length)mine=slotsOf(b,null,true);
     const others=allSlots().filter(x=>x.book!==b);
     if(!mine.length)return notice('noMatch');
     // 同一个文件夹也可能是其他过期书或缺失的卷：完全匹配的一并接回。
-    const extra=async()=>apply(assign(await pairs(others,cands)).filter(p=>p.level===2));
+    const extra=async()=>{await apply(assign(await pairs(others,cands)).filter(p=>p.level===2));await looseBack(dir);ctx.emit('books');};
     if(!mine[0].merged){
       const x=mine[0],ps=[];for(const c of cands){if(b.fp?.cover?.hash)await candHash(c);ps.push({book:b,source:x.source,merged:false,cand:c,...grade(b,c)});}
       ps.sort((p,q)=>q.score-p.score);

@@ -13,14 +13,35 @@ export const isLoose=book=>!book.sources?.length;
 // 页所在的目录，供「文件名」排序按路径比较（model.mjs nameOrder）：合并作品为卷的相对路径，散图为页记下的相对目录，单文件夹书为空。
 export const dirOf=book=>{const m=new Map((book.sources??[]).map(s=>[s.key,s.path??s.key]));return p=>p.src!=null?m.get(p.src)??p.src:p.path??'';};
 
+// 已保存的句柄可能整体失效：浏览器对它的操作挂起，既不返回也不报错（重新选择同一个文件夹得到的新句柄却正常）。
+// 对已保存句柄的操作一律限时；超时的句柄记为卡住，一段时间内直接按“找不到”处理、不再等待（刷新时记为缺失，可用恢复或重新拖入接回原记录）。
+// 第一次超时前留足机械硬盘唤醒的时间；出现过卡住之后，其余句柄多半同因，缩短等待。
+export const limits={first:20000,next:3000,retry:60000,probe:3000};
+const stuck=new WeakMap(),dead=new WeakSet();let stalled=false;
+// 失效（dead）与读得慢要分开：queryPermission 不碰磁盘，正常时立即返回，它都不返回才算句柄失效，本次会话内不再重试；
+// 读文件、列目录超时可能只是硬盘慢或没唤醒，只在一段时间内按找不到处理（stuck）。
+export const isDead=h=>!!h&&dead.has(h);
+export const isStuck=h=>!!h&&(dead.has(h)||performance.now()-(stuck.get(h)??-Infinity)<limits.retry);
+export function timed(h,fn){
+  if(isStuck(h))return Promise.reject(new DOMException('','TimeoutError'));
+  let t;return Promise.race([fn(),new Promise((_,no)=>{t=setTimeout(()=>{stuck.set(h,performance.now());stalled=true;no(new DOMException('','TimeoutError'));},stalled?limits.next:limits.first);})]).finally(()=>clearTimeout(t));
+}
+// queryPermission 不碰磁盘：并行探测一批已保存的句柄，把卡住的一次标出，之后的刷新、读图不必逐个等待。
+export async function probe(hs,files=[]){
+  const ask=list=>Promise.all([...new Set(list)].filter(h=>h?.queryPermission&&!dead.has(h)).map(h=>{let t;return Promise.race([h.queryPermission({mode:'read'}),new Promise(r=>{t=setTimeout(()=>{dead.add(h);stalled=true;r();},limits.probe);})]).catch(()=>{}).finally(()=>clearTimeout(t));}));
+  // 散图的文件句柄可能有上千个：先抽查几个，全部失效才逐个标记（同因，一起超时，不多花时间）。
+  const step=Math.max(1,Math.floor(files.length/8)),sample=files.filter((_,i)=>i%step===0).slice(0,8);
+  await ask([...hs,...sample]);
+  if(sample.length&&sample.every(isDead))await ask(files);
+}
 // 文件选择器回退只在本次会话持有 File，不向浏览器存储复制原图。
 const live=new WeakMap();
 export async function source(book,page){
   const file=live.get(page);if(file)return file;
   const dir=sourceOf(book,page)?.dir;
-  const handle=page.handle || (dir && await dir.getFileHandle(fileOf(page)));
+  const handle=page.handle || (dir && await timed(dir,()=>dir.getFileHandle(fileOf(page))));
   if(!handle)throw new DOMException('','NotFoundError');
-  return handle.getFile();
+  return timed(dir??handle,()=>handle.getFile()); // 文件夹里的页按文件夹记卡住：同一文件夹的其他页不再逐张等待
 }
 // 只取元数据，串行访问避免机械硬盘被大量并发请求占满。
 export async function readMissingTimes(book,active){
@@ -33,7 +54,7 @@ export async function readMissingTimes(book,active){
       page.lastModified=lastModified;
     }
     catch(e){
-      if(sourceOf(book,page)?.dir && e.name==='NotAllowedError')break;
+      if(sourceOf(book,page)?.dir && e.name==='NotAllowedError' || e.name==='TimeoutError')break;
       if(!['NotAllowedError','NotFoundError','NotReadableError','SecurityError'].includes(e.name))throw e;
     }
   }
@@ -51,15 +72,16 @@ export async function* scan(dir,base=''){
   if(pages.length)yield {title:dir.name,dir,path,pages:ordered(pages)};
   for(const child of children)yield* scan(child,path);
 }
-// 刷新用：只列目录，返回图片文件名；找不到或没有图片时为 'gone'，没有权限为 'denied'。
+// 刷新用：只列目录，返回图片文件名；找不到、句柄卡住或没有图片时为 'gone'，没有权限为 'denied'。
 export async function listDir(dir,ask){
-  let state=await dir.queryPermission?.({mode:'read'})??'granted';
-  if(state==='prompt'&&ask)state=await dir.requestPermission({mode:'read'}).catch(()=>'prompt');
-  if(state!=='granted')return 'denied';
-  const names=[];
-  try{for await(const h of dir.values())if(h.kind==='file'&&isImage(h.name))names.push(h.name);}
-  catch(e){if(e.name==='NotFoundError')return 'gone';if(['NotAllowedError','SecurityError'].includes(e.name))return 'denied';throw e;}
-  return names.length?names:'gone';
+  try{
+    let state=dir.queryPermission?await timed(dir,()=>dir.queryPermission({mode:'read'})):'granted';
+    if(state==='prompt'&&ask)state=await dir.requestPermission({mode:'read'}).catch(()=>'prompt');
+    if(state!=='granted')return 'denied';
+    const names=[],it=dir.values();
+    for(;;){const r=await timed(dir,()=>it.next());if(r.done)break;if(r.value.kind==='file'&&isImage(r.value.name))names.push(r.value.name);}
+    return names.length?names:'gone';
+  }catch(e){if(['NotFoundError','TimeoutError'].includes(e.name))return 'gone';if(['NotAllowedError','SecurityError'].includes(e.name))return 'denied';throw e;}
 }
 export function fileGroups(files){
   const groups=new Map();
@@ -92,9 +114,9 @@ export function looseFiles(files){
 // 同一个文件经由不同的上级文件夹拖入时就是这样）；否则要求相对目录、文件名、修改时间相同（大小已知时也要相同）。
 // 已有的那页接上新的句柄或本次会话的文件（这也是备份导入后重新拖入散图即可恢复的方式）；只是同名的不同图片两张都保留，页名加序号区分。
 // 只比较句柄和元数据，不读图片内容。传入的页对象本身放进图集（回退模式下与本次会话的 File 绑定）。返回 Map(原页名 → 图集中的页名)。
-const sameEntry=async(a,b)=>a===b||!!a.isSameEntry&&await a.isSameEntry(b).catch(()=>false);
+const sameEntry=async(a,b)=>a===b||!!a.isSameEntry&&await timed(a,()=>a.isSameEntry(b)).catch(()=>false);
 const related=(a='',b='')=>!a||!b||a===b||a.endsWith('/'+b)||b.endsWith('/'+a);
-async function meta(p){const f=live.get(p)??await p.handle?.getFile().catch(()=>null);return f?{size:f.size,lastModified:f.lastModified}:p;}
+async function meta(p){const f=live.get(p)??(p.handle?await timed(p.handle,()=>p.handle.getFile()).catch(()=>null):null);return f?{size:f.size,lastModified:f.lastModified}:p;}
 export async function addLoose(book,pages){
   const byFile=new Map(),names=new Set(),out=new Map();
   const index=p=>{const k=fileOf(p);if(!byFile.has(k))byFile.set(k,[]);byFile.get(k).push(p);names.add(p.name);};
@@ -140,8 +162,8 @@ export function applyNames(book,s,names,reset=false){
   book.pages.push(...fresh);
   return {added:fresh.length,removed:total+fresh.length-allPages(book).length};
 }
-// 源是否暂时不可用：刷新时找不到，或者既没有目录句柄、也没有本次会话的文件（如从备份导入）。
-export const down=(book,s)=>!!s.missing||!s.dir&&!allPages(book).some(p=>keyOf(p)===s.key&&(p.handle||live.has(p)));
+// 源是否暂时不可用：刷新时找不到、句柄卡住，或者既没有目录句柄、也没有本次会话的文件（如从备份导入）。
+export const down=(book,s)=>!!s.missing||isStuck(s.dir)||!s.dir&&!allPages(book).some(p=>keyOf(p)===s.key&&(p.handle||live.has(p)));
 // 部分源找不到时，把它们的页移到 parked；全部找不到（整本书过期）或全部可用时页面原样保留。返回可见页是否有变化。
 export function settle(book){
   const gone=new Set(book.sources.filter(s=>down(book,s)).map(s=>s.key));
@@ -155,11 +177,11 @@ export function settle(book){
 export const isLive=book=>book.pages.some(p=>live.has(p));
 // 散图按“相对目录 + 文件名”重新定位。候选来自用户选的文件夹（looseImages，目录从所选文件夹的名称算起）：
 // 目录相同最优先；其次是选了原文件夹的上级（原目录是候选目录的末尾几段），或选了原文件夹里的子文件夹（反过来）；
-// 没有目录的散图只认所选文件夹里直接放着的图。重合越多越优先，同分时优先修改时间相同的；每个文件只配一页，配不上的不动。
+// 没有目录的散图只认所选文件夹里直接放着的图；在子目录里的，要修改时间也相同、或整个所选文件夹里只有这一个同名文件才认。重合越多越优先，同分时优先修改时间相同的；每个文件只配一页，配不上的不动。
 function looseMatch(pages,cands){
   const byFile=new Map();for(const c of cands){const k=fileOf(c);if(!byFile.has(k))byFile.set(k,[]);byFile.get(k).push(c);}
   const fit=(a='',b='')=>a===b?3:!a?(b.includes('/')?0:1):b.endsWith('/'+a)?2:b&&a.endsWith('/'+b)?1:0,pairs=[];
-  for(const p of pages)for(const c of byFile.get(fileOf(p))??[]){const s=fit(p.path,c.path);if(s)pairs.push({p,c,s:s*2+(Number.isFinite(p.lastModified)&&p.lastModified===c.lastModified)});}
+  for(const p of pages){const same=byFile.get(fileOf(p))??[];for(const c of same){const time=Number.isFinite(p.lastModified)&&p.lastModified===c.lastModified,s=fit(p.path,c.path)||(!p.path&&(time||same.length===1)?.25:0);if(s)pairs.push({p,c,s:s*2+time});}}
   pairs.sort((x,y)=>y.s-x.s);
   const usedP=new Set(),usedC=new Set(),out=[];
   for(const {p,c} of pairs)if(!usedP.has(p)&&!usedC.has(c)){usedP.add(p);usedC.add(c);out.push([p,c]);}

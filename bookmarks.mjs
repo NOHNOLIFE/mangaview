@@ -78,7 +78,12 @@ export function install(ctx){
     addBtn.replaceChildren(icon('bookmark-plus'),make('span','label',t('bmAdd')),keys);
     const items=list(book);head.replaceChildren(make('span','',t('bookmarks')),make('span','count',items.length||''));
     if(!items.length){grid.replaceChildren(make('p','bm-empty',t('bmEmpty')));return;}
-    grid.replaceChildren(...items.map(x=>tile(book,x)));
+    grid.replaceChildren(...items.map(x=>tile(book,x)));markPanel();
+  }
+  // 面板里离阅读视窗最近的书签（与书架书签列表的 .active 相同）；面板开着时随阅读滚动更新。
+  function markPanel(){
+    const id=ctx.current&&nearest(ctx.current);
+    for(const el of grid.querySelectorAll('.bm-item'))el.classList.toggle('active',el.dataset.id===id);
   }
   // 书签缩略图格子：右键面板与书架书签列表共用。
   // 紧凑显示：只有缩略图，不显示文件名、书名和页码文字；页码（及书名）只放进 aria-label 给读屏。
@@ -193,7 +198,7 @@ export function install(ctx){
   }
   // 阅读滚动时当前标记跟随更新：节流到每 200ms 至多一次，只改前后两个格子，不滚动列表。
   let nearTimer=0;
-  main.addEventListener('scroll',()=>{if(!nearTimer&&!dock.hidden)nearTimer=setTimeout(()=>{nearTimer=0;if(!dock.hidden)markNear();},200);},{passive:true});
+  main.addEventListener('scroll',()=>{if(!nearTimer&&(!dock.hidden||!panel.hidden))nearTimer=setTimeout(()=>{nearTimer=0;if(!dock.hidden)markNear();if(!panel.hidden)markPanel();},200);},{passive:true});
   // 列表定位：切书、跳转书签、列表弹出 / 显示时，把当前标记（还没有版面时为当前书那一组）滚入可见范围；当前书没有书签则不动。
   // 用户正在浏览列表（指针在列表上，或刚手动滚动过）时不抢滚动位置；列表刚显示时（force）除外。只滚动列表本身，不影响正文。
   let browsedAt=-Infinity;

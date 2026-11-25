@@ -4,11 +4,15 @@ import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageT
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
 // 小图（缩略图栏、全屏缩略图）走 thumbs.mjs 的会话内存缓存：命中即显示、不读原图；正文解码后也顺手生成小图，
 // 缩略图栏和全屏缩略图就不必为同一页再读一次硬盘。
+// 浏览器的文件读取偶尔会挂起不返回：丢弃的任务立即让出名额，超时的任务按失败处理，单个文件卡住不会拖住整个队列。
 const jobs=new Map(),SMALL_W=256,SMALL_H=4096;
+export const limits={read:30000}; // 单张图读取 + 解码的上限（毫秒），留足机械硬盘唤醒的时间
 let running=0;
+function free(j){if(j.held){j.held=false;running--;queueMicrotask(pump);}}
+const within=p=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new DOMException('','TimeoutError')),limits.read);})]).finally(()=>clearTimeout(t));};
 export function release(slot){
   const job=jobs.get(slot);
-  if(job){job.dead=true;if(job.url)URL.revokeObjectURL(job.url);jobs.delete(slot);}
+  if(job){job.dead=true;free(job);if(job.url)URL.revokeObjectURL(job.url);jobs.delete(slot);}
   slot.replaceChildren();
 }
 // key：页面缓存键（thumbs.mjs 的 pageKey），省略则不用缓存。
@@ -31,7 +35,7 @@ function verify(j,e){if(e.checking)return;e.checking=true;checks.push([j,e]);dra
 function drain(){
   while(checking<2&&checks.length){
     const [j,e]=checks.shift();if(j.dead){e.checking=false;continue;}checking++;
-    Promise.resolve().then(j.file).then(f=>{
+    within(Promise.resolve().then(j.file)).then(f=>{
       if(fileStamp(f)===e.stamp)pageChecked(e);
       else{dropPage(j.key);if(!j.dead){j.started=false;pump();}}
     }).catch(()=>{}).finally(()=>{e.checking=false;checking--;drain();});
@@ -42,8 +46,8 @@ function pump(){
     let best;
     for(const j of jobs.values())if(!j.started && (!best||j.priority<best.priority))best=j;
     if(!best)break;
-    best.started=true;running++;
-    load(best).finally(()=>{running--;pump();});
+    best.started=best.held=true;running++;
+    load(best).finally(()=>free(best));
   }
 }
 function shrink(img,w,h){
@@ -54,22 +58,24 @@ function shrink(img,w,h){
 function keep(key,canvas,w,h,file){const stamp=fileStamp(file);canvas.toBlob(b=>{if(b)keepPageThumb(key,b,w,h,stamp);},'image/webp',.8);}
 const idle=window.requestIdleCallback?fn=>requestIdleCallback(fn,{timeout:1500}):fn=>setTimeout(fn,60);
 async function load(j){
-  try{
-    if(j.small&&j.key){const hit=pageThumb(j.key);if(hit){show(j,hit);return;}} // 排队期间正文已生成
-    const file=await j.file();if(j.dead)return;
-    const img=new Image();img.alt=file.name;img.draggable=false;
-    j.url=URL.createObjectURL(file);img.src=j.url;await img.decode();if(j.dead)return;
-    const w=img.naturalWidth,h=img.naturalHeight;
-    if(j.small){
-      const canvas=shrink(img,w,h);j.slot.replaceChildren(canvas);
-      URL.revokeObjectURL(j.url);j.url=null;if(j.key)keep(j.key,canvas,w,h,file);
-    }else{
-      j.slot.replaceChildren(img);
-      // 正文的图已在内存里解码：空闲时缩成小图存进缓存（只占 CPU，不读硬盘）。
-      if(j.key&&!hasPageThumb(j.key)){const key=j.key;idle(()=>{if(!hasPageThumb(key))try{keep(key,shrink(img,w,h),w,h,file);}catch{}});}
-    }
-    j.ready?.(w,h);
-  }catch(e){if(!j.dead){if(j.url){URL.revokeObjectURL(j.url);j.url=null;}j.fail?.(e);}}
+  try{await within(read(j));}
+  catch(e){if(!j.dead){j.dead=true;if(j.url){URL.revokeObjectURL(j.url);j.url=null;}j.fail?.(e);}}
+}
+async function read(j){
+  if(j.small&&j.key){const hit=pageThumb(j.key);if(hit){show(j,hit);return;}} // 排队期间正文已生成
+  const file=await j.file();if(j.dead)return;
+  const img=new Image();img.alt=file.name;img.draggable=false;
+  j.url=URL.createObjectURL(file);img.src=j.url;await img.decode();if(j.dead)return;
+  const w=img.naturalWidth,h=img.naturalHeight;
+  if(j.small){
+    const canvas=shrink(img,w,h);j.slot.replaceChildren(canvas);
+    URL.revokeObjectURL(j.url);j.url=null;if(j.key)keep(j.key,canvas,w,h,file);
+  }else{
+    j.slot.replaceChildren(img);
+    // 正文的图已在内存里解码：空闲时缩成小图存进缓存（只占 CPU，不读硬盘）。
+    if(j.key&&!hasPageThumb(j.key)){const key=j.key;idle(()=>{if(!hasPageThumb(key))try{keep(key,shrink(img,w,h),w,h,file);}catch{}});}
+  }
+  j.ready?.(w,h);
 }
 
 export class Reader {

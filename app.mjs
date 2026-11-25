@@ -3,7 +3,7 @@ import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
+import {timed,isStuck,isDead,probe,source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -21,7 +21,7 @@ let lang=langPref()||detect(navigator.languages||[navigator.language]);
 const t=key=>translate(key,lang), title=b=>b.name||(b.title??t('loose')); // name：用户编辑的书名；title 是文件夹名，用于识别和恢复，不改
 function localize(){
   document.documentElement.lang=lang;
-  for(const el of document.querySelectorAll('[data-t]'))el.textContent=t(el.dataset.t);
+  for(const el of document.querySelectorAll('[data-t]'))el.textContent=t(el.dataset.t);queueMicrotask(()=>accessState());
   for(const el of document.querySelectorAll('[data-label]')){el.title=t(el.dataset.label);el.setAttribute('aria-label',el.title);}
   for(const el of document.querySelectorAll('[data-aria]'))el.setAttribute('aria-label',t(el.dataset.aria)); // 只给读屏，不显示悬停文字
   for(const el of document.querySelectorAll('[data-placeholder]')){el.placeholder=t(el.dataset.placeholder);el.setAttribute('aria-label',el.placeholder);}
@@ -53,7 +53,7 @@ function safe(fn){return (...args)=>Promise.resolve().then(()=>fn(...args)).catc
 // 边缘触发区（像素）：四边同一个值，见下方 atEdge。inset：顶缘从窗口控件覆盖区（--top）以下算起。
 const EDGE=32;
 const atEdge=(side,e,inset=0)=>side==='left'?e.clientX<EDGE:side==='right'?innerWidth-e.clientX<=EDGE:side==='top'?e.clientY-inset<EDGE:innerHeight-e.clientY<=EDGE;
-const prefix='mv2:', books=new Map();let current=null, unavailablePage=null;
+let probed=false;const prefix='mv2:', books=new Map();let current=null, unavailablePage=null;
 function get(key,otherwise=null){try{return JSON.parse(localStorage.getItem(prefix+key))??otherwise;}catch{return otherwise;}}
 function put(key,value){try{localStorage.setItem(prefix+key,JSON.stringify(value));}catch{notice('storage');}}
 function dropKey(key){try{localStorage.removeItem(prefix+key);}catch{notice('storage');}}
@@ -78,7 +78,7 @@ function savePos(){clearTimeout(posTimer);posTimer=0;if(!current)return;const po
 function saveDims(){clearTimeout(dimTimer);if(dirty){persist(dirty);dirty=null;}}
 function flush(){savePos();saveDims();}
 const view=new Reader(main,nav,{
-  file:source,invalid:()=>t('invalid'),error(e,page){if(e.name!=='EncodingError'){unavailablePage=page;$('access').hidden=false;}},
+  file:source,invalid:()=>t('invalid'),error(e,page){if(e.name!=='EncodingError'){unavailablePage=page;accessState();$('access').hidden=false;}},
   progress(){if(!posTimer)posTimer=setTimeout(savePos,250);if(!hudFrame)hudFrame=requestAnimationFrame(()=>{hudFrame=0;updateProgress(true);});},
   measured(){dirty=current;clearTimeout(dimTimer);dimTimer=setTimeout(saveDims,800);}
 });
@@ -123,7 +123,21 @@ function select(book){flush();current=book||null;queueMicrotask(()=>emit('select
 }
 function reloadView(anchor=here()){if(!current)return;$('access').hidden=true;view.show(current,anchor);updateProgress();}
 // 过期：全部源（文件夹）都找不到，或没有任何可用的文件来源（导入的备份、重启后的文件选择器散图）。记录保留，手动删除才清除。
-function expired(b){return b.sources?.length?b.sources.every(s=>down(b,s)):!b.pages.some(p=>p.handle)&&!isLive(b);}
+function expired(b){return b.sources?.length?b.sources.every(s=>down(b,s)):!b.pages.some(p=>p.handle&&!isDead(p.handle))&&!isLive(b);}
+// 散图图集里有页没有可用的句柄（失效或尚未接回）：恢复时顺带找回。
+const looseLost=b=>isLoose(b)&&!isLive(b)&&allPages(b).some(p=>!p.handle||isDead(p.handle));
+// 浏览器作废的句柄数（文件夹逐个计，散图图集算一个）。大量失效通常是浏览器更新所致：提示条说明原因并直接给出恢复入口。
+const browserVer=()=>/(?:Chrome|Firefox|Version)\/(\d+)/.exec(navigator.userAgent)?.[1]??'';
+const staleCount=()=>new Set(handlesOf([...books.values()]).filter(isDead)).size+[...books.values()].filter(b=>isLoose(b)&&b.pages.some(p=>isDead(p.handle))).length;
+function accessState(show){
+  const n=staleCount(),was=get('ua'),now=browserVer(),bar=$('access');
+  if(probed&&!n&&now)put('ua',now); // 记下句柄完好时的浏览器版本，失效时用来说明是哪次更新之后出的问题
+  bar.classList.toggle('stale',!!n);
+  bar.querySelector('span').textContent=n?(was&&now&&was!==now?fmt('staleUp',{a:was,b:now,n}):fmt('stale',{n})):t('missing');
+  bar.querySelector('[data-act="allow"] span').textContent=t(n?'restoreAll':'allow');
+  if(show&&n)bar.hidden=false;else if(show===false&&!n&&bar.classList.contains('wasStale'))bar.hidden=true;
+  bar.classList.toggle('wasStale',!!n);
+}
 // 合并作品中暂时找不到的卷数（整本过期时为 0）：只在书籍卡片上给一个小提示。
 const lostSources=b=>b.sources?.length>1&&!expired(b)?b.sources.filter(s=>down(b,s)).length:0;
 // 当前导航范围：上一本 / 下一本在当前书所在的列表（书架或书库）内、且符合书架页当前筛选条件的书中切换，跳过过期书；
@@ -143,7 +157,10 @@ function step(d){
 // 同一个文件夹（句柄相同）对应同一本单文件夹书；同名但位置不同的文件夹是不同的书。
 // 同一个文件夹还可以是任意多本合并作品中的一卷：导入它时，这些书里的这一卷也按最新内容更新。
 // 找不到时再看过期书或缺失的卷：文件夹名和封面摘要都一致时接回原记录，标签、书签和进度随之恢复。
-const sameDir=async(a,b)=>!!a?.isSameEntry&&!!b&&(a===b||await a.isSameEntry(b).catch(()=>false));
+// 句柄卡住（见 sources.mjs timed）时按不同处理：卡住的旧源随之算作缺失，可被新文件夹接回。
+const handlesOf=list=>list.flatMap(b=>[...b.sources.map(s=>s.dir),...(b.roots||[])]).filter(Boolean);
+const probeAll=list=>probe(handlesOf(list),list.filter(isLoose).flatMap(b=>allPages(b).map(p=>p.handle).filter(Boolean)));
+const sameDir=async(a,b)=>!!a?.isSameEntry&&!!b&&(a===b||await timed(a,()=>a.isSameEntry(b)).catch(()=>false));
 async function refsTo(dir,title){const out=[];for(const b of books.values())for(const s of b.sources)if(s.title===title&&await sameDir(s.dir,dir))out.push({book:b,source:s});return out;}
 // later：合并作品中的卷先记下，整批导入完后每本书只排序保存一次（一次导入很多卷时不反复写整本书的记录）。
 async function addGroup(group,place='shelf',later=null){
@@ -271,7 +288,7 @@ for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
 });
 async function rebound(book,count){if(!count){notice('noImages');return;}settle(book);await arrange(book);}
 // 散图图集定位原文件 / 恢复：在所选文件夹里（递归）按“相对目录 + 文件名”找回各页，见 sources.mjs reconnect。返回找回的页数。
-async function relocate(book,dir){const [g]=await looseImages([dir]);const n=g?reconnect(book,g):0;await rebound(book,n);return n;}
+async function relocate(book,dir,quiet){const [g]=await looseImages([dir]);const n=g?reconnect(book,g):0;if(n||!quiet)await rebound(book,n);return n;}
 async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
     if(book&&isLoose(book))await relocate(book,dir);
@@ -328,6 +345,7 @@ async function remove(book){if(!book||!confirm(t('confirmRemove')+'\n'+title(boo
 // 浏览器无法区分“文件夹已删除”和“移动硬盘未连接”，所以找不到的源只做标记：全部源都找不到的书归入「过期书籍」，
 // 部分找不到的书照常可读，缺失那几卷的页暂时不显示。记录、标签和书签都保留，用户手动删除才清除。
 async function sync(list,ask){
+  await probeAll(list);
   const byTitle=new Map(),units=[];
   for(const b of list)for(const s of b.sources){
     if(!s.dir)continue;
@@ -338,7 +356,7 @@ async function sync(list,ask){
     u.refs.push({book:b,source:s});
   }
   // 合并作品先向当初选的文件夹请求一次授权，其下各卷随之可读，不必逐卷弹窗。
-  if(ask&&current?.roots&&list.includes(current))for(const r of current.roots)if(await r.queryPermission?.({mode:'read'})==='prompt')await r.requestPermission({mode:'read'}).catch(()=>{});
+  if(ask&&current?.roots&&list.includes(current))for(const r of current.roots)if(r.queryPermission&&await timed(r,()=>r.queryPermission({mode:'read'})).catch(()=>null)==='prompt')await r.requestPermission({mode:'read'}).catch(()=>{});
   for(const u of units)u.result=await listDir(u.dir,ask&&u.refs.some(r=>r.book===current));
   const per=new Map();
   for(const u of units)for(const r of u.refs){if(!per.has(r.book))per.set(r.book,[]);per.get(r.book).push([r.source,u.result]);}
@@ -466,12 +484,12 @@ const actions={folder:()=>pick('folder'),files:()=>pick('file'),shelf:()=>{shelf
   full:()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(),
   preview:()=>{pinned=!pinned;put('preview',pinned);preview(pinned);},refresh:()=>refreshAll(true),clear:clearAll,
   // 合并作品先向用户当初选的文件夹请求授权，一次即可覆盖其下各卷。
-  allow:async()=>{const b=current;if(!b)return;const h=(unavailablePage&&sourceOf(b,unavailablePage)?.dir)||b.sources.find(s=>s.dir)?.dir||unavailablePage?.handle;
-    if(!h)return actions.locate();let ok=false; // 合并作品没有任何句柄时按卷匹配，不默认绑到第一卷
-    for(const x of [...b.roots||[],h])if(await x.requestPermission({mode:'read'}).catch(()=>'denied')==='granted')ok=true;
+  allow:async()=>{if(staleCount()&&ctx.restoreBatch)return ctx.restoreBatch();const b=current;if(!b)return;const h=(unavailablePage&&sourceOf(b,unavailablePage)?.dir)||b.sources.find(s=>s.dir)?.dir||unavailablePage?.handle;
+    if(!h||isStuck(h))return actions.locate();let ok=false; // 卡住的句柄授权也没用，直接重新指定文件夹 // 合并作品没有任何句柄时按卷匹配，不默认绑到第一卷
+    for(const x of [...(b.roots||[]).filter(r=>!isStuck(r)),h])if(await x.requestPermission({mode:'read'}).catch(()=>'denied')==='granted')ok=true;
     if(ok&&current===b)reloadView();},
   // 散图图集也选文件夹：按相对目录 + 文件名找回各页。
-  locate:()=>current&&(isMerged(current)&&window.showDirectoryPicker&&ctx.restoreOne?ctx.restoreOne(current):pick('folder',current)),
+  locate:()=>current&&(window.showDirectoryPicker&&ctx.restoreOne?ctx.restoreOne(current):pick('folder',current)),
   merge:pickMerged};
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();else{const action=e.target.closest('[data-act]')?.dataset.act;if(action)safe(actions[action])();}});
 
@@ -524,7 +542,7 @@ window.addEventListener('keydown',e=>{
     return;
   }
   // B：打开 / 关闭书架（书架页的搜索框等输入框内不拦截，上面已经返回）。
-  if(shelf.open&&!e.altKey&&e.key.toLowerCase()==='b'&&document.querySelectorAll('dialog[open]').length===1){e.preventDefault();if(!e.repeat)shelf.close();return;}
+  if(shelf.open&&!e.altKey&&e.key.toLowerCase()==='b'&&[...document.querySelectorAll('dialog[open]')].every(d=>d===shelf||d.classList.contains('overview'))){e.preventDefault();if(!e.repeat)shelf.close();return;}
   if(document.querySelector('dialog[open]'))return;
   if(e.key==='Escape'){showBar(false);if(!pinned)preview(false);main.focus();return;}
   if(e.altKey)return;if(e.key.toLowerCase()==='b'){e.preventDefault();if(!e.repeat)actions.shelf();return;}
@@ -585,7 +603,7 @@ const listeners={};function emit(type,...args){for(const fn of listeners[type]||
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,atEdge,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
-  expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
+  expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,looseLost,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -599,7 +617,9 @@ try{for(const b of await library('getAll')){try{const old=b.added==null;books.se
 shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);
 toolPanel(ctx);
 
+await probeAll([...books.values()]);probed=true;
 select(books.get(get('last'))||books.values().next().value);
+accessState(true);(listeners.books??=[]).push(()=>accessState(false));
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
 try{if(sessionStorage.getItem(prefix+'reset')){sessionStorage.removeItem(prefix+'reset');notice('resetDone');}}catch{} // 还原默认设置后的重新载入

@@ -25,6 +25,8 @@
 .ov-item.sel .ov-n,.ov-item.here .ov-n{opacity:1}
 .ov-item.here .ov-n{background:var(--accent);color:var(--accent-ink)}
 /* 选中（鼠标悬停与键盘共用，同一时间只有一格）：略微缩小并加强调色描边，留在自己的格子里，不遮挡相邻格子。 */
+/* .here：当前阅读位置所在的页，与选中 / 悬停同一描边，但不缩小，以便和移动中的选中项区分。 */
+.ov-item.here{z-index:1;box-shadow:0 0 0 3px var(--accent),0 8px 22px rgba(0,0,0,.55)}
 .ov-item.sel{z-index:1;transform:scale(.93);box-shadow:0 0 0 3px var(--accent),0 8px 22px rgba(0,0,0,.55);scroll-margin:12px}
 @media (prefers-reduced-motion:reduce){.ov-item{transition:none}}
 .ov-item.failed{background:rgba(255,102,114,.12)}
@@ -40,7 +42,7 @@
 /* 瀑布流（overview.mjs 的 markLayout 按缩略图比例逐列定位）。 */
 .ov-marks.masonry .ov-sec-grid{display:block;position:relative;margin-top:10px;padding-top:0}
 .ov-marks.masonry .ov-mark{position:absolute;aspect-ratio:auto}
-.ov-layout{flex:none}
+.ov-layout,.ov-shelf{flex:none}
 
 /* 侧栏头部（缩略图栏 .pv-head；书架书签列表的 .sm-head 见 bookmarks.css）：两侧同高（52px）、镜像对称，各是一个占满整行的块状“打开全屏”按钮
    （图标、文字、数量），距内侧（靠阅读区）和外侧边缘同为 10px 左右。 */

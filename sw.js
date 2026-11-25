@@ -1,5 +1,5 @@
 // 发布时与 index.html 的 <title> 版本号一起修改；不 skipWaiting，阅读中的窗口保持使用完整旧版本。
-const prefix='mangaview-shell:'+self.registration.scope+':', cacheName=prefix+'2.2.3';
+const prefix='mangaview-shell:'+self.registration.scope+':', cacheName=prefix+'2.2.4';
 const shell=['index.html','style.css','app.mjs','model.mjs','lang.mjs','store.mjs','sources.mjs','view.mjs','thumbs.mjs','shelf.mjs','match.mjs','shelf.css','toolbar.mjs','toolbar.css','settings.mjs','backup.mjs','settings.css','bookmarks.mjs','bookmarks.css','focus.mjs','focus.css','overview.mjs','overview.css','help.mjs','help.css','app.webmanifest','icons/192.png','icons/512.png'].map(p=>new URL(p,self.registration.scope).href);
 self.addEventListener('install',e=>e.waitUntil((async()=>{
   const cache=await caches.open(cacheName);

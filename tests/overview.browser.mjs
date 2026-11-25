@@ -45,7 +45,7 @@ try{
   const move=(x,y=150)=>cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
   const click=async(x,y)=>{await move(x,y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,x,y,button:'left',clickCount:1});};
   const center=sel=>js(`(()=>{const r=document.querySelector('${sel}').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width};})()`);
-  const keys={d:['KeyD',68],s:['KeyS',83],w:['KeyW',87],a:['KeyA',65],v:['KeyV',86],']':['BracketRight',221],ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37],ArrowDown:['ArrowDown',40],ArrowUp:['ArrowUp',38],Home:['Home',36],End:['End',35],Enter:['Enter',13],' ':['Space',32],Escape:['Escape',27],g:['KeyG',71],c:['KeyC',67],'[':['BracketLeft',219],PageDown:['PageDown',34]};
+  const keys={d:['KeyD',68],s:['KeyS',83],w:['KeyW',87],a:['KeyA',65],v:['KeyV',86],']':['BracketRight',221],ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37],ArrowDown:['ArrowDown',40],ArrowUp:['ArrowUp',38],Home:['Home',36],End:['End',35],Enter:['Enter',13],' ':['Space',32],Escape:['Escape',27],g:['KeyG',71],c:['KeyC',67],'[':['BracketLeft',219],PageDown:['PageDown',34],b:['KeyB',66]};
   const press=async k=>{const [code,vk]=keys[k],text=k.length===1?k:k==='Enter'?'\r':undefined,modifiers=0;
     await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code,windowsVirtualKeyCode:vk,modifiers,...(text?{text}:{})});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code,windowsVirtualKeyCode:vk,modifiers});};
   const isOpen=()=>js('overview.open&&!overview.classList.contains("closing")'),closed=()=>js('!overview.open');
@@ -80,6 +80,8 @@ try{
   for(let k=0;k<8;k++){await js('(s=>s.scrollTop=s.clientHeight*'+k+'/2)(document.querySelector(".ov-scroll"))');await delay(60);await wait(()=>js('[...document.querySelectorAll(".ov-item")].every(n=>n.querySelector(".ov-img>*"))'));}
   // 键盘：A/D、←/→ 按页序；W/S、↑/↓ 按网格行（同一列）移动。
   await press('d');await press('ArrowRight');assert.equal((await sel()).i,2);assert.equal(await pos(),'Page 3 / 40');
+  // 当前阅读页：与选中同一描边，不缩小。
+  await delay(250);assert.deepEqual(await js(`(()=>{const h=getComputedStyle(document.querySelector('.ov-item.here')),s=getComputedStyle(document.querySelector('.ov-item.sel'));return [document.querySelector('.ov-item.here').dataset.i,h.boxShadow===s.boxShadow,h.transform];})()`),['0',true,'none'],'Reading page is outlined like the selection');
   const a=await sel();await press('s');const b=await sel();assert.equal(b.x,a.x);assert.equal(b.i,a.i+cols,'S moves one row down');
   await press('ArrowDown');const c=await sel();assert.equal(c.i,a.i+2*cols);
   await press('w');await press('ArrowUp');assert.deepEqual(await sel(),a);await press('a');await press('ArrowLeft');assert.equal((await sel()).i,0);
@@ -169,6 +171,9 @@ try{
   await js(`document.querySelector('#endbar [data-act="next"]').click()`);await wait(()=>js(`bookTitle.textContent==='Long'`));await js('reader.scrollTop=9000');await delay(100);
   await move(400,300);await js('reader.focus()');await press('c');await wait(smOpen);
   assert.equal(await msel(),2);assert.equal(await js('document.querySelector("#shelfOverview .ov-pos").textContent'),'Bookmark 3 / 3 · Long');await shot('shelf-overview');
+  // 选中项缩小动画结束后（getBoundingClientRect 含 transform），W / ↑ 仍越过同一行去上一行。
+  await delay(250);await press('w');assert.equal(await msel(),0,'W skips the shrunken selection\'s own row');await press('s');assert.equal(await msel(),1);await press('d');assert.equal(await msel(),2);
+  await delay(250);await press('ArrowUp');assert.equal(await msel(),0,'ArrowUp too');await press('s');await press('d');assert.equal(await msel(),2);
   await press('a');assert.equal(await msel(),1);await press('w');assert.equal(await msel(),0,'W goes to the row above');await press('s');assert.equal(await msel(),1);
   await press('ArrowLeft');assert.equal(await msel(),0);
   // 鼠标悬停同样移动选中（与键盘同一样式）。
@@ -180,7 +185,7 @@ try{
   const sl=await center('#shelfOverview .ov-layout');await click(sl.x,sl.y);
   assert.equal(await js('document.querySelector("#shelfOverview .ov-marks").classList.contains("masonry")'),true);
   assert.equal(await js('getComputedStyle(document.querySelector("#shelfOverview .ov-mark")).position'),'absolute');await delay(200);await shot('shelf-masonry');
-  await press('d');assert.equal(await msel(),1);await press('w');assert.equal(await msel(),0);await press('s');assert.equal(await msel(),1);await press('a');assert.equal(await msel(),0);
+  await press('d');assert.equal(await msel(),1);await delay(250);await press('w');assert.equal(await msel(),0);await press('s');assert.equal(await msel(),1);await press('a');assert.equal(await msel(),0);
   await click(sl.x,sl.y);assert.equal(await js('document.querySelector("#shelfOverview .ov-marks").classList.contains("masonry")'),false);
   // Enter 跨书跳转并关闭；[ 再打开时选中刚跳到的书签；V 切到全屏缩略图，C 切回。
   await press('Enter');await wait(mClosed);await wait(()=>js(`bookTitle.textContent==='Short'`));
@@ -209,6 +214,24 @@ try{
   assert.deepEqual(await js('[document.getElementById("panel").offsetWidth,document.getElementById("shelfmarks").offsetWidth]'),[160,160]);
   // 旧版的两个开关已不存在。
   assert.equal(await js(`localStorage.getItem('mv2:overview')??localStorage.getItem('mv2:smOverview')`),null);
+  // 全屏界面标题行的书架按钮 / B：书架盖在上层，全屏界面不关闭；书架里切书，全屏缩略图跟着换书；关闭书架回到全屏界面，焦点回到列表。
+  const ovTop=id=>js(`(()=>{const r=shelf.getBoundingClientRect(),el=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return shelf.contains(el)&&document.getElementById('${id}').open;})()`);
+  await js('reader.focus()');await press('v');await wait(isOpen);assert.equal(await js('document.querySelector("#overview .ov-title").textContent'),'Short');
+  assert.equal(await js('document.querySelector("#overview .ov-shelf").title'),'Bookshelf (B)');
+  const ob=await center('#overview .ov-shelf');await click(ob.x,ob.y);await wait(()=>js('shelf.open'));await delay(200);assert.equal(await ovTop('overview'),true,'Shelf covers the open thumbnails');
+  await js(`[...document.querySelectorAll('#shelf .book')].find(n=>n.textContent.includes('Long')).querySelector('.pick').click()`);
+  await wait(()=>js('!shelf.open'));await wait(()=>js(`bookTitle.textContent==='Long'`));
+  assert.equal(await isOpen(),true,'Thumbnails stay open after picking a book');
+  await wait(()=>js('document.querySelector("#overview .ov-title").textContent==="Long"&&document.querySelector("#overview .ov-pos").textContent.endsWith("/ 40")'));
+  await wait(()=>js('document.activeElement===document.querySelector("#overview .ov-scroll")'));
+  await press('d');assert.equal(await js('!!document.querySelector("#overview .ov-item.sel")'),true,'Keyboard still drives the thumbnails');
+  await press('b');await wait(()=>js('shelf.open'));await delay(200);await press('b');await wait(()=>js('!shelf.open'));assert.equal(await isOpen(),true,'B toggles the shelf over the thumbnails');
+  await press('Escape');await wait(closed);
+  await press('c');await wait(smOpen);const before=await msel();
+  const sb2=await center('#shelfOverview .ov-shelf');await click(sb2.x,sb2.y);await wait(()=>js('shelf.open'));await delay(200);assert.equal(await ovTop('shelfOverview'),true,'Shelf covers the open shelf bookmarks');
+  await press('Escape');await wait(()=>js('!shelf.open'));await delay(100);
+  assert.equal(await js('shelfOverview.open'),true,'Shelf bookmarks stay open');assert.equal(await msel(),before,'Selection kept');
+  await wait(()=>js('document.activeElement===document.querySelector("#shelfOverview .ov-scroll")'));await press('Escape');await wait(mClosed);
   assert.deepEqual(errors,[]);console.log('PASS: full-width block buttons in mirrored sidebar heads open full-screen thumbnails / shelf bookmarks (floating, docked, focus mode), corner gestures removed, wider edge zone, regular grid, long strips capped, grid keyboard navigation, hover selection shared with keyboard, shrinking selection, grid / masonry toggle (both views, remembered), thumbnail cache across reopen and book switches, revalidation after focus, C / V / [ / ] keys, equal minimum widths');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}

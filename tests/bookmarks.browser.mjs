@@ -105,6 +105,9 @@ try{
   // 悬停不跳转（只高亮）；Esc 关闭，位置不变。
   const item=n=>rect(`.bm-item:nth-child(${n}) .bm-thumb`);
   let p=await item(3);await mouse('mouseMoved',p.x,p.y);await delay(300);assert.deepEqual(await center(),start,'Hover does not jump');
+  // 离阅读视窗最近的书签与悬停同一高亮（书架书签列表共用 .bm-item.active 样式）。
+  assert.equal(await js(`[...document.querySelectorAll('.bm-panel .bm-item.active')].map(e=>e.getAttribute('aria-label')).join()`),'Image 4','Nearest bookmark is marked');
+  assert.equal(await js("getComputedStyle(document.querySelector('.bm-item:nth-child(1) .bm-thumb')).boxShadow"),await js("getComputedStyle(document.querySelector('.bm-item:nth-child(3) .bm-thumb')).boxShadow"),'Nearest bookmark looks like the hovered one');
   await shot('panel');
   await key('Escape','keyDown');await key('Escape','keyUp');await wait(()=>js('document.querySelector(".bm-panel").hidden'));
   assert.deepEqual(await center(),start,'Esc keeps the position');

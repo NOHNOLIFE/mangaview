@@ -9,6 +9,7 @@ import {shownName} from './model.mjs';
 // 标题行的按钮在“网格 / 瀑布流”间切换，两个全屏界面共用一个偏好（mv2:ovLayout）。
 // 面板里 WASD / 方向键按网格行列（瀑布流按列）移动选中；鼠标移到哪格就选中哪格，悬停与键盘共用同一个选中样式（缩小 + 描边，不遮挡相邻格）。
 // 空格 / Enter 或点击跳过去并关闭。
+// 标题行的书架按钮（或 B）在上层打开书架，全屏界面留在下面：书架里切书时全屏缩略图跟着换成新书，关闭书架后回到全屏界面（全屏书签按书架的最新状态重排）。
 extend({
   ovOpen:['Full-screen thumbnails (V)','全屏缩略图（V）','全画面サムネイル（V）','전체 화면 미리보기 (V)'],
   smOvOpen:['Full-screen shelf bookmarks (C)','全屏书架书签（C）','全画面の本棚しおり（C）','전체 화면 책장 책갈피 (C)'],
@@ -16,6 +17,7 @@ extend({
   ovMasonry:['Layout: masonry (click for grid)','布局：瀑布流（点击切换为网格）','レイアウト：メイソンリー（クリックでグリッド）','레이아웃: 메이슨리 (클릭하면 격자)'],
   pvOpenLabel:['Full screen','全屏缩略图','全画面で表示','전체 화면'],
   ovPos:['Page {n} / {m}','第 {n} / {m} 页','{n} / {m} ページ','{n} / {m} 페이지'],
+  ovShelf:['Bookshelf (B)','书架（B）','本棚（B）','책장 (B)'],
   ovHint:['WASD / arrows: choose · Space / Enter: open · {key} / Esc: close','WASD / 方向键选择 · 空格 / Enter 打开 · {key} / Esc 关闭','WASD / 矢印で選択 · Space / Enter で開く · {key} / Esc で閉じる','WASD / 화살표로 선택 · Space / Enter로 열기 · {key} / Esc로 닫기']
 });
 // 侧栏顶部“打开全屏”按钮的图标（2×2 网格）；模块加载时就放进 sprite，书签列表安装时即可引用。
@@ -37,20 +39,23 @@ export function install(ctx){
   function sheet(id,keys,bodyClass,hooks){
     const dialog=make('dialog','overview');dialog.id=id;dialog.setAttribute('aria-labelledby',id+'Title');
     const head=make('header','ov-head'),name=make('strong','ov-title'),pos=make('span','ov-pos'),hint=make('span','ov-hint');name.id=id+'Title';
-    const shut=ctx.iconButton('close',t('close'),()=>s.close());
+    const shut=ctx.iconButton('close',t('close'),()=>s.close()),shelfBtn=ctx.iconButton('library',t('ovShelf'),()=>ctx.actions.shelf(),'ov-shelf');
     // 切换布局后焦点回到列表，空格 / Enter 仍是“打开选中项”而不是再按一次按钮。
     const lay=ctx.iconButton('overview','',()=>{ctx.put('ovLayout',masonry()?'grid':'masonry');syncLayout();for(const o of sheets)if(o.dialog.open)o.relayout();scroller.focus({preventScroll:true});},'ov-layout');
     const scroller=make('div','ov-scroll'),body=make('div',bodyClass);scroller.tabIndex=-1;scroller.setAttribute('role','listbox');
-    scroller.append(body);head.append(name,pos,hint,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
+    scroller.append(body);head.append(name,pos,hint,shelfBtn,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
     let closing=0;
     const s={dialog,name,pos,scroller,body,lay,relayout:()=>hooks.relayout(),
       is:e=>plain(e)&&keys.includes(e.key.toLowerCase()),
       open(quiet=false){
         if(dialog.open||document.querySelector('dialog[open]')||!hooks.setup(quiet))return false;
-        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();shut.title=t('close');shut.setAttribute('aria-label',t('close'));
+        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();for(const [b,k] of [[shut,'close'],[shelfBtn,'ovShelf']]){b.title=t(k);b.setAttribute('aria-label',t(k));}
         clearTimeout(closing);closing=0;dialog.classList.remove('closing');
         dialog.showModal();scroller.focus({preventScroll:true});hooks.show();return true;
       },
+      live:()=>dialog.open&&!dialog.classList.contains('closing'),
+      // 按当前状态重建内容（切书、书架关闭后）；没有可显示的内容时关闭。
+      reload(){hooks.cleanup();if(!hooks.setup(true)){dialog.close();return;}hooks.show();},
       // now：立即关闭（切换到另一个全屏面板时），否则淡出后关闭。
       close(now=false){
         if(!dialog.open)return;if(now){dialog.close();return;}if(closing)return;
@@ -61,6 +66,7 @@ export function install(ctx){
       if(s.is(e)){e.preventDefault();e.stopPropagation();if(!e.repeat)s.close();return;}
       const other=sheets.find(o=>o!==s&&o.is(e));
       if(other){e.preventDefault();e.stopPropagation();if(!e.repeat){s.close(true);other.open();}return;}
+      if(e.key.toLowerCase()==='b'){e.preventDefault();e.stopPropagation();if(!e.repeat)ctx.actions.shelf();return;}
       const k=e.key.toLowerCase(),act=ACTS[k];
       if(!act||e.target.closest('button')&&act==='choose')return;
       e.preventDefault();e.stopPropagation();if(act==='choose'){if(!e.repeat)hooks.choose();}else hooks.move(act);
@@ -152,17 +158,17 @@ export function install(ctx){
     if(b&&ctx.current===b&&s.length===b.pages.length+1){view.browsing=false;main.scrollTop=s[i];}
   }
   grid.addEventListener('click',e=>{const node=e.target.closest('.ov-item');if(node)choose(+node.dataset.i);});
-  ctx.on('select',()=>{if(thumbs.dialog.open&&ctx.current!==book)thumbs.close(true);});
+  ctx.on('select',()=>{if(thumbs.live()&&ctx.current!==book)thumbs.reload();});
 
   // ---- 全屏书架书签 ----
   // 网格：书签缩略图都按同一比例显示（CSS grid）；瀑布流：按缩略图自身比例在每组里逐列排布（markLayout）。
   // 按书分组并显示书名，当前书高亮。上下按画面位置找最近的一格。
-  let marks=[],msel=0,mframe=0,mfollow=false;
+  let marks=[],msel=0,mframe=0,mfollow=false,prefer=null; // prefer：重建时保留的选中书签 id
   const sm=()=>ctx.shelfmarks;
   const shelfSheet=sheet('shelfOverview',['c','['],'ov-marks',{
     setup(quiet){const groups=sm()?.groups()||[];if(!groups.length){if(!quiet)ctx.notice(null,t(sm()?.emptyKey()??'smEmpty'));return false;}
       shelfSheet.name.textContent=t('shelfmarks');shelfSheet.body.style.setProperty('--bm-ar',sm().ratio());
-      marks=[];const start=sm().start();
+      marks=[];const start=prefer??sm().start();prefer=null;
       shelfSheet.body.replaceChildren(...groups.map(({book,items})=>{
         const sec=make('section','ov-sec'+(book===ctx.current?' current':'')),head=make('div','ov-sec-head'),list=make('div','ov-sec-grid');
         head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,list);
@@ -184,6 +190,12 @@ export function install(ctx){
     hover(node){const k=+node.dataset.k;if(k!==msel){mfollow=false;mark(k);}},
     choose(){pick(msel);},
     cleanup(){shelfSheet.body.replaceChildren();marks=[];}
+  });
+  // 书架关闭后回到下面的全屏界面：全屏书签按书架的最新状态（移动、删除、筛选）重排并保留选中，焦点回到列表。
+  ctx.shelf.addEventListener('close',()=>{
+    if(ctx.shelf.open)return;const s=sheets.find(o=>o.live());if(!s)return;
+    if(s===shelfSheet){prefer=marks[msel]?.x.bm.id??null;s.reload();}
+    if(s.live())s.scroller.focus({preventScroll:true});
   });
   function mark(i){
     if(!marks.length)return;i=Math.max(0,Math.min(marks.length-1,i));
@@ -207,15 +219,16 @@ export function install(ctx){
   for(const type of ['wheel','pointerdown'])shelfSheet.scroller.addEventListener(type,()=>{mfollow=false;},{passive:true});
   new ResizeObserver(()=>{if(shelfSheet.dialog.open&&masonry())markSchedule();}).observe(shelfSheet.scroller);
   // 上 / 下：网格里是方向上最近的一行中横向最近的一格；瀑布流优先同一列里最近的一格。Page Up / Down 先找距约一屏处最近的一行。
+  // 一律按中心点比较：选中项以中心缩小（transform），中心不变，上沿却会下移，按上沿比会把同一行的邻居当成“上一行”。
   function near(d,far){
     const cur=marks[msel]?.node.getBoundingClientRect();if(!cur)return msel;
-    const rects=marks.map(m=>m.node.getBoundingClientRect()),cx=r=>r.left+r.width/2;
-    const ahead=rects.map((r,i)=>[r,i]).filter(([r])=>d>0?r.top>cur.top+1:r.top<cur.top-1);if(!ahead.length)return msel;
-    const target=cur.top+d*(far?shelfSheet.scroller.clientHeight*.9:0);
+    const rects=marks.map(m=>m.node.getBoundingClientRect()),cx=r=>r.left+r.width/2,cy=r=>r.top+r.height/2;
+    const ahead=rects.map((r,i)=>[r,i]).filter(([r])=>d>0?cy(r)>cy(cur)+1:cy(r)<cy(cur)-1);if(!ahead.length)return msel;
+    const target=cy(cur)+d*(far?shelfSheet.scroller.clientHeight*.9:0);
     if(masonry()){const same=ahead.filter(([r])=>Math.abs(cx(r)-cx(cur))<cur.width/2);
-      if(same.length)return same.reduce((a,b)=>Math.abs(b[0].top-target)<Math.abs(a[0].top-target)?b:a)[1];}
-    const row=ahead.reduce((best,[r])=>Math.abs(r.top-target)<Math.abs(best-target)?r.top:best,ahead[0][0].top);
-    return ahead.filter(([r])=>Math.abs(r.top-row)<1).reduce((a,b)=>Math.abs(cx(b[0])-cx(cur))<Math.abs(cx(a[0])-cx(cur))?b:a)[1];
+      if(same.length)return same.reduce((a,b)=>Math.abs(cy(b[0])-target)<Math.abs(cy(a[0])-target)?b:a)[1];}
+    const row=ahead.reduce((best,[r])=>Math.abs(cy(r)-target)<Math.abs(best-target)?cy(r):best,cy(ahead[0][0]));
+    return ahead.filter(([r])=>Math.abs(cy(r)-row)<1).reduce((a,b)=>Math.abs(cx(b[0])-cx(cur))<Math.abs(cx(a[0])-cx(cur))?b:a)[1];
   }
   function pick(i){const m=marks[i];if(!m)return;shelfSheet.close();sm().go(m.book,m.x);}
   shelfSheet.body.addEventListener('click',e=>{const node=e.target.closest('.ov-mark');if(node)pick(+node.dataset.k);});
