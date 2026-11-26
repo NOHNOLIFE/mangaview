@@ -5,14 +5,19 @@ import { current, step, flush } from './session.mjs';
 import { pinned, preview } from './panel.mjs';
 import { actions } from './actions.mjs';
 import { bar, showBar } from './toolbar.mjs';
-import { screenStep, toStart, toEnd } from './tap.mjs';
+import { screenStep, screenSpan, toStart, toEnd } from './tap.mjs';
 import { remove } from '../shelf/remove.mjs';
+import { cruise } from './autoscroll.mjs';
+import { stop as stopFling } from '../ui/dragscroll.mjs';
 let ctx;
 let hold = null,
-  frame;
+  halt = null;
+// 按住 W / S 持续滚动的速度（像素 / 秒），推进逻辑与总控的自动滚动共用（autoscroll.mjs）。
+const HOLD_SPEED = 650;
 function stop() {
   hold = null;
-  cancelAnimationFrame(frame);
+  halt?.();
+  halt = null;
 }
 // 长按翻页键（A / D / ← / →）：按满 HOLD_LONG 算长按，松开时不翻屏，交给 ctx.pageHold（{start(d),stop()}，留给媒体快进 / 快退；未接入时长按无功能）。
 const HOLD_LONG = 550;
@@ -24,21 +29,18 @@ function cancelPage() {
   if (p.done) ctx.pageHold?.stop?.();
   pageHold = null;
 }
+// 翻屏（A / D / ← / → 短按）：翻过去之后有视频进入播放范围时，这一次直接落在该视频居中处（8.1，位置由 ctx.media.align 算出），否则照常翻一屏。
+function turn(d) {
+  const to = ctx.media?.align?.(d, screenSpan());
+  if (to == null) return screenStep(d);
+  stopFling();
+  main.scrollTop = to;
+}
 function startHold(code, d) {
   if (hold === code) return;
   stop();
   hold = code;
-  let prev = performance.now(),
-    carry = 0;
-  function tick(now) {
-    carry += Math.min(60, now - prev) * 0.65 * d;
-    const delta = Math.trunc(carry);
-    carry -= delta;
-    main.scrollTop += delta;
-    prev = now;
-    frame = requestAnimationFrame(tick);
-  }
-  frame = requestAnimationFrame(tick);
+  halt = cruise(main, () => HOLD_SPEED * d);
 }
 export function install(c) {
   ctx = c;
@@ -92,7 +94,7 @@ export function install(c) {
       if (!e.repeat) step(['w', 'arrowup'].includes(k) ? -1 : 1);
       return;
     }
-    // S / ↓ 向下、W / ↑ 向上：按住持续滚动。空格（含 Shift）是播放 / 暂停当前媒体（media.mjs 的按键），不再滚动。
+    // S / ↓ 向下、W / ↑ 向上：按住持续滚动。空格（含 Shift）是总控栏的大播放键（media/keys.mjs），任何书里都有效，不滚动。
     if (['s', 'arrowdown', 'w', 'arrowup'].includes(k)) {
       e.preventDefault();
       startHold(e.code, ['w', 'arrowup'].includes(k) ? -1 : 1);
@@ -122,7 +124,7 @@ export function install(c) {
     if (pageHold?.code === e.code) {
       const p = pageHold;
       cancelPage();
-      if (!p.done) screenStep(p.d);
+      if (!p.done) turn(p.d);
     }
     for (const h of ctx.keys) h.up?.(e);
   });

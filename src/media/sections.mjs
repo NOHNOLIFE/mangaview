@@ -3,6 +3,7 @@
 // 区段规则在 playlist.mjs（sectionStart / sectionStep），区段来自 bookmarks.mjs（ctx.marks.ranges / mediaRanges）。
 import { extend } from '../core/lang.mjs';
 import { sectionStep } from '../core/playlist.mjs';
+import { imageSpans, covered } from '../core/engine.mjs';
 
 extend({
   mvSections: ['Play bookmark sections only', '只播放书签区段', 'しおり区間だけ再生', '책갈피 구간만 재생'],
@@ -51,9 +52,15 @@ export function install(ctx, S) {
       finished(p);
     }
   }
+  // 只播区段时全书各媒体的区段（页名 → 区段的 Map），另带 covered：整个处在某个图片区段之内的媒体页序号（没有自己的区段也整段播放，
+  // requirements-2.4 8.2）。开关关闭或本书一个区段（图片或媒体）都没有时为 null，不筛选。
   const sectionMap = (book) => {
-    const m = S.only ? ctx.marks?.mediaRanges?.(book) : null;
-    return m && [...m.values()].some((r) => r.length) ? m : null;
+    if (!S.only || !ctx.marks) return null;
+    const m = ctx.marks.mediaRanges?.(book) ?? new Map(),
+      spans = imageSpans(ctx.marks.list?.(book) ?? []);
+    if (!spans.length && ![...m.values()].some((r) => r.length)) return null;
+    m.covered = new Set(book.pages.flatMap((pg, i) => (covered(spans, i) ? [i] : [])));
+    return m;
   };
   Object.assign(S, { rangesOf, sectionTick, sectionMap });
 }

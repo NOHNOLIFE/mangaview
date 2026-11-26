@@ -472,7 +472,8 @@ try {
   assert.equal(await paused('03 long.wav'), true, 'Autoplay off: stays paused');
   await js(`localStorage.setItem('mv2:autoplay','false')`); // 下面显式播放，不让自动播放插手
 
-  // ---- 3.7：播放顺序与循环。
+  // ---- 3.7：播放顺序与循环（只在影音模式下生效，requirements-2.4 8：混合模式按页序，播完不按播放顺序切换）。
+  await js(`${bar('mode-media')}.click()`);
   const stopAll = () => js(`for(const e of reader.querySelectorAll('video,audio'))e.pause()`);
   const nearEnd = (name) =>
     js(`(()=>{const e=el(${JSON.stringify(name)});e.currentTime=Math.max(0,e.duration-.4);return e.play();})()`);

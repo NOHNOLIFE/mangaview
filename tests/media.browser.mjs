@@ -408,7 +408,7 @@ try {
   );
   await js(`el('02 clip.webm').pause()`);
 
-  // 3.6 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的媒体；中线离开视窗即暂停；手动暂停的不再自动播放。
+  // 3.6 自动播放（requirements-2.4 8.1）：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停。
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
   await cdp('Page.navigate', { url: origin });
@@ -421,18 +421,9 @@ try {
   assert.equal(await js(`el('04 song.wav').paused`), true, 'No autoplay before any user action after opening');
   const [rx, ry] = await center('#reader');
   await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: 30 });
-  await wait(() => js(`!el('04 song.wav').paused`), 'autoplay after scrolling settles');
-  // 手动暂停后，在视窗内小幅滚动不会重新开始。
-  await key(' ', 'Space', 32);
-  await wait(() => js(`el('04 song.wav').paused`));
-  await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: -20 });
-  await delay(700);
-  assert.equal(
-    await js(`el('04 song.wav').paused`),
-    true,
-    'A media paused by the user is not restarted while it stays in view',
-  );
-  await key(' ', 'Space', 32);
+  await delay(900);
+  assert.equal(await js(`el('04 song.wav').paused`), true, 'Audio does not start when scrolling stops');
+  await js(`el('04 song.wav').play()`);
   await wait(() => js(`!el('04 song.wav').paused`));
   await js(`reader.scrollTop+=reader.clientHeight*.7`);
   await wait(() => js(`!node('04 song.wav')||el('04 song.wav').paused`), 'leaving the view pauses');

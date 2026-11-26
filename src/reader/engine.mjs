@@ -1,0 +1,203 @@
+// 总控的漫画、混合模式驱动器（docs/requirements-2.4.zh-CN.md 第 8 节；影音模式的在 media/driver.mjs）。纯规则在 core/engine.mjs。
+// - 漫画：匀速向下滚动（ctx.transport.scrollRate，1.0× = 每秒视窗高度的 10%），媒体当普通页滚过、不播放。
+// - 混合：同样滚动；媒体的中线到达视窗中央时停住，经 ctx.media.run 播放（只播区段、播放位置记忆照常），播完接着往下滚；
+//   始终按页序，播放顺序不适用。开始运行时先播刚按了自己播放键的、正在播放的或选定的当前媒体。
+//   运行中暂停 = 暂停滚动或暂停正在播放的媒体，继续时从原处接着；正在播放的媒体被滚出视窗（autoplay.mjs 随即暂停它）就从新位置继续滚动。
+// - 只播区段（8.2）：滚动只经过图片区段，到区段终点直接跳到下一个区段的起点；混合模式下只停在自带区段的媒体、整个处在图片区段之内的媒体。
+// - 书末：停止；循环（ctx.media.loop）开着则回到开头。跨书（8.0）开着则进入阅读列表（ctx.readingList，与上一本 / 下一本一致）的下一本，
+//   从书首继续，循环开着则最后一本之后回到第一本。
+// - 用户手动滚动、翻屏、拖动不停止运行：停 QUIET 毫秒不推进（不与滚轮的平滑滚动、拖动、惯性叠加），再从新位置接着走；
+//   正文重排（图片加载后的锚定、缩放、窗口调整）只换坐标，不停顿。窗口在后台时没有动画帧，滚动随之暂停，回到前台从原处继续（媒体照常播放）。
+//   用户切到别的书照常运行；切到没有内容的书（只播区段时没有区段的书）即停止。
+import {
+  EPS,
+  scrollSpeed,
+  travel,
+  next,
+  stopsOf,
+  imageSpans,
+  covered,
+  hasSections,
+  nextBook,
+} from '../core/engine.mjs';
+import { point } from '../core/model.mjs';
+import { stop as stopFling } from '../ui/dragscroll.mjs';
+import { Glide } from './autoscroll.mjs';
+
+const QUIET = 250,
+  WAIT = 30000; // 等媒体开始播放的上限（挂源、读元数据另有超时，这里只防万一）
+
+export function install(ctx) {
+  const { main } = ctx;
+  const M = () => ctx.media?.run;
+  const glide = new Glide(main);
+  let mode = null, // 正在运行的驱动器名，未运行为 null
+    frame = 0,
+    prev = null,
+    quiet = 0,
+    jumped = false, // 上一帧之后被别人挪过位置
+    playing = null, // 混合模式下停下来播放的 {i, page, since}
+    own = null, // 自己（跨书）切到的书：它的 'select' 不算用户切书
+    idle = 0; // 连续几次到了尽头却没有任何进展（回到开头、换书之后马上又到尽头），防止空转
+  const skip = new Set(); // 已播过或播不了、不再停靠的媒体页序号；离开视窗中线后清掉
+
+  // 当前书的书签列表与各媒体的区段（只播区段用），书签变化、切书时重取。
+  let cache = null;
+  const marks = (book) => {
+    if (cache?.book !== book)
+      cache = { book, items: ctx.marks?.list(book) ?? [], ranges: ctx.marks?.mediaRanges(book) ?? new Map() };
+    return cache;
+  };
+  const items = (book) => marks(book).items;
+  ctx.on('marks', () => (cache = null));
+  ctx.on('synced', () => (cache = null));
+  const sectioned = (book) => hasSections(ctx.marks?.list(book) ?? []);
+
+  // 这一帧的几何（中线坐标）：中线范围 lo..hi、媒体停靠点、只播区段时的图片区段。版面还没排好时为 null。
+  function geometry(book) {
+    const starts = ctx.view.panes[0].starts,
+      H = main.clientHeight;
+    if (!H || starts.length !== book.pages.length + 1) return null;
+    const lo = H / 2,
+      hi = Math.max(lo, main.scrollHeight - H / 2),
+      only = ctx.transport.sectionsOnly && hasSections(items(book)),
+      raw = only ? imageSpans(items(book)) : null,
+      ranges = only ? marks(book).ranges : null,
+      pages = [];
+    if (mode === 'mixed')
+      book.pages.forEach((pg, i) => {
+        if (!M()?.playable(pg) || (only && !ranges.get(pg.name)?.length && !covered(raw, i))) return;
+        pages.push({ i, top: starts[i], bottom: starts[i + 1] });
+      });
+    const spans = raw && raw.map((s) => ({ a: point(starts, s.a), b: point(starts, s.b) }));
+    return { H, lo, hi, spans, stops: stopsOf(pages, lo, hi) };
+  }
+
+  function tick(now) {
+    frame = requestAnimationFrame(tick);
+    const dt = prev == null ? 0 : now - prev;
+    prev = now;
+    const book = ctx.current;
+    if (!book) return finish();
+    const { y, moved } = glide.here();
+    if (moved) {
+      jumped = true;
+      // 正文重排把位置校正到 correctedTop（view.mjs layout）；其余都是用户或别的模块挪的。
+      if (main.scrollTop !== ctx.view.correctedTop) quiet = now + QUIET;
+    }
+    if (playing) return watch(now);
+    if (now < quiet) return;
+    const g = geometry(book);
+    if (!g) return;
+    const c = y + g.H / 2;
+    for (const s of g.stops) if (skip.has(s.i) && (s.at < c - EPS || (jumped && s.at > c + EPS))) skip.delete(s.i); // 回到前面的媒体可以再播
+    jumped = false;
+    const r = next({
+      c,
+      d: travel(scrollSpeed(ctx.transport.scrollRate, g.H), dt),
+      lo: g.lo,
+      hi: g.hi,
+      stops: g.stops,
+      skip,
+      spans: g.spans,
+    });
+    if (r.type === 'end') return ended(book);
+    if (r.to > c + 0.01 || r.type !== 'scroll') idle = 0;
+    if (r.type !== 'scroll' && Math.abs(r.to - c) > 0.5) stopFling();
+    glide.set(r.to - g.H / 2);
+    if (r.type === 'play') {
+      playing = { i: r.i, page: book.pages[r.i], since: now };
+      M().play(playing.page);
+    }
+  }
+  // 停下来播放时：播完或播不了就记下、接着滚；被滚出视窗从新位置接着滚；在视窗里被别处暂停（系统媒体键、新窗口播放等）即停止运行。
+  function watch(now) {
+    const s = M()?.state(playing.page) ?? 'away';
+    if (s === 'playing' || (s === 'wait' && now - playing.since < WAIT)) return;
+    if (s === 'paused') return finish();
+    if (s !== 'away') skip.add(playing.i);
+    playing = null;
+  }
+  // 到了尽头（书末，或只播区段时最后一个区段之后）。
+  function ended(book) {
+    const loop = !!ctx.media?.loop,
+      tr = ctx.transport;
+    if (++idle > 2 + (tr.crossBook ? ctx.readingList(book).length : 0)) return finish();
+    if (!tr.crossBook) return loop ? restart() : finish();
+    const to = nextBook(
+      ctx.readingList(book),
+      book,
+      loop,
+      (b) => b.pages.length > 0 && (!tr.sectionsOnly || sectioned(b)),
+    );
+    if (!to) return finish();
+    if (to === book) return restart();
+    own = to;
+    skip.clear();
+    ctx.select(to);
+    restart();
+  }
+  // 从书首重新开始（循环、换书）。
+  function restart() {
+    skip.clear();
+    stopFling();
+    glide.set(0);
+    jumped = false;
+  }
+
+  function begin(name) {
+    const book = ctx.current;
+    if (!book?.pages.length) return false;
+    cancelAnimationFrame(frame);
+    stopFling();
+    mode = name;
+    prev = null;
+    quiet = 0;
+    idle = 0;
+    jumped = true; // 停着的时候可能被挪过：前面播过的媒体可以再播
+    playing = null;
+    glide.reset();
+    if (name === 'mixed') {
+      const page = M()?.first();
+      if (page) {
+        playing = { i: book.pages.indexOf(page), page, since: performance.now() };
+        M().play(page);
+      }
+    }
+    frame = requestAnimationFrame(tick);
+    return true;
+  }
+  function halt() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    if (playing) M()?.pause();
+    mode = null;
+    playing = null;
+  }
+  // 自己停下（书末、条件消失）：报告给总控，大播放键随之回到未运行。
+  function finish() {
+    const m = mode;
+    halt();
+    if (m) ctx.transport.report(m, false);
+  }
+  for (const name of ['comic', 'mixed']) ctx.transport.drive(name, { start: () => begin(name), stop: halt });
+
+  // 切书：自己切的接着走；用户切的在新书里照常运行（从它的阅读位置开始），没有内容就停止。
+  ctx.on('select', (book) => {
+    cache = null;
+    if (!mode) return;
+    if (book === own) {
+      own = null;
+      return;
+    }
+    own = null;
+    playing = null;
+    skip.clear();
+    glide.reset();
+    if (!book?.pages.length || (ctx.transport.sectionsOnly && !sectioned(book))) finish();
+  });
+  // 回到前台：帧间隔从零算起。
+  document.addEventListener('visibilitychange', () => {
+    prev = null;
+  });
+}

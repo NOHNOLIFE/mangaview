@@ -2,7 +2,7 @@ import { at, point, pageKind } from '../core/model.mjs';
 import { forget } from '../reader/thumbs.mjs';
 import { pair } from '../core/sections.mjs';
 import { isMedia, key, endKey, list, coord, coords } from './list.mjs';
-// 书签的数据操作：按阅读位置添加书签与区段书签（区段配对见 sections.mjs）、删除、跳转（F / Enter 短按、长按添加），以及离阅读位置最近的书签。
+// 书签的数据操作：按阅读位置添加书签与区段书签（区段配对见 sections.mjs）、删除、跳转（F / Enter 短按、长按添加；跨书开关关闭时只在本书内），以及离阅读位置最近的书签。
 const SHOW = 150,
   ADD = 550,
   NEAR = 2; // NEAR：同一媒体这么多秒内已有书签即视为已存在
@@ -249,7 +249,8 @@ export function install(ctx, S) {
       if (!press || e.code !== press.code) return;
       const p = press;
       cancel();
-      if (!p.done) (S.pinned() ? S.nextShelf : next)(p.d);
+      // 跨书（总控栏的开关，requirements-2.4 8.0）关闭时只在本书的书签之间跳；开启时书架书签常驻则跨书跳（dock.mjs nextShelf）。
+      if (!p.done) (S.pinned() && ctx.transport?.crossBook ? S.nextShelf : next)(p.d);
     },
     blur() {
       cancel();

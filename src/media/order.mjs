@@ -1,10 +1,12 @@
 // 播放顺序与循环（3.7）：状态 S.order / S.loop（设置类偏好，跨窗口同步，按钮在总控栏，变化时派发 ctx.emit('media', 'order')）、
-// 一个媒体播完之后切到哪一个（finished；漫画模式下单个媒体自己的播放键开始的 p.solo 播完即停，不按顺序切换），
+// 一个媒体播完之后切到哪一个（finished，只在影音模式下按播放顺序切换；漫画模式下单个媒体自己的播放键开始的 p.solo 播完即停；
+// 混合模式按页序，运行中由 reader/engine.mjs 接着往下滚。开启跨书时本书的媒体播完后进入阅读列表里下一本有媒体的书，循环作用于整个阅读列表），
 // 以及待接手的播放请求（S.queued：按播放顺序、书签跳转、新窗口播放要播放的页，该页的播放器出现在视窗里时由 claim 接手）。
 // 顺序与循环的规则在 playlist.mjs（following）。
 import { extend } from '../core/lang.mjs';
 import { pageKind } from '../core/model.mjs';
 import { orderOf, ORDERS, following } from '../core/playlist.mjs';
+import { nextBook } from '../core/engine.mjs';
 
 extend({
   mvOrderList: ['Play order: list', '播放顺序：列表', '再生順：リスト', '재생 순서: 목록'],
@@ -42,7 +44,7 @@ export function install(ctx, S) {
     ctx.emit('media', 'order');
   }
   // ---- 播放顺序与循环（3.7）：一个媒体播完之后做什么。「列表」是当前书里可播放的媒体（图片、播不了的跳过），按当前页序；
-  // 开启「只播放书签区段」且书里有区段时，没有区段的媒体也跳过。切到下一个媒体时把它滚到视窗中央、从头（或第一个区段）播放。
+  // 开启「只播放书签区段」且书里有区段时，没有区段的媒体也跳过（整个处在某个图片区段之内的除外）。切到下一个媒体时把它滚到视窗中央、从头（或第一个区段）播放。
   function candidates(book, withSec) {
     const out = [];
     book.pages.forEach((pg, i) => {
@@ -51,7 +53,7 @@ export function install(ctx, S) {
         (k === 'video' || k === 'audio') &&
         !pg.bad &&
         !failedPages.has(pg) &&
-        (!withSec || withSec.get(pg.name)?.length)
+        (!withSec || withSec.get(pg.name)?.length || withSec.covered?.has(i))
       )
         out.push(i);
     });
@@ -62,7 +64,7 @@ export function install(ctx, S) {
     const now = performance.now();
     if (lastFinish?.p === p && now - lastFinish.at < 800) return;
     lastFinish = { p, at: now }; // 区段播完与 ended 可能先后到达
-    if (p.solo) {
+    if (p.solo || ctx.transport?.mode !== 'media') {
       p.solo = false;
       return;
     }
@@ -75,18 +77,36 @@ export function install(ctx, S) {
       return;
     }
     const list = candidates(book, withSec),
-      names = rounds.get(book) ?? new Set();
+      names = rounds.get(book) ?? new Set(),
+      cross = !!ctx.transport?.crossBook && S.order !== 'single';
     const r = following({
       order: S.order,
-      loop: S.loop,
+      loop: S.loop && !cross,
       list,
       cur,
       played: new Set(book.pages.flatMap((pg, i) => (names.has(pg.name) ? [i] : []))),
     });
     rounds.set(book, new Set([...r.played].map((i) => book.pages[i]?.name)));
-    if (r.next == null) return;
+    if (r.next == null) {
+      if (cross) onward(book);
+      return;
+    }
     if (r.next === cur) restart(p);
     else switchTo(book, r.next, withSec);
+  }
+  // 跨书：进入阅读列表（与上一本 / 下一本相同的范围）里下一本有可播放媒体的书，从它的第一个媒体开始；循环开着则最后一本之后回到第一本。
+  function onward(book) {
+    const first = (b) => candidates(b, sectionMap(b))[0];
+    const to = nextBook(ctx.readingList(book), book, S.loop, (b) => (!S.only || !!sectionMap(b)) && first(b) != null);
+    if (!to) return;
+    rounds.delete(to);
+    if (to === book) return switchTo(book, first(book), sectionMap(book));
+    S.onward = to; // 不算用户切书（driver.mjs）
+    ctx.select(to);
+    // 在 'select' 事件（清掉待接手的播放请求）之后
+    queueMicrotask(() => {
+      if (ctx.current === to) switchTo(to, first(to), sectionMap(to));
+    });
   }
   function restart(p) {
     const rs = S.only ? rangesOf(p) : [];
