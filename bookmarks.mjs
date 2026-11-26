@@ -1,5 +1,5 @@
 import {extend} from './lang.mjs';
-import {at,point} from './model.mjs';
+import {at,point,clipEnd} from './model.mjs';
 import {forget} from './thumbs.mjs';
 // 书签：book.bookmarks=[{id,name,f,at}]，按图片文件名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
 extend({
@@ -225,7 +225,7 @@ export function install(ctx){
       k=d>0?flat.findIndex(x=>rank.get(x.book)>r||x.book===book&&p(x)>y+2):flat.findLastIndex(x=>rank.get(x.book)<r||x.book===book&&p(x)<y-2);}
     const wrap=k<0||k>=flat.length;if(wrap)k=d>0?0:flat.length-1;
     const x=flat[k],moved=x.book!==book;goShelf(x.book,x);
-    notice(null,wrap?t(d>0?'bmWrap':'bmWrapBack'):fmt('bmN',{n:k+1,m:flat.length})+(moved?' · '+ctx.title(x.book):''));
+    notice(null,wrap?t(d>0?'bmWrap':'bmWrapBack'):fmt('bmN',{n:k+1,m:flat.length})+(moved?' · '+clipEnd(ctx.title(x.book)):''));
   }
   dockList.addEventListener('click',e=>{
     if(e.target.closest('.bm-del'))return;

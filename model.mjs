@@ -45,6 +45,14 @@ export function sortedPages(pages,mode,dir){
     return direction*byName(a,b);
   });
 }
+// 长名称：作品名末尾省略，clipEnd 按字符截短（用于通知等无法悬停查看全名的纯文本）；
+// 文件名中间省略、保留开头和结尾（结尾常带集数、序号和扩展名）：splitTail 拆成可省略的开头和保留的结尾（扩展名连同其前 keep 个字符），
+// 界面把两段并排，开头按宽度省略（见 style.css .mid-name）。
+export const clipEnd=(s,max=40)=>{const a=[...s];return a.length<=max?s:a.slice(0,max-1).join('')+'…';};
+export function splitTail(name,keep=8){
+  const a=[...name],ext=[.../\.[^./\s]{1,8}$/.exec(name)?.[0]??''].length,n=Math.min(a.length,ext+keep);
+  return n>=a.length?[name,'']:[a.slice(0,a.length-n).join(''),a.slice(a.length-n).join('')];
+}
 // 只为可见项创建元素；累计高度同时用于虚拟窗口、长图内跳转和续读。
 export function offsets(pages,width,fit) {
   const starts=[0];

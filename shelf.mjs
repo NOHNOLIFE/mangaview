@@ -242,7 +242,8 @@ export function install(ctx){
     const info=make('span','info');info.append(make('span','',pagesOf(b)+' '+t('pages')));
     if(marks){const m=make('span','marks');m.title=fmt('bmCount',{n:marks});m.append(icon('bookmark'),String(marks));info.append(m);}
     meta.append(info,make('span',ex?'lost':pct?'':'fresh',ex?t('viewExpired'):pct?pct+'%':t('unread')));
-    veil.append(make('strong','name',ctx.title(b)),meta);
+    const name=make('strong','name',ctx.title(b));name.title=ctx.title(b); // 书名最多两行，末尾省略，完整书名在提示里
+    veil.append(name,meta);
     if(tagsOf(b).length){const tags=make('span','tags');for(const x of tagsOf(b))tags.append(chip(x));veil.append(tags);}
     pick.append(veil);
     if(ratio>0){const bar=make('span','progress');bar.style.setProperty('--p',ratio);pick.append(bar);}

@@ -75,7 +75,6 @@ const strings = {
   restore:['Restore','恢复','復元','복원'],restoreAll:['Restore from folder…','批量恢复…','フォルダーから復元…','폴더에서 복원…'],removeAll:['Delete all ({n})','全部删除（{n}）','すべて削除（{n}）','모두 삭제 ({n})'],
   rename:['Edit title','编辑书名','書名を編集','제목 편집'],renameSave:['Save','保存','保存','저장'],renameHolder:['Title','书名','書名','제목'],
   renameHint:['Original name: {name}. Leave empty to restore it.','原名：{name}。留空即恢复原名。','元の名前：{name}。空欄にすると元に戻ります。','원래 이름: {name}. 비워 두면 원래 이름으로 돌아갑니다.'],
-  holdNext:['Keep holding for the next book','继续按住切换到下一本','押し続けると次の本へ','계속 누르면 다음 책'],holdPrev:['Keep holding for the previous book','继续按住切换到上一本','押し続けると前の本へ','계속 누르면 이전 책'],
   endbar:['Action bar','操作栏','操作バー','작업 표시줄'],
   shelfSort:['Sort books','书籍排序','本の並べ替え','책 정렬'],
   bsAddedNew:['Date added · descending','添加时间 · 反序','追加日時 · 降順','추가일 · 내림차순'],bsAddedOld:['Date added · ascending','添加时间 · 正序','追加日時 · 昇順','추가일 · 오름차순'],

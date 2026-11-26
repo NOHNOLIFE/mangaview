@@ -1,4 +1,4 @@
-import {at,point,offsets,shownName} from './model.mjs';
+import {at,point,offsets,shownName,splitTail} from './model.mjs';
 import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageThumb,dropPage} from './thumbs.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
@@ -78,6 +78,12 @@ async function read(j){
   j.ready?.(w,h);
 }
 
+// 文件名单行显示、中间省略：开头按宽度省略，结尾（集数、序号、扩展名）始终完整（splitTail，样式见 style.css .mid-name）。
+export function midName(name){
+  const el=document.createElement('span'),head=document.createElement('span'),[a,b]=splitTail(name);
+  el.className='mid-name';head.textContent=a;el.append(head,b);return el;
+}
+
 export class Reader {
   constructor(main,preview,hooks){
     this.main=main;this.preview=preview;this.hooks=hooks;this.fit=true;
@@ -88,27 +94,38 @@ export class Reader {
       if(main.scrollTop!==this.correctedTop){
         this.up=main.scrollTop<(this.previousTop||0);this.browsing=false;
       }
+      // 用户滚动结束缩放锚定；靠近书尾时浏览器把校正后的位置夹到最大值，不算用户滚动。
+      if(this.held&&Math.abs(main.scrollTop-this.correctedTop)>=1&&!(this.correctedTop>main.scrollTop&&main.scrollTop>=main.scrollHeight-main.clientHeight-1))this.held=null;
       this.previousTop=main.scrollTop;
       this.follow();this.schedule();hooks.progress();
     },{passive:true});
     for(const type of ['wheel','pointerdown'])preview.addEventListener(type,()=>{this.browsing=true;},{passive:true});
     preview.addEventListener('scroll',()=>this.schedule(),{passive:true});
-    const resize=new ResizeObserver(()=>this.layout());resize.observe(main);resize.observe(preview);
+    const resize=new ResizeObserver(()=>this.resized());resize.observe(main);resize.observe(preview);
+  }
+  // 阅读区尺寸变化（窗口缩放、侧栏停靠或调宽、进出全屏）：视窗中心处的内容不动。
+  // 一次连续缩放的锚点在开始时按变化前的视窗高度取一次，沿用到停下（约 500ms 无变化）或用户滚动，不从已经漂移的滚动位置重新推导；
+  // 重排后在同一帧内重画页面位置，不留一帧"滚动位置已更新、页面还在旧位置"的画面（缩放时来回跳动的原因）。
+  resized(){
+    const main=this.main,top=main.scrollTop,h=this.viewH??main.clientHeight;
+    if(!this.held)this.held={anchor:this.anchor(h),end:top>=1&&main.scrollHeight-top-Math.max(h,main.clientHeight)<=1};
+    clearTimeout(this.heldTimer);this.heldTimer=setTimeout(()=>{this.held=null;},500);
+    this.layout();this.paint();
   }
   clear(p){for(const el of p.slots.values())release(el);p.slots.clear();p.strip.replaceChildren();}
   show(book,anchor){
     for(const p of this.panes)this.clear(p);
-    this.book=book;this.browsing=false;this.main.scrollTop=0;this.preview.scrollTop=0;this.layout(anchor||null);
+    this.book=book;this.browsing=false;this.held=null;this.main.scrollTop=0;this.preview.scrollTop=0;this.layout(anchor||null);
   }
-  anchor(){
+  anchor(h=this.main.clientHeight){
     if(!this.book?.pages.length || this.panes[0].starts.length!==this.book.pages.length+1 || this.main.scrollTop<1)return null;
-    const {i,f}=at(this.panes[0].starts,this.main.scrollTop+this.main.clientHeight/2);
+    const {i,f}=at(this.panes[0].starts,this.main.scrollTop+h/2);
     return {name:this.book.pages[i].name,f};
   }
-  layout(anchor=this.anchor()){
+  layout(anchor=this.held?this.held.anchor:this.anchor()){
     const nav=this.panes[1], H=this.preview.clientHeight, main=this.main;
     // 已滚到书尾时，补齐图片尺寸后仍停在书尾，“再按一次切书”才可靠。
-    const end=main.scrollTop>=1 && main.scrollHeight-main.scrollTop-main.clientHeight<=1;
+    const end=this.held?this.held.end:main.scrollTop>=1 && main.scrollHeight-main.scrollTop-main.clientHeight<=1;
     if(!H)this.browsing=false;
     // 读者正在独立浏览缩略图时，补齐图片尺寸不能把导航拉回正文。
     const navPos=this.browsing && nav.starts.length>1 ? at(nav.starts,this.preview.scrollTop+H/2) : null;
@@ -119,7 +136,7 @@ export class Reader {
     const i=anchor?this.book?.pages.findIndex(p=>p.name===anchor.name):-1;
     if(i>=0)this.jump({i,f:anchor.f});else this.main.scrollTop=0;
     if(end && i>=0)main.scrollTop=main.scrollHeight;
-    this.correctedTop=this.main.scrollTop;
+    this.correctedTop=this.main.scrollTop;this.viewH=main.clientHeight;
     if(navPos)this.preview.scrollTop=point(nav.starts,navPos)-H/2;
     this.follow();this.schedule();
   }
@@ -159,8 +176,8 @@ export class Reader {
         const priority=(k?8:0)+(ahead?2:i<first||i>last?4:0);
         const book=this.book;
         imageJob(node,()=>this.hooks.file(book,page),priority,k,(w,h)=>{
-          if(page.w!==w||page.h!==h){const anchor=this.anchor();page.w=w;page.h=h;this.layout(anchor);this.hooks.measured();}
-        },e=>{node.classList.add('failed');node.textContent=this.hooks.invalid()+' · '+shownName(page);this.hooks.error(e,page);},pageKey(book,page));
+          if(page.w!==w||page.h!==h){const anchor=this.held?this.held.anchor:this.anchor();page.w=w;page.h=h;this.layout(anchor);this.hooks.measured();}
+        },e=>{node.classList.add('failed');node.title=shownName(page);node.replaceChildren(this.hooks.invalid(),midName(shownName(page)));this.hooks.error(e,page);},pageKey(book,page));
       }
     }
   }

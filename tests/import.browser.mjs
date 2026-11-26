@@ -286,7 +286,26 @@ try{
   await wait(()=>js(`records().then(r=>r.find(b=>b.id==='loose').pages.map(p=>p.name+':'+!!p.handle).join())`).then(v=>v==='1.svg:true,2.svg:true,2.svg (2):false,sub/1.svg:true'));
   lz=(await albums())[0];assert.equal(lz.title,null);assert.deepEqual(lz.sources??[],[]);assert.equal((await albums()).length,1);
   assert.equal(await js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`),false);
-  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, side-by-side areas without gap, readable hints, images-only drop, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, one loose album (dedupe, same-name images, legacy albums merged, restore by relative path)');
+  // 16. 导入为单个作品时只有一个带图片的文件夹、且它在所选根文件夹之下：仍按单文件夹的书导入（以实际文件夹为源），书名用根文件夹名；
+  // 搜索原文件夹名仍能找到；已编辑过的书名再次导入时不覆盖；先按普通方式导入过的同一文件夹，再导入为单个作品时改用根文件夹名。
+  await open();await js(`document.querySelector('[data-view="all"]').click()`);
+  await js(`mk('nm/deep','Leaf',2,'maroon')`);await pick('nm','merge');
+  await wait(async()=>!!(await js(`byTitle('Leaf')`)));
+  let nb=await js(`byTitle('Leaf')`);assert.equal(nb.name,'nm');assert.deepEqual(nb.sources.map(s=>s.key+':'+s.path+':'+!!s.dir),[':nm/deep/Leaf:true']);
+  assert.deepEqual(nb.pages.map(p=>p.name),['1.svg','2.svg']);
+  await wait(()=>js(`!!${card('nm')}`));
+  await js(`query.value='Leaf';query.dispatchEvent(new Event('input',{bubbles:true}))`);await wait(()=>js(`!!${card('nm')}&&document.querySelectorAll('#books .book').length===1`));
+  await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await js(`${card('nm')}.closest('.book').querySelector('[aria-label="编辑书名"]').click()`);await wait(()=>js('renameBook.open'));
+  assert.equal(await js('renameHint.textContent'),'原名：Leaf。留空即恢复原名。');
+  await js(`renameInput.value='Custom';renameForm.requestSubmit()`);await wait(async()=>(await js(`byTitle('Leaf')`)).name==='Custom');
+  await pick('nm','merge');await delay(800);
+  assert.equal((await js('records()')).filter(b=>b.title==='Leaf').length,1);assert.equal((await js(`byTitle('Leaf')`)).name,'Custom','An edited title is kept');
+  await js(`mk('np','Inner',2,'olive')`);await pick('np/Inner','folder');await wait(async()=>!!(await js(`byTitle('Inner')`)));
+  assert.equal((await js(`byTitle('Inner')`)).name,undefined);
+  await pick('np','merge');await wait(async()=>(await js(`byTitle('Inner')`)).name==='np');
+  assert.equal((await js('records()')).filter(b=>b.title==='Inner').length,1);
+  assert.deepEqual(errors,[]);console.log('PASS: import as one book, shared folders, re-import update, per-source refresh, partial missing, per-volume restore, batch restore to several books, drop overlay over dialog, import to library, add to the loose album by drop (recursive, side-by-side areas without gap, readable hints, images-only drop, small window), legacy records, forced rebuild, position kept in a missing volume, partial-missing restore, handle-first rebuild, re-import without handles, merged allow, one loose album (dedupe, same-name images, legacy albums merged, restore by relative path), single folder under the chosen root named after the root (search by folder name, edited title kept)');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

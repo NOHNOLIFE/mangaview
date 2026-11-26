@@ -51,8 +51,8 @@ try{
   // 键帽上只有键名：一个片段、无功能文字；长按 / Shift 只是 CSS 角标。
   const names={Esc:'Esc',ShiftLeft:'Shift',ShiftRight:'Shift',Space:'空格',Enter:'Enter',Home:'Home',End:'End',PageUp:'PgUp',PageDown:'PgDn',Delete:'Del',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→'};
   for(const k of bound)assert.deepEqual(await js('(()=>{const el='+q(k)+';return [el.children.length,el.textContent]})()'),[1,names[k]??k],k+' shows only its key name');
-  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-hold")].map(e=>e.dataset.key).sort()'),['A','ArrowLeft','ArrowRight','D','Enter','F'],'Hold keys are marked');
-  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-shift")].map(e=>e.dataset.key).sort()'),['Enter','F','Space'],'Shift combos are marked');
+  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-hold")].map(e=>e.dataset.key).sort()'),['Enter','F'],'Hold keys are marked');
+  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-shift")].map(e=>e.dataset.key).sort()'),['ArrowDown','ArrowUp','Enter','F','S','Space','W'],'Shift combos are marked');
   assert.equal(await js('document.querySelectorAll("#helpBody .hk-key.mod").length'),2);
   assert.equal(await js('[...document.querySelectorAll("#helpBody [data-tip]")].filter(e=>e.tabIndex===0).length'),bound.length+4,'Every function key and reader edge is focusable');
 
@@ -79,7 +79,7 @@ try{
     'colors:[...t.querySelectorAll(".em-hold,.em-shift")].map(s=>getComputedStyle(s).color),base:getComputedStyle(t).color}})())').then(JSON.parse);
   const good=(t,msg)=>{assert.equal(t.hidden,false,msg+' shows a tip');assert.equal(t.n,1,msg+' one tip');assert.equal(t.text,t.label,msg+' tip = aria-label');assert.ok(t.in,msg+' tip inside the viewport and dialog');assert.ok(!t.covers,msg+' tip does not cover the item');assert.ok(t.lines<=2,msg+' tip at most two lines: '+t.lines);};
   const hover=async r=>{await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:r.left+r.width/2,y:r.top+r.height/2});await delay(60);};
-  await hover(W);let t=await tip('#helpBody [data-key=W]');good(t,'W hover');assert.equal(t.text,'W 向上滚动');
+  await hover(W);let t=await tip('#helpBody [data-key=W]');good(t,'W hover');assert.equal(t.text,'W 向上滚动，Shift 上一本');
   await hover(F);t=await tip('#helpBody [data-key=F]');good(t,'F hover');assert.equal(t.text,'F 跳转书签，长按添加书签，Shift 反向');
   assert.deepEqual([t.hold,t.shift],[['长按'],['Shift']],'Hold and Shift are emphasised');
   assert.ok(t.colors.every(c=>c!==t.base)&&t.colors[0]!==t.colors[1],'Hold and Shift use their own accent colours: '+t.colors);
@@ -87,7 +87,7 @@ try{
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:5,y:5});await delay(60);assert.equal((await tip('#helpBody [data-key=F]')).hidden,true,'Tip hides when the pointer leaves');
   await js('help.querySelector("[data-close]").focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await delay(80);
   assert.equal(await js('document.activeElement.dataset.key'),'Esc','Tab moves into the key map');t=await tip();good(t,'Esc focus');assert.match(t.text,/^Esc 收起/);
-  await js(q('ArrowRight')+'.focus()');await delay(50);t=await tip();good(t,'→ focus');assert.equal(t.text,'→ 下一屏，长按下一本');
+  await js(q('ArrowRight')+'.focus()');await delay(50);t=await tip();good(t,'→ focus');assert.equal(t.text,'→ 下一屏');
   // 触屏点按也显示提示框（点按聚焦该项）。
   await js('document.activeElement.blur()');const Bk=await rect('B');
   for(const type of ['touchStart','touchEnd'])await cdp('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x:Bk.left+Bk.width/2,y:Bk.top+Bk.height/2}]});
@@ -122,7 +122,9 @@ try{
     await checkCaps(14,lang+' 500px');
     assert.ok(await js('[...document.querySelectorAll("#helpBody .hk-btn,#helpBody .hk-area")].every(e=>e.scrollWidth<=e.clientWidth+1)'),lang+': mouse labels fit');
     await allTips(lang+' 500px');
-    await js(q('A')+'.focus()');await delay(30);t=await tip();assert.deepEqual(t.hold,[holdWord[lang]],lang+': A emphasises hold');report[lang+' A']=t.text;
+    await js(q('A')+'.focus()');await delay(30);t=await tip();assert.deepEqual(t.hold,[],lang+': A has no hold function');report[lang+' A']=t.text;
+    await js(q('W')+'.focus()');await delay(30);t=await tip();assert.deepEqual([t.hold,t.shift],[[],['Shift']],lang+': W emphasises Shift');report[lang+' W']=t.text;
+    await js(q('ShiftLeft')+'.focus()');await delay(30);report[lang+' Shift']=(await tip()).text;
     await js(q('F')+'.focus()');await delay(30);t=await tip();assert.deepEqual([t.hold,t.shift],[[holdWord[lang]],['Shift']],lang+': F emphasises hold and Shift');report[lang+' F']=t.text;
     await js('document.activeElement.blur()');await shoot(lang+'-500x900');if(lang==='en')for(const [w,h] of [[500,900],[800,900],[1280,800],[360,640]]){await js('help.close()');await size(w,h);await open();await shotTip('en-tip-'+w+'x'+h,'A');}
     await js('help.close()');
