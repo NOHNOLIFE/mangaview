@@ -236,13 +236,13 @@ try {
     'Media scrolled out of view releases its source',
   );
 
-  // 音频：固定高度的横条，宽度设上限、居中；类型图标 + 文件名 + 壳。
+  // 音频：固定高度的卡片，横向占满阅读区（两侧留边距）、不设最大宽度；类型图标 + 文件名 + 3 行字幕区 + 壳。
   assert.ok(await js(`toPage('04 song.wav')`));
   await wait(() => js(`el('04 song.wav')?.readyState>=1`), 'audio metadata');
   const bar = await js(
-    `(()=>{const n=node('04 song.wav'),r=n.getBoundingClientRect(),R=reader.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(r.height),left:Math.round(r.left-R.left),name:n.querySelector('.mv-head').textContent,time:n.querySelector('.mv-time').textContent};})()`,
+    `(()=>{const n=node('04 song.wav'),r=n.querySelector('.mv-card').getBoundingClientRect(),R=reader.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(n.getBoundingClientRect().height),left:Math.round(r.left-R.left),name:n.querySelector('.mv-head').textContent,time:n.querySelector('.mv-time').textContent};})()`,
   );
-  assert.deepEqual(bar, { w: 744, h: 104, left: 28, name: '04 song.wav', time: '0:00 / 0:09' });
+  assert.deepEqual(bar, { w: 776, h: 170, left: 12, name: '04 song.wav', time: '0:00 / 0:09' });
   await shot('media-audio');
 
   // 3.4 壳：播放 / 暂停；点击进度条定位；时间显示不推动其他控件。
@@ -265,7 +265,7 @@ try {
   await wait(() => js(`el('04 song.wav').paused`), 'tap pauses');
   assert.equal(await js('reader.scrollTop'), top, 'Clicking media does not turn the screen');
 
-  // 12：空格播放 / 暂停当前媒体（中线离视窗中心最近的，暂停的也算），不再滚动；Shift+空格同样不滚动。
+  // 12：空格 = 总控栏的大播放键：播放 / 暂停当前媒体（中线离视窗中心最近的，暂停的也算），不再滚动；Shift+空格同样不滚动。
   await key(' ', 'Space', 32);
   await wait(() => js(`!el('04 song.wav').paused`), 'space plays');
   await key(' ', 'Space', 32);
@@ -289,20 +289,25 @@ try {
   await key("'", 'Quote', 222);
   assert.equal(await js(`el('04 song.wav').volume`), 0.95);
   await wait(() => js(`localStorage.getItem('mv2:volume')==='0.95'`), 'volume saved');
-  await tap('#reader .page[data-name="04 song.wav"] .mv-mute');
+  // 静音在总控栏：点音量图标即静音。
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 400, y: 450 });
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 400, y: 897 });
+  await wait(() => js('!controlbar.hidden'), 'control bar');
+  await tap('#controlbar [data-id="volume"]');
   assert.equal(
-    await js(`el('04 song.wav').muted&&node('04 song.wav').querySelector('.mv-mute').getAttribute('aria-label')`),
-    'Unmute',
+    await js(
+      `el('04 song.wav').muted&&document.querySelector('#controlbar [data-id="volume"]').getAttribute('aria-pressed')`,
+    ),
+    'true',
   );
   await wait(() => js(`localStorage.getItem('mv2:muted')==='true'`), 'muted saved');
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 400, y: 300 });
+  await wait(() => js('controlbar.hidden'), 'control bar hides');
   // 别的窗口改了音量 / 静音：即时应用（设置类偏好，storage 事件）。
   await js(
     `dispatchEvent(new StorageEvent('storage',{key:'mv2:volume',newValue:'0.3',storageArea:localStorage}));dispatchEvent(new StorageEvent('storage',{key:'mv2:muted',newValue:'false',storageArea:localStorage}))`,
   );
-  assert.deepEqual(
-    await js(`[el('04 song.wav').volume,el('04 song.wav').muted,node('04 song.wav').querySelector('.mv-vol').value]`),
-    [0.3, false, '30'],
-  );
+  assert.deepEqual(await js(`[el('04 song.wav').volume,el('04 song.wav').muted]`), [0.3, false]);
 
   // 12：长按 D / A 快进 / 快退当前媒体（暂停中的也可以），期间显示累计偏移与目标时间；松开即停，不翻屏。
   await js(`el('04 song.wav').currentTime=0`);
@@ -367,12 +372,12 @@ try {
   await wait(() => js(`!document.querySelector('dialog[open]')`));
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);
 
-  // 窄宽度：次要控件（音量滑块）收进「更多」弹出层，不换行、不溢出。
+  // 窄宽度：次要控件（添加书签等登记的按钮）收进「更多」弹出层，不换行、不溢出。
   await cdp('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: false });
   assert.ok(await js(`toPage('04 song.wav')`));
   await wait(() => js(`!node('04 song.wav').querySelector('.mv-more').hidden`), 'more button when narrow');
   const narrow = await js(
-    `(()=>{const s=node('04 song.wav').querySelector('.mv-shell'),r=s.getBoundingClientRect();return {inPop:!!s.querySelector('.mv-pop .mv-vol'),fits:s.scrollWidth<=s.clientWidth,inside:[...s.children].filter(x=>!x.hidden&&!x.matches('.mv-pop')).every(x=>{const b=x.getBoundingClientRect();return b.left>=r.left-.5&&b.right<=r.right+.5;})};})()`,
+    `(()=>{const s=node('04 song.wav').querySelector('.mv-shell'),r=s.getBoundingClientRect();return {inPop:!!s.querySelector('.mv-pop [data-control="bookmark"]'),fits:s.scrollWidth<=s.clientWidth,inside:[...s.children].filter(x=>!x.hidden&&!x.matches('.mv-pop')).every(x=>{const b=x.getBoundingClientRect();return b.left>=r.left-.5&&b.right<=r.right+.5;})};})()`,
   );
   assert.deepEqual(narrow, { inPop: true, fits: true, inside: true });
   await tap('#reader .page[data-name="04 song.wav"] .mv-more');
@@ -383,7 +388,7 @@ try {
   await wait(
     () =>
       js(
-        `node('04 song.wav')&&node('04 song.wav').querySelector('.mv-more').hidden&&!!node('04 song.wav').querySelector('.mv-shell>.mv-vol')`,
+        `node('04 song.wav')&&node('04 song.wav').querySelector('.mv-more').hidden&&!!node('04 song.wav').querySelector('.mv-shell>[data-control="bookmark"]')`,
       ),
     'controls back inline',
   );
@@ -486,7 +491,7 @@ try {
   await shot('media-shelf');
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: media recognised by extension, unsupported formats reported on import, mixed sorting, video width / ratio / one-screen cap, audio bar, sources only for visible media, shell (play, seek, time, mute, volume, more popover, fullscreen), click / Space / Q E ; ' / long-press A D, autoplay rules, one player per window, unplayable placeholder probed once, media placeholders in thumbnails and covers",
+    "PASS: media recognised by extension, unsupported formats reported on import, mixed sorting, video width / ratio / one-screen cap, audio bar, sources only for visible media, shell (play, seek, time, more popover, fullscreen), mute in the control bar, click / Space / Q E ; ' / long-press A D, autoplay rules, one player per window, unplayable placeholder probed once, media placeholders in thumbnails and covers",
   );
 } finally {
   if (ws?.readyState === 1) {

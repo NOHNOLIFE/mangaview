@@ -125,8 +125,8 @@ export function splitTail(name, keep = 8) {
 }
 // 只为可见项创建元素；累计高度同时用于虚拟窗口、长图内跳转和续读。
 // 媒体页：视频的宽度规则与图片相同、高度按帧比例（尺寸未知时按 16:9），高于 cap（阅读视窗高度）时等比缩小到正好一屏；
-// 音频在正文里是固定高度的横条（AUDIO_H），在缩略图栏（nav）里是固定比例的小块。
-export const AUDIO_H = 104;
+// 音频在正文里是固定高度的卡片（AUDIO_H：文件名、3 行字幕区、控件），在缩略图栏（nav）里是固定比例的小块。
+export const AUDIO_H = 170;
 export function offsets(pages, width, fit, cap = Infinity, nav = false) {
   const starts = [0];
   for (const p of pages) {

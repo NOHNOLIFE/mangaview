@@ -258,22 +258,31 @@ try {
   assert.equal(await A.js(`el('03 song.wav').paused`), true, 'Stays paused in the original window');
   await close(P);
 
-  // ---- 壳上的按钮；静音时浏览器允许自动播放：新窗口直接接着播。
-  await A.tap('#reader .page[data-name="03 song.wav"] .mv-mute');
+  // ---- 总控栏上的按钮；静音时浏览器允许自动播放：新窗口直接接着播。
+  const openBar = async (W) => {
+    const h = await W.js('innerHeight');
+    await W.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 300, y: h / 2 });
+    await W.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 300, y: h - 3 });
+    await wait(() => W.js('!controlbar.hidden'), 'control bar');
+    await delay(250);
+  };
+  await openBar(A);
+  await A.tap('#controlbar [data-id="volume"]');
   await wait(() => A.js(`localStorage.getItem('mv2:muted')==='true'`), 'muted');
   assert.ok(await A.js(`toPage('02 clip.webm')`));
   await A.tap('#reader .page[data-name="02 clip.webm"] .mv-play');
   await wait(() => A.js(`!el('02 clip.webm').paused&&el('02 clip.webm').currentTime>.6`), 'video playing in A');
   assert.equal(
-    await A.js(`!!node('02 clip.webm').querySelector('.mv-shell [data-control="popout"]:not(.mv-pop *)')`),
+    await A.js(`!node('02 clip.webm').querySelector('[data-control="popout"]')`),
     true,
-    'The button sits on the shell',
+    'The button is on the control bar, not on the panel',
   );
   assert.equal(
-    await A.js(`node('02 clip.webm').querySelector('[data-control="popout"]').getAttribute('aria-label')`),
+    await A.js(`document.querySelector('#controlbar [data-id="popout"]').getAttribute('aria-label')`),
     'Play in a new window',
   );
-  await A.tap('#reader .page[data-name="02 clip.webm"] [data-control="popout"]');
+  await openBar(A);
+  await A.tap('#controlbar [data-id="popout"]');
   const Q = await wait(() => popups[1], 'second new window');
   const tV = await wait(() => A.js(`el('02 clip.webm').paused&&el('02 clip.webm').currentTime`), 'video paused in A');
   await booted(Q);
@@ -283,6 +292,12 @@ try {
     'plays on in the new window by itself',
   );
   assert.ok(await Q.js(`centred('02 clip.webm')`));
+  await openBar(Q);
+  assert.equal(
+    await Q.js(`document.querySelector('#controlbar .cb-now .cb-name').textContent`),
+    '02 clip.webm',
+    'The new window has the control bar too',
+  );
   const vs = popoutSize(
     'video',
     { w: 320, h: 180 },
@@ -295,7 +310,8 @@ try {
   );
   await Q.shot('newwindow-video');
   await close(Q);
-  await A.tap('#reader .page[data-name="02 clip.webm"] .mv-mute');
+  await openBar(A);
+  await A.tap('#controlbar [data-id="volume"]');
   await wait(() => A.js(`localStorage.getItem('mv2:muted')==='false'`), 'unmuted');
 
   // ---- 浏览器拦截弹窗：提示，原窗口照常播放。
@@ -358,7 +374,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: Z, / and the shell button open a smaller window on the same media continuing from the current time while the original pauses; blocked sound waits for a click with a hint; blocked pop-ups keep playing with a hint; no startup check in the new window; no current media does nothing; / still searches in the shelf and full-screen views',
+    'PASS: Z, / and the control bar button open a smaller window on the same media continuing from the current time while the original pauses; blocked sound waits for a click with a hint; blocked pop-ups keep playing with a hint; no startup check in the new window; no current media does nothing; / still searches in the shelf and full-screen views',
   );
 } finally {
   if (ws?.readyState === 1) {

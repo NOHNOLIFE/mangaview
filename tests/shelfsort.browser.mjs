@@ -172,9 +172,9 @@ try {
   // 设置持久保存；上一本 / 下一本按同一顺序（当前是最后添加的 Book C，folderOld 下它排第一）。
   await js('shelf.close()');
   await js('reader.focus()');
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Book A'`));
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Book B'`));
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='Book B'`));

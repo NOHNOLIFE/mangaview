@@ -1,5 +1,5 @@
 // 顶部工具栏：鼠标贴近顶缘稍作停留即弹出、移开后收起（showBar），平时不可见的菜单按钮供键盘打开；窄窗口自动换行。
-// 底部操作栏见 endbar.mjs。
+// 底部总控栏见 controlbar.mjs。
 import { extend } from '../core/lang.mjs';
 import { $, fade, showing } from '../ui/dom.mjs';
 import { updateProgress } from './shell.mjs';

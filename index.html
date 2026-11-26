@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="./src/style.css">
 <link rel="stylesheet" href="./src/shelf/shelf.css">
 <link rel="stylesheet" href="./src/reader/toolbar.css">
+<link rel="stylesheet" href="./src/reader/controlbar.css">
 <link rel="stylesheet" href="./src/panels/settings.css">
 <link rel="stylesheet" href="./src/marks/bookmarks.css">
 <link rel="stylesheet" href="./src/reader/focus.css">
@@ -23,7 +24,9 @@
 <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
 <symbol id="i-all" viewBox="0 0 24 24"><path d="M7 2h10M5 6h14"/><rect x="3" y="10" width="18" height="12" rx="2"/></symbol>
 <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
+<symbol id="i-book-next" viewBox="0 0 24 24"><path d="M4 19.5v-15A1.5 1.5 0 0 1 5.5 3H20v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M4 18h16M8.5 10.5H15M12.5 8l2.5 2.5-2.5 2.5"/></symbol>
 <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol>
+<symbol id="i-book-prev" viewBox="0 0 24 24"><path d="M4 19.5v-15A1.5 1.5 0 0 1 5.5 3H20v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M4 18h16M15.5 10.5H9M11.5 8 9 10.5l2.5 2.5"/></symbol>
 <symbol id="i-bulk" viewBox="0 0 24 24"><path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
 <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
@@ -31,6 +34,7 @@
 <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
 <symbol id="i-cloud-check" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/><path d="m9 14 2 2 4-4"/></symbol>
 <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16a2 2 0 0 1-1-1.7V5a2 2 0 0 1 2-2h9.3A2 2 0 0 1 16 4"/></symbol>
+<symbol id="i-cross-book" viewBox="0 0 24 24"><rect x="2" y="5" width="7" height="14" rx="1.5"/><rect x="15" y="5" width="7" height="14" rx="1.5"/><path d="M9 12h6M13 10l2 2-2 2"/></symbol>
 <symbol id="i-filter-x" viewBox="0 0 24 24"><path d="M13 3H2l8 9.5V19l4 2v-8.5l.9-1"/><path d="m22 3-5 5M17 3l5 5"/></symbol>
 <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></symbol>
 <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><path d="M12 10v6M9 13h6"/></symbol>
@@ -46,6 +50,9 @@
 <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
 <symbol id="i-merge" viewBox="0 0 24 24"><path d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.9a2 2 0 0 1-1.7-.9l-.8-1.2a2 2 0 0 0-1.7-.9H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2z"/><path d="M2 8v11a2 2 0 0 0 2 2h14"/></symbol>
+<symbol id="i-mode-comic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 10.5h16M12 10.5V21"/></symbol>
+<symbol id="i-mode-media" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></symbol>
+<symbol id="i-mode-mixed" viewBox="0 0 24 24"><path d="M13 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7"/><path d="M4 10.5h16"/><path d="m16 15 5 3-5 3z"/></symbol>
 <symbol id="i-name-asc" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M15 4h4l-4 6h4M15 20v-3.5a2 2 0 0 1 4 0V20M15 18h4"/></symbol>
 <symbol id="i-name-desc" viewBox="0 0 24 24"><path d="m3 16 4 4 4-4M7 20V4M15 14h4l-4 6h4M15 10V6.5a2 2 0 0 1 4 0V10M15 8h4"/></symbol>
 <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M15 3v18"/></symbol>
@@ -53,6 +60,7 @@
 <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
 <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4M18 2l4 4-4 4"/><path d="M2 18h1.4a4 4 0 0 0 3.3-1.7l6.6-9.6A4 4 0 0 1 16.6 5H22M2 6h1.4a4 4 0 0 1 3.3 1.7l.8 1.1M22 18h-5.4a4 4 0 0 1-3.3-1.7l-.8-1.1"/></symbol>
+<symbol id="i-single-file" viewBox="0 0 24 24"><rect x="7.5" y="6" width="9" height="12" rx="1.5"/><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></symbol>
 <symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 19 9 12l9-7z"/><path d="M6 5v14"/></symbol>
 <symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7z"/><path d="M18 5v14"/></symbol>
 <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
@@ -116,13 +124,6 @@
 </nav>
 </div>
 
-<div id="endbar" role="toolbar" data-aria="endbar" hidden>
-<button class="eb eb-book" data-act="prev"><svg class="i" aria-hidden="true"><use href="#i-skip-back"/></svg><span data-t="prev"></span></button>
-<button class="eb" data-act="toStart"><svg class="i" aria-hidden="true"><use href="#i-to-top"/></svg><span data-t="toTop"></span></button>
-<span id="endPos" class="eb-pos"></span>
-<button class="eb" data-act="toEnd"><svg class="i" aria-hidden="true"><use href="#i-to-end"/></svg><span data-t="toEnd"></span></button>
-<button class="eb eb-book" data-act="next"><svg class="i" aria-hidden="true"><use href="#i-skip-forward"/></svg><span data-t="next"></span></button>
-</div>
 <div id="hud" aria-hidden="true" hidden><svg class="ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle id="ring" class="fill" cx="10" cy="10" r="8" pathLength="100"/></svg><span id="pageNum"></span></div>
 <aside id="panel" hidden><div id="grip" role="separator" tabindex="0" aria-orientation="vertical" data-label="width"></div><div id="preview" tabindex="0" data-aria="preview"><div class="strip"></div></div></aside>
 

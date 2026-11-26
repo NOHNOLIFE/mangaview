@@ -350,13 +350,13 @@ try {
   await wait(() => js(`bookTitle.textContent==='B10'`));
   await press('pgup');
   await wait(() => js(`bookTitle.textContent==='B35'`));
-  // 底部操作栏的上一本 / 下一本标出“只在筛选结果内切换”。
+  // 总控栏的上一本 / 下一本标出“只在筛选结果内切换”。
   const ih = await js('innerHeight');
   await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 500, y: ih - 60 });
   await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 500, y: ih - 4 });
-  await wait(() => js('!endbar.hidden'));
+  await wait(() => js('!controlbar.hidden'));
   assert.deepEqual(
-    await js(`[...endbar.querySelectorAll('.eb-book')].map(b=>b.classList.contains('scoped')+'|'+b.title)`),
+    await js(`[...controlbar.querySelectorAll('.cb-book')].map(b=>b.classList.contains('scoped')+'|'+b.title)`),
     [
       'true|Previous book · Only switches within the shelf filter results',
       'true|Next book · Only switches within the shelf filter results',

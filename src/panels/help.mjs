@@ -11,10 +11,10 @@ extend({
   hkHint: ['Hover a key to see what it does', '悬停按键查看功能', 'キーに重ねると説明を表示', '키에 올리면 설명 표시'],
   hkSpace: ['Space', '空格', 'スペース', '스페이스'],
   hkTipEsc: [
-    'Hide toolbar, action bar, floating panels',
-    '收起工具栏、操作栏、浮动侧栏',
-    'ツール・操作バー・浮いたパネルを隠す',
-    '도구·작업 표시줄·떠 있는 패널 숨기기',
+    'Hide toolbar, control bar, floating panels',
+    '收起工具栏、总控栏、浮动侧栏',
+    'ツール・コントロールバー・浮いたパネルを隠す',
+    '도구·컨트롤 바·떠 있는 패널 숨기기',
   ],
   hkTipUp: [
     'Scroll up, Shift: previous book',
@@ -28,7 +28,12 @@ extend({
     '下へスクロール、Shift で次の本',
     '아래로 스크롤, Shift: 다음 책',
   ],
-  hkTipSpace: ['Play / pause media', '播放 / 暂停媒体', 'メディアを再生／一時停止', '미디어 재생 / 일시 정지'],
+  hkTipSpace: [
+    'Play / pause (control bar)',
+    '播放 / 暂停（总控栏）',
+    '再生／一時停止（コントロールバー）',
+    '재생 / 일시 정지 (컨트롤 바)',
+  ],
   hkTipBack: [
     'Previous screen, *hold*: rewind media',
     '上一屏，*长按*媒体快退',
@@ -102,10 +107,10 @@ extend({
   hkHalfR: ['Next screen', '下一屏', '次の画面', '다음 화면'],
   hkTipTop: ['Rest at the top edge: toolbar', '停在顶缘：工具栏', '上端で止める：ツール', '위쪽 가장자리: 도구'],
   hkTipBottom: [
-    'Rest at the bottom edge: action bar (books, start / end)',
-    '停在底缘：操作栏（切书、书首 / 书尾）',
-    '下端で止める：操作バー（本の切替、先頭／末尾）',
-    '아래쪽 가장자리: 작업 표시줄 (책 전환, 처음 / 끝)',
+    'Rest at the bottom edge: control bar (books, play, speed, volume)',
+    '停在底缘：总控栏（切书、播放、速率、音量）',
+    '下端で止める：コントロールバー（本の切替、再生、速度、音量）',
+    '아래쪽 가장자리: 컨트롤 바 (책 전환, 재생, 속도, 볼륨)',
   ],
   hkTipLeft: [
     'Rest at the left edge: shelf bookmarks (when not pinned)',
@@ -245,7 +250,7 @@ export const MOUSE = {
     { id: 'half-l', label: 'hkHalfL' },
     { id: 'half-r', label: 'hkHalfR' },
     { id: 'right', label: 'hkThumbBar', tip: 'hkTipRight' },
-    { id: 'bottom', label: 'endbar', tip: 'hkTipBottom' },
+    { id: 'bottom', label: 'controlBar', tip: 'hkTipBottom' },
   ],
 };
 // 图示覆盖不到的按键：[[按键…], 说明]，多个按键之间是“或”，“+”表示组合键。

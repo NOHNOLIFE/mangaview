@@ -1,10 +1,9 @@
-// 媒体按键：长按 A / D / ← / → 快退 / 快进当前媒体（ctx.pageHold）；空格播放 / 暂停、Q / E 调音量、Z / / 新窗口播放（ctx.keys）。
+// 媒体按键：长按 A / D / ← / → 快退 / 快进当前媒体（ctx.pageHold）；空格 = 总控栏的大播放键（ctx.transport.toggle）、Q / E 调音量、Z / / 新窗口播放（ctx.keys）。
 import { clock, seekStep, nudge } from '../core/model.mjs';
 
 export function install(ctx, S) {
   const { players, api } = S;
   const current = (...a) => S.current(...a),
-    toggle = (...a) => S.toggle(...a),
     popout = (...a) => S.popout(...a),
     setVolume = (...a) => S.setVolume(...a),
     progress = (...a) => S.progress(...a),
@@ -48,16 +47,13 @@ export function install(ctx, S) {
       hideHud(700);
     },
   };
-  // 按键：空格（含 Shift）播放 / 暂停当前媒体，不再滚动；Q / ; 音量减、E / ' 音量加（每次 5%，按住连续调）；Z / / 新窗口播放当前媒体（无当前媒体时无功能）。
+  // 按键：空格（含 Shift）是总控栏的大播放键（运行 / 停止，见 reader/transport.mjs），不滚动；Q / ; 音量减、E / ' 音量加（每次 5%，按住连续调）；Z / / 新窗口播放当前媒体（无当前媒体时无功能）。
   // 书架页、全屏界面里的 / 是聚焦搜索框：它们是对话框，app.mjs 不把按键交到这里。
   ctx.keys.push({
     down(e) {
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        if (!e.repeat) {
-          const p = current();
-          if (p) toggle(p);
-        }
+        if (!e.repeat) ctx.transport.toggle();
         return true;
       }
       if (e.altKey) return false;

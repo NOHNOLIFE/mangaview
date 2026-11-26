@@ -1,4 +1,5 @@
-// 播放顺序与循环（3.7）：状态 S.order / S.loop（设置类偏好，跨窗口同步）、一个媒体播完之后切到哪一个（finished），
+// 播放顺序与循环（3.7）：状态 S.order / S.loop（设置类偏好，跨窗口同步，按钮在总控栏，变化时派发 ctx.emit('media', 'order')）、
+// 一个媒体播完之后切到哪一个（finished；漫画模式下单个媒体自己的播放键开始的 p.solo 播完即停，不按顺序切换），
 // 以及待接手的播放请求（S.queued：按播放顺序、书签跳转、新窗口播放要播放的页，该页的播放器出现在视窗里时由 claim 接手）。
 // 顺序与循环的规则在 playlist.mjs（following）。
 import { extend } from '../core/lang.mjs';
@@ -30,12 +31,16 @@ export function install(ctx, S) {
     .sync('playOrder', (v) => {
       S.order = orderOf(v);
       rounds.delete(ctx.current);
-      refreshControls();
+      changed();
     })
     .sync('playLoop', (v) => {
       S.loop = v === true;
-      refreshControls();
+      changed();
     });
+  function changed() {
+    refreshControls();
+    ctx.emit('media', 'order');
+  }
   // ---- 播放顺序与循环（3.7）：一个媒体播完之后做什么。「列表」是当前书里可播放的媒体（图片、播不了的跳过），按当前页序；
   // 开启「只播放书签区段」且书里有区段时，没有区段的媒体也跳过。切到下一个媒体时把它滚到视窗中央、从头（或第一个区段）播放。
   function candidates(book, withSec) {
@@ -57,6 +62,10 @@ export function install(ctx, S) {
     const now = performance.now();
     if (lastFinish?.p === p && now - lastFinish.at < 800) return;
     lastFinish = { p, at: now }; // 区段播完与 ended 可能先后到达
+    if (p.solo) {
+      p.solo = false;
+      return;
+    }
     const book = p.book,
       cur = book.pages.indexOf(p.page);
     if (book !== ctx.current || !players.has(p.node) || cur < 0) return;
@@ -85,12 +94,13 @@ export function install(ctx, S) {
     else p.time = rs.length ? rs[0].a : 0;
     start(p);
   }
-  function switchTo(book, i, withSec) {
+  // 切到第 i 页的媒体：滚到视窗中央，从头（或第一个区段）开始；play 为假时只定位、停在该处（总控栏的上一个 / 下一个媒体，未在播放时）。
+  function switchTo(book, i, withSec, play = true) {
     const page = book.pages[i],
       rs = withSec?.get(page.name) ?? [],
       s = rs.length ? rs[0].a : 0;
     times.set(page, s);
-    S.queued = { page, time: s, play: true, auto: true };
+    S.queued = { page, time: s, play, auto: play };
     if (document.fullscreenElement?.classList.contains('media')) document.exitFullscreen().catch(() => {});
     ctx.view.jump({ i, f: 0.5 });
     if (document.hidden) ctx.view.paint(); // 窗口在后台时不会有动画帧：立即排版，播放顺序照常生效
@@ -103,6 +113,7 @@ export function install(ctx, S) {
     const q = S.queued;
     S.queued = null;
     if (p.state === 'failed') return;
+    S.chosen = p; // 成为当前媒体（driver.mjs）
     p.auto = !!q.auto;
     p.popped = !!q.popped;
     seek(p, q.time);
@@ -112,18 +123,18 @@ export function install(ctx, S) {
     if (!S.queued) return;
     for (const p of players.values()) if (p.page === S.queued?.page && inView(p)) claim(p);
   }
-  // 壳上「播放顺序」「循环」按钮（buttons.mjs）的操作。
+  // 总控栏「播放顺序」「循环」按钮的操作（经 ctx.media，driver.mjs）。
   function cycleOrder() {
     S.order = ORDERS[(ORDERS.indexOf(S.order) + 1) % ORDERS.length];
     put('playOrder', S.order);
     rounds.delete(ctx.current);
-    refreshControls();
+    changed();
     ctx.notice(null, t(ORDER_LABEL[S.order]));
   }
   function toggleLoop() {
     S.loop = !S.loop;
     put('playLoop', S.loop);
-    refreshControls();
+    changed();
   }
-  Object.assign(S, { finished, claim, claimNow, cycleOrder, toggleLoop });
+  Object.assign(S, { candidates, switchTo, finished, claim, claimNow, cycleOrder, toggleLoop });
 }

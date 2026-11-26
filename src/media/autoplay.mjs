@@ -1,4 +1,5 @@
-// 当前媒体与自动播放：当前媒体的判定（current：本窗口正在播放的，否则中线在视窗内、离视窗中心最近的）、
+// 当前媒体与自动播放：当前媒体的判定（current：选定的媒体 S.chosen（见 driver.mjs）正在播放或中线仍在视窗内时是它；
+// 否则本窗口正在播放的；否则中线在视窗内、离视窗中心最近的）、
 // 媒体中线离开视窗即暂停、滚动停稳后自动播放、启动或切书后有过用户操作才自动播放；设置里的「自动播放」开关。
 import { extend } from '../core/lang.mjs';
 
@@ -40,7 +41,11 @@ export function install(ctx, S) {
     }
     return best;
   }
-  const current = () => (S.playing && players.has(S.playing.node) ? S.playing : nearest());
+  const current = () => {
+    const c = S.chosen;
+    if (c && players.has(c.node) && c.state !== 'failed' && (c === S.playing || inView(c))) return c;
+    return S.playing && players.has(S.playing.node) ? S.playing : nearest();
+  };
   // 正在播放的媒体中线离开视窗即暂停（位置记在会话里）；手动暂停、播完的标记在它中线离开视窗后清除。
   function watch() {
     for (const p of players.values()) {
@@ -79,6 +84,7 @@ export function install(ctx, S) {
   ctx.on('select', () => {
     armed = false;
     S.queued = null;
+    S.chosen = null;
     rounds.delete(ctx.current);
   });
 
