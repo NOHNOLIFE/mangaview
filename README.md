@@ -173,7 +173,7 @@ In **Sort**, choose **This folder / book** to set an order for the current book 
 
 MangaView checks your folders for added or removed images in three cases (the first can be turned off in **Settings**):
 
-- each time the app opens or the page is reloaded, it checks the current book first, then works through every other folder it still has access to, one at a time in the background while the browser is idle, so reading isn't slowed down;
+- each time the app opens or the page is reloaded, it checks the current book first, then works through every other folder it still has access to, one at a time in the background while the browser is idle, so reading isn't slowed down; with several windows open, only one of them checks the other folders, once;
 - when you switch back to the window, it checks the current book;
 - when you press a **Refresh** button (next to **Bookshelf** in the toolbar, and on the shelf), it checks everything. A manual refresh can also ask for access to the current book again.
 
@@ -188,6 +188,18 @@ Browsers never reveal a folder's full path on disk, so after files are moved Man
 - **Add the parent folder again**: a missing book or volume with the same folder name and cover is reconnected automatically instead of being added twice.
 - **Restore from folder…** (in *Missing*): pick a folder that contains your books, at any depth. Exact matches are restored at once. Likely matches (renamed folder with the same cover, or same name with a different cover) are listed for you to tick. Anything else stays missing. Lost images of the loose album are found again too. Restoring only reconnects existing records and **never adds books**: content with no matching record is ignored. Restoring a single book, or **Locate originals**, also reconnects any other missing books and loose images found in the chosen folder.
 - **Restore** on a single book: pick its folder. If it doesn't match, you can still **Restore anyway** to keep the tags, bookmarks and progress. For a joined book that is entirely missing and where no volume matches, this rebuilds the book from the chosen folder, and volumes at the same relative paths keep their bookmarks and progress. If only one volume of a joined book is missing, you can link the chosen folder to that volume anyway; the other volumes are left untouched. When several volumes are missing, a folder that doesn't match is reported as not found rather than guessed at.
+
+### Several windows
+
+You can open several MangaView windows at once (browser tabs or windows of the installed app), even on the same book:
+
+- Changes to books, bookmarks, tags, covers, titles and which list a book is in show up in the other windows within a second, updating only what changed. Different changes to the same book from different windows are all kept (for example, a bookmark added in each).
+- When one window deletes a book, other windows reading it say so and move on to the next book; the record is not written back.
+- Settings (everything in the settings panel, the language, the default sort) apply to all windows at once. Layout (pinned thumbnail strip or shelf bookmarks, widths, list styles) is separate for each window; the last change is used the next time you open the app.
+- Each window has its own current book and reading position; for the same book, the position saved last wins.
+- Background disk work, such as checking every folder at startup and making covers, runs in one window only, so the other windows don't read the drive again. If that window closes, or goes to the background while another window is in front, another window takes over.
+- After **Restore default settings**, importing a backup or clearing all data, the other windows reload automatically.
+- When a new version changes how data is stored, windows still running the old version let go of the storage and ask you to reload, so the new window isn't blocked.
 
 ### Your data
 
@@ -241,6 +253,8 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `model.mjs` | Sorting and layout math |
 | `sources.mjs` | Folder scanning and file access, books and their source folders (volumes) |
 | `store.mjs` | IndexedDB storage |
+| `merge.mjs` | Field-by-field / entry-by-entry merging when several windows save the same book |
+| `windows.mjs` | Coordination between windows: change notices, background disk work in one window only, reloading after global operations |
 | `lang.mjs` | Built-in translations |
 | `sw.js` | Offline cache |
 | `dist/` | Migration bridge for v1 users |
@@ -263,6 +277,7 @@ node tests/overview.browser.mjs "<path>"
 node tests/settings.browser.mjs "<path>"
 node tests/help.browser.mjs "<path>"
 node tests/queue.browser.mjs "<path>"
+node tests/windows.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:
@@ -270,7 +285,8 @@ Things the automated tests can't cover:
 - an offline cold start of the installed app;
 - importing thousands of images from a real hard drive (not an SSD) and switching books while scrolling;
 - middle-click auto-scroll across tall images on Windows;
-- the real window frame of the installed app.
+- the real window frame of the installed app;
+- handing background disk work over as real windows move between the foreground, the background and minimized.
 
 ### Releasing
 

@@ -113,6 +113,10 @@ body.docked #panel{background:var(--solid);backdrop-filter:none;box-shadow:none;
 #access>.i{color:var(--warn)}
 #access>span{flex:1 1 14rem}
 #access .actions{display:flex;gap:6px}
+/* 存储结构已在其他窗口升级（windows.mjs）：常驻提示，popover 放在顶层，对话框打开时也看得见。 */
+#dbUpgraded{position:fixed;inset:calc(var(--top) + 72px) auto auto 50%;transform:translateX(-50%);margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:max-content;max-width:min(92vw,42rem);padding:12px 12px 12px 16px;border:1px solid rgba(255,179,92,.3);border-radius:14px;background:rgba(42,32,22,.97);color:inherit;box-shadow:var(--shadow)}
+#dbUpgraded>.i{color:var(--warn)}
+#dbUpgraded>span{flex:1 1 14rem}
 #notice{position:fixed;z-index:7;left:calc(var(--dockL) + (100% - var(--dock) - var(--dockL))/2);bottom:68px;transform:translateX(-50%);max-width:min(90vw,32rem);margin:0;padding:10px 18px;border:1px solid var(--line2);border-radius:12px;background:rgba(36,37,43,.96);box-shadow:var(--shadow);font-size:13.5px;pointer-events:none;animation:toast .28s var(--ease)}
 #notice:empty{display:none}
 

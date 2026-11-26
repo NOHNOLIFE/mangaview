@@ -1,7 +1,8 @@
 import {detect,translate,languageList} from './lang.mjs';
 import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.mjs';
-import {library,thumbs} from './store.mjs';
-import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
+import {library,thumbs,update,isFrozen} from './store.mjs';
+import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget} from './thumbs.mjs';
+import {snap,merge,changes,adopt,refresh} from './merge.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
 import {timed,isStuck,isDead,probe,source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
@@ -13,6 +14,7 @@ import {install as backup} from './backup.mjs';
 import {install as bookmarks} from './bookmarks.mjs';
 import {install as focusMode} from './focus.mjs';
 import {install as helpPanel} from './help.mjs';
+import {install as windows} from './windows.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -54,21 +56,84 @@ function safe(fn){return (...args)=>Promise.resolve().then(()=>fn(...args)).catc
 const EDGE=32;
 const atEdge=(side,e,inset=0)=>side==='left'?e.clientX<EDGE:side==='right'?innerWidth-e.clientX<=EDGE:side==='top'?e.clientY-inset<EDGE:innerHeight-e.clientY<=EDGE;
 let probed=false;const prefix='mv2:', books=new Map();let current=null, unavailablePage=null;
-function get(key,otherwise=null){try{return JSON.parse(localStorage.getItem(prefix+key))??otherwise;}catch{return otherwise;}}
-function put(key,value){try{localStorage.setItem(prefix+key,JSON.stringify(value));}catch{notice('storage');}}
-function dropKey(key){try{localStorage.removeItem(prefix+key);}catch{notice('storage');}}
 // 偏好（界面设置与布局）：「还原默认设置」只清除这些键，再重新载入页面，各模块按默认值重新安装。
-// 书目、书签、标签、阅读位置（pos:*）、最近打开的书（last）等数据不在其中。
-// 功能模块新增偏好时调用 ctx.prefs.add('键名')（不含 mv2: 前缀；以 * 结尾表示该前缀下的所有键）。
-const prefs=new Set(['lang','autoCheck','fit','preview','width','defaultSort','edgeRight','edgeLeft','shelfmarks','shelfmarksWidth','focusMode','shelfSort','shelfView']);
-function resetPrefs(){
-  flush();
-  const match=k=>prefs.has(k)||[...prefs].some(p=>p.endsWith('*')&&k.startsWith(p.slice(0,-1)));
-  try{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&match(key.slice(prefix.length)))localStorage.removeItem(key);sessionStorage.setItem(prefix+'reset','1');}catch{notice('storage');return;}
-  location.reload();
+// 书目、书签、标签、阅读位置（pos:*）、最近打开的书（last）、搜索预设等数据不在其中。键名不含 mv2: 前缀；以 * 结尾表示该前缀下的所有键。
+// 多个窗口时偏好分两类登记：
+// - 设置类：ctx.prefs.sync('键名', apply)。跨窗口即时同步：别的窗口改动后，本窗口调用 apply(新值) 并派发 'pref' 事件（键名, 新值）。
+//   设置面板里的开关、语言、默认排序都属于这一类，以后新增的音量、静音、自动播放等也这样登记。
+// - 布局类：ctx.prefs.add('键名')。侧栏、宽度、列表样式等，各窗口互不影响：本窗口读过或写过之后只用自己的值，最后写入的作为下次启动的值。
+// 其余的键（数据）总是读最新值。
+const prefs=new Set(['lang','autoCheck','fit','preview','width','defaultSort','edgeRight','edgeLeft','shelfmarks','shelfmarksWidth','focusMode','shelfSort','shelfView']),synced=new Map();
+prefs.sync=(key,apply=null)=>{prefs.add(key);synced.set(key,apply);own.delete(key);return prefs;};
+const isPref=k=>prefs.has(k)||[...prefs].some(p=>p.endsWith('*')&&k.startsWith(p.slice(0,-1)));
+const layout=k=>!synced.has(k)&&isPref(k), own=new Map(); // own：本窗口的布局类偏好
+function get(key,otherwise=null){
+  if(own.has(key))return own.get(key)??otherwise;
+  let value=null;try{value=JSON.parse(localStorage.getItem(prefix+key));}catch{}
+  if(layout(key))own.set(key,value);return value??otherwise;
 }
+// 冻结时（别的窗口正在做全局操作，本窗口即将重新载入）不写，见 windows.mjs。
+function put(key,value){if(isFrozen())return;if(layout(key))own.set(key,value);try{localStorage.setItem(prefix+key,JSON.stringify(value));}catch{notice('storage');}}
+function dropKey(key){if(isFrozen())return;own.delete(key);try{localStorage.removeItem(prefix+key);}catch{notice('storage');}}
+// 别的窗口写入 localStorage：设置类即时应用；布局类不理会；其余派发 'storage' 事件（键名, 新值），如书架页据此更新搜索预设。
+window.addEventListener('storage',e=>{
+  if(e.storageArea!==localStorage||!e.key?.startsWith(prefix)||isFrozen())return;
+  const key=e.key.slice(prefix.length);if(layout(key))return;
+  let value=null;try{value=JSON.parse(e.newValue);}catch{}
+  if(synced.has(key)){try{synced.get(key)?.(value);}catch(err){console.warn(err);}emit('pref',key,value);}
+  emit('storage',key,value);
+});
+// 其他窗口先停止写入，本窗口清除偏好后连同它们一起重新载入（windows.mjs）。
+async function resetPrefs(){
+  flush();await ctx.hold?.();
+  try{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&isPref(key.slice(prefix.length)))localStorage.removeItem(key);sessionStorage.setItem(prefix+'reset','1');}catch{notice('storage');ctx.reloadOthers?.('reset');return;}
+  ctx.reloadOthers?.('reset');location.reload();
+}
+prefs.sync('lang',code=>{lang=code||detect(navigator.languages||[navigator.language]);relocalize();});
+prefs.sync('autoCheck').sync('edgeRight').sync('edgeLeft');
+prefs.sync('defaultSort',value=>{if(!value?.mode)return;defaultSort=value;if(sortOptions.open)showSortChoices();if(current&&folderSort(current)===null&&needsSort(current,defaultSort))safe(arrange)(current);});
 // 已从 books 中移除（删除、清空、备份替换）的书不再写入：后台任务（封面、文件夹时间、排序）晚到的保存不会把刚删的记录写回。
-function persist(book){if(books.get(book.id)!==book)return Promise.resolve();return library('put',book).catch(()=>notice('storage'));}
+// 多个窗口：以存储中的最新记录为基础，只写本窗口改过的字段（merge.mjs），存储中已变、本窗口没改的字段随之换进内存；
+// 已被别的窗口删除的记录不写回，本窗口随之移除这本书。bases：书 → 本窗口所知的存储版本的逐字段指纹，没有表示尚未写入过。
+const bases=new WeakMap();
+function persist(book){
+  if(books.get(book.id)!==book)return Promise.resolve();
+  let gone=false,took=[];
+  return update(book.id,stored=>{
+    if(books.get(book.id)!==book)return;
+    const base=bases.get(book);
+    if(!stored&&base){gone=true;return;}
+    let out=book;
+    if(stored&&base){const r=merge(base,book,stored);out=r.out;took=r.take;for(const k of r.take)adopt(book,k,stored[k]);for(const k of r.joined)book[k]=out[k];}
+    bases.set(book,snap(book));return out;
+  }).then(()=>{if(gone){vanish(book);ctx.redrawShelf();emit('books');}else if(took.length)followed(book,took);},()=>notice('storage'));
+}
+// 别的窗口写入了这些书（windows.mjs 转来）：按书重读，只换进本窗口没有未保存改动的字段；记录已删除的移除，新增的加入。
+async function pull(ids){
+  const recs=await Promise.all(ids.map(id=>library('get',id).catch(()=>null)));let any=false;
+  ids.forEach((id,i)=>{
+    const rec=recs[i],book=books.get(id);if(rec===null)return;
+    if(!rec){if(book&&bases.has(book)){vanish(book);any=true;}return;}
+    if(!book){const base=snap(rec);books.set(id,normalize(rec));bases.set(rec,base);any=true;return;}
+    const base=bases.get(book);if(!base)return; // 本窗口新建、尚未写入
+    const keys=changes(base,book,rec);if(!keys.length)return;
+    for(const k of keys)adopt(book,k,rec[k]);refresh(base,book,keys);followed(book,keys);any=true;
+  });
+  if(any){ctx.redrawShelf();emit('books');}
+}
+// 别的窗口改过的字段已换进内存：页面列表变了才重排正文；各模块按 'synced' 事件（书, 字段名）更新受影响的界面。
+function followed(book,keys){
+  if(book===current){if(keys.some(k=>['pages','sources','parked'].includes(k)))reloadView();toolsState();}
+  emit('synced',book,keys);
+}
+// 别的窗口删除了这本书：从内存移除（之后不会写回）；正在读它时提示并切到下一本。
+function vanish(book){
+  if(books.get(book.id)!==book)return;
+  const list=book===current?readingList(book):[];
+  sortRequests.delete(book);books.delete(book.id);forget(book.id+':');forgetPages(book.id+':');
+  if(book===current){const i=list.indexOf(book),rest=list.filter(b=>b!==book);current=null;
+    select(rest.length?rest[Math.max(0,i)%rest.length]:books.values().next().value);setTimeout(()=>notice('removedElsewhere'));} // 延后：保存这本书的操作自己的提示（如“已添加书签”）不会盖掉它
+}
 let posTimer,dimTimer,dirty,hudFrame,hudTimer;
 // 阅读位置所在的卷暂时找不到时，正文退回书首（anchor 为 null）：已保存的位置保留不动，卷找回后回到原处（here）。
 // 读者在缺失期间滚到别处阅读（anchor 不为 null）才覆盖为新位置。
@@ -389,8 +454,11 @@ function refreshAll(manual){
     const r={updated:0,gone:0,partial:0,denied:0,added:0,removed:0},sum=x=>{for(const k in r)r[k]+=x[k];};
     const first=current&&books.has(current.id)?current:null;
     if(first)sum(await sync([first],manual));
-    if(!manual)await new Promise(ok=>window.requestIdleCallback?requestIdleCallback(ok,{timeout:2000}):setTimeout(ok,300));
-    sum(await sync([...books.values()].filter(b=>b!==first),manual));
+    // 其余的书：多个窗口同时开着时，只由持有后台磁盘任务的窗口检查一次（windows.mjs）；手动刷新照常检查全部。
+    if(manual||await (ctx.disk?.check()??true)){
+      if(!manual)await new Promise(ok=>window.requestIdleCallback?requestIdleCallback(ok,{timeout:2000}):setTimeout(ok,300));
+      sum(await sync([...books.values()].filter(b=>b!==first),manual));ctx.disk?.done();
+    }
     ctx.redrawShelf();emit('books');
     const parts=[];
     if(r.updated)parts.push(fmt('updatedN',{n:r.updated}));
@@ -410,10 +478,13 @@ window.addEventListener('focus',safe(async()=>{
   else if((r.added||r.removed)&&book===current)notice(null,fmt('pagesChanged',{a:r.added,r:r.removed}));
   else if(r.updated){ctx.redrawShelf();emit('books');}
 }));
+// 其他窗口先停止写入，清空后自动重新载入（windows.mjs）。
 async function clearAll(){if(!books.size||!confirm(t('confirmClear')))return;
-  for(const book of books.values())sortRequests.delete(book);
-  flush();const ids=[...books.keys()];books.clear();current=null;select(null);
-  await library('clear');await thumbs('clear');for(const id of ids)dropKey('pos:'+id);ctx.redrawShelf();}
+  await ctx.hold?.();
+  try{for(const book of books.values())sortRequests.delete(book);
+    flush();const ids=[...books.keys()];books.clear();current=null;select(null);
+    await library('clear');await thumbs('clear');for(const id of ids)dropKey('pos:'+id);ctx.redrawShelf();}
+  finally{ctx.reloadOthers?.('clear');}}
 
 const sortRequests=new WeakMap();
 async function arrange(book,manual=false,anchor){
@@ -603,7 +674,7 @@ const listeners={};function emit(type,...args){for(const fn of listeners[type]||
 const ctx={books,get current(){return current;},get lang(){return lang;},select,step,persist,view,main,shelf,t,fmt,notice,make,icon,iconButton,safe,get,put,dropKey,flush,title,readRatio,source,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,atEdge,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
-  expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,looseLost,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
+  expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,looseLost,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs,pull};
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
@@ -611,15 +682,15 @@ ctx.settings.push(
   {id:'edgeRight',group:'reading',label:'edgeRight',type:'toggle',get:()=>get('edgeRight',true),set:v=>put('edgeRight',v)});
 
 
-try{for(const b of await library('getAll')){try{const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
+try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==null;books.set(b.id,normalize(b));bases.set(b,base);if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);
+windows(ctx);shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);
 toolPanel(ctx);
 
 await probeAll([...books.values()]);probed=true;
 select(books.get(get('last'))||books.values().next().value);
-accessState(true);(listeners.books??=[]).push(()=>accessState(false));
+accessState(true);(listeners.books??=[]).push(()=>accessState(false));ctx.started=true;
 if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
 try{if(sessionStorage.getItem(prefix+'reset')){sessionStorage.removeItem(prefix+'reset');notice('resetDone');}}catch{} // 还原默认设置后的重新载入

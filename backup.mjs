@@ -157,8 +157,11 @@ async function importData(ctx){
   const mode=await ask(ctx,data);if(!mode)return;
   ctx.notice('bakImporting',undefined,120000);
   let result;
-  if(mode==='merge'){const r=await merge(ctx,data);result=['bakMerged',r,r.added>0];}
-  else{await replace(ctx,data);result=['bakReplaced',{books:data.books.length},data.books.length>0];}
+  // 其他窗口先停止写入，导入后与本窗口一起重新载入（windows.mjs）。
+  await ctx.hold?.();
+  try{if(mode==='merge'){const r=await merge(ctx,data);result=['bakMerged',r,r.added>0];}
+    else{await replace(ctx,data);result=['bakReplaced',{books:data.books.length},data.books.length>0];}}
+  finally{ctx.reloadOthers?.(mode);}
   // 重新载入页面，让书架、当前书和各模块状态都从存储重新读取；结果提示在载入后按导入后的语言显示。
   sessionStorage.setItem(DONE,JSON.stringify(result));location.reload();
 }

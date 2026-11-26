@@ -74,7 +74,8 @@ export function install(ctx){
     const refresh=()=>{changed=false;drawn=Date.now();if(shelf.open)draw();ctx.emit('books');};
     try{for(const b of [...books.values()]){
       if(Number.isFinite(b.folderTime)||ctx.expired(b)||!books.has(b.id))continue;
-      while(document.hidden)await new Promise(r=>document.addEventListener('visibilitychange',r,{once:true}));
+      await ctx.disk.turn(); // 多个窗口时只由持有后台磁盘任务的窗口读盘，且只在窗口可见时（app.mjs / windows.mjs）
+      if(Number.isFinite(b.folderTime)||!books.has(b.id))continue; // 等待期间别的窗口已经算好
       await queue(async()=>{
         await readMissingTimes(b,()=>books.has(b.id));if(!books.has(b.id))return;
         let t=-Infinity;for(const p of b.pages)if(Number.isFinite(p.lastModified)&&p.lastModified>t)t=p.lastModified;
@@ -97,8 +98,9 @@ export function install(ctx){
   // ---- 筛选：关键词、页数、标签、只看有书签。条件持久保存（去抖写入），在书架 / 书库 / 所有书籍之间切换时保持；
   // 上一本 / 下一本和书架书签列表也只在符合条件的书里进行（ctx.matchFilter，见 app.mjs 的 readingList）。
   const saved=get('shelfFilter',null);let F=clean(saved);
-  let presets=(Array.isArray(get('shelfPresets',[]))?get('shelfPresets',[]):[]).filter(p=>p&&typeof p.name==='string'&&p.name.trim())
+  const loadPresets=()=>(Array.isArray(get('shelfPresets',[]))?get('shelfPresets',[]):[]).filter(p=>p&&typeof p.name==='string'&&p.name.trim())
     .map(p=>({id:String(p.id||crypto.randomUUID()),name:p.name.trim().slice(0,60),f:clean(p.f)}));
+  let presets=loadPresets();
   let presetId=presets.some(p=>p.id===saved?.preset)?saved.preset:null;
   let saveTimer=0;
   const storeFilter=()=>{clearTimeout(saveTimer);saveTimer=setTimeout(flushFilter,600);};
@@ -156,6 +158,8 @@ export function install(ctx){
   const fresh=b=>coverFresh(b)&&!needsFp(b);
   async function ensureCover(b){
     if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
+    await ctx.disk.turn(); // 多个窗口时只由一个窗口生成，其他窗口等书目同步过来后直接显示
+    if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
     const page=coverPage(b);
     if(page&&!coverFresh(b)){
       const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
@@ -174,7 +178,7 @@ export function install(ctx){
   async function sweep(){
     if(sweeping){again=true;return;}sweeping=true;
     try{do{again=false;for(const b of [...books.values()]){
-      while(document.hidden)await new Promise(r=>document.addEventListener('visibilitychange',r,{once:true}));
+      await ctx.disk.turn();
       if(!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
     }}while(again);}finally{sweeping=false;}
   }
@@ -472,6 +476,11 @@ export function install(ctx){
       popEl.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-popEl.offsetHeight-8))+'px';popEl.style.left=Math.max(8,Math.min(right?r.right-w:r.left,document.documentElement.clientWidth-w-8))+'px';});
   }
   pop.addEventListener('beforetoggle',e=>{if(e.newState==='open'){editing=null;presetQuery='';drawPresets();}});
+  // 别的窗口改了预设：重新读入，之后在本窗口保存时不会覆盖掉它们（正在命名时先不重画）。
+  ctx.on('storage',key=>{if(key!=='shelfPresets')return;presets=loadPresets();if(presetId&&!presets.some(p=>p.id===presetId))presetId=null;
+    if(shelf.open)drawFilterUI();if(pop.matches(':popover-open')&&!editing)drawPresets();});
+  // 别的窗口换了封面缩略图（缓存已由 windows.mjs 清掉）：重新加载这张卡片的封面。
+  ctx.on('thumbs',keys=>{for(const k of keys){if(!k.endsWith(':cover'))continue;const el=nodes.get(k.slice(0,-6)),b=books.get(k.slice(0,-6));if(el&&b){el._hash=null;fill(el,b);}}});
   anchor(pop,$('presetBtn'));anchor($('bulkPop'),$('bulkBtn'),true);anchor(sortPop,sortBtn,true);
   // close 事件异步派发：关闭后立刻重新打开时，迟到的事件不能清空新画好的列表。
   shelf.addEventListener('close',()=>{flushFilter();if(!shelf.open){opened=false;grid.classList.remove('intro');}});
