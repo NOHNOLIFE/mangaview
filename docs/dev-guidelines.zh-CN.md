@@ -116,9 +116,10 @@
 ## 7. 代码结构
 
 - 根目录只放必须在根的文件：`index.html`、`sw.js`（Service Worker 的作用域取决于它所在的目录，必须在根）、`app.webmanifest`、`icons/`、`local_run.bat`、README、`docs/`、`tests/`、`dist/`（v1 迁移桥）。源码全部放在 `src/` 下，按领域分目录，样式表与同名模块放在同一目录：
-  - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各功能模块）与全局样式。
+  - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各模块、启动流程，不放功能代码）与全局样式。
+  - `src/ui/`：通用 DOM 小工具（`dom`：取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）。
   - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）。
-  - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、工具栏（`toolbar`）、专注模式（`focus`）、全屏缩略图（`overview`）。
+  - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、当前书与阅读位置（`session`）、书名进度与提示条等外壳状态及切换语言（`shell`）、右侧缩略图栏的开合与调宽（`panel`）、页面排序（`sort`）、按钮动作表（`actions`）、顶部工具栏（`toolbar`）、底部操作栏（`endbar`）、拖动滚动（`drag`）、正文点击翻屏（`tap`）、按键与长按滚动（`keys`）、专注模式（`focus`）、全屏缩略图（`overview`）。
   - `src/shelf/`：书架（`shelf`）、自定义封面（`cover`）。
   - `src/marks/`：书签（`bookmarks`）、PotPlayer 书签（`pbf`）。
   - `src/media/`：视频、音频播放器（`media`）。
