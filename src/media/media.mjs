@@ -16,7 +16,7 @@ import { extend } from '../core/lang.mjs';
 import { shownName, pageKind, clock, seekStep, nudge } from '../core/model.mjs';
 import { fileStamp } from '../reader/thumbs.mjs';
 import { midName, limits } from '../reader/view.mjs';
-import { addIcons } from '../panels/settings.mjs';
+import { addIcons } from '../ui/icons.mjs';
 import { orderOf, ORDERS, following, sectionStart, sectionStep, popoutUrl, popoutSize } from '../core/playlist.mjs';
 
 extend({
