@@ -1,12 +1,12 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 全部 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
-import {natural,fileOf,nameOrder} from './model.mjs';
+import {natural,fileOf,nameOrder,pageKind} from './model.mjs';
 import {scan,readMissingTimes,allPages,keyOf,dirOf,isLoose} from './sources.mjs';
 import {norm,coverName,grade,assign,hue} from './match.mjs';
 import {extend} from './lang.mjs';
 
 extend({
   moreTags:['Show all ({n} more)','展开全部（还有 {n} 个）','すべて表示（あと {n} 個）','모두 보기 ({n}개 더)'],lessTags:['Show less','收起','閉じる','접기'],
-  pagesFrom:['≥ {n} images','≥ {n} 张','{n} 枚以上','{n}장 이상'],pagesTo:['≤ {n} images','≤ {n} 张','{n} 枚以下','{n}장 이하'],pagesRange:['{a}–{b} images','{a}–{b} 张','{a}〜{b} 枚','{a}–{b}장'],
+  pagesFrom:['≥ {n} pages','≥ {n} 页','{n} ページ以上','{n}쪽 이상'],pagesTo:['≤ {n} pages','≤ {n} 页','{n} ページ以下','{n}쪽 이하'],pagesRange:['{a}–{b} pages','{a}–{b} 页','{a}〜{b} ページ','{a}–{b}쪽'],
   bmCount:['{n} bookmarks','{n} 个书签','しおり {n} 件','책갈피 {n}개'],
   presets:['Presets','预设','プリセット','프리셋'],presetSave:['Save current filters as a preset','将当前筛选保存为预设','現在の絞り込みをプリセットに保存','현재 필터를 프리셋으로 저장'],
   presetName:['Preset name','预设名称','プリセット名','프리셋 이름'],presetFind:['Find preset','查找预设','プリセットを検索','프리셋 찾기'],
@@ -154,14 +154,18 @@ export function install(ctx){
   const staleFp=b=>{if(!(b.sources?.length>1))return [];const m=bySource(b);
     return b.sources.map(s=>[s,m.get(s.key)&&firstPage(b,m.get(s.key))]).filter(([s,p])=>p&&s.fp?.name!==fileOf(p)&&!ctx.isDown(b,s));};
   const needsFp=b=>staleFp(b).length>0;
-  const coverFresh=b=>{const p=coverPage(b);return !p||b.fp?.thumb&&b.fp.cover?.name===p.name;};
+  const coverFresh=b=>{const p=coverPage(b);return !p||(b.fp?.thumb||b.fp?.media)&&b.fp.cover?.name===p.name;};
   const fresh=b=>coverFresh(b)&&!needsFp(b);
   async function ensureCover(b){
     if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
     await ctx.disk.turn(); // 多个窗口时只由一个窗口生成，其他窗口等书目同步过来后直接显示
     if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
     const page=coverPage(b);
-    if(page&&!coverFresh(b)){
+    if(page&&pageKind(page)!=='image'&&!coverFresh(b)){
+      // 封面页是视频或音频：这一版不截帧，只记下识别用的摘要（头部 64KB），卡片显示带类型图标的占位（media.css .mv-cover）。
+      const file=await ctx.source(b,page),hash=await digest(file);if(!books.has(b.id))return;
+      await ctx.thumbs('delete',b.id+':cover');b.fp={cover:{name:page.name,size:file.size,hash},media:pageKind(page)};delete b.coverRatio;
+    }else if(page&&!coverFresh(b)){
       const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
       if(!books.has(b.id))return; // 生成期间这本书已被删除
       await ctx.saveThumb(b.id+':cover',th);
@@ -187,6 +191,7 @@ export function install(ctx){
   const io=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){io.unobserve(e.target);const b=books.get(coverOf.get(e.target));if(b)safe(showCover)(e.target,b);}},{root:holder,rootMargin:'400px 0px'});
   async function showCover(slot,b){
     if(!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
+    if(b.fp?.media){if(!slot.querySelector('.mv-cover')){const m=make('span','mv-cover '+b.fp.media);m.append(icon(b.fp.media==='audio'?'music':'film'));slot.append(m);slot.classList.add('ready');}return;}
     const th=await ctx.getThumb(b.id+':cover');if(!th||slot.querySelector('img'))return;
     const img=new Image();img.alt='';img.decoding='async';img.src=th.url;slot.append(img);slot.classList.add('ready');
     if(Math.abs((b.coverRatio||1.42)-th.h/th.w)>.01){b.coverRatio=th.h/th.w;if(layoutMode==='masonry')relayoutSoon();}

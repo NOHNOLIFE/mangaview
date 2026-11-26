@@ -1,7 +1,7 @@
 import {extend} from './lang.mjs';
 import {imageJob,release} from './view.mjs';
 import {pageKey} from './thumbs.mjs';
-import {shownName} from './model.mjs';
+import {shownName,pageKind} from './model.mjs';
 // 全屏总览：
 // · 全屏缩略图：缩略图栏顶部的按钮，或快捷键 V / ]。整本书的页面排成规整网格（默认）或瀑布流，只为可见范围创建元素；
 //   缩略图与缩略图栏共用会话内存缓存（thumbs.mjs），再次打开、切书后回来都不必重读原图。
@@ -126,6 +126,8 @@ export function install(ctx){
         node.setAttribute('aria-selected',String(i===sel));place(node,i);grid.append(node);nodes.set(i,node);
       }
       // 已在队列里的只更新优先级（imageJob 对同一个槽位不会重复读取）；缓存命中时立即显示。
+      // 视频、音频：固定样式的占位（media.mjs），不读文件。
+      if(pageKind(page)!=='image'){if(!node.firstChild.firstChild)node.firstChild.append(ctx.mediaTile(page));return;}
       imageJob(node.firstChild,()=>view.hooks.file(b,page),visible?1:3,true,(w,h)=>{if(page.w!==w||page.h!==h){page.w=w;page.h=h;dirty=true;schedule();}},
         ()=>node.classList.add('failed'),pageKey(b,page));
     });

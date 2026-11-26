@@ -137,7 +137,7 @@ try{
     const [r,g,b,a=1]=rgb(getComputedStyle(dropLoose).backgroundColor),bg=[r,g,b].map(v=>v*a+255*(1-a)),fg=rgb(getComputedStyle(dropLoose.querySelector('small')).color);
     const [hi,lo]=[lum(fg),lum(bg)].sort((x,y)=>y-x);return (hi+.05)/(lo+.05);})()`);
   assert.ok(contrast>=4.5,'Hint text is readable: '+contrast);
-  assert.equal(await js('dropLoose.textContent'),'添加到散图图集拖到这里，所有图片（包括文件夹里的）都作为散图添加');
+  assert.equal(await js('dropLoose.textContent'),'添加到散图图集拖到这里，所有图片、视频和音频（包括文件夹里的）都作为散图添加');
   const lzone=[(rects[2].l+rects[2].r)/2,(rects[2].t+rects[2].b)/2];
   await js(`drag('dragover',${lzone[0]},${lzone[1]})`);assert.ok(await js(`dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`));await shot('drop-over-loose');
   await js(`drag('dragover',10,10)`);assert.ok(await js(`!dropLoose.classList.contains('over')&&!dropMerge.classList.contains('over')`),'Outside the two areas: default import');

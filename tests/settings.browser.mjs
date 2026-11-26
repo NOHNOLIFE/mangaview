@@ -60,7 +60,7 @@ try{
   // 2. 设置面板：分节、语言切换、开关持久化。
   assert.equal(await openSettings(),true);
   assert.deepEqual(await headings(),['Settings','General','Reading','Toolbar','Data']);
-  assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/not the image files or folder access/);
+  assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/not the original files or folder access/);
   assert.equal(await sw('edgeRight'),'false');assert.equal(await sw('autoCheck'),'true');
   // 开关几何：滑块在轨道内垂直居中（偏差 ≤ 0.5px），关时左边距 = 开时右边距 = 上下边距；放大页面、改字号后同样成立。
   const knobs=()=>js(`[...settings.querySelectorAll('.set-switch')].map(s=>{const r=s.getBoundingClientRect(),k=s.querySelector('.knob').getBoundingClientRect();
@@ -79,7 +79,7 @@ try{
   await js(`(()=>{const s=settings.querySelector('[data-id=lang] select');s.value='zh';s.dispatchEvent(new Event('change'));})()`);
   await wait(async()=>JSON.stringify(await headings())===JSON.stringify(['设置','常规','阅读','工具栏','数据']));
   assert.equal(await js('document.documentElement.lang'),'zh');assert.equal(await js(`localStorage.getItem('mv2:lang')`),'"zh"');
-  assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/不含图片原文件和文件夹访问权限/);
+  assert.match(await js(`settings.querySelector('[data-id=bakNote]').textContent`),/不含原文件和文件夹访问权限/);
   await js(`settings.querySelector('[data-id=autoCheck] [role=switch]').click()`);
   await wait(async()=>await sw('autoCheck')==='false');assert.equal(await js(`localStorage.getItem('mv2:autoCheck')`),'false');
   await go(origin);await openSettings();

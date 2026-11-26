@@ -43,16 +43,16 @@ try{
   await load('zh');await open();
 
   // 实际绑定的主要键都在图示中且高亮、可聚焦、带说明；无关的键是暗淡占位（aria-hidden、不进入文本）。
-  const bound=['Esc','W','A','S','D','F','C','V','B','T','ShiftLeft','Space','Enter','ShiftRight','[',']','Home','End','PageUp','PageDown','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+  const bound=['Esc','W','A','S','D','F','C','V','B','T','Q','E','ShiftLeft','Space','Enter','ShiftRight',';',"'",'[',']','Home','End','PageUp','PageDown','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
   const q=k=>'document.querySelector('+JSON.stringify('#helpBody [data-key="'+k+'"]')+')';
   for(const k of bound)assert.deepEqual(await js('(()=>{const el='+q(k)+';return el&&[el.classList.contains("on"),el.tabIndex,!!el.getAttribute("aria-label"),el.getBoundingClientRect().width>0]})()'),[true,0,true,true],k+' is shown highlighted');
   assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.on")].map(e=>e.dataset.key).sort()'),[...bound].sort(),'Only bound keys are highlighted');
-  for(const k of ['Q','G','Tab','CapsLock','ControlLeft','Backspace','P'])assert.deepEqual(await js('(()=>{const el='+q(k)+';return el&&[el.classList.contains("on"),el.getAttribute("aria-hidden"),el.textContent,el.tabIndex]})()'),[false,'true','',-1],k+' is a placeholder');
+  for(const k of ['R','G','Tab','CapsLock','ControlLeft','Backspace','P'])assert.deepEqual(await js('(()=>{const el='+q(k)+';return el&&[el.classList.contains("on"),el.getAttribute("aria-hidden"),el.textContent,el.tabIndex]})()'),[false,'true','',-1],k+' is a placeholder');
   // 键帽上只有键名：一个片段、无功能文字；长按 / Shift 只是 CSS 角标。
   const names={Esc:'Esc',ShiftLeft:'Shift',ShiftRight:'Shift',Space:'空格',Enter:'Enter',Home:'Home',End:'End',PageUp:'PgUp',PageDown:'PgDn',Delete:'Del',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→'};
   for(const k of bound)assert.deepEqual(await js('(()=>{const el='+q(k)+';return [el.children.length,el.textContent]})()'),[1,names[k]??k],k+' shows only its key name');
-  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-hold")].map(e=>e.dataset.key).sort()'),['Enter','F'],'Hold keys are marked');
-  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-shift")].map(e=>e.dataset.key).sort()'),['ArrowDown','ArrowUp','Enter','F','S','Space','W'],'Shift combos are marked');
+  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-hold")].map(e=>e.dataset.key).sort()'),['A','ArrowLeft','ArrowRight','D','Enter','F'],'Hold keys are marked');
+  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.has-shift")].map(e=>e.dataset.key).sort()'),['ArrowDown','ArrowUp','Enter','F','S','W'],'Shift combos are marked');
   assert.equal(await js('document.querySelectorAll("#helpBody .hk-key.mod").length'),2);
   assert.equal(await js('[...document.querySelectorAll("#helpBody [data-tip]")].filter(e=>e.tabIndex===0).length'),bound.length+4,'Every function key and reader edge is focusable');
 
@@ -87,14 +87,14 @@ try{
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:5,y:5});await delay(60);assert.equal((await tip('#helpBody [data-key=F]')).hidden,true,'Tip hides when the pointer leaves');
   await js('help.querySelector("[data-close]").focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await delay(80);
   assert.equal(await js('document.activeElement.dataset.key'),'Esc','Tab moves into the key map');t=await tip();good(t,'Esc focus');assert.match(t.text,/^Esc 收起/);
-  await js(q('ArrowRight')+'.focus()');await delay(50);t=await tip();good(t,'→ focus');assert.equal(t.text,'→ 下一屏');
+  await js(q('ArrowRight')+'.focus()');await delay(50);t=await tip();good(t,'→ focus');assert.equal(t.text,'→ 下一屏，长按媒体快进');
   // 触屏点按也显示提示框（点按聚焦该项）。
   await js('document.activeElement.blur()');const Bk=await rect('B');
   for(const type of ['touchStart','touchEnd'])await cdp('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x:Bk.left+Bk.width/2,y:Bk.top+Bk.height/2}]});
   await delay(80);t=await tip('#helpBody [data-key=B]');good(t,'B tap');assert.equal(t.text,'B 书架');
   // 阅读区边缘有提示框；鼠标按键图例与左 / 右半屏只是文字，没有提示框。
   await js('document.querySelector("#helpBody [data-area=right]").focus()');await delay(50);t=await tip();good(t,'Right edge');assert.match(t.text,/右缘.*缩略图栏/);
-  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-btn")].map(e=>[e.textContent,e.hasAttribute("data-tip")])'),[['翻屏（左 / 右半屏），拖动滚动',false],['滚动，中键自动滚动',false],['书签面板',false]]);
+  assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-btn")].map(e=>[e.textContent,e.hasAttribute("data-tip")])'),[['翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动',false],['滚动，中键自动滚动',false],['书签面板',false]]);
   await js('help.close()');await delay(50);assert.equal(await js('help.querySelector(".hk-tip").hidden'),true,'Tip hides with the dialog');
 
   // 各窗口尺寸：对话框在窗口内、没有横向溢出，键帽都在各自区块内；竖向最多少量滚动。键名字号不小于设定值且完整显示。
@@ -122,7 +122,7 @@ try{
     await checkCaps(14,lang+' 500px');
     assert.ok(await js('[...document.querySelectorAll("#helpBody .hk-btn,#helpBody .hk-area")].every(e=>e.scrollWidth<=e.clientWidth+1)'),lang+': mouse labels fit');
     await allTips(lang+' 500px');
-    await js(q('A')+'.focus()');await delay(30);t=await tip();assert.deepEqual(t.hold,[],lang+': A has no hold function');report[lang+' A']=t.text;
+    await js(q('A')+'.focus()');await delay(30);t=await tip();assert.deepEqual(t.hold,[holdWord[lang]],lang+': A emphasises its hold function (media rewind)');report[lang+' A']=t.text;
     await js(q('W')+'.focus()');await delay(30);t=await tip();assert.deepEqual([t.hold,t.shift],[[],['Shift']],lang+': W emphasises Shift');report[lang+' W']=t.text;
     await js(q('ShiftLeft')+'.focus()');await delay(30);report[lang+' Shift']=(await tip()).text;
     await js(q('F')+'.focus()');await delay(30);t=await tip();assert.deepEqual([t.hold,t.shift],[[holdWord[lang]],['Shift']],lang+': F emphasises hold and Shift');report[lang+' F']=t.text;

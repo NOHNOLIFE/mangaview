@@ -1,7 +1,7 @@
 import {extend} from './lang.mjs';
 // 应用数据导入 / 导出。备份只含书目记录、localStorage 中的 mv2: 键和缩略图；文件句柄无法序列化，导入后需重新关联文件夹。
 extend({
-  bakNote:['Backups include book records, tags, bookmarks, reading positions, settings and thumbnails, but not the image files or folder access. After importing on another computer or browser, reconnect each folder.','备份包含书目记录、标签、书签、阅读位置、设置和缩略图，不含图片原文件和文件夹访问权限。换电脑或换浏览器导入后，需要重新关联文件夹。','バックアップには本の記録・タグ・しおり・読書位置・設定・サムネイルが含まれますが、画像ファイル本体とフォルダーへのアクセス権は含まれません。別の PC やブラウザーで読み込んだ後は、フォルダーを再度関連付けてください。','백업에는 책 기록, 태그, 책갈피, 읽기 위치, 설정, 썸네일이 포함되며 원본 이미지 파일과 폴더 접근 권한은 포함되지 않습니다. 다른 컴퓨터나 브라우저에서 가져온 뒤에는 폴더를 다시 연결하세요.'],
+  bakNote:['Backups include book records, tags, bookmarks, reading positions, settings and thumbnails, but not the original files or folder access. After importing on another computer or browser, reconnect each folder.','备份包含书目记录、标签、书签、阅读位置、设置和缩略图，不含原文件和文件夹访问权限。换电脑或换浏览器导入后，需要重新关联文件夹。','バックアップには本の記録・タグ・しおり・読書位置・設定・サムネイルが含まれますが、元のファイル本体とフォルダーへのアクセス権は含まれません。別の PC やブラウザーで読み込んだ後は、フォルダーを再度関連付けてください。','백업에는 책 기록, 태그, 책갈피, 읽기 위치, 설정, 썸네일이 포함되며 원본 파일과 폴더 접근 권한은 포함되지 않습니다. 다른 컴퓨터나 브라우저에서 가져온 뒤에는 폴더를 다시 연결하세요.'],
   bakExport:['Export data','导出数据','データを書き出す','데이터 내보내기'],bakExportBtn:['Export','导出','書き出す','내보내기'],
   bakExportHint:['Save a JSON backup file.','保存为 JSON 备份文件。','JSON バックアップファイルとして保存します。','JSON 백업 파일로 저장합니다.'],
   bakImport:['Import data','导入数据','データを読み込む','데이터 가져오기'],bakImportBtn:['Import','导入','読み込む','가져오기'],
@@ -10,7 +10,7 @@ extend({
   bakCounts:['{books} books · {thumbs} thumbnails','{books} 本书 · {thumbs} 张缩略图','{books} 冊 · サムネイル {thumbs} 枚','책 {books}권 · 썸네일 {thumbs}개'],
   bakUsage:['{used} of {quota} ({p}%)','{used} / 上限 {quota}（{p}%）','{used} / 上限 {quota}（{p}%）','{used} / 한도 {quota} ({p}%)'],
   bakClear:['Clear all data','清除全部数据','すべてのデータを消去','모든 데이터 지우기'],bakClearBtn:['Clear','清除','消去','지우기'],
-  bakClearHint:['Removes books, reading positions and thumbnails from this browser. Image files are not deleted.','清空本浏览器中的书目、阅读进度和缩略图，不会删除原图。','このブラウザーの本・読書位置・サムネイルを消去します。元画像は削除されません。','이 브라우저의 책, 읽기 위치, 썸네일을 지웁니다. 원본 이미지는 삭제되지 않습니다.'],
+  bakClearHint:['Removes books, reading positions and thumbnails from this browser. The original files are not deleted.','清空本浏览器中的书目、阅读进度和缩略图，不会删除原文件。','このブラウザーの本・読書位置・サムネイルを消去します。元のファイルは削除されません。','이 브라우저의 책, 읽기 위치, 썸네일을 지웁니다. 원본 파일은 삭제되지 않습니다.'],
   bakExporting:['Exporting…','正在导出…','書き出し中…','내보내는 중…'],bakImporting:['Importing…','正在导入…','読み込み中…','가져오는 중…'],
   bakExported:['Exported {books} books and {thumbs} thumbnails','已导出 {books} 本书、{thumbs} 张缩略图','{books} 冊とサムネイル {thumbs} 枚を書き出しました','책 {books}권과 썸네일 {thumbs}개를 내보냈습니다'],
   bakInvalid:['This file is damaged or not in the expected format. Nothing was changed.','文件已损坏或格式不正确，未做任何修改。','ファイルが壊れているか形式が正しくありません。何も変更していません。','파일이 손상되었거나 형식이 올바르지 않습니다. 아무것도 변경하지 않았습니다.'],
@@ -22,7 +22,7 @@ extend({
   bakMergeHint:['Keep everything on this device and add what is missing. Tags and bookmarks are combined; existing reading positions are kept.','保留本机数据并补充缺少的内容；标签和书签取并集，已有的阅读位置不变。','この端末のデータを残し、足りないものを追加します。タグとしおりは統合し、既存の読書位置は保持します。','이 기기의 데이터를 유지하고 없는 항목을 추가합니다. 태그와 책갈피는 합치고 기존 읽기 위치는 유지합니다.'],
   bakReplaceHint:['Delete all books, thumbnails and settings on this device, then restore the backup.','删除本机全部书目、缩略图和设置，然后恢复备份内容。','この端末の本・サムネイル・設定をすべて削除してからバックアップを復元します。','이 기기의 모든 책, 썸네일, 설정을 삭제한 뒤 백업을 복원합니다.'],
   bakReplaceTitle:['Replace all data?','替换全部数据？','すべてのデータを置き換えますか？','모든 데이터를 바꿀까요?'],
-  bakReplaceWarn:['Everything stored in this browser (books, reading positions, tags, bookmarks, thumbnails and settings) will be deleted and cannot be recovered. Image files are not affected.','本浏览器中现有的书目、阅读进度、标签、书签、缩略图和设置都将被删除且无法恢复。图片原文件不受影响。','このブラウザーに保存されている本・読書位置・タグ・しおり・サムネイル・設定はすべて削除され、元に戻せません。画像ファイルには影響しません。','이 브라우저에 저장된 책, 읽기 위치, 태그, 책갈피, 썸네일, 설정이 모두 삭제되며 복구할 수 없습니다. 이미지 파일에는 영향이 없습니다.'],
+  bakReplaceWarn:['Everything stored in this browser (books, reading positions, tags, bookmarks, thumbnails and settings) will be deleted and cannot be recovered. The original files are not affected.','本浏览器中现有的书目、阅读进度、标签、书签、缩略图和设置都将被删除且无法恢复。原文件不受影响。','このブラウザーに保存されている本・読書位置・タグ・しおり・サムネイル・設定はすべて削除され、元に戻せません。元のファイルには影響しません。','이 브라우저에 저장된 책, 읽기 위치, 태그, 책갈피, 썸네일, 설정이 모두 삭제되며 복구할 수 없습니다. 원본 파일에는 영향이 없습니다.'],
   bakReplaceNow:['Delete and replace','删除并替换','削除して置き換え','삭제하고 바꾸기'],
   bakMerged:['Import complete: {added} books added, {merged} merged.','导入完成：新增 {added} 本，合并 {merged} 本。','読み込み完了：{added} 冊追加、{merged} 冊統合。','가져오기 완료: {added}권 추가, {merged}권 병합.'],
   bakReplaced:['Import complete: {books} books restored.','导入完成：已恢复 {books} 本书。','読み込み完了：{books} 冊を復元しました。','가져오기 완료: 책 {books}권 복원.'],

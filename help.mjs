@@ -10,17 +10,19 @@ extend({
   hkSpace:['Space','空格','スペース','스페이스'],
   hkTipEsc:['Hide toolbar, action bar, floating panels','收起工具栏、操作栏、浮动侧栏','ツール・操作バー・浮いたパネルを隠す','도구·작업 표시줄·떠 있는 패널 숨기기'],
   hkTipUp:['Scroll up, Shift: previous book','向上滚动，Shift 上一本','上へスクロール、Shift で前の本','위로 스크롤, Shift: 이전 책'],hkTipDown:['Scroll down, Shift: next book','向下滚动，Shift 下一本','下へスクロール、Shift で次の本','아래로 스크롤, Shift: 다음 책'],
-  hkTipSpace:['Scroll down, Shift: up','向下滚动，Shift 向上','下へスクロール、Shift で上へ','아래로 스크롤, Shift: 위로'],
-  hkTipBack:['Previous screen','上一屏','前の画面','이전 화면'],hkTipFwd:['Next screen','下一屏','次の画面','다음 화면'],
+  hkTipSpace:['Play / pause media','播放 / 暂停媒体','メディアを再生／一時停止','미디어 재생 / 일시 정지'],
+  hkTipBack:['Previous screen, *hold*: rewind media','上一屏，*长按*媒体快退','前の画面、*長押し*でメディアを巻き戻し','이전 화면, *길게*: 미디어 되감기'],
+  hkTipFwd:['Next screen, *hold*: fast-forward media','下一屏，*长按*媒体快进','次の画面、*長押し*でメディアを早送り','다음 화면, *길게*: 미디어 빨리 감기'],
+  hkTipVolDown:['Volume down','音量减','音量を下げる','볼륨 낮추기'],hkTipVolUp:['Volume up','音量加','音量を上げる','볼륨 높이기'],
   hkTipMark:['Next bookmark, *hold*: add bookmark, Shift: reverse','跳转书签，*长按*添加书签，Shift 反向','次のしおり、*長押し*で追加、Shift で逆方向','다음 책갈피, *길게*: 추가, Shift: 반대로'],
-  hkTipShift:['With W, S, ↑, ↓: change books; with Space, F, Enter: reverse','配合 W、S、↑、↓ 切书，配合空格、F、Enter 反向','W・S・↑・↓ と併用で本の切替、スペース・F・Enter と併用で逆方向','W·S·↑·↓와 함께: 책 전환, 스페이스·F·Enter와 함께: 반대로'],
+  hkTipShift:['With W, S, ↑, ↓: change books; with F, Enter: reverse','配合 W、S、↑、↓ 切书，配合 F、Enter 反向','W・S・↑・↓ と併用で本の切替、F・Enter と併用で逆方向','W·S·↑·↓와 함께: 책 전환, F·Enter와 함께: 반대로'],
   hkTipMarks:['Full-screen bookmarks','全屏书签','全画面しおり','전체 화면 책갈피'],hkTipThumbs:['Full-screen thumbnails','全屏缩略图','全画面サムネイル','전체 화면 미리보기'],
   hkTipShelf:['Shelf','书架','本棚','책장'],hkTipTools:['Toolbar','工具栏','ツール','도구'],
   hkTipStart:['Start of book, again: previous book','书首，再按上一本','先頭へ、もう一度で前の本','처음으로, 한 번 더: 이전 책'],
   hkTipEnd:['End of book, again: next book','书尾，再按下一本','末尾へ、もう一度で次の本','끝으로, 한 번 더: 다음 책'],
-  hkTipDelete:['Delete this book\'s record (images kept)','删除本书记录（不删原图）','この本の記録を削除（元画像は残す）','이 책 기록 삭제 (원본 이미지 유지)'],
+  hkTipDelete:['Delete this book\'s record (files kept)','删除本书记录（不删原文件）','この本の記録を削除（元のファイルは残す）','이 책 기록 삭제 (원본 파일 유지)'],
   // 鼠标：按键是“小图标 + 文字”的图例；阅读区示意的边缘标注是位置信息，说明在提示框里。
-  hkMouseL:['Turn screens (left / right half), drag: scroll','翻屏（左 / 右半屏），拖动滚动','画面送り（左／右半分）、ドラッグでスクロール','화면 넘기기 (왼쪽 / 오른쪽 절반), 드래그: 스크롤'],
+  hkMouseL:['Turn screens (left / right half), on media: play / pause, drag: scroll','翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动','画面送り（左／右半分）、メディアは再生／一時停止、ドラッグでスクロール','화면 넘기기 (왼쪽 / 오른쪽 절반), 미디어: 재생 / 일시 정지, 드래그: 스크롤'],
   hkMouseW:['Scroll, middle click: auto-scroll','滚动，中键自动滚动','スクロール、中クリックで自動スクロール','스크롤, 가운데 클릭: 자동 스크롤'],
   hkMouseR:['Bookmark panel','书签面板','しおりパネル','책갈피 패널'],
   hkThumbBar:['Thumbnails','缩略图栏','サムネイル','미리보기'],hkHalfL:['Previous screen','上一屏','前の画面','이전 화면'],hkHalfR:['Next screen','下一屏','次の画面','다음 화면'],
@@ -52,11 +54,12 @@ export const ZONES=[
   {id:'right',title:'hkRight',rows:['num','tab','caps','shift','ctrl'],from:10.5,to:18.25}
 ];
 // 有功能的键：tip 说明（文案 key）；hold：有长按功能，shift：受 Shift 影响（键帽角上的小标记）；mod：Shift 键本身。
-const up={tip:'hkTipUp',shift:true},down={tip:'hkTipDown',shift:true},back={tip:'hkTipBack'},fwd={tip:'hkTipFwd'},
-  mark={tip:'hkTipMark',hold:true,shift:true},rev={tip:'hkTipShift',mod:true},marks={tip:'hkTipMarks'},thumbs={tip:'hkTipThumbs'};
+const up={tip:'hkTipUp',shift:true},down={tip:'hkTipDown',shift:true},back={tip:'hkTipBack',hold:true},fwd={tip:'hkTipFwd',hold:true},
+  mark={tip:'hkTipMark',hold:true,shift:true},rev={tip:'hkTipShift',mod:true},marks={tip:'hkTipMarks'},thumbs={tip:'hkTipThumbs'},
+  volDown={tip:'hkTipVolDown'},volUp={tip:'hkTipVolUp'};
 export const KEYS={
-  Esc:{tip:'hkTipEsc'},W:up,S:down,A:back,D:fwd,F:mark,C:marks,V:thumbs,B:{tip:'hkTipShelf'},T:{tip:'hkTipTools'},
-  ShiftLeft:rev,Space:{tip:'hkTipSpace',shift:true},
+  Esc:{tip:'hkTipEsc'},W:up,S:down,A:back,D:fwd,F:mark,C:marks,V:thumbs,B:{tip:'hkTipShelf'},T:{tip:'hkTipTools'},Q:volDown,E:volUp,
+  ShiftLeft:rev,Space:{tip:'hkTipSpace'},';':volDown,"'":volUp,
   Enter:mark,ShiftRight:rev,'[':marks,']':thumbs,Home:{tip:'hkTipStart'},End:{tip:'hkTipEnd'},
   PageUp:{tip:'prev'},PageDown:{tip:'next'},Delete:{tip:'hkTipDelete'},
   ArrowUp:up,ArrowDown:down,ArrowLeft:back,ArrowRight:fwd
