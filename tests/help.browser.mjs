@@ -80,7 +80,7 @@ try{
   const good=(t,msg)=>{assert.equal(t.hidden,false,msg+' shows a tip');assert.equal(t.n,1,msg+' one tip');assert.equal(t.text,t.label,msg+' tip = aria-label');assert.ok(t.in,msg+' tip inside the viewport and dialog');assert.ok(!t.covers,msg+' tip does not cover the item');assert.ok(t.lines<=2,msg+' tip at most two lines: '+t.lines);};
   const hover=async r=>{await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:r.left+r.width/2,y:r.top+r.height/2});await delay(60);};
   await hover(W);let t=await tip('#helpBody [data-key=W]');good(t,'W hover');assert.equal(t.text,'W 向上滚动，Shift 上一本');
-  await hover(F);t=await tip('#helpBody [data-key=F]');good(t,'F hover');assert.equal(t.text,'F 跳转书签，长按添加书签，Shift 反向');
+  await hover(F);t=await tip('#helpBody [data-key=F]');good(t,'F hover');assert.equal(t.text,'F 跳转书签，长按添加书签；Shift 反向 / 区段书签');
   assert.deepEqual([t.hold,t.shift],[['长按'],['Shift']],'Hold and Shift are emphasised');
   assert.ok(t.colors.every(c=>c!==t.base)&&t.colors[0]!==t.colors[1],'Hold and Shift use their own accent colours: '+t.colors);
   assert.deepEqual(await js('[...document.querySelectorAll(".hk-legend .em-hold,.hk-legend .em-shift")].map(s=>getComputedStyle(s).color)'),t.colors,'Legend explains the same colours');

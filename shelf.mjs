@@ -184,13 +184,18 @@ export function install(ctx){
   }
   ctx.on('books',()=>setTimeout(sweep,600));ctx.on('select',b=>{if(b)queue(()=>ensureCover(b));});setTimeout(sweep,2500);
   const coverOf=new WeakMap(); // 封面槽 → 书 id
+  // 自定义封面（cover.mjs）优先于默认封面；默认封面照常在后台生成，它的摘要用于识别，与自定义封面无关。
+  const coverKey=b=>b.customCover?b.id+':custom':b.id+':cover',coverSig=b=>b.customCover?'c'+b.customCover.at:b.fp?.cover?.hash??'';
+  const ratioOf=b=>b.customCover?.r||b.coverRatio||1.42;
   const io=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){io.unobserve(e.target);const b=books.get(coverOf.get(e.target));if(b)safe(showCover)(e.target,b);}},{root:holder,rootMargin:'400px 0px'});
   async function showCover(slot,b){
-    if(!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
-    const th=await ctx.getThumb(b.id+':cover');if(!th||slot.querySelector('img'))return;
+    if(!b.customCover&&!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
+    const th=await ctx.getThumb(coverKey(b))??(b.customCover?await ctx.getThumb(b.id+':cover'):null);if(!th||slot.querySelector('img'))return;
     const img=new Image();img.alt='';img.decoding='async';img.src=th.url;slot.append(img);slot.classList.add('ready');
-    if(Math.abs((b.coverRatio||1.42)-th.h/th.w)>.01){b.coverRatio=th.h/th.w;if(layoutMode==='masonry')relayoutSoon();}
+    if(Math.abs(ratioOf(b)-th.h/th.w)>.01){if(b.customCover)b.customCover.r=th.h/th.w;else b.coverRatio=th.h/th.w;if(layoutMode==='masonry')relayoutSoon();}
   }
+  // 设置 / 重置封面后只更新这一张卡片（cover.mjs），其余卡片不动；瀑布流里比例变了才重排。
+  ctx.refreshCard=b=>{const el=nodes.get(b.id);if(el)fill(el,b);if(layoutMode==='masonry'&&shelf.open&&shown.includes(b))relayoutSoon();};
 
   // ---- 列表：两种布局，都用绝对定位，只挂载可见范围附近的卡片，数千本书也只有几十个节点。
   // 普通网格（默认）：等宽等高的单元格按行对齐，封面裁切填满；瀑布流：按封面比例，依次放进最短的一列，阅读顺序大体从左到右。
@@ -205,7 +210,7 @@ export function install(ctx){
     slots=new Map();columns=Array.from({length:cols},()=>[]);laidWidth=w;
     shown.forEach((b,i)=>{let k=0;
       if(layoutMode==='grid')k=i%cols;else for(let j=1;j<cols;j++)if(hs[j]<hs[k]-1)k=j;
-      const h=layoutMode==='grid'?ch:Math.round(cw*(b.coverRatio||1.42));slots.set(b.id,{x:k*(cw+gap),y:hs[k],w:cw,h,i,col:k,row:columns[k].length});columns[k].push(b);hs[k]+=h+gap;});
+      const h=layoutMode==='grid'?ch:Math.round(cw*ratioOf(b));slots.set(b.id,{x:k*(cw+gap),y:hs[k],w:cw,h,i,col:k,row:columns[k].length});columns[k].push(b);hs[k]+=h+gap;});
     grid.style.height=Math.max(0,...hs.map(h=>h-gap))+'px';
     clearTimeout(moveTimer);grid.classList.toggle('moving',animate);if(animate)moveTimer=setTimeout(()=>grid.classList.remove('moving'),420);
     mount(true);
@@ -228,7 +233,7 @@ export function install(ctx){
   let relayout=0;const relayoutSoon=()=>{if(!relayout)relayout=requestAnimationFrame(()=>{relayout=0;if(shelf.open&&shown.length)place();});};
   new ResizeObserver(()=>{if(shelf.open&&shown.length&&Math.abs(innerWidth()-laidWidth)>.5)place();}).observe(holder);
   // 卡片显示的内容摘要：变了才重建卡片内容（封面节点保留，不重新加载）。
-  const sig=b=>[ctx.title(b),pagesOf(b),ctx.expired(b)?'x':Math.round(ctx.readRatio(b)*100)+'/'+ctx.lostSources(b),tagsOf(b).join('\x01'),b.place,b===ctx.current,marksOf(b),b.fp?.cover?.hash??'',ctx.lang].join('|');
+  const sig=b=>[ctx.title(b),pagesOf(b),ctx.expired(b)?'x':Math.round(ctx.readRatio(b)*100)+'/'+ctx.lostSources(b),tagsOf(b).join('\x01'),b.place,b===ctx.current,marksOf(b),coverSig(b),ctx.lang].join('|');
   function card(b){
     const el=make('article','book'),pick=make('button','pick'),cover=make('span','cover');
     el.dataset.id=b.id;el.setAttribute('role','listitem');pick.type='button';pick.tabIndex=-1;pick.append(cover);el.append(pick);
@@ -236,7 +241,7 @@ export function install(ctx){
     el._pick=pick;fill(el,b);return el;
   }
   function fill(el,b){
-    const ex=ctx.expired(b),pick=el._pick,hash=b.fp?.cover?.hash??'';el._sig=sig(b);
+    const ex=ctx.expired(b),pick=el._pick,hash=coverSig(b);el._sig=sig(b);
     el.className='book'+(b===ctx.current?' current':'')+(ex?' expired':'');
     // 封面换了（例如文件夹内容变化）才重新加载，否则保留已显示的图。
     if(!el._cover||el._hash!==hash){const cover=make('span','cover');if(el._cover)el._cover.replaceWith(cover);else pick.firstChild.replaceWith(cover);el._cover=cover;el._hash=hash;coverOf.set(cover,b.id);io.observe(cover);}
@@ -256,8 +261,9 @@ export function install(ctx){
     // 书签数：有书签时在封面左下角常显（没有书签不显示）。
     if(marks){const m=make('span','bm-flag');m.title=fmt('bmCount',{n:marks});m.setAttribute('aria-label',m.title);m.append(icon('bookmark'),make('span','',String(marks)));pick.append(m);}
     const tools=make('div','actions');
-    if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('pencil',t('rename'),()=>editName(b)),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
-    else tools.append(...lost?[iconButton('link',t('restore'),()=>restoreOne(b))]:[],iconButton('pencil',t('rename'),()=>editName(b)),iconButton('tag',t('editTags'),()=>editTags(b)),
+    const cover=iconButton('cover',t('coverSet'),()=>ctx.pickCover?.(b));
+    if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('pencil',t('rename'),()=>editName(b)),cover,iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
+    else tools.append(...lost?[iconButton('link',t('restore'),()=>restoreOne(b))]:[],iconButton('pencil',t('rename'),()=>editName(b)),iconButton('tag',t('editTags'),()=>editTags(b)),cover,
       b.place==='library'?iconButton('library',t('toShelf'),()=>move([b],'shelf')):iconButton('archive',t('toLibrary'),()=>move([b],'library')),
       iconButton('copy',t('titleCopy'),()=>ctx.copy(ctx.title(b))),iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
     el.querySelector(':scope>.actions')?.remove();el.append(tools);

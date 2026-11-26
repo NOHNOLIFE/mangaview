@@ -12,7 +12,7 @@ extend({
   hkTipUp:['Scroll up, Shift: previous book','向上滚动，Shift 上一本','上へスクロール、Shift で前の本','위로 스크롤, Shift: 이전 책'],hkTipDown:['Scroll down, Shift: next book','向下滚动，Shift 下一本','下へスクロール、Shift で次の本','아래로 스크롤, Shift: 다음 책'],
   hkTipSpace:['Scroll down, Shift: up','向下滚动，Shift 向上','下へスクロール、Shift で上へ','아래로 스크롤, Shift: 위로'],
   hkTipBack:['Previous screen','上一屏','前の画面','이전 화면'],hkTipFwd:['Next screen','下一屏','次の画面','다음 화면'],
-  hkTipMark:['Next bookmark, *hold*: add bookmark, Shift: reverse','跳转书签，*长按*添加书签，Shift 反向','次のしおり、*長押し*で追加、Shift で逆方向','다음 책갈피, *길게*: 추가, Shift: 반대로'],
+  hkTipMark:['Next bookmark, *hold*: add, Shift: reverse / section','跳转书签，*长按*添加书签；Shift 反向 / 区段书签','次のしおり、*長押し*で追加；Shift で逆方向／区間しおり','다음 책갈피, *길게*: 추가; Shift: 반대로 / 구간 책갈피'],
   hkTipShift:['With W, S, ↑, ↓: change books; with Space, F, Enter: reverse','配合 W、S、↑、↓ 切书，配合空格、F、Enter 反向','W・S・↑・↓ と併用で本の切替、スペース・F・Enter と併用で逆方向','W·S·↑·↓와 함께: 책 전환, 스페이스·F·Enter와 함께: 반대로'],
   hkTipMarks:['Full-screen bookmarks','全屏书签','全画面しおり','전체 화면 책갈피'],hkTipThumbs:['Full-screen thumbnails','全屏缩略图','全画面サムネイル','전체 화면 미리보기'],
   hkTipShelf:['Shelf','书架','本棚','책장'],hkTipTools:['Toolbar','工具栏','ツール','도구'],
@@ -30,7 +30,7 @@ extend({
   hkTipRight:['Rest at the right edge: thumbnails (when not pinned)','停在右缘：缩略图栏（未常驻时）','右端で止める：サムネイル（固定していないとき）','오른쪽 가장자리: 미리보기 (고정하지 않았을 때)'],
   // 图示下方的补充按键
   hkMoreOverview:['In full-screen views: choose, Space / Enter: jump','全屏界面内：选择，空格 / Enter 跳转','全画面内：選択、Space / Enter で移動','전체 화면에서: 선택, Space / Enter: 이동'],
-  hkMoreSearch:['Shelf: search','书架页：搜索','本棚：検索','책장: 검색'],
+  hkMoreSearch:['Shelf, full-screen views: search','书架页、全屏界面：搜索','本棚・全画面：検索','책장, 전체 화면: 검색'],
   hkMoreShelf:['Shelf: choose a book, Enter: read, Delete: delete record','书架页：选书，Enter 阅读，Delete 删除记录','本棚：本を選ぶ、Enter で読む、Delete で記録を削除','책장: 책 선택, Enter: 읽기, Delete: 기록 삭제'],
   hkMoreCopy:['Copy the listed titles','复制书架列出的书名','本棚の書名をコピー','책장 제목 복사']
 });

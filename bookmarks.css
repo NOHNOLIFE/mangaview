@@ -41,3 +41,38 @@ body.shelfmarks{--dockL:min(var(--sm-w,260px),45vw)}
 .sm-dock:hover .sm-grip::after{opacity:1}
 .sm-grip:hover::after,.sm-grip:focus-visible::after{top:calc(50% - 32px);height:64px;background:var(--accent);opacity:1}
 .sm-grip:focus-visible{outline:none}
+
+/* 「添加区段书签」：紧跟在「添加书签」下面，次要样式。 */
+.bm-sec{background:transparent;border-color:var(--line2);color:var(--text)}
+.bm-sec .i{color:var(--accent)}
+.bm-sec .label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2;white-space:normal} /* 较长的语言折成两行，不挤掉按键提示 */
+.bm-sec:not(:disabled):hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--text)}
+
+/* 成对标记（区段书签，bookmarks.mjs 的 i-bm-start / i-bm-end）：书签列表里起点缩略图左上角是起点标记，左下角叠一张较小的区段书签缩略图。 */
+.bm-mk{position:absolute;z-index:1;left:3px;top:3px;display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:rgba(10,10,12,.82);color:var(--accent);pointer-events:none}
+.bm-mk .i{width:14px;height:14px;stroke-width:2}
+.bm-sub{position:absolute;z-index:1;left:4px;bottom:4px;display:block;width:46%;aspect-ratio:var(--bm-ar,.75);overflow:hidden;border-radius:6px;background:linear-gradient(160deg,#2c2e35,#1b1c21);box-shadow:0 0 0 1.5px rgba(10,10,12,.9),0 3px 10px rgba(0,0,0,.5);cursor:pointer;transition:box-shadow .12s}
+.bm-sub img{display:block;width:100%;height:100%;object-fit:cover}
+.bm-sub .bm-mk{left:2px;top:2px;width:16px;height:16px;border-radius:5px}
+.bm-sub .bm-mk .i{width:12px;height:12px}
+.bm-sub.off img,.bm-sub.off.empty{filter:grayscale(1);opacity:.4}
+/* 悬停一组里的任意一张，两张一起高亮。 */
+.bm-item.paired:not(.gone):hover .bm-sub,.bm-item.paired.active .bm-sub{box-shadow:0 0 0 2px var(--accent),0 3px 10px rgba(0,0,0,.5)}
+.bm-item.gone .bm-sub{opacity:.5}
+.bm-sub-del{position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:5px;background:rgba(10,10,12,.82);color:#fff;opacity:0}
+.bm-sub-del:not(:disabled):hover{background:rgba(10,10,12,.95);color:var(--danger)}
+.bm-sub:hover .bm-sub-del,.bm-sub-del:focus-visible{opacity:1}
+.bm-sub-del .i{width:12px;height:12px}
+
+/* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，bookmarks.mjs 的 badge）：标记种类的图标，多个书签时带数量。 */
+.mk{position:absolute;z-index:2;right:3px;top:3px;display:flex;align-items:center;gap:1px;height:18px;padding:0 3px;border-radius:6px;background:rgba(10,10,12,.85);color:var(--accent);font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;pointer-events:none}
+.mk .i{width:13px;height:13px;stroke-width:2.1}
+.mk b{padding:0 1px 0 2px;color:#fff;font-weight:700}
+/* 缩略图栏的标记层：与长条同一坐标，叠在页面之上，不接收指针（点击仍落在缩略图上跳转）。 */
+.pv-marks{position:absolute;left:0;right:0;top:0;height:0;pointer-events:none}
+.pv-mk{position:absolute;left:0;right:0;z-index:2}
+/* 页内位置的细标记，贴在缩略图左侧：普通书签一道横线；起点 ┌ 与区段书签 └ 是一对方括号，一头一尾。 */
+.pv-mk .tick{position:absolute;left:0;width:12px;height:3px;margin-top:-1.5px;border-radius:0 2px 2px 0;background:var(--accent);box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+.pv-mk .tick.start,.pv-mk .tick.end{width:10px;height:9px;margin-top:-1.5px;border:0 solid var(--accent);border-width:3px 0 0 3px;border-radius:0;background:none;box-shadow:none;filter:drop-shadow(0 0 1px rgba(0,0,0,.9))}
+.pv-mk .tick.end{margin-top:-7.5px;border-width:0 0 3px 3px}
+.pv-mk .tick.hot{border-color:#fff;filter:drop-shadow(0 0 3px var(--accent))}

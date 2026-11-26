@@ -36,7 +36,7 @@ Handles huge libraries, works offline, and never uploads your files.
 - **Shelf and library**: keep what you are reading on the shelf and everything else in the library. Both show a cover-only wall, as a regular grid or a masonry layout; titles and actions appear when you hover a cover or select it with the arrow keys.
 - **Search, filters and presets**: filter by title, path, tags, page count or whether a book has bookmarks, and save the filters you use often as presets.
 - **Tags**: add your own tags to any book, with suggestions from the tags you already use. Each tag gets its own colour, and you can filter by clicking a tag or typing `#tag` in the search box.
-- **Bookmarks**: press and hold `F` to bookmark the current spot. Bookmarks are listed as small pictures of the page, because nobody remembers file names.
+- **Bookmarks**: press and hold `F` to bookmark the current spot, or `Shift+F` to mark the end of a section. Bookmarks are listed as small pictures of the page, because nobody remembers file names, and thumbnails show which pages have them.
 - **Sorting**: by file name or modification time (either direction), or shuffle. Set a default or override it per book.
 - **Picks up where you left off** in every book, and refreshes folders to pick up added or removed images.
 - **Nothing is lost when files move**: books whose folder can't be found go to *Missing* with their covers, tags and bookmarks intact, and can be reconnected later.
@@ -84,7 +84,7 @@ The full-screen bookmark and thumbnail views switch between a regular grid (the 
 | `D` / `→` | Forward one screen |
 | `A` / `←` | Back one screen |
 | `F` / `Enter` | Tap: next bookmark. Hold: add a bookmark |
-| `Shift+F` / `Shift+Enter` | Previous bookmark |
+| `Shift+F` / `Shift+Enter` | Tap: previous bookmark. Hold: add a section bookmark |
 | `Home` / `End` | Start / end of the book. Press again to change books |
 | `Page Up` / `Page Down` | Previous / next book |
 | `C` / `[` | Open or close full-screen shelf bookmarks |
@@ -93,7 +93,7 @@ The full-screen bookmark and thumbnail views switch between a regular grid (the 
 | `Delete` | Delete the current book's record |
 | `Ctrl+C` | Copy the titles currently listed on the shelf |
 | `B` | Open or close the shelf |
-| `/` / `Ctrl+F` (on the shelf) | Jump to the search box |
+| `/` / `Ctrl+F` (on the shelf and in full-screen views) | Jump to the search box |
 | Arrow keys / `Enter` / `Delete` (on the shelf) | Move between books / open / delete the record |
 | `T` | Show or hide the toolbar |
 | `Esc` | Close the toolbar, the action bar and floating side panels |
@@ -119,7 +119,7 @@ The **Bookshelf** button (or **B**) opens a full-screen view with four lists (cl
 
 *Previous / next book* move through the list the current book is in (shelf or library). Importing while the shelf view is open doesn't switch the book you're reading; you just get a note of how many books were added.
 
-When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
+When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, set the cover, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
 
 **Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. While filters are active, the search box shows the number of results on its right. The **Filters** button opens a panel with a page-count range, **Has bookmarks** and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it, and the **Clear filters** button next to the search box clears them all. Filters are remembered and stay in place as you switch between shelf, library and all; previous / next book and the shelf bookmarks also stay within the filtered results.
 
@@ -130,6 +130,8 @@ When the shelf opens, the book you're reading is selected and scrolled into view
 The **Batch actions** menu copies the listed titles, has **Move all to shelf / library** for everything the current filters show, and **Clear shelf / library**, which deletes the records of every book in that list (filters don't apply) after asking for confirmation. Image files are never deleted.
 
 The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested in a pop-up below the box as you type (`↑` `↓` to choose, then `←` `→` too, Enter to add, `Esc` closes the suggestions first), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
+
+**Custom cover**: the **Set cover** button on a cover lists the thumbnails of the book's bookmarks; pick one to use the picture at that bookmark as the cover (cut again from the original image at the cover's proportions when it can be read, otherwise the bookmark thumbnail is used). A book without bookmarks asks you to add one first. **Reset cover** at the bottom brings back the default cover. A custom cover is a separate small picture: deleting that bookmark, refreshing, restoring or importing again doesn't change it, and it is included in backups. Setting or resetting it only updates that one cover. Folders are still recognised by the default cover only.
 
 ### Import as one book
 
@@ -148,9 +150,12 @@ There is a single **Loose images** album: images picked with **Add to Loose imag
 
 - **Hold `F` or `Enter`** to add a bookmark at the centre of the screen. A ring fills up while you hold, so you can see what is happening; let go early and it counts as a tap.
 - **Tap `F` or `Enter`** to jump to the next bookmark. After the last one it wraps to the first. Add `Shift` to go backwards.
-- **Right click** the page to open the bookmark panel at the mouse, with the **Add bookmark** button right under the pointer. The bookmark nearest your reading position is highlighted like a hovered one. Click a bookmark to jump there and close the panel; hovering does nothing. **Esc** or a click outside closes it without moving.
+- **Hold `Shift+F` or `Shift+Enter`** to add a section bookmark (see below).
+- **Right click** the page to open the bookmark panel at the mouse, with the **Add bookmark** button right under the pointer and **Add section bookmark** below it. The bookmark nearest your reading position is highlighted like a hovered one. Click a bookmark to jump there and close the panel; hovering does nothing. **Esc** or a click outside closes it without moving.
 
 Bookmarks are stored with a small picture of the page and follow the image, not the scroll position, so they survive re-sorting.
+
+**Section bookmarks**: a section bookmark pairs with a bookmark before it, and the stretch between them is a bookmark section. It is added at the centre of the screen: if that spot is inside a section, the section's end moves there; otherwise it pairs with the nearest thing before it, either a section (whose end is extended) or a bookmark that is not inside any section (which starts a new section). With nothing before it you only get a hint. An end less than half a screen from its start counts as "already a bookmark here". Sections never nest or cross, and you can still add ordinary bookmarks inside a section; they don't take part in pairing. A section bookmark doesn't count as a bookmark and isn't a stop for tapping `F` / `Enter`. In bookmark lists it is a smaller picture in the bottom-left corner of its start's thumbnail; the start and the section bookmark carry matching marks, hovering either highlights both, clicking either jumps to it, and the small picture has its own delete button. Deleting a section bookmark turns its start back into an ordinary bookmark; deleting the start deletes its section bookmark too. If re-sorting puts the section bookmark before its start, the section is set aside (greyed out, not drawn) but kept, and comes back when the order does.
 
 **Shelf bookmarks**: works like the thumbnail strip. It gathers the bookmarks of every book on the shelf, in shelf order (not the library or missing books; with shelf filters active, only the filtered books; if that leaves it empty, it suggests clearing or changing the filters). It isn't pinned by default: rest the mouse at the left edge and it pops out over the page, then fades out when the mouse leaves (turn this off in **Settings → Reading**). The **Shelf bookmarks** button in the toolbar pins it on the left, and the page narrows to make room; drag the list's right edge to resize it. Hovering does nothing; click a bookmark to jump there, opening its book if needed. The list is compact: one group of thumbnails per book (the current book's group is highlighted, and the bookmark nearest your reading position is highlighted like a hovered one), with no titles or file names. When you switch books, jump to a bookmark or the list pops out, it scrolls to the current book's bookmarks (it stays put if the current book has none, and never scrolls while the mouse is over it or right after you scrolled it yourself). The full-width button at its top opens full-screen shelf bookmarks. While the list is pinned, tapping `F` / `Enter` (`Shift` for backwards) follows it too: after the last bookmark in the current book it moves on to the next book, and wraps back to the start at the end. A book in the library still cycles through its own bookmarks.
 
@@ -160,9 +165,13 @@ Bookmarks are stored with a small picture of the page and follow the image, not 
 
 Rest the mouse at the right edge to pop it out over the page. It closes when the mouse leaves (turn this off in **Settings → Reading**). The thumbnail button in the toolbar pins it instead: pinned, it sits beside the page and the page narrows so nothing is covered. Drag its left edge to resize it. Its top row is a full-width **Full screen** button that also shows the page count.
 
+Pages with bookmarks show a bookmark badge in the top-right corner of their thumbnail (with a count when a page has several; section starts and section bookmarks use their matching marks), and thin marks on the left edge at each bookmark's position in the page: a short line for a bookmark, and a pair of brackets for a section's start and its section bookmark. Point at a page with either end and both ends light up. Adding or deleting a bookmark only redraws the pages it touches.
+
 Thumbnails are cached in memory for the session (up to 64 MB, never written to disk). Opening full-screen thumbnails again for the same book, or coming back from another book, doesn't read the images again until you close the app.
 
-**Full-screen thumbnails**: the button at the top of the strip, or `V` / `]`, opens an overview of the whole book; press it again or `Esc` to close. Pages sit in a regular grid by default; the button in the title row switches to a masonry layout that follows each page's proportions (both full-screen views share this choice). A wide scrollbar on the right makes long books quick to skim. The current page is selected and keeps an outline (without shrinking, so it stays distinct from the moving selection); `A` `D` / `←` `→` move in page order, `W` `S` / `↑` `↓` move within a column, and `Page Up` / `Page Down`, `Home` / `End` also work. Click a thumbnail, or press `Space` / `Enter`, to jump to the top of that page and close the overview.
+**Full-screen thumbnails**: the button at the top of the strip, or `V` / `]`, opens an overview of the whole book; press it again or `Esc` to close. Pages sit in a regular grid by default; the button in the title row switches to a masonry layout that follows each page's proportions (both full-screen views share this choice). A wide scrollbar on the right makes long books quick to skim. The current page is selected and keeps an outline (without shrinking, so it stays distinct from the moving selection); `A` `D` / `←` `→` move in page order, `W` `S` / `↑` `↓` move within a column, and `Page Up` / `Page Down`, `Home` / `End` also work. Click a thumbnail, or press `Space` / `Enter`, to jump to the top of that page and close the overview. Pages with bookmarks carry the same badges; selecting (hovering or using the keyboard) a page with a section start or section bookmark outlines every page the section covers, until you move on.
+
+**Searching the full-screen views**: both full-screen views have a search box in the title row. Results narrow as you type, and the keyboard moves only through the results. Full-screen thumbnails match file names (and the volume folder names of a joined book); full-screen shelf bookmarks match book titles and the file names the bookmarks are on, and a matching title shows all of that book's bookmarks. The view still opens on the current content; `/` or `Ctrl+F` jumps to the search box, and `Esc` in the box first clears it and returns to the list, then closes the view. With no results you get "No matching items" and a **Clear search** link. The search lasts only while the view is open and doesn't affect previous / next book or bookmark jumps.
 
 **Full-screen shelf bookmarks**: the button at the top of the shelf bookmark list, or `C` / `[`, shows every shelf bookmark full screen, grouped by book with the book title as a heading (the current book is highlighted). It switches between grid and masonry in the same way. The bookmark nearest your current position is selected; `A` `D` / `←` `→` move in order, `W` `S` / `↑` `↓` move to the nearest bookmark in the row above or below. Click or `Space` / `Enter` jumps to it, switching books if needed. Pressing `V` / `]` or `C` / `[` in one full-screen view switches to the other.
 
@@ -186,7 +195,7 @@ New subfolders are not detected: add the parent folder again to pick them up.
 
 A book whose folder can't be found is **never** deleted automatically, because the browser can't tell a deleted folder from an unplugged drive. Only when **all** of a book's folders are gone does it move to **Missing**, keeping its cover, tags, bookmarks and progress. Plug the drive back in and refresh, and it returns on its own. If only some volumes of a joined book are missing, the book stays readable: the missing volumes are hidden for now and its cover shows a small warning. They come back on their own once found, or you can reconnect them with **Restore** on the cover. Records are deleted only when you delete them.
 
-Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **cover** (the first image by file name). Joined books are matched volume by volume:
+Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **cover** (the first image by file name, whatever custom cover you set). Joined books are matched volume by volume:
 
 - **Add the parent folder again**: a missing book or volume with the same folder name and cover is reconnected automatically instead of being added twice.
 - **Restore from folder…** (in *Missing*): pick a folder that contains your books, at any depth. Exact matches are restored at once. Likely matches (renamed folder with the same cover, or same name with a different cover) are listed for you to tick. Anything else stays missing. Lost images of the loose album are found again too. Restoring only reconnects existing records and **never adds books**: content with no matching record is ignored. Restoring a single book, or **Locate originals**, also reconnects any other missing books and loose images found in the chosen folder.
@@ -248,7 +257,9 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `toolbar.mjs`, `toolbar.css` | Top toolbar, bottom action bar |
 | `bookmarks.mjs`, `bookmarks.css` | Bookmarks, bookmark panel, shelf bookmark list |
 | `focus.mjs`, `focus.css` | Focus mode |
-| `overview.mjs`, `overview.css` | Full-screen thumbnails and shelf bookmarks (grid / masonry) |
+| `overview.mjs`, `overview.css` | Full-screen thumbnails and shelf bookmarks (grid / masonry, search) |
+| `sections.mjs` | Pairing rules for section bookmarks |
+| `cover.mjs` | Custom covers |
 | `help.mjs`, `help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
 | `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
 | `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), session cache of page thumbnails |
@@ -281,6 +292,7 @@ node tests/settings.browser.mjs "<path>"
 node tests/help.browser.mjs "<path>"
 node tests/queue.browser.mjs "<path>"
 node tests/windows.browser.mjs "<path>"
+node tests/sections.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:
