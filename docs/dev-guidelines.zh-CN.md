@@ -117,7 +117,7 @@
 
 - 根目录只放必须在根的文件：`index.html`、`sw.js`（Service Worker 的作用域取决于它所在的目录，必须在根）、`app.webmanifest`、`icons/`、`local_run.bat`、README、`docs/`、`tests/`、`dist/`（v1 迁移桥）。源码全部放在 `src/` 下，按领域分目录，样式表与同名模块放在同一目录：
   - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各模块、启动流程，不放功能代码）与全局样式。
-  - `src/ui/`：通用 DOM 小工具（`dom`：取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）。
+  - `src/ui/`：通用界面小工具：`dom`（取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）、`icons`（往 sprite 登记图标的 `addIcons`）。
   - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）、偏好登记与跨窗口同步（`prefs`）、当前语言与文案函数（`locale`）、事件表（`events`）、书目与保存（`books`）、旧记录归一化（`normalize`）、过期与句柄状态（`status`）。
   - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、当前书与阅读位置（`session`）、书名进度与提示条等外壳状态及切换语言（`shell`）、右侧缩略图栏的开合与调宽（`panel`）、页面排序（`sort`）、按钮动作表（`actions`）、顶部工具栏（`toolbar`）、底部操作栏（`endbar`）、拖动滚动（`drag`）、正文点击翻屏（`tap`）、按键与长按滚动（`keys`）、专注模式（`focus`）、全屏总览（`overview` 入口、`overview-sheet` 面板外壳与搜索、`overview-pages` 全屏缩略图、`overview-marks` 全屏书架书签）。
   - `src/shelf/`：书架。`shelf` 是唯一入口（装配子模块、重画、列表页签、布局切换），子模块：排序（`sort`）、封面与识别指纹的后台生成（`covercache`）、筛选状态（`filter`，纯逻辑在 `criteria`）、列表布局与焦点（`layout`）、卡片（`card`）、卡片操作按钮（`actions`）、批量操作（`bulk`）、筛选界面（`filterbar`）、搜索预设（`presets`）、存储空间（`storage`）、书名（`rename`）、标签（`tags`）、恢复流程与对话框（`restore`，配对规则在 `pairing`）、共用小工具（`util`）；自定义封面（`cover`）；添加与导入：选择框入口（`pick`）、拖放（`drop`）、导入（`import`）、接回与重建（`relink`）、刷新与检查（`refresh`）、删除（`remove`）。子模块之间经 `shelf` 建立的共享对象 `S` 互相调用。
