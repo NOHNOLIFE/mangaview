@@ -144,6 +144,9 @@ export function install(ctx){
   });
   ctx.on('select',()=>{cancel();close();if(last?.book!==ctx.current)last=null;renderDock();reveal();});
   ctx.on('lang',()=>{if(!panel.hidden)render();renderDock();});
+  // 别的窗口改了书签或存好了书签缩略图（windows.mjs）：书架书签列表随 'books' 更新，这里补上打开着的书签面板。
+  ctx.on('synced',book=>{if(book===ctx.current&&!panel.hidden)render();});
+  ctx.on('thumbs',keys=>{if(!keys.some(k=>k.includes(':bm:')))return;if(!panel.hidden)render();renderDock();});
 
   // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。
   // 悬停不跳转，点击才跳转（可跨书）；此时短按 F / Enter（Shift 反向）也按这个列表跳到下一个书签，必要时切换书。

@@ -79,7 +79,7 @@ export function install(ctx){
   });
   document.addEventListener('pointerout',e=>{if(!e.relatedTarget){cancel();endCancel();}});
   tips();ctx.on('lang',tips);
-  ctx.prefs?.add('edgeTop');ctx.prefs?.add('edgeBottom');
+  ctx.prefs?.sync('edgeTop');ctx.prefs?.sync('edgeBottom');
   ctx.settings.push(
     {id:'edgeTop',group:'toolbar',label:'tbEdgeTop',type:'toggle',get:()=>ctx.get('edgeTop',true),set:v=>ctx.put('edgeTop',!!v)},
     {id:'edgeBottom',group:'toolbar',label:'tbEdgeBottom',type:'toggle',get:()=>ctx.get('edgeBottom',true),set:v=>ctx.put('edgeBottom',!!v)});

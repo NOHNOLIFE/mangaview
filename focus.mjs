@@ -5,6 +5,6 @@ extend({focusMode:['Focus mode: side panels show their content only on hover','�
 export function install(ctx){
   const on=()=>ctx.get('focusMode',true)!==false;
   const apply=()=>document.body.classList.toggle('focus-mode',on());
-  apply();
+  apply();ctx.prefs.sync('focusMode',apply); // 设置类：别的窗口切换后即时跟随
   ctx.settings.push({id:'focusMode',group:'reading',label:'focusMode',type:'toggle',get:on,set:v=>{ctx.put('focusMode',!!v);apply();}});
 }

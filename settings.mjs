@@ -67,6 +67,6 @@ export function install(ctx){
     b.onclick=()=>{if(confirm(t('confirmResetPrefs')))ctx.resetPrefs();};el.append(hint,b);return el;
   }
   ctx.actions.settings=()=>{draw();if(!dialog.open)dialog.showModal();};
-  ctx.on('lang',()=>{if(dialog.open)draw();});
+  ctx.on('lang',()=>{if(dialog.open)draw();});ctx.on('pref',()=>{if(dialog.open)draw();}); // 别的窗口改了设置
   return {dialog,draw};
 }
