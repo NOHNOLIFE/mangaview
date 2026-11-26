@@ -121,7 +121,7 @@
   - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、工具栏（`toolbar`）、专注模式（`focus`）、全屏总览（`overview` 入口、`overview-sheet` 面板外壳与搜索、`overview-pages` 全屏缩略图、`overview-marks` 全屏书架书签）。
   - `src/shelf/`：书架。`shelf` 是唯一入口（装配子模块、重画、列表页签、布局切换），子模块：排序（`sort`）、封面与识别指纹的后台生成（`covercache`）、筛选状态（`filter`，纯逻辑在 `criteria`）、列表布局与焦点（`layout`）、卡片（`card`）、卡片操作按钮（`actions`）、批量操作（`bulk`）、筛选界面（`filterbar`）、搜索预设（`presets`）、存储空间（`storage`）、书名（`rename`）、标签（`tags`）、恢复流程与对话框（`restore`，配对规则在 `pairing`）、共用小工具（`util`）；自定义封面（`cover`）。子模块之间经 `shelf` 建立的共享对象 `S` 互相调用。
   - `src/marks/`：书签入口与装配（`bookmarks`）、书签列表的纯逻辑（`list`：排序、区段是否生效、配对坐标、每页标记汇总）、数据操作与跳转（`actions`）、名称与位置文案（`names`）、列表项绘制（`tile`）、书签缩略图（`snap`）、书签面板（`panel`）、书架书签栏（`dock`）、缩略图上的标记（`pagemarks`）、PotPlayer 书签（`pbf`）；播放器进度条上的书签标记在 `src/media/marks.mjs`，全屏书架书签在 `src/reader/overview-marks.mjs`。
-  - `src/media/`：视频、音频播放器（`media`）。
+  - `src/media/`：视频、音频播放器。`media` 是唯一入口（建立子模块共享的 `S`、按顺序装配子模块，对外提供 `ctx.media`、`ctx.player` 和正文的 `ctx.view.hooks.media`），子模块：统一音量（`volume`）、播放顺序与循环 / 播完后的切换 / 待接手的播放请求（`order`）、只播放书签区段（`sections`）、播放位置记忆（`position`）、提示浮层（`hud`）、缩略图里的占位（`tile`）、壳的 DOM 与状态显示（`shell`，样式在 `shell.css`）、播放器状态：挂源、失败、播放 / 暂停 / 定位（`player`）、当前媒体与自动播放（`autoplay`）、新窗口播放（`popout`）、媒体按键（`keys`）、壳上列表级按钮的登记（`buttons`）；进度条上的书签标记（`marks`，由书签模块安装）。书签标记、占位、提示浮层的样式在 `media.css`。
   - `src/panels/`：设置（`settings`）、导出与导入（`backup`）、键鼠操作图示（`help`）。
 - 新模块放进职责对应的目录；出现新的领域时新建目录，不往根目录或 `app.mjs` 里堆。模块之间用相对路径 import。
 - 登记类列表一项一行，一行不写多条：`sw.js` 的 `shell` 列表、`index.html` 的图标 sprite（每个 `<symbol>` 一行）、`index.html` 的样式表 `<link>`、`app.mjs` 的导入与模块安装调用。与顺序无关的（`shell` 按路径、sprite 按 id，渐变 `defs` 和 `logo` 在最前）按字母序插入到对应位置，不追加在末尾；有顺序要求的（样式表的层叠、模块的安装顺序）按依赖排列。

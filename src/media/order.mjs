@@ -1,0 +1,129 @@
+// 播放顺序与循环（3.7）：状态 S.order / S.loop（设置类偏好，跨窗口同步）、一个媒体播完之后切到哪一个（finished），
+// 以及待接手的播放请求（S.queued：按播放顺序、书签跳转、新窗口播放要播放的页，该页的播放器出现在视窗里时由 claim 接手）。
+// 顺序与循环的规则在 playlist.mjs（following）。
+import { extend } from '../core/lang.mjs';
+import { pageKind } from '../core/model.mjs';
+import { orderOf, ORDERS, following } from '../core/playlist.mjs';
+
+extend({
+  mvOrderList: ['Play order: list', '播放顺序：列表', '再生順：リスト', '재생 순서: 목록'],
+  mvOrderShuffle: ['Play order: shuffle', '播放顺序：随机', '再生順：シャッフル', '재생 순서: 무작위'],
+  mvOrderSingle: ['Play order: single', '播放顺序：单集', '再生順：1 つだけ', '재생 순서: 하나만'],
+  mvLoop: ['Loop', '循环', 'ループ', '반복'],
+});
+export const ORDER_ICON = { list: 'order-list', shuffle: 'order-shuffle', single: 'order-single' },
+  ORDER_LABEL = { list: 'mvOrderList', shuffle: 'mvOrderShuffle', single: 'mvOrderSingle' };
+
+export function install(ctx, S) {
+  const { t, get, put } = ctx,
+    { players, times, rounds, failedPages } = S;
+  const refreshControls = (...a) => S.refreshControls(...a),
+    sectionMap = (...a) => S.sectionMap(...a),
+    rangesOf = (...a) => S.rangesOf(...a),
+    selfSeek = (...a) => S.selfSeek(...a),
+    start = (...a) => S.start(...a),
+    seek = (...a) => S.seek(...a),
+    inView = (...a) => S.inView(...a);
+  S.order = orderOf(get('playOrder', 'list'));
+  S.loop = get('playLoop', false) === true;
+  ctx.prefs
+    .sync('playOrder', (v) => {
+      S.order = orderOf(v);
+      rounds.delete(ctx.current);
+      refreshControls();
+    })
+    .sync('playLoop', (v) => {
+      S.loop = v === true;
+      refreshControls();
+    });
+  // ---- 播放顺序与循环（3.7）：一个媒体播完之后做什么。「列表」是当前书里可播放的媒体（图片、播不了的跳过），按当前页序；
+  // 开启「只播放书签区段」且书里有区段时，没有区段的媒体也跳过。切到下一个媒体时把它滚到视窗中央、从头（或第一个区段）播放。
+  function candidates(book, withSec) {
+    const out = [];
+    book.pages.forEach((pg, i) => {
+      const k = pageKind(pg);
+      if (
+        (k === 'video' || k === 'audio') &&
+        !pg.bad &&
+        !failedPages.has(pg) &&
+        (!withSec || withSec.get(pg.name)?.length)
+      )
+        out.push(i);
+    });
+    return out;
+  }
+  let lastFinish = null;
+  function finished(p) {
+    const now = performance.now();
+    if (lastFinish?.p === p && now - lastFinish.at < 800) return;
+    lastFinish = { p, at: now }; // 区段播完与 ended 可能先后到达
+    const book = p.book,
+      cur = book.pages.indexOf(p.page);
+    if (book !== ctx.current || !players.has(p.node) || cur < 0) return;
+    const withSec = sectionMap(book);
+    if (S.order === 'single') {
+      if (S.loop) restart(p);
+      return;
+    }
+    const list = candidates(book, withSec),
+      names = rounds.get(book) ?? new Set();
+    const r = following({
+      order: S.order,
+      loop: S.loop,
+      list,
+      cur,
+      played: new Set(book.pages.flatMap((pg, i) => (names.has(pg.name) ? [i] : []))),
+    });
+    rounds.set(book, new Set([...r.played].map((i) => book.pages[i]?.name)));
+    if (r.next == null) return;
+    if (r.next === cur) restart(p);
+    else switchTo(book, r.next, withSec);
+  }
+  function restart(p) {
+    const rs = S.only ? rangesOf(p) : [];
+    if (p.state === 'ready') selfSeek(p, rs.length ? rs[0].a : 0);
+    else p.time = rs.length ? rs[0].a : 0;
+    start(p);
+  }
+  function switchTo(book, i, withSec) {
+    const page = book.pages[i],
+      rs = withSec?.get(page.name) ?? [],
+      s = rs.length ? rs[0].a : 0;
+    times.set(page, s);
+    S.queued = { page, time: s, play: true, auto: true };
+    if (document.fullscreenElement?.classList.contains('media')) document.exitFullscreen().catch(() => {});
+    ctx.view.jump({ i, f: 0.5 });
+    if (document.hidden) ctx.view.paint(); // 窗口在后台时不会有动画帧：立即排版，播放顺序照常生效
+    claimNow();
+    requestAnimationFrame(claimNow);
+  }
+  // 要播放的页的播放器在视窗里时接手：定位到指定时间，play 为真则播放，否则只挂上源停在该画面。
+  function claim(p) {
+    if (!S.queued || S.queued.page !== p.page || p.book !== ctx.current) return;
+    const q = S.queued;
+    S.queued = null;
+    if (p.state === 'failed') return;
+    p.auto = !!q.auto;
+    p.popped = !!q.popped;
+    seek(p, q.time);
+    if (q.play) start(p);
+  }
+  function claimNow() {
+    if (!S.queued) return;
+    for (const p of players.values()) if (p.page === S.queued?.page && inView(p)) claim(p);
+  }
+  // 壳上「播放顺序」「循环」按钮（buttons.mjs）的操作。
+  function cycleOrder() {
+    S.order = ORDERS[(ORDERS.indexOf(S.order) + 1) % ORDERS.length];
+    put('playOrder', S.order);
+    rounds.delete(ctx.current);
+    refreshControls();
+    ctx.notice(null, t(ORDER_LABEL[S.order]));
+  }
+  function toggleLoop() {
+    S.loop = !S.loop;
+    put('playLoop', S.loop);
+    refreshControls();
+  }
+  Object.assign(S, { finished, claim, claimNow, cycleOrder, toggleLoop });
+}
