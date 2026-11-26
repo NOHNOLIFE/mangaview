@@ -44,8 +44,9 @@ export function dropPage(key){const e=pages.get(key);if(!e)return;pages.delete(k
 export function forgetPages(prefix){for(const k of [...pages.keys()])if(k.startsWith(prefix))dropPage(k);}
 export const pageCacheSize=()=>({count:pages.size,bytes:pageBytes});
 
-// ---- 视频画面：缩略图栏、全屏缩略图和书架封面里的视频显示真实画面（不再是类型图标占位）。
+// ---- 截取视频画面：视频缩略图（缩略图栏、全屏缩略图、书架封面）、书签缩略图、自定义封面共用这一份实现。
 // 浏览器无法枚举关键帧，按时间点取帧，不保证恰好是关键帧。读取元数据、定位都有上限（FRAME_MS），超时按失败处理。
+// 截到的画面一律是 {blob,w,h,iw,ih,dark}（定位截取的另有 at：实际时间点），可直接 saveThumb。
 export const FRAME_MS=20000;
 const DARK=16; // 画面的平均亮度（0–255）低于它算「接近纯黑」
 function until(el,type,ms=FRAME_MS){return new Promise((ok,no)=>{
@@ -63,18 +64,30 @@ async function openVideo(file){
   catch(e){close();throw e;}
   return {el,duration:Number.isFinite(el.duration)&&el.duration>0?el.duration:null,close};
 }
+// 把视频元素当前显示的画面缩小到宽 ≤ width 的 WebP：{blob,w,h,iw,ih,dark}。播放器里正停在该处的视频可直接截，不必再读文件。
+export async function frameOf(el,{width=320}={}){
+  const iw=el.videoWidth,ih=el.videoHeight;if(!iw||!ih||el.readyState<2)throw new DOMException('No frame','InvalidStateError');
+  const scale=Math.min(1,width/iw),w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
+  const canvas=new OffscreenCanvas(w,h);canvas.getContext('2d').drawImage(el,0,0,w,h);
+  const probe=new OffscreenCanvas(16,16),g=probe.getContext('2d',{willReadFrequently:true});g.drawImage(canvas,0,0,16,16);
+  const px=g.getImageData(0,0,16,16).data;let sum=0;for(let i=0;i<px.length;i+=4)sum+=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
+  return {blob:await canvas.convertToBlob({type:'image/webp',quality:.82}),w,h,iw,ih,dark:sum/(px.length/4)<DARK};
+}
 async function grab(v,seconds,width){
   const {el,duration:d}=v,s=Math.max(0,Math.min(Number.isFinite(seconds)?seconds:0,d?Math.max(0,d-.05):Infinity));
   const seek=until(el,'seeked');el.currentTime=s;await seek;
   if(el.readyState<2)await until(el,'canplay');
-  const iw=el.videoWidth,ih=el.videoHeight,scale=Math.min(1,width/iw),w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
-  const canvas=new OffscreenCanvas(w,h);canvas.getContext('2d').drawImage(el,0,0,w,h);
-  const probe=new OffscreenCanvas(16,16),g=probe.getContext('2d',{willReadFrequently:true});g.drawImage(canvas,0,0,16,16);
-  const px=g.getImageData(0,0,16,16).data;let sum=0;for(let i=0;i<px.length;i+=4)sum+=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
-  return {blob:await canvas.convertToBlob({type:'image/webp',quality:.82}),w,h,iw,ih,at:s,dark:sum/(px.length/4)<DARK};
+  return {...await frameOf(el,{width}),at:s};
 }
-// 取 seconds 秒处的一帧，缩到宽 ≤ width 的 WebP：{blob,w,h,iw,ih,at,dark}。
+// 取 seconds 秒处的一帧：{blob,w,h,iw,ih,at,dark}。打不开、截不到都抛出（超时为 TimeoutError）。
 export async function grabFrame(file,seconds,{width=320}={}){const v=await openVideo(file);try{return await grab(v,seconds,width);}finally{v.close();}}
+// 同一个文件的多个时间点一次打开截完：返回与 list 等长的数组，某个时间点截不到为 null；文件打不开、超时时抛出。
+export async function grabFrames(file,list,{width=320}={}){
+  const v=await openVideo(file);
+  try{const out=[];for(const s of list){if(!Number.isFinite(s)){out.push(null);continue;}
+    try{out.push(await grab(v,s,width));}catch(e){if(e?.name==='TimeoutError')throw e;out.push(null);}}return out;}
+  finally{v.close();}
+}
 // 没有书签时的默认画面：片长约 10% 处，接近纯黑再试 30%、50%，至多三次；都接近纯黑时用第一张。时长未知时取开头。
 export const POSTER=[.1,.3,.5];
 export async function posterFrame(file,{width=320}={}){

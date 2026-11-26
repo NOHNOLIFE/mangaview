@@ -89,7 +89,7 @@ try{
 
   // ---- 3.7 / 4.5：壳上的播放顺序、循环、只播放书签区段按钮（设置类偏好，持久化，跨窗口同步）。
   await toPageReady('03 long.wav');
-  assert.deepEqual(await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),['bookmark','loop','order','section','sections']);
+  assert.deepEqual(await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),['bookmark','loop','order','popout','section','sections']);
   const orderState=()=>js(`(()=>{const b=${ctl('03 long.wav','order')};return [b.querySelector('use').getAttribute('href'),b.getAttribute('aria-label')];})()`);
   assert.deepEqual(await orderState(),['#i-order-list','Play order: list'],'Default: list');
   const icons=[];for(let k=0;k<3;k++){await js(`${ctl('03 long.wav','order')}.click()`);icons.push((await orderState())[0]);}
@@ -221,8 +221,28 @@ try{
   assert.notEqual(await js(`getComputedStyle(${ctl('06 tail.wav','sections')}).color`),onColor,'The toggle shows its state');assert.equal(await js(`localStorage.getItem('mv2:sectionsOnly')`),'false');
   await shot('mediamarks');
 
+  // ---- 3.2：视频书签的缩略图截不到（文件打不开）时，连同文件的大小和修改时间记入页记录（page.vfail），重新打开后文件没变就不再尝试。
+  await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Broken',{create:true});
+    await mvMedia.write(dir,'01.svg',new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>'],{type:'image/svg+xml'}));
+    await mvMedia.write(dir,'02 bad.mp4',new Blob([new Uint8Array(4096).fill(7)]));
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
+  await wait(()=>js(`bookTitle.textContent==='Broken'`),'Broken imported');
+  const broken=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Broken'))`);
+  await js(`import('./store.mjs').then(async({library})=>{const b=(await library('getAll')).find(b=>b.title==='Broken');b.bookmarks=[{id:'bad',name:'02 bad.mp4',t:.5,at:1}];await library('put',b);})`);
+  const grabs=()=>js('srcLog.filter(x=>x==null).length'); // 正文以外给视频挂源（截帧）的次数；该视频不在视窗里，正文的播放器不碰它
+  const panelOpen=async()=>{await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Broken'`),'reloaded');await js(MEDIA_FIXTURES);await js(helpers);await js('reader.scrollTop=0');await delay(200);
+    await cdp('Input.dispatchMouseEvent',{type:'mousePressed',x:300,y:300,button:'right',clickCount:1});await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',x:300,y:300,button:'right',clickCount:1});
+    await wait(()=>js(`!document.querySelector('.bm-panel').hidden&&!!document.querySelector('.bm-panel .bm-item .bm-ph.video')`),'panel with the video bookmark');};
+  await panelOpen();
+  await wait(async()=>/^\d+:4096$/.test((await broken()).pages.find(p=>p.name==='02 bad.mp4').vfail??''),'bookmark thumbnail failure recorded with size and time');
+  assert.ok(await grabs()>=1,'It was tried once');
+  await panelOpen();await delay(2500);
+  assert.equal(await grabs(),0,'Not tried again while the file is unchanged');
+  assert.ok(await js(`!!document.querySelector('.bm-panel .bm-item .bm-ph.video')`),'Keeps the placeholder');
+  await tapKey('Escape');
+
   assert.deepEqual(errors,[]);
-  console.log('PASS: play order / loop buttons and their six behaviours, play position memory, media bookmarks (hold F, shell buttons, 2 s duplicates, time markers on the seek bar, type badges, lazy video thumbnails), media section bookmarks paired by time, F jumps into media, play bookmark sections only');
+  console.log('PASS: play order / loop buttons and their six behaviours, play position memory, media bookmarks (hold F, shell buttons, 2 s duplicates, time markers on the seek bar, type badges, lazy video thumbnails), media section bookmarks paired by time, F jumps into media, play bookmark sections only, bookmark thumbnail failures recorded with the file size and time');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

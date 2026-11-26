@@ -47,12 +47,13 @@ export function install(ctx){
   ctx.reloadOthers=reason=>post({type:'reload',reason});
 
   // ---- 后台磁盘任务：持有锁的窗口执行，其他窗口不读盘。只有可见的窗口排队等锁；持有者转到后台而有可见的窗口在等时，把锁交给它。
-  // 持有者关闭后锁自动交给排在最前的窗口；若启动时的全量检查还没有任何窗口完成过，接手的窗口补做（checked 由 hello / checked 消息在窗口间传递）。
+  // 持有者关闭后锁自动交给排在最前的窗口；若启动时的全量检查还没有任何窗口完成过，接手的窗口补做（checked 由 hello / checked 消息在窗口间传递）；
+  // 新窗口播放打开的窗口（ctx.popout）不补做。
   const locks=navigator.locks,disk={owner:!locks,checked:false};let release=null,pending=null,waiters=[],ready;
   const wake=()=>{const list=waiters;waiters=[];for(const fn of list)fn();};
   function gained(){
     disk.owner=true;wake();ctx.emit('disk',true);
-    if(ctx.started&&!disk.checked&&ctx.get('autoCheck',true))ctx.refreshAll(false).then(()=>{if(disk.owner&&!disk.checked)return ctx.refreshAll(false);}).catch(e=>console.warn(e));
+    if(ctx.started&&!disk.checked&&!ctx.popout&&ctx.get('autoCheck',true))ctx.refreshAll(false).then(()=>{if(disk.owner&&!disk.checked)return ctx.refreshAll(false);}).catch(e=>console.warn(e));
   }
   const hold=()=>new Promise(r=>{release=r;});
   function wait(){ // 排队等锁；窗口转到后台时撤回

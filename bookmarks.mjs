@@ -2,7 +2,7 @@ import {extend} from './lang.mjs';
 import {at,point,clipEnd,pageKind,clock,shownName} from './model.mjs';
 import {forget} from './thumbs.mjs';
 import {pair} from './sections.mjs';
-import {grabFrames,frameOf} from './media.mjs';
+import {grabFrames,frameOf,fileStamp} from './thumbs.mjs';
 // 书签：book.bookmarks=[{id,name,f,at,end?}]，按页名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
 // 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label?,from?,end?}；label 为名称（目前只来自 .pbf 导入）。
 // end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f|t,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，
@@ -213,7 +213,8 @@ export function install(ctx){
     el.append(icon(page&&pageKind(page)==='audio'?'music':'film'),make('span','',clock(x.bm.t)));return el;
   }
   // 懒生成：缩略图进入可见范围才排队；串行、空闲时进行，同一个视频的多个书签一次打开截完；截好即保存（别的窗口经 'thumbs' 同步）。
-  // 截不到的（文件读不到、播放不了）本次会话不再重试。
+  // 文件打不开（播不了、没有画面）：连同文件的大小和修改时间记入页记录（page.vfail，与视频缩略图共用，见 thumbs.mjs），文件没变就不再尝试；
+  // 暂时读不到（找不到、超时）和个别时间点截不到的只在本次会话内不再重试。
   const seen=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){seen.unobserve(e.target);const j=e.target._shot;e.target._shot=null;if(j)enqueue(j);}});
   const shots=new Map(),failedShots=new Set();let shooting=false;
   function enqueue(j){
@@ -236,7 +237,11 @@ export function install(ctx){
       }
       if(!todo.length)continue;
       let out=null;
-      try{if(!page||ctx.expired?.(book))throw 0;out=await grabFrames(await timed(Promise.resolve().then(()=>ctx.source(book,page)),READ),todo.map(j=>j.t),{width:THUMB_W});}catch{}
+      try{if(!page||ctx.expired?.(book))throw 0;
+        const file=await timed(Promise.resolve().then(()=>ctx.source(book,page)),READ),stamp=fileStamp(file);
+        if(page.vfail!==stamp&&page.bad!==stamp)try{out=await grabFrames(file,todo.map(j=>j.t),{width:THUMB_W});}
+          catch(e){if(e?.name!=='TimeoutError'&&ctx.books.has(book.id)){page.vfail=stamp;ctx.safe(ctx.persist)(book);}}
+      }catch{}
       for(const [n,j] of todo.entries()){
         const th=out?.[n];if(!th){failedShots.add(j.k+'@'+j.t);continue;}
         if(!book.bookmarks.includes(j.bm)||j.end&&j.bm.end!==j.end)continue;

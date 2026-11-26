@@ -43,7 +43,7 @@ try{
   await load('zh');await open();
 
   // 实际绑定的主要键都在图示中且高亮、可聚焦、带说明；无关的键是暗淡占位（aria-hidden、不进入文本）。
-  const bound=['Esc','W','A','S','D','F','C','V','B','T','Q','E','ShiftLeft','Space','Enter','ShiftRight',';',"'",'[',']','Home','End','PageUp','PageDown','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+  const bound=['Esc','W','A','S','D','F','C','V','B','T','Q','E','Z','ShiftLeft','Space','Enter','ShiftRight',';',"'",'/','[',']','Home','End','PageUp','PageDown','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
   const q=k=>'document.querySelector('+JSON.stringify('#helpBody [data-key="'+k+'"]')+')';
   for(const k of bound)assert.deepEqual(await js('(()=>{const el='+q(k)+';return el&&[el.classList.contains("on"),el.tabIndex,!!el.getAttribute("aria-label"),el.getBoundingClientRect().width>0]})()'),[true,0,true,true],k+' is shown highlighted');
   assert.deepEqual(await js('[...document.querySelectorAll("#helpBody .hk-key.on")].map(e=>e.dataset.key).sort()'),[...bound].sort(),'Only bound keys are highlighted');

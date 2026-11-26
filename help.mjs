@@ -13,6 +13,7 @@ extend({
   hkTipSpace:['Play / pause media','播放 / 暂停媒体','メディアを再生／一時停止','미디어 재생 / 일시 정지'],
   hkTipBack:['Previous screen, *hold*: rewind media','上一屏，*长按*媒体快退','前の画面、*長押し*でメディアを巻き戻し','이전 화면, *길게*: 미디어 되감기'],
   hkTipFwd:['Next screen, *hold*: fast-forward media','下一屏，*长按*媒体快进','次の画面、*長押し*でメディアを早送り','다음 화면, *길게*: 미디어 빨리 감기'],
+  hkTipPopout:['Play media in a new window','新窗口播放媒体','メディアを新しいウィンドウで再生','새 창에서 미디어 재생'],
   hkTipVolDown:['Volume down','音量减','音量を下げる','볼륨 낮추기'],hkTipVolUp:['Volume up','音量加','音量を上げる','볼륨 높이기'],
   hkTipMark:['Next bookmark, *hold*: add, Shift: reverse / section','跳转书签，*长按*添加书签；Shift 反向 / 区段书签','次のしおり、*長押し*で追加；Shift で逆方向／区間しおり','다음 책갈피, *길게*: 추가; Shift: 반대로 / 구간 책갈피'],
   hkTipShift:['With W, S, ↑, ↓: change books; with F, Enter: reverse','配合 W、S、↑、↓ 切书，配合 F、Enter 反向','W・S・↑・↓ と併用で本の切替、F・Enter と併用で逆方向','W·S·↑·↓와 함께: 책 전환, F·Enter와 함께: 반대로'],
@@ -56,11 +57,11 @@ export const ZONES=[
 // 有功能的键：tip 说明（文案 key）；hold：有长按功能，shift：受 Shift 影响（键帽角上的小标记）；mod：Shift 键本身。
 const up={tip:'hkTipUp',shift:true},down={tip:'hkTipDown',shift:true},back={tip:'hkTipBack',hold:true},fwd={tip:'hkTipFwd',hold:true},
   mark={tip:'hkTipMark',hold:true,shift:true},rev={tip:'hkTipShift',mod:true},marks={tip:'hkTipMarks'},thumbs={tip:'hkTipThumbs'},
-  volDown={tip:'hkTipVolDown'},volUp={tip:'hkTipVolUp'};
+  volDown={tip:'hkTipVolDown'},volUp={tip:'hkTipVolUp'},popout={tip:'hkTipPopout'};
 export const KEYS={
-  Esc:{tip:'hkTipEsc'},W:up,S:down,A:back,D:fwd,F:mark,C:marks,V:thumbs,B:{tip:'hkTipShelf'},T:{tip:'hkTipTools'},Q:volDown,E:volUp,
+  Esc:{tip:'hkTipEsc'},W:up,S:down,A:back,D:fwd,F:mark,C:marks,V:thumbs,B:{tip:'hkTipShelf'},T:{tip:'hkTipTools'},Q:volDown,E:volUp,Z:popout,
   ShiftLeft:rev,Space:{tip:'hkTipSpace'},';':volDown,"'":volUp,
-  Enter:mark,ShiftRight:rev,'[':marks,']':thumbs,Home:{tip:'hkTipStart'},End:{tip:'hkTipEnd'},
+  Enter:mark,ShiftRight:rev,'/':popout,'[':marks,']':thumbs,Home:{tip:'hkTipStart'},End:{tip:'hkTipEnd'},
   PageUp:{tip:'prev'},PageDown:{tip:'next'},Delete:{tip:'hkTipDelete'},
   ArrowUp:up,ArrowDown:down,ArrowLeft:back,ArrowRight:fwd
 };

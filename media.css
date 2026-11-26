@@ -78,8 +78,6 @@ input.mv-vol:focus-visible{outline:2px solid var(--accent);outline-offset:0}
 .mv-tile .mid-name{max-width:100%}
 .mv-badge{position:absolute;right:4px;bottom:4px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px;border-radius:6px;background:rgba(0,0,0,.78);color:#fff;font-size:10px;line-height:16px;font-variant-numeric:tabular-nums}
 .mv-badge .i{width:11px;height:11px}
-.mv-cover{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(160deg,#1d1e23,#121316)}
-.mv-cover .i{width:34%;max-width:64px;height:auto;aspect-ratio:1;color:var(--faint);stroke-width:1.4}
 
 /* 提示浮层：调音量、长按快进 / 快退。 */
 .mv-hud{position:fixed;z-index:8;left:calc(var(--dockL) + (100% - var(--dock) - var(--dockL))/2);top:20%;display:flex;align-items:center;gap:10px;padding:10px 16px;border:1px solid var(--line2);border-radius:14px;background:rgba(24,25,29,.96);box-shadow:var(--shadow);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text);transform:translateX(-50%);pointer-events:none;white-space:nowrap}
