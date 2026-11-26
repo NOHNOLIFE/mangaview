@@ -139,6 +139,8 @@ try {
     );
   const count = (v) => js(`document.querySelector('[data-view="${v}"] .count').textContent`);
   const refresh = async () => {
+    // 启动时的自动检查可能还没结束：按钮禁用期间点击无效，先等它结束再点，否则这次手动刷新会落空。
+    await wait(() => js(`!document.querySelector('#shelf [data-act="refresh"]').disabled`));
     await js(`document.querySelector('#shelf [data-act="refresh"]').click()`);
     await delay(50);
     await wait(() => js(`!document.querySelector('#shelf [data-act="refresh"]').disabled`));
