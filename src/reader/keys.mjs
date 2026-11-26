@@ -6,6 +6,7 @@ import { pinned, preview } from './panel.mjs';
 import { actions } from './actions.mjs';
 import { bar, showBar } from './toolbar.mjs';
 import { screenStep, toStart, toEnd } from './tap.mjs';
+import { flip } from './single.mjs';
 import { remove } from '../shelf/remove.mjs';
 let ctx;
 let hold = null,
@@ -92,10 +93,12 @@ export function install(c) {
       if (!e.repeat) step(['w', 'arrowup'].includes(k) ? -1 : 1);
       return;
     }
-    // S / ↓ 向下、W / ↑ 向上：按住持续滚动。空格（含 Shift）是播放 / 暂停当前媒体（media.mjs 的按键），不再滚动。
+    // S / ↓ 向下、W / ↑ 向上：按住持续滚动；单文件模式下是下一个 / 上一个文件，按住按间隔连续翻页。空格（含 Shift）是播放 / 暂停当前媒体（media.mjs 的按键），不再滚动。
     if (['s', 'arrowdown', 'w', 'arrowup'].includes(k)) {
       e.preventDefault();
-      startHold(e.code, ['w', 'arrowup'].includes(k) ? -1 : 1);
+      const d = ['w', 'arrowup'].includes(k) ? -1 : 1;
+      if (ctx.single?.active) flip(d, e.repeat);
+      else startHold(e.code, d);
       return;
     }
     // D / → 、A / ←：短按（松开时）翻一屏；长按见 HOLD_LONG。
@@ -115,6 +118,8 @@ export function install(c) {
     if (k === 'home') toStart();
     else if (k === 'end') toEnd();
     else if (k === 'delete') safe(remove)(current);
+    else if (ctx.single?.active)
+      flip(k === 'pageup' ? -1 : 1); // 单文件模式：上一个 / 下一个文件
     else step(k === 'pageup' ? -1 : 1);
   });
   window.addEventListener('keyup', (e) => {

@@ -75,6 +75,8 @@ const shell = [
     'src/reader/panel.mjs',
     'src/reader/session.mjs',
     'src/reader/shell.mjs',
+    'src/reader/single.css',
+    'src/reader/single.mjs',
     'src/reader/sort.mjs',
     'src/reader/tap.mjs',
     'src/reader/thumbs.mjs',
