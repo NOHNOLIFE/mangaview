@@ -103,7 +103,7 @@ try {
   await js(`(async()=>{const root=await (await navigator.storage.getDirectory()).getDirectoryHandle('lib',{create:true});
     for(let i=1;i<=40;i++){const d=await root.getDirectoryHandle('B'+String(i).padStart(2,'0'),{create:true});
       for(let j=0;j<(i===1?40:1+i%3);j++){const w=await (await d.getFileHandle(String(j).padStart(2,'0')+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="hsl('+(i*37+j*11)+',50%,40%)"/></svg>');await w.close();}}
-    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   const records = () => js(`import('./src/core/store.mjs').then(({library})=>library('getAll'))`);
   await wait(async () => (await records()).length === 40);
   await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const all=await library('getAll');

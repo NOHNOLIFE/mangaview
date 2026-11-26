@@ -2,6 +2,7 @@ import { extend } from '../core/lang.mjs';
 import { forget, grabFrame } from '../reader/thumbs.mjs';
 import { pageKind } from '../core/model.mjs';
 import { install as bookCover } from './bookcover.mjs';
+import { addIcons } from '../ui/icons.mjs';
 // 自定义封面：书架卡片的「设置封面」列出这本书的全部书签缩略图，点选其一即设为封面；「重置封面」恢复默认封面。对所有书可用。
 // 书的当前封面（音频作背景用）见 bookcover.mjs，在这里一并安装。
 // 自定义封面是一份独立的压缩小图，存在 thumbs 的 `${book.id}:custom`，记录为 book.customCover={bm,r,at}（r：高宽比，瀑布流按它排版；at：设置时间，卡片据此判断要不要换图）。
@@ -34,12 +35,10 @@ export const customKey = (book) => book.id + ':custom';
 export function install(ctx) {
   const { t, make, notice } = ctx;
   bookCover(ctx);
-  const sprite = document.querySelector('svg.sprite');
-  if (sprite && !document.getElementById('i-cover'))
-    sprite.insertAdjacentHTML(
-      'beforeend',
-      '<symbol id="i-cover" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="14.5" cy="8.5" r="1.6"/><path d="m4 17 4.5-4.5 4 4 2-2L20 19"/></symbol>',
-    );
+  addIcons({
+    cover:
+      '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="14.5" cy="8.5" r="1.6"/><path d="m4 17 4.5-4.5 4 4 2-2L20 19"/>',
+  });
   const dialog = make('dialog', 'cover-pick'),
     title = make('h2'),
     name = make('span', 'cp-name'),

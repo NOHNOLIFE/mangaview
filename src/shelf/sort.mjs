@@ -112,7 +112,7 @@ export function install(ctx, S) {
     try {
       for (const b of [...books.values()]) {
         if (Number.isFinite(b.folderTime) || ctx.expired(b) || !books.has(b.id)) continue;
-        await ctx.disk.turn(); // 多个窗口时只由持有后台磁盘任务的窗口读盘，且只在窗口可见时（app.mjs / windows.mjs）
+        await ctx.disk.turn(); // 多个窗口时只由持有后台磁盘任务的窗口读盘，且只在窗口可见时（core/windows.mjs 的 ctx.disk）
         if (Number.isFinite(b.folderTime) || !books.has(b.id)) continue; // 等待期间别的窗口已经算好
         await queue(async () => {
           await readMissingTimes(b, () => books.has(b.id));

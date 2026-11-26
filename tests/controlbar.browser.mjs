@@ -148,7 +148,7 @@ try {
     await mvMedia.write(dir,'06.svg',svg(600,900,'purple'));
     const nest=await (await root.getDirectoryHandle('Nest',{create:true})).getDirectoryHandle('x',{create:true});await mvMedia.write(nest,'07 deep.wav',mvMedia.wav({seconds:3}));await mvMedia.write(await (await root.getDirectoryHandle('Nest')).getDirectoryHandle('y',{create:true}),'08.svg',svg(600,900,'#543'));
     const pics=await root.getDirectoryHandle('Pics',{create:true});for(let i=0;i<4;i++)await mvMedia.write(pics,i+'.svg',svg(600,900,'#345'));
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Deck'`), 'book');
   await js('reader.focus()');
   // 滚动停稳后的自动播放（3.6）由 media.browser.mjs 覆盖，这里关掉，结果才确定。
@@ -456,20 +456,25 @@ try {
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
   // 字幕容器：音频卡片里始终占位 3 行（有无字幕高度不变），视频叠在画面底部、控件上方；都不朗读（aria-live="off"）。
+  // 容器里只有字幕模块放的一行 .mv-cue（没有字幕时隐藏）；这里直接往它里面写字来检查排版。
   const card = () => js(`Math.round(node('03 b.wav').querySelector('.mv-card').getBoundingClientRect().height)`);
   const h0 = await card();
   assert.deepEqual(
     await js(
-      `(()=>{const s=node('03 b.wav').querySelector('.mv-card>.mv-subs');return [s.getAttribute('aria-live'),s.childNodes.length,Math.round(s.getBoundingClientRect().height)];})()`,
+      `(()=>{const s=node('03 b.wav').querySelector('.mv-card>.mv-subs');return [s.getAttribute('aria-live'),[...s.children].map(c=>c.className+':'+c.hidden).join(),s.textContent,Math.round(s.getBoundingClientRect().height)];})()`,
     ),
-    ['off', 0, 60],
+    ['off', 'mv-cue:true', '', 60],
   );
-  await js(`node('03 b.wav').querySelector('.mv-subs').innerHTML='<div>one</div><div>two</div><div>three</div>'`);
+  const cueText = (name, text) =>
+    js(
+      `(()=>{const c=node('${name}').querySelector('.mv-subs>.mv-cue');c.textContent=${JSON.stringify(text)};c.hidden=!c.textContent;})()`,
+    );
+  await cueText('03 b.wav', 'one\ntwo\nthree');
   assert.equal(await card(), h0, 'Three lines of subtitles do not change the card height');
-  await js(`node('03 b.wav').querySelector('.mv-subs').textContent=''`);
+  await cueText('03 b.wav', '');
   assert.ok(await js(`toPage('05 clip.webm')`));
   await wait(() => js(`el('05 clip.webm')?.readyState>=1`));
-  await js(`node('05 clip.webm').querySelector('.mv-subs').textContent='subtitle'`);
+  await cueText('05 clip.webm', 'subtitle');
   assert.deepEqual(
     await js(
       `(()=>{const n=node('05 clip.webm'),s=n.querySelector('.mv-subs'),r=s.getBoundingClientRect(),sh=n.querySelector('.mv-shell').getBoundingClientRect(),v=n.getBoundingClientRect();return [s.parentNode===n,s.getAttribute('aria-live'),r.bottom<=sh.top,r.top>=v.top,getComputedStyle(n.querySelector('video')).filter];})()`,
@@ -477,7 +482,7 @@ try {
     [true, 'off', true, true, 'brightness(0.55)'],
     'Video subtitles sit over the picture above the controls; a paused video is dimmed',
   );
-  await js(`node('05 clip.webm').querySelector('.mv-subs').textContent=''`);
+  await cueText('05 clip.webm', '');
   assert.equal(
     await js(`getComputedStyle(node('05 clip.webm').querySelector('.mv-big')).opacity`),
     '1',
@@ -591,7 +596,7 @@ try {
 
   // ---- 只有图片的书：右区全部禁用，影音模式下大播放键也禁用；空格没有效果、不滚动。
   await js(
-    `(async()=>{const root=await navigator.storage.getDirectory(),pics=await root.getDirectoryHandle('Pics');window.showDirectoryPicker=async()=>pics;document.querySelector('#bar [data-act="folder"]').click();})()`,
+    `(async()=>{const root=await navigator.storage.getDirectory(),pics=await root.getDirectoryHandle('Pics');window.showDirectoryPicker=async()=>pics;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(() => js(`bookTitle.textContent==='Pics'`), 'image book');
   await js('reader.focus();reader.scrollTop=300');
@@ -605,9 +610,9 @@ try {
   await delay(300);
   assert.equal(await js('reader.scrollTop'), 300, 'Space does nothing in a book of images');
   assert.equal(await running(), 'false');
-  // 文件名只显示最末一段（不带路径），完整路径在悬停提示：导入为单个作品时页名带卷的路径。
+  // 文件名只显示最末一段（不带路径），完整路径在悬停提示：添加为单个作品时页名带卷的路径。
   await js(
-    `(async()=>{const root=await navigator.storage.getDirectory(),nest=await root.getDirectoryHandle('Nest');window.showDirectoryPicker=async()=>nest;document.querySelector('#shelf [data-act="merge"]').click();})()`,
+    `(async()=>{const root=await navigator.storage.getDirectory(),nest=await root.getDirectoryHandle('Nest');window.showDirectoryPicker=async()=>nest;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();})()`,
   );
   await wait(() => js(`bookTitle.textContent==='Nest'`), 'merged book');
   const deep = await js(`reader.querySelector('.page.media').dataset.name`);

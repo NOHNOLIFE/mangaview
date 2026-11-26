@@ -14,7 +14,7 @@ import {
 } from './model.mjs';
 
 // 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含内容（图片、视频或音频）的文件夹。
-// 单文件夹书只有一个 key 为 '' 的源；合并作品（导入为单个作品）有多个源，key 为相对所选文件夹的路径，页名为“key/文件名”。
+// 单文件夹书只有一个 key 为 '' 的源；合并作品（添加为单个作品）有多个源，key 为相对所选文件夹的路径，页名为“key/文件名”。
 // 部分源暂时找不到时，它们的页移到 book.parked（不显示、记录保留），找回后再移回。
 // 散图图集（全应用只有一本）没有源，文件句柄记在每页上；页另记 file（文件名）和 path（来自文件夹时的相对目录），允许同名图片共存（见 addLoose）。
 export const allPages = (book) => (book.parked?.length ? book.pages.concat(book.parked) : book.pages);
@@ -497,7 +497,7 @@ export function looseNames(book) {
       p.file = p.name.slice(i + 1);
     }
 }
-// 导入为单个作品：给扫描出的各个文件夹排定顺序和 key。只选了一个文件夹时 key 为相对它的路径（它本身的图用它的名称），
+// 添加为单个作品：给扫描出的各个文件夹排定顺序和 key。只选了一个文件夹时 key 为相对它的路径（它本身的图用它的名称），
 // 选了多个时带上各自的名称；按路径逐段自然排序（与「文件名」排序相同），父文件夹自己的图排在子文件夹之前。返回 [{group,key}]。
 export function mergeKeys(groups) {
   const list = [...groups].sort((a, b) => compareDirs(a.path ?? '', b.path ?? ''));

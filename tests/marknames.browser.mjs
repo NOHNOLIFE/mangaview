@@ -115,7 +115,7 @@ try {
     for(const [name,body] of ${JSON.stringify(pics)})await mvMedia.write(dir,name,new Blob([body],{type:'image/svg+xml'}));
     await mvMedia.write(dir,'song.wav',mvMedia.wav({seconds:10}));
     await mvMedia.write(dir,'clip.webm',await mvMedia.webm({seconds:2.5,width:320,height:180}));
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`document.querySelector('#reader [data-name="00.svg"] img')?.naturalHeight===1120`));
   const store = `import('./src/core/store.mjs')`;
   const record = (title = 'Names') =>
@@ -206,8 +206,10 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 600, deviceScaleFactor: 1, mobile: false });
   await js(`document.querySelector('[data-act="shelf"]').click()`);
   await wait(() => js('shelf.open'));
-  await wait(() => js(`!!document.querySelector('#books .book .actions [aria-label="Set cover"]')`));
-  await js(`document.querySelector('#books .book .actions [aria-label="Set cover"]').click()`);
+  await wait(() => js(`!!document.querySelector('#books .book .actions .more')`));
+  await js(
+    `document.querySelector('#books .book .actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Set cover').click()`,
+  );
   await wait(() =>
     js(
       `document.querySelector('.cover-pick')?.open&&document.querySelectorAll('.cover-pick .cp-item img[src^="blob:"]').length>=20`,
@@ -562,7 +564,9 @@ try {
   await shot('marknames-strip');
   await js(`document.querySelector('[data-act="shelf"]').click()`);
   await wait(() => js('shelf.open'));
-  await js(`document.querySelector('#books .book .actions [aria-label="Set cover"]').click()`);
+  await js(
+    `document.querySelector('#books .book .actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Set cover').click()`,
+  );
   await wait(() => js(`document.querySelector('.cover-pick')?.open`));
   await js(`document.querySelector('.cover-pick .cp-item:nth-child(9)').click()`);
   await wait(async () => !!(await record()).customCover);
@@ -578,7 +582,7 @@ try {
   // 纯音频的书（文字封面）：没有背景。
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Tunes',{create:true});
     await mvMedia.write(dir,'a.wav',mvMedia.wav({seconds:3}));
-    window.showDirectoryPicker=async()=>dir;const b=document.createElement('button');b.dataset.act='folder';document.body.append(b);b.click();b.remove();})()`);
+    window.showDirectoryPicker=async()=>dir;const b=document.createElement('button');b.dataset.act='folder';document.body.append(b);b.click();b.remove();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Tunes'&&!!document.querySelector('#preview .mv-tile.audio')`));
   await wait(async () => !!(await record('Tunes'))?.fp?.text);
   await delay(300);

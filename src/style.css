@@ -674,7 +674,7 @@ body.docked #panel {
   animation: fade 0.15s;
 }
 /* 下方两块区域左右并排、紧贴（中间只有一条分隔线），指针在两者之间移动不会经过空白、不会闪回默认区域；与上方默认区域留出间距以便区分。
-   命中判定就是这两块的矩形（app.mjs 的 zoneAt）。底色近乎不透明，说明文字在任何画面上都清晰。悬停的一块高亮，默认区域随之变淡；切换不加过渡。窗口矮或窄时缩小内边距，不溢出。 */
+   命中判定就是这两块的矩形（shelf/drop.mjs 的 zoneAt）。底色近乎不透明，说明文字在任何画面上都清晰。悬停的一块高亮，默认区域随之变淡；切换不加过渡。窗口矮或窄时缩小内边距，不溢出。 */
 #dropOverlay .zones {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1053,7 +1053,7 @@ h2 {
   }
 }
 
-/* 浮动面板的淡出（app.mjs 的 fade）：先淡出、略微位移，结束后才设 hidden。各面板用 --leave-x / --leave-y 指定方向。 */
+/* 浮动面板的淡出（ui/dom.mjs 的 fade）：先淡出、略微位移，结束后才设 hidden。各面板用 --leave-x / --leave-y 指定方向。 */
 .leaving {
   pointer-events: none;
   animation: leave 0.17s var(--ease) forwards;
@@ -1068,7 +1068,7 @@ h2 {
   --leave-x: 16px;
 }
 
-/* 长按进度环：长按 G / Enter 添加书签、长按翻页键切书共用（app.mjs 的 ctx.ring）。 */
+/* 长按进度环：长按 G / Enter 添加书签、长按翻页键切书共用（ui/dom.mjs 的 holdRing，即 ctx.ring）。 */
 .hold {
   position: fixed;
   z-index: 8;

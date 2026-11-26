@@ -161,7 +161,7 @@ try {
     await mvMedia.write(dir,'05 tall.svg',new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="600" height="2400"><rect width="100%" height="100%" fill="purple"/></svg>'],{type:'image/svg+xml'}));
     await mvMedia.write(dir,'lonely.srt',text('1\\n00:00:00,000 --> 00:00:01,000\\nx\\n'));
     localStorage.setItem('mv2:autoplay','false');
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Subs'`), 'book opened');
   await js('reader.focus()');
 
@@ -210,6 +210,14 @@ try {
   assert.ok(box.c[1] > (box.v[1] + box.v[3]) / 2, 'In the lower half of the picture');
   assert.ok(Math.abs((box.c[0] + box.c[2]) / 2 - (box.v[0] + box.v[2]) / 2) < 2, 'Centred');
   assert.equal(box.color, 'rgb(255, 255, 255)');
+  // 叠在画面底部、控件上方：不遮挡进度条（壳淡出时也照此占位）；只用面板提供的容器，不另建。
+  assert.ok(
+    await js(
+      `(()=>{const n=node('01 clip.webm'),c=n.querySelector('.mv-cue').getBoundingClientRect(),b=n.querySelector('.mv-bar').getBoundingClientRect();return c.bottom<=b.top&&n.querySelector('.mv-cue').parentNode===n.querySelector(':scope>.mv-subs');})()`,
+    ),
+    'Above the progress bar, in the panel container',
+  );
+  assert.equal(await js(`document.querySelectorAll('.mv-subs-own').length`), 0, 'No fallback container');
   assert.match(box.bg, /^rgba\(0, 0, 0, 0\.\d+\)$/);
   await shot('subs-video');
   await js(`seekTo('01 clip.webm',2.6)`);
@@ -281,10 +289,27 @@ try {
     `(()=>{const n=node('02 song.wav'),k=n.querySelector('.mv-card').getBoundingClientRect(),c=n.querySelector('.mv-cue').getBoundingClientRect();return [c.left>=k.left,c.right<=k.right,c.top>=k.top,c.bottom<=k.bottom,c.height>0];})()`,
   );
   assert.deepEqual(card, [true, true, true, true, true], 'Inside the audio card');
+  // 音频卡片的字幕区固定 3 行高：超过 3 行的省略，字幕不超出字幕区，卡片高度不变。
+  const audioBox = () =>
+    js(
+      `(()=>{const n=node('02 song.wav'),s=n.querySelector('.mv-card>.mv-subs').getBoundingClientRect(),c=n.querySelector('.mv-cue'),r=c.getBoundingClientRect();return {card:n.querySelector('.mv-card').getBoundingClientRect().height,inside:r.top>=s.top-.5&&r.bottom<=s.bottom+.5,lines:Math.round(r.height/parseFloat(getComputedStyle(c).lineHeight)),own:c.parentNode.classList.contains('mv-subs')};})()`,
+    );
+  const oneLine = await audioBox();
+  assert.deepEqual([oneLine.inside, oneLine.lines, oneLine.own], [true, 1, true], JSON.stringify(oneLine));
+  await js(`node('02 song.wav').querySelector('.mv-cue').textContent='L1\\nL2\\nL3\\nL4\\nL5'`);
+  const fiveLines = await audioBox();
+  assert.deepEqual(
+    [fiveLines.card, fiveLines.inside, fiveLines.lines],
+    [oneLine.card, true, 3],
+    'At most 3 lines in the audio card',
+  );
+  await js(`seekTo('02 song.wav',2.5)`);
+  assert.equal(await js(`cue('02 song.wav')`), 'Lyric two');
   await shot('subs-audio');
   assert.equal(await js(`btn('02 song.wav').hasAttribute('aria-haspopup')`), false);
   await tap('#reader .page[data-name="02 song.wav"] [data-control="subs"]');
   await wait(() => js(`cue('02 song.wav')===null&&localStorage.getItem('mv2:subs')==='false'`), 'toggled off');
+  assert.equal((await audioBox()).card, oneLine.card, 'The card keeps its height without subtitles');
   assert.equal(
     await js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`),
     false,
@@ -331,7 +356,7 @@ try {
     await mvMedia.write(dir,'tune.srt',text('1\\n00:00:00,000 --> 00:00:04,000\\nLoose line\\n'));
     await mvMedia.write(dir,'tune.en.lrc',text('[00:00.00]Later lyric\\n'));
     window.showOpenFilePicker=async()=>[await dir.getFileHandle('tune.wav'),await dir.getFileHandle('tune.srt')];
-    document.querySelector('#bar [data-act="files"]').click();})()`);
+    document.querySelector('#bar [data-act="files"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addLoose.click();})()`);
   await wait(async () => (await atlas())?.pages?.length === 1, 'atlas created');
   let a = await atlas();
   assert.deepEqual(subsOf(a), { 'tune.wav': ['tune.srt'] });
@@ -345,7 +370,7 @@ try {
   await wait(() => js(`toPage('tune.wav')`), 'tune');
   await wait(() => js(`cue('tune.wav')==='Loose line'`), 'loose subtitle shown');
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Loose');
-    window.showOpenFilePicker=async()=>[await dir.getFileHandle('tune.en.lrc')];document.querySelector('#bar [data-act="files"]').click();})()`);
+    window.showOpenFilePicker=async()=>[await dir.getFileHandle('tune.en.lrc')];document.querySelector('#bar [data-act="files"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addLoose.click();})()`);
   await wait(async () => subsOf(await atlas())['tune.wav'].length === 2, 'later subtitle joined');
   a = await atlas();
   assert.equal(a.pages.length, 1, 'A subtitle alone adds no page');
@@ -377,9 +402,47 @@ try {
   assert.deepEqual(backup.exported, want);
   assert.deepEqual(backup.imported, want);
 
+  // ---- 添加对话框与拖放：字幕都走同一套导入。文件夹里同名的字幕；「添加」对话框里用「＋文件」与媒体一起选入的散图字幕；
+  // 之后单独加入图集的字幕（拖进「添加到散图图集」对话框的，以及直接拖到窗口的）。
+  await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('More',{create:true}),side=await root.getDirectoryHandle('Side',{create:true});
+    await mvMedia.write(dir,'m.wav',mvMedia.wav({seconds:2}));
+    await mvMedia.write(dir,'m.srt',text('1\\n00:00:00,000 --> 00:00:02,000\\nMore\\n'));
+    await mvMedia.write(side,'solo.wav',mvMedia.wav({seconds:2}));
+    for(const n of ['solo.srt','solo.en.vtt','solo.ass','tune.zh.srt'])await mvMedia.write(side,n,text('1\\n00:00:00,000 --> 00:00:02,000\\n'+n+'\\n'));
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});
+    window.showOpenFilePicker=async()=>[await side.getFileHandle('solo.wav'),await side.getFileHandle('solo.srt')];addFiles.click();
+    await new Promise(r=>{const w=()=>addList.children.length===3?r():setTimeout(w,10);w();});addMany.click();})()`);
+  await wait(async () => (await record('More'))?.pages?.length === 1, 'folder book from the dialog');
+  assert.deepEqual(subsOf(await record('More')), { 'm.wav': ['m.srt'] }, 'Subtitle in a folder added from the dialog');
+  await wait(async () => !!subsOf(await atlas())['solo.wav'], 'loose media from the dialog');
+  assert.deepEqual(subsOf(await atlas())['solo.wav'], ['solo.srt'], 'Picked together with its media');
+  await js(`(async()=>{const side=await (await navigator.storage.getDirectory()).getDirectoryHandle('Side');
+    DataTransferItem.prototype.getAsFileSystemHandle=function(){return Promise.resolve(window.queue.shift()??null);};
+    window.showOpenFilePicker=async()=>[await side.getFileHandle('solo.en.vtt')];document.querySelector('#bar [data-act="files"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});
+    window.queue=[await side.getFileHandle('tune.zh.srt')];const dt=new DataTransfer();dt.items.add(new File([],'x'));
+    addList.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));
+    await new Promise(r=>{const w=()=>addList.children.length===2?r():setTimeout(w,10);w();});addLoose.click();})()`);
+  await wait(async () => subsOf(await atlas())['solo.wav'].length === 2, 'subtitle picked later');
+  await wait(async () => subsOf(await atlas())['tune.wav'].length === 3, 'subtitle dropped into the dialog later');
+  await js(`(async()=>{const side=await (await navigator.storage.getDirectory()).getDirectoryHandle('Side');
+    window.queue=[await side.getFileHandle('solo.ass')];const dt=new DataTransfer();dt.items.add(new File([],'x'));
+    document.body.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));})()`);
+  await wait(async () => subsOf(await atlas())['solo.wav'].length === 3, 'subtitle dropped on the window later');
+  a = await atlas();
+  assert.deepEqual(subsOf(a), {
+    'tune.wav': ['tune.en.lrc', 'tune.srt', 'tune.zh.srt'],
+    'solo.wav': ['solo.ass', 'solo.en.vtt', 'solo.srt'],
+  });
+  assert.ok(
+    await js(
+      `import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.sources?.length).pages.every(p=>p.subs.every(e=>e.handle instanceof FileSystemFileHandle)))`,
+    ),
+    'Handles kept for the loose subtitles',
+  );
+
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: subtitle matching on scan (not pages, nothing read), video overlay at the bottom following time (seek, playback), tags stripped, 3-line limit, menu for several subtitles (choice saved per media, GBK decoded), global on/off, audio card, disabled without subtitles, read once and cached across unload, refresh adds/removes subtitles, loose atlas pairing with stored handles and subtitles added later, backup export/import',
+    'PASS: subtitle matching on scan (not pages, nothing read), video overlay at the bottom following time (seek, playback), tags stripped, 3-line limit, menu for several subtitles (choice saved per media, GBK decoded), global on/off, audio card, disabled without subtitles, read once and cached across unload, refresh adds/removes subtitles, loose atlas pairing with stored handles and subtitles added later, backup export/import, subtitles through the add dialog (folder, files with media, added later) and drops',
   );
 } finally {
   if (ws?.readyState === 1) {

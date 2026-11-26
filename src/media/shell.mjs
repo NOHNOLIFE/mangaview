@@ -4,7 +4,7 @@
 // 音量、播放顺序、循环、只播区段、新窗口播放等列表级控制在总控栏（reader/controlbar.mjs）。
 // 字幕容器 .mv-subs 由这里建好并留空（aria-live="off"）：视频叠在画面底部、控件上方；音频是卡片里始终占位、可容 3 行的区域。
 // 只有按钮、进度条、可选中的文件名带 data-nodrag，面板的空白处可以拖动滚动正文。
-// 音频卡片：书有封面时（ctx.bookCover，可选）以压暗的封面作背景。
+// 音频卡片：书有封面时以压暗的封面作背景（ctx.coverBg，见 shelf/bookcover.mjs；封面换了已显示的卡片跟着变）。
 import { extend } from '../core/lang.mjs';
 import { shownName, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
@@ -100,7 +100,7 @@ export function install(ctx, S) {
       head.append(icon('music'), eq, name);
       card.append(head, p.subs, p.shell);
       node.replaceChildren(card, el);
-      cover(p, card);
+      ctx.coverBg?.(card, book); // 不存进页记录，每次建卡片时取当前封面
     }
     p.fail = make('div', 'mv-fail');
     p.fail.dataset.nodrag = '';
@@ -115,17 +115,6 @@ export function install(ctx, S) {
     decorate(p);
     render(p);
     return p;
-  }
-  // 音频卡片的背景：书的当前封面（每次建卡片时取，不存进页记录），压暗以保证文字对比度。ctx.bookCover(book) → Promise<地址|null>，未提供时不显示。
-  function cover(p, card) {
-    Promise.resolve()
-      .then(() => ctx.bookCover?.(p.book))
-      .then((url) => {
-        if (!url || !players.has(p.node)) return;
-        card.style.setProperty('--cover', 'url("' + String(url).replace(/["\\]/g, '\\  function shell(p) {') + '")');
-        card.classList.add('has-cover');
-      })
-      .catch(() => {});
   }
   function shell(p) {
     const s = make('div', 'mv-shell'),

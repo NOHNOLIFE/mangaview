@@ -2,8 +2,8 @@ import { extend } from './lang.mjs';
 import { on as onStore, freeze, isFrozen } from './store.mjs';
 import { forget } from '../reader/thumbs.mjs';
 // 多个窗口（包括同一本书）同时打开时的协调。各窗口各自持有内存中的书目，通过 BroadcastChannel 互相通知：
-// - 书目、缩略图的写入（store.mjs 的写入通知）合并成批转告其他窗口；收到的窗口按书重读，只更新受影响的项（app.mjs 的 pull）。
-// - 偏好经 localStorage 的 storage 事件同步（app.mjs，设置类 / 布局类的登记见那里的 prefs）。
+// - 书目、缩略图的写入（store.mjs 的写入通知）合并成批转告其他窗口；收到的窗口按书重读，只更新受影响的项（core/books.mjs 的 pull）。
+// - 偏好经 localStorage 的 storage 事件同步（core/prefs.mjs，设置类 / 布局类的登记见 ctx.prefs）。
 // - 后台磁盘任务（启动时检查全部文件夹、生成封面等）用 Web Locks 保证同时只有一个窗口执行：ctx.disk。
 // - 全局操作（还原默认设置、导入备份、清空）：ctx.hold() 先让其他窗口停止写入，完成后 ctx.reloadOthers() 让它们重新载入。
 // - 存储结构升级：本窗口让出连接（store.mjs）并提示重新载入。

@@ -267,7 +267,7 @@ test('.pbf 的配对随扫描、刷新、散图一同得出，读取只取配对
   assert.equal(hasPbf(book.pages[3]), true);
   applyNames(book, s, ['a.mp4', 'b.flac', 'c.png', 'c.mp3']);
   assert.equal(book.pages[1].pbf.file, 'b.flac.pbf', 'Without a listing of .pbf files the pairing is untouched');
-  // 重新关联文件夹（app.mjs link）：按扫描结果配对。
+  // 重新关联文件夹（shelf/relink.mjs relink）：按扫描结果配对。
   pairFrom(book, s, [{ name: 'a.mp4', pbf: { file: 'a.pbf' } }, { name: 'b.flac' }]);
   assert.deepEqual(
     book.pages.map((p) => p.pbf?.file ?? null),

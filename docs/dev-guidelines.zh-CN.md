@@ -116,15 +116,124 @@
 
 ## 7. 代码结构
 
-- 根目录只放必须在根的文件：`index.html`、`sw.js`（Service Worker 的作用域取决于它所在的目录，必须在根）、`app.webmanifest`、`icons/`、`local_run.bat`、README、`docs/`、`tests/`、`dist/`（v1 迁移桥）。源码全部放在 `src/` 下，按领域分目录，样式表与同名模块放在同一目录：
-  - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各模块、启动流程，不放功能代码）与全局样式。
-  - `src/ui/`：通用界面小工具：`dom`（取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）、`icons`（往 sprite 登记图标的 `addIcons`）、`dragscroll`（全应用的鼠标拖动滚动与惯性、容器上不含拖动的点按 `tap`）。
-  - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、总控栏的模式 / 速率 / 禁用规则（`control`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）、偏好登记与跨窗口同步（`prefs`）、当前语言与文案函数（`locale`）、事件表（`events`）、书目与保存（`books`）、旧记录归一化（`normalize`）、过期与句柄状态（`status`）、字幕的解码与解析（`subtitles`）、拖动惯性的速度估算与衰减（`fling`）。
-  - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、当前书与阅读位置（`session`）、书名进度与提示条等外壳状态及切换语言（`shell`）、右侧缩略图栏的开合与调宽（`panel`）、页面排序（`sort`）、按钮动作表（`actions`）、顶部工具栏（`toolbar`）、底部总控栏（`controlbar`，速率与音量按钮的小面板在 `controlbar-dial`）、总控状态与运行 `ctx.transport`（`transport`）、正文与缩略图栏的点按（`tap`）、按键与长按滚动（`keys`）、专注模式（`focus`）、全屏总览（`overview` 入口、`overview-sheet` 面板外壳与搜索、`overview-pages` 全屏缩略图、`overview-marks` 全屏书架书签）。
-  - `src/shelf/`：书架。`shelf` 是唯一入口（装配子模块、重画、列表页签、布局切换），子模块：排序（`sort`）、封面与识别指纹的后台生成（`covercache`）、筛选状态（`filter`，纯逻辑在 `criteria`）、列表布局与焦点（`layout`）、卡片（`card`）、卡片操作按钮与「更多」菜单（`actions`）、批量操作（`bulk`）、筛选界面（`filterbar`）、搜索预设（`presets`）、存储空间（`storage`）、书名（`rename`）、标签（`tags`）、恢复流程与对话框（`restore`，配对规则在 `pairing`）、共用小工具（`util`）；自定义封面（`cover`）与书的当前封面（`bookcover`，音频的背景）；添加与导入：选择框入口（`pick`）、添加对话框（`add`，待添加项的纯逻辑在 `addlist`）、拖放（`drop`）、导入（`import`）、接回与重建（`relink`）、刷新与检查（`refresh`）、删除（`remove`）。子模块之间经 `shelf` 建立的共享对象 `S` 互相调用。
-  - `src/marks/`：书签入口与装配（`bookmarks`）、书签列表的纯逻辑（`list`：排序、区段是否生效、配对坐标、每页标记汇总）、数据操作与跳转（`actions`）、名称与位置文案（`names`）、列表项绘制（`tile`）、就地重命名（`rename`）、书签缩略图（`snap`）、书签面板（`panel`）、书架书签栏（`dock`）、缩略图上的标记（`pagemarks`）、PotPlayer 书签（`pbf`）；播放器进度条上的书签标记在 `src/media/marks.mjs`，全屏书架书签在 `src/reader/overview-marks.mjs`。
-  - `src/media/`：视频、音频播放器。`media` 是唯一入口（建立子模块共享的 `S`、按顺序装配子模块，对外提供 `ctx.media`、`ctx.player` 和正文的 `ctx.view.hooks.media`），子模块：统一音量（`volume`）、播放顺序与循环 / 播完后的切换 / 待接手的播放请求（`order`）、只播放书签区段（`sections`）、播放位置记忆（`position`）、提示浮层（`hud`）、缩略图里的占位（`tile`）、壳的 DOM 与状态显示（`shell`，样式在 `shell.css`）、播放器状态：挂源、失败、播放 / 暂停 / 定位（`player`）、当前媒体与自动播放（`autoplay`）、新窗口播放（`popout`）、外挂字幕的显示与按钮（`subtitles`，样式在 `subtitles.css`）、媒体按键（`keys`）、总控栏的影音驱动器与列表级控制（`driver`）；进度条上的书签标记（`marks`，由书签模块安装）。书签标记、占位、提示浮层的样式在 `media.css`。
-  - `src/panels/`：设置（`settings`）、导出与导入（`backup`）、键鼠操作图示（`help`）。
+- 根目录只放必须在根的文件：`index.html`、`sw.js`（Service Worker 的作用域取决于它所在的目录，必须在根）、`app.webmanifest`、`icons/`、`local_run.bat`、README、`docs/`、`tests/`、`dist/`（v1 迁移桥）。源码全部放在 `src/` 下，按领域分目录，样式表与同名模块放在同一目录。各文件的职责（目录为一级条目，其下每个文件一行，按文件名字母序；详细说明在各文件开头的注释里）：
+  - `src/`：启动装配与全局样式
+    - `app.mjs`：启动装配：建立 `ctx`、按顺序安装各模块、载入书目并打开上次读的书，不放功能代码；四边呼出距离 `EDGE` 在这里。
+    - `style.css`：全局样式（深色界面、浮层、对话框、拖入覆盖层等）。
+  - `src/core/`：不含界面的数据与逻辑
+    - `books.mjs`：书目（`books`）与保存：`persist` 只写本窗口改过的字段，`pull` 接收别的窗口的改动。
+    - `control.mjs`：总控栏的纯逻辑：模式、滚动 / 播放速率的范围与档位、各模式下的禁用规则。
+    - `events.mjs`：模块间的事件表（`ctx.on` / `emit`）。
+    - `fling.mjs`：拖动惯性的速度估算与衰减（纯计算）。
+    - `lang.mjs`：内置翻译：`index.html` 静态标签与多个模块共用的文案，各模块经 `extend()` 登记自己的文案。
+    - `locale.mjs`：当前界面语言、文案函数（`t` / `fmt`）与书的显示名（`title`）。
+    - `match.mjs`：过期书与候选文件夹的匹配（文件夹名 + 封面摘要）、标签配色。
+    - `merge.mjs`：多窗口写入的按字段 / 按条目合并。
+    - `model.mjs`：页模型：按扩展名判断页的类型、排版尺寸、文件名排序（`nameOrder`）、.pbf 与字幕的文件名配对。
+    - `normalize.mjs`：旧记录读入时的归一化。
+    - `playlist.mjs`：播放顺序与循环、只播区段、新窗口播放地址的纯逻辑。
+    - `prefs.mjs`：偏好的登记、读写与跨窗口同步，还原默认设置（`resetPrefs`）。
+    - `sections.mjs`：区段书签的配对规则。
+    - `sources.mjs`：目录扫描与文件访问：书的源、散图图集、句柄限时（`timed`）与探测（`probe`）、.pbf 与字幕的配对记录。
+    - `status.mjs`：书的可用状态：过期、缺卷、缺页，启动 / 刷新前的句柄探测。
+    - `store.mjs`：IndexedDB 存储（书目、缩略图）与写入通知。
+    - `subtitles.mjs`：外挂字幕的解码与解析。
+    - `windows.mjs`：多窗口协调：写入通知的转发、后台磁盘任务锁（`ctx.disk`）。
+  - `src/marks/`：书签
+    - `actions.mjs`：书签的数据操作与跳转：添加书签 / 区段书签、删除、F / Enter 跳转、离阅读位置最近的书签。
+    - `bookmarks.css`：书签面板、书签列表项与书架书签栏的样式。
+    - `bookmarks.mjs`：书签入口：数据格式说明、图标、按顺序装配各子模块（共享对象 `S`）。
+    - `dock.mjs`：书架书签栏（左侧，常驻或左缘弹出），提供 `ctx.shelfmarks`。
+    - `list.mjs`：书签列表的纯逻辑：排序、区段是否生效、配对坐标、每页标记汇总。
+    - `names.mjs`：书签的名称与位置文案。
+    - `pagemarks.mjs`：缩略图上的书签角标与页内细标记。
+    - `panel.mjs`：书签面板（右键呼出）。
+    - `pbf.mjs`：PotPlayer 书签（.pbf）的导入与跟随。
+    - `rename.mjs`：书签的就地重命名（铅笔按钮 / F2）。
+    - `snap.mjs`：书签缩略图：截取、绘制、视频画面的懒生成。
+    - `tile.mjs`：书签列表项的绘制（书签面板、书架书签栏、全屏书签、设置封面共用）。
+  - `src/media/`：视频、音频播放器
+    - `autoplay.mjs`：当前媒体的判定与自动播放。
+    - `driver.mjs`：媒体与总控（`ctx.transport`）的衔接：影音模式的驱动器、单个媒体自己的播放键、列表级控制。
+    - `hud.mjs`：提示浮层（音量、快进 / 快退）。
+    - `keys.mjs`：媒体按键：长按快进 / 快退、空格、音量、新窗口播放。
+    - `marks.mjs`：播放器上的书签：进度条上的标记与区段、「添加书签」「添加区段书签」按钮（由书签模块安装）。
+    - `media.css`：进度条上的书签标记、缩略图里的占位、提示浮层的样式。
+    - `media.mjs`：播放器入口：建立子模块共享的 `S`、按顺序装配子模块，对外提供 `ctx.media`、`ctx.player` 和正文的 `ctx.view.hooks.media`。
+    - `order.mjs`：播放顺序与循环、播完后的切换、待接手的播放请求。
+    - `player.mjs`：播放器状态：挂源 / 卸载、失败与重试、播放 / 暂停 / 定位。
+    - `popout.mjs`：新窗口播放。
+    - `position.mjs`：播放位置记忆。
+    - `sections.mjs`：只播放书签区段。
+    - `shell.css`：播放面板的样式：视频画面与大播放键、壳、字幕容器、音频卡片、失败占位。
+    - `shell.mjs`：单个文件的播放面板（壳）：DOM 与状态显示、字幕容器、音频卡片的封面背景。
+    - `subtitles.css`：字幕的样式。
+    - `subtitles.mjs`：外挂字幕的显示、读取与缓存，面板上的字幕按钮与选择菜单。
+    - `tile.mjs`：缩略图栏、全屏缩略图里视频、音频的占位（`ctx.mediaTile`）。
+    - `volume.mjs`：统一音量与静音。
+  - `src/panels/`：对话框式面板
+    - `backup.mjs`：导出与导入。
+    - `help.css`：键鼠操作图示的样式。
+    - `help.mjs`：键鼠操作图示，键位只在这里登记（`KEYS` / `MORE`）。
+    - `settings.css`：设置面板与备份对话框的样式。
+    - `settings.mjs`：设置面板（按 group 渲染 `ctx.settings`）与还原默认设置。
+  - `src/reader/`：阅读区
+    - `actions.mjs`：按钮动作表（`ctx.actions`）与全局点击分派。
+    - `controlbar-dial.mjs`：总控栏上速率、音量按钮的小面板。
+    - `controlbar.css`：总控栏的样式。
+    - `controlbar.mjs`：底部总控栏（阅读、通用、媒体三区）。
+    - `focus.css`：专注模式的样式。
+    - `focus.mjs`：专注模式的开关。
+    - `keys.mjs`：全局快捷键的分派（`ctx.keys`）、按住 W / S 持续滚动、长按翻页键（`ctx.pageHold`）。
+    - `overview-marks.mjs`：全屏书架书签。
+    - `overview-pages.mjs`：全屏缩略图。
+    - `overview-sheet.mjs`：全屏总览的面板外壳与搜索。
+    - `overview.css`：全屏总览的样式。
+    - `overview.mjs`：全屏总览入口：文案、图标、装配两个全屏界面与缩略图栏顶部的打开按钮。
+    - `panel.mjs`：右侧缩略图栏的开合与调宽。
+    - `session.mjs`：当前书与阅读位置、切书、阅读范围（`readingList`）。
+    - `shell.mjs`：阅读区外壳的状态显示（书名、进度、提示条）与切换界面语言。
+    - `sort.mjs`：页面排序与排序对话框。
+    - `tap.mjs`：正文与缩略图栏的点按（翻屏、点媒体播放 / 暂停）、回到书首 / 滚到书尾。
+    - `thumbs.mjs`：缩略图的生成与会话缓存、视频截帧。
+    - `toolbar.css`：顶部工具栏的样式。
+    - `toolbar.mjs`：顶部工具栏。
+    - `transport.mjs`：总控状态与运行（`ctx.transport`），不含界面。
+    - `view.mjs`：虚拟化的正文与缩略图栏、图片读取与解码队列。
+  - `src/shelf/`：书架；子模块之间经 `shelf.mjs` 建立的共享对象 `S` 互相调用
+    - `actions.mjs`：卡片上的操作按钮与「更多」菜单。
+    - `add.mjs`：添加对话框。
+    - `addlist.mjs`：添加对话框里待添加项的纯逻辑。
+    - `bookcover.mjs`：书的当前封面（`ctx.bookCover` / `ctx.coverBg`），音频的背景。
+    - `bulk.mjs`：批量操作。
+    - `card.mjs`：书卡片的内容与封面显示。
+    - `cover.mjs`：自定义封面（设置 / 重置封面）。
+    - `covercache.mjs`：默认封面与识别指纹的后台生成。
+    - `criteria.mjs`：筛选条件的纯逻辑。
+    - `drop.mjs`：拖放导入（拖入覆盖层的三块区域）。
+    - `filter.mjs`：筛选状态与持久化、按条件匹配书（`ctx.matchFilter`）。
+    - `filterbar.mjs`：筛选界面。
+    - `import.mjs`：导入：建书或并入已有的书、添加为单个作品、导入结果的提示。
+    - `layout.mjs`：列表布局（网格 / 瀑布流、虚拟列表）与焦点。
+    - `pairing.mjs`：恢复的配对规则与添加时的自动接回（`ctx.autoMatch`）。
+    - `pick.mjs`：系统选择框入口与回退的 `<input>`。
+    - `presets.mjs`：搜索预设。
+    - `refresh.mjs`：刷新与检查。
+    - `relink.mjs`：把源接到文件夹上、合并作品的查找与重建。
+    - `remove.mjs`：删除书。
+    - `rename.mjs`：书名编辑。
+    - `restore.mjs`：恢复流程与对话框。
+    - `shelf.css`：书架的样式。
+    - `shelf.mjs`：书架的唯一入口：建立共享对象 `S`、装配子模块、重画、列表页签、布局切换。
+    - `sort.mjs`：书架排序。
+    - `storage.mjs`：存储空间检查。
+    - `tags.mjs`：标签。
+    - `util.mjs`：书架各模块共用的小工具。
+  - `src/ui/`：通用界面小工具
+    - `dom.mjs`：取元素、建元素与图标按钮、浮层淡出（`fade`）、提示条、长按进度环（`holdRing`）。
+    - `dragscroll.mjs`：全应用的鼠标拖动滚动与惯性、容器上不含拖动的点按（`tap`）。
+    - `icons.mjs`：往 sprite 登记图标（`addIcons`）。
+- 新增文件时在它所在目录下按字母序加一行（`文件名`：一句话职责），删除、移动、改变职责时同步修改这里，不改别的目录的条目；职责说明以文件开头的注释为准。
 - 新模块放进职责对应的目录；出现新的领域时新建目录，不往根目录或 `app.mjs` 里堆。模块之间用相对路径 import。
 - 登记类列表一项一行，一行不写多条：`sw.js` 的 `shell` 列表、`index.html` 的图标 sprite（每个 `<symbol>` 一行）、`index.html` 的样式表 `<link>`、`app.mjs` 的导入与模块安装调用。与顺序无关的（`shell` 按路径、sprite 按 id，渐变 `defs` 和 `logo` 在最前）按字母序插入到对应位置，不追加在末尾；有顺序要求的（样式表的层叠、模块的安装顺序）按依赖排列。
 - 代码格式由 prettier 统一，配置在 `.prettierrc.json`：提交前运行 `npx prettier@3 --write "src/**/*.{mjs,css}" "tests/**/*.mjs" sw.js`。prettier 只在开发时经 `npx` 运行，不进仓库依赖；`index.html` 和文档不格式化。

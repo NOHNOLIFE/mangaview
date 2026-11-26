@@ -270,30 +270,34 @@
   padding: 10px 14px 8px;
   border: 1px solid var(--line2);
   border-radius: 14px;
-  background: var(--solid);
+  background-color: var(--solid);
   transition:
     background-color 0.2s,
+    border-color 0.2s,
     box-shadow 0.2s;
 }
+/* 播放中：底色提亮、描边带强调色（另有音柱、强调色的播放键与进度条）。有无封面都用分开的属性写，互不覆盖。 */
 .media.audio.playing .mv-card {
-  border-color: rgba(255, 122, 89, 0.35);
+  border-color: rgba(255, 122, 89, 0.6);
   background-color: #2b2a31;
 }
 .media.audio.current .mv-card {
   box-shadow: 0 0 0 2px var(--accent);
 }
-/* 书有封面时以封面作背景（像内嵌的专辑图），压暗以保证文字对比度；播放中压暗略少。 */
+/* 书有封面时以封面作背景（像内嵌的专辑图，bookcover.mjs 的 .has-cover / --cover），压暗以保证文字对比度：
+   按背后是白色的最坏情况，未播放压暗 0.78、播放中 0.66（提亮），封面上的文字用 --text，对比度都在 4.5:1 以上。 */
 .mv-card.has-cover {
-  background:
-    linear-gradient(rgba(12, 12, 15, 0.78), rgba(12, 12, 15, 0.78)),
-    var(--cover) center / cover no-repeat,
-    var(--solid);
+  background-image: linear-gradient(rgba(12, 12, 15, 0.78), rgba(12, 12, 15, 0.78)), var(--cover);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 .media.audio.playing .mv-card.has-cover {
-  background:
-    linear-gradient(rgba(12, 12, 15, 0.66), rgba(12, 12, 15, 0.66)),
-    var(--cover) center / cover no-repeat,
-    var(--solid);
+  background-image: linear-gradient(rgba(12, 12, 15, 0.66), rgba(12, 12, 15, 0.66)), var(--cover);
+}
+.mv-card.has-cover .mv-head,
+.mv-card.has-cover .mv-time {
+  color: var(--text);
 }
 .mv-head {
   display: flex;

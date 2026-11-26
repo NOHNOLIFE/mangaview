@@ -143,7 +143,7 @@ const size = (n) =>
           ? (n / 1048576).toFixed(1) + ' MB'
           : (n / 1073741824).toFixed(2) + ' GB';
 // 去掉不能序列化或只在本次会话有效的字段：目录 / 文件句柄、失效标记。
-// 格式 2：书目带 sources（每个源一个文件夹）；格式 1 的单文件夹记录在载入时转为一个源（见 app.mjs normalize）。
+// 格式 2：书目带 sources（每个源一个文件夹）；格式 1 的单文件夹记录在载入时转为一个源（见 core/normalize.mjs）。
 const page = ({ handle, ...p }) => p;
 export function strip(book) {
   const { dir, missing, roots, ...rest } = book,
@@ -368,7 +368,7 @@ export async function merge(ctx, data) {
   return { added, merged };
 }
 // 替换：先放下当前书，避免之后 pagehide 把本机阅读位置写回；再清空全部数据写入备份。
-// 内存中的书目也先清空，后台任务晚到的保存不会把旧记录写回（见 app.mjs persist）。
+// 内存中的书目也先清空，后台任务晚到的保存不会把旧记录写回（见 core/books.mjs persist）。
 export async function replace(ctx, data) {
   ctx.select(null);
   ctx.books.clear();

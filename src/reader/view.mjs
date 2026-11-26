@@ -260,7 +260,7 @@ export class Reader {
     main.style.setProperty('--vh', main.clientHeight + 'px');
   }
   // 视频的高度封顶值（阅读视窗高度）：窗口尺寸停止变化约 200ms 后才重新计算，拖动过程中占位高度不变；
-  // 期间视窗变矮时，画面在原占位里按 --vh 临时等比缩小（media.css）。重算时沿用缩放锚点（held）。
+  // 期间视窗变矮时，画面在原占位里按 --vh 临时等比缩小（media/shell.css）。重算时沿用缩放锚点（held）。
   recap() {
     const h = this.main.clientHeight;
     if (!h || h === this.cap) return;

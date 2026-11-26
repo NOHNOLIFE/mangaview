@@ -155,7 +155,7 @@ const ctx = {
     if (shelf.open) ctx.drawShelf();
   },
 };
-ctx.pageHold = null; // 长按翻页键的接入点（见 keys.mjs 的 HOLD_LONG），media.mjs 把媒体快进 / 快退接在这里
+ctx.pageHold = null; // 长按翻页键的接入点（见 reader/keys.mjs 的 HOLD_LONG），media/keys.mjs 把媒体快进 / 快退接在这里
 // 其余成员由各模块安装时添加：
 // - windows.mjs：disk（后台读盘的轮次）、hold / reloadOthers（全局操作前后通知其他窗口）
 // - 书架页（shelf/）：autoMatch、restoreBatch、restoreOne、shelfView、filtering、clearFilters、refreshCard；cover.mjs：pickCover

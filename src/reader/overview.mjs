@@ -2,6 +2,7 @@ import { extend } from '../core/lang.mjs';
 import { install as sheets } from './overview-sheet.mjs';
 import { install as pages } from './overview-pages.mjs';
 import { install as shelfmarks } from './overview-marks.mjs';
+import { addIcons } from '../ui/icons.mjs';
 // 全屏总览：
 // · 全屏缩略图：缩略图栏顶部的按钮，或快捷键 V / ]。整本书的页面排成规整网格（默认）或瀑布流，只为可见范围创建元素；
 //   缩略图与缩略图栏共用会话内存缓存（thumbs.mjs），再次打开、切书后回来都不必重读原图。
@@ -54,12 +55,12 @@ extend({
   ],
 });
 // 侧栏顶部“打开全屏”按钮的图标（2×2 网格）；模块加载时就放进 sprite，书签列表安装时即可引用。
-document
-  .querySelector('svg.sprite')
-  ?.insertAdjacentHTML(
-    'beforeend',
-    '<symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol><symbol id="i-masonry" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="10" rx="1.5"/><rect x="3" y="16" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.5"/></symbol>',
-  );
+addIcons({
+  overview:
+    '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
+  masonry:
+    '<rect x="3" y="3" width="7.5" height="10" rx="1.5"/><rect x="3" y="16" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.5"/>',
+});
 export function install(ctx) {
   const { t, make } = ctx;
   ctx.dropKey('overview');

@@ -1,4 +1,4 @@
-// 播放顺序与循环（docs/requirements-media.zh-CN.md 3.7）、只播放书签区段（4.5）、新窗口播放的地址与窗口大小（10.2）的纯逻辑，不碰界面和存储（media.mjs 调用，tests/core.test.mjs 覆盖）。
+// 播放顺序与循环（docs/requirements-media.zh-CN.md 3.7）、只播放书签区段（4.5）、新窗口播放的地址与窗口大小（10.2）的纯逻辑，不碰界面和存储（media.mjs 调用，tests/core/playlist.test.mjs 覆盖）。
 // 播放顺序：'list' 列表（默认）、'single' 单集、'shuffle' 随机；壳上的按钮按 ORDERS 的次序轮换。
 export const ORDERS = ['list', 'shuffle', 'single'];
 export const orderOf = (v) => (ORDERS.includes(v) ? v : 'list');

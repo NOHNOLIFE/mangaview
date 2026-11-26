@@ -4,7 +4,7 @@
 //   之后每次挂上源只取文件的大小和修改时间，变了才重读；读不到时简短提示，不影响播放。
 // - 开关全局记住（偏好 'subs'，跨窗口同步）；选择按媒体记在书目记录的 book.subPick=[{id:页名,f:字幕文件名}]（按条目合并，见 merge.mjs），
 //   没选过的默认取与媒体完全同名的，其次按文件名顺序第一个（model.mjs defaultSub）。
-// - 显示在面板的字幕容器 .mv-subs 里（视频叠在画面底部，全屏、新窗口播放同样显示；音频在卡片的字幕区）；面板没有提供时自建一个最简的。
+// - 显示在面板（shell.mjs）建好的字幕容器 p.subs（.mv-subs）里：视频叠在画面底部、控件上方（全屏、新窗口播放同样显示），音频在卡片里始终占位 3 行的字幕区。
 // 时间更新：timeupdate，视频播放中另用 requestVideoFrameCallback 逐帧；定位、变速、只播区段的跳转后立即刷新；卸载源时清空。
 import { extend } from '../core/lang.mjs';
 import { fileOf, defaultSub } from '../core/model.mjs';
@@ -57,16 +57,12 @@ export function install(ctx) {
     ctx.persist(book);
     for (const q of ctx.player.list()) if (q.book === book && q.page === p.page) show(q);
   }
-  // ---- 容器：面板提供的 .mv-subs；没有时自建（视频叠在画面上，音频放在卡片的标题行）。
+  // ---- 容器：面板建好的 .mv-subs（shell.mjs），字幕模块只往里放一行 .mv-cue。
   function setup(p) {
     let s = state.get(p);
     if (s) return s;
-    let box = p.node.querySelector('.mv-subs');
-    if (!box) {
-      box = make('div', 'mv-subs mv-subs-own');
-      if (p.kind === 'video') p.el.after(box);
-      else (p.node.querySelector('.mv-head') ?? p.node.querySelector('.mv-card') ?? p.node).append(box);
-    }
+    const box = p.subs;
+    if (!box) return null;
     const cue = make('div', 'mv-cue');
     cue.hidden = true;
     box.append(cue);
@@ -121,8 +117,9 @@ export function install(ctx) {
   }
   // ---- 读取：每次挂上源后核对一次文件（只取大小和修改时间），缓存里有同样的就不读内容。
   async function show(p) {
-    const s = setup(p),
-      file = on && p.state === 'ready' ? chosen(p) : null;
+    const s = setup(p);
+    if (!s) return;
+    const file = on && p.state === 'ready' ? chosen(p) : null;
     if (!file) {
       s.cues = null;
       s.file = null;

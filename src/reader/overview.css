@@ -227,7 +227,7 @@
   height: 100%;
   object-fit: cover;
 }
-/* 瀑布流（overview.mjs 的 markLayout 按缩略图比例逐列定位）。 */
+/* 瀑布流（overview-marks.mjs 的 markLayout 按缩略图比例逐列定位）。 */
 .ov-marks.masonry .ov-sec-grid {
   display: block;
   position: relative;

@@ -9,7 +9,7 @@ export function install(ctx, S) {
     progress = (...a) => S.progress(...a),
     showHud = (...a) => S.showHud(...a),
     hideHud = (...a) => S.hideHud(...a);
-  // 长按 A / D / ← / →（app.mjs 的 pageHold）：当前媒体快退 / 快进，暂停中的也可以；没有当前媒体时无功能。
+  // 长按 A / D / ← / →（reader/keys.mjs 的长按翻页键，经 ctx.pageHold 交到这里）：当前媒体快退 / 快进，暂停中的也可以；没有当前媒体时无功能。
   let held = null;
   function tick() {
     const { p, d, t0 } = held;
@@ -48,7 +48,7 @@ export function install(ctx, S) {
     },
   };
   // 按键：空格（含 Shift）是总控栏的大播放键（运行 / 停止，见 reader/transport.mjs），不滚动；Q / ; 音量减、E / ' 音量加（每次 5%，按住连续调）；Z / / 新窗口播放当前媒体（无当前媒体时无功能）。
-  // 书架页、全屏界面里的 / 是聚焦搜索框：它们是对话框，app.mjs 不把按键交到这里。
+  // 书架页、全屏界面里的 / 是聚焦搜索框：它们是对话框，reader/keys.mjs 不把按键交到这里。
   ctx.keys.push({
     down(e) {
       if (e.key === ' ' || e.code === 'Space') {

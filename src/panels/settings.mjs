@@ -174,7 +174,7 @@ export function install(ctx) {
     const at = focus ? body.querySelector(`[data-id="${CSS.escape(focus)}"]`) : null;
     (at?.querySelector('[aria-pressed=true]') || at?.querySelector('button,select'))?.focus();
   }
-  // 面板末尾：还原默认设置（见 app.mjs 的 resetPrefs），确认后重新载入。
+  // 面板末尾：还原默认设置（见 core/prefs.mjs 的 resetPrefs），确认后重新载入。
   function foot() {
     const el = make('div', 'set-foot'),
       hint = make('small', '', t('resetPrefsHint')),

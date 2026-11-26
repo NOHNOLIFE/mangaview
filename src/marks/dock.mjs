@@ -3,7 +3,7 @@ import { list, key, endKey } from './list.mjs';
 // 书架书签栏（左侧，常驻或左缘弹出）：按书架顺序集中显示各书的书签、标出离阅读位置最近的一个、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
 const DWELL = 150,
   MIN_W = 160,
-  BROWSE = 1500; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
+  BROWSE = 1500; // DWELL / MIN_W：与右侧缩略图栏（reader/panel.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
 export function install(ctx, S) {
   const { main, t, fmt, notice, make } = ctx;
   // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。

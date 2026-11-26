@@ -152,7 +152,7 @@ extend({
   hkMoreCopy: ['Copy the listed titles', '复制书架列出的书名', '本棚の書名をコピー', '책장 제목 복사'],
 });
 
-// ==== 键位数据。改键位（app.mjs、bookmarks.mjs、overview.mjs、shelf.mjs 的按键处理）要同步这里的 KEYS / MORE 和 README 的按键表。====
+// ==== 键位数据。改键位（reader/keys.mjs、media/keys.mjs 及经 ctx.keys 接入的各模块的按键处理）要同步这里的 KEYS / MORE 和 README 的按键表。====
 // 真实键盘（ANSI 布局）每一行从左到右：[键 id, 宽度(u)]；id 为 null 是键之间的空隙。
 const row = (s) => s.split(' ').map((k) => [k, 1]);
 export const ROWS = {

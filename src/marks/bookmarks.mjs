@@ -9,6 +9,7 @@ import { install as actions } from './actions.mjs';
 import { install as dock } from './dock.mjs';
 import { install as playerMarks } from '../media/marks.mjs';
 import { install as pageMarkers } from './pagemarks.mjs';
+import { addIcons } from '../ui/icons.mjs';
 // 书签：book.bookmarks=[{id,name,f,at,end?}]，按页名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
 // 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label,named?,pbfName?,from?,end?}。
 // 名称（names.mjs）：label 为完整的名称字符串，媒体书签都有，图片书签只在手动改名后有；named：手动改过；pbfName：.pbf 里的原名（pbf.mjs）。
@@ -95,19 +96,14 @@ extend({
   smWidth: ['Bookmark list width', '书签列表宽度', 'しおり一覧の幅', '책갈피 목록 너비'],
 });
 export function install(ctx) {
-  const sprite = document.querySelector('svg.sprite'),
-    mark = 'M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
-  if (sprite && !document.getElementById('i-bookmark'))
-    sprite.insertAdjacentHTML(
-      'beforeend',
-      `<symbol id="i-bookmark" viewBox="0 0 24 24"><path d="${mark}"/></symbol><symbol id="i-bookmark-plus" viewBox="0 0 24 24"><path d="${mark}"/><path d="M12 7v6M9 10h6"/></symbol>`,
-    );
+  const mark = 'M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
   // 成对标记：起点是书签标记里一个向后的箭头，区段书签是向前的箭头，一头一尾互相呼应（缩略图栏的页内细标记是一对方括号，见 bookmarks.css）。
-  if (sprite && !document.getElementById('i-bm-start'))
-    sprite.insertAdjacentHTML(
-      'beforeend',
-      `<symbol id="i-bm-start" viewBox="0 0 24 24"><path d="${mark}"/><path d="M10 7.5l4.5 3-4.5 3z" fill="currentColor"/></symbol><symbol id="i-bm-end" viewBox="0 0 24 24"><path d="${mark}"/><path d="M14 7.5l-4.5 3 4.5 3z" fill="currentColor"/></symbol>`,
-    );
+  addIcons({
+    bookmark: `<path d="${mark}"/>`,
+    'bookmark-plus': `<path d="${mark}"/><path d="M12 7v6M9 10h6"/>`,
+    'bm-start': `<path d="${mark}"/><path d="M10 7.5l4.5 3-4.5 3z" fill="currentColor"/>`,
+    'bm-end': `<path d="${mark}"/><path d="M14 7.5l-4.5 3 4.5 3z" fill="currentColor"/>`,
+  });
   const S = {}; // 子模块之间共享的函数与状态，各子模块在安装时登记自己的成员（S.last：最近一次跳到的书签，见 actions.mjs）
   names(ctx, S);
   tiles(ctx, S);

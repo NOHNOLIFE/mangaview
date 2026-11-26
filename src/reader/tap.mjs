@@ -9,7 +9,7 @@ export function screenStep(d) {
   stop();
   main.scrollTop += d * Math.max(1, main.clientHeight - 64);
 }
-// 点击正文：左半屏前一屏、右半屏后一屏；点在视频、音频上是播放 / 暂停（media.mjs）；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的操作栏里（endbar.mjs）。
+// 点击正文：左半屏前一屏、右半屏后一屏；点在视频、音频上是播放 / 暂停（media.mjs）；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的总控栏里（controlbar.mjs）。
 export const atStart = () => main.scrollTop < 1,
   atEnd = () => main.scrollHeight - main.scrollTop - main.clientHeight <= 1;
 export function toStart() {

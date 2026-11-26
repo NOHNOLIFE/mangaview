@@ -18,7 +18,7 @@ export function install(ctx, S) {
   const inView = (b, v = S.view) => (ctx.expired(b) ? v === 'expired' : v === 'all' || b.place === v);
 
   // ---- 筛选：关键词、页数、标签、只看有书签。条件持久保存（去抖写入），在书架 / 书库 / 所有书籍之间切换时保持；
-  // 上一本 / 下一本和书架书签列表也只在符合条件的书里进行（ctx.matchFilter，见 app.mjs 的 readingList）。
+  // 上一本 / 下一本和书架书签列表也只在符合条件的书里进行（ctx.matchFilter，见 reader/session.mjs 的 readingList）。
   const saved = get('shelfFilter', null);
   S.F = clean(saved);
   const loadPresets = () =>
@@ -97,7 +97,7 @@ export function install(ctx, S) {
   }
   ctx.matchFilter = matches;
   const filtering = () => !!(S.F.q.trim() || S.F.min || S.F.max || S.F.tags.length || S.F.marked || S.F.kinds.length);
-  ctx.filtering = filtering; // 底部操作栏据此标出“只在筛选结果内切书”
+  ctx.filtering = filtering; // 总控栏（reader/controlbar.mjs）据此标出“只在筛选结果内切书”
   const extraFilters = () =>
     S.F.tags.length + (S.F.min || S.F.max ? 1 : 0) + (S.F.marked ? 1 : 0) + (S.F.kinds.length ? 1 : 0);
   function setFilter(next, { preset = S.presetId, inputs = true } = {}) {
