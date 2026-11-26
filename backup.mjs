@@ -1,4 +1,5 @@
 import {extend} from './lang.mjs';
+import {fits} from './sections.mjs';
 // 应用数据导入 / 导出。备份只含书目记录、localStorage 中的 mv2: 键和缩略图；文件句柄无法序列化，导入后需重新关联文件夹。
 extend({
   bakNote:['Backups include book records, tags, bookmarks, reading positions, settings and thumbnails, but not the image files or folder access. After importing on another computer or browser, reconnect each folder.','备份包含书目记录、标签、书签、阅读位置、设置和缩略图，不含图片原文件和文件夹访问权限。换电脑或换浏览器导入后，需要重新关联文件夹。','バックアップには本の記録・タグ・しおり・読書位置・設定・サムネイルが含まれますが、画像ファイル本体とフォルダーへのアクセス権は含まれません。別の PC やブラウザーで読み込んだ後は、フォルダーを再度関連付けてください。','백업에는 책 기록, 태그, 책갈피, 읽기 위치, 설정, 썸네일이 포함되며 원본 이미지 파일과 폴더 접근 권한은 포함되지 않습니다. 다른 컴퓨터나 브라우저에서 가져온 뒤에는 폴더를 다시 연결하세요.'],
@@ -92,16 +93,34 @@ export async function parse(file){
   return {exported:data.exported,storage,thumbs,books:data.books.map(b=>{const book=strip(b);book.place??='shelf';book.tags=Array.isArray(book.tags)?book.tags:[];book.bookmarks=Array.isArray(book.bookmarks)?book.bookmarks:[];return book;})};
 }
 
-// 合并：同 id 以本机记录为准，只并入标签和书签；阅读位置只补缺；设置覆盖（mv2:last 除外）；缩略图只补缺。
+// 书签按 id 取并集。区段书签（bookmarks.mjs 的 end）：本机的同一个书签没有区段书签而备份里有时补上；
+// 并入后会与已有区段嵌套或交叉的区段书签不并入（书签本身照常并入），本机的区段一律保留。位置按本机记录的页序换算（sections.mjs）。
+export function mergeMarks(pages,marks,incoming){
+  const pos=new Map((Array.isArray(pages)?pages:[]).map((p,i)=>[p?.name,i])),key=m=>m?.id??JSON.stringify(m);
+  const at=m=>{const i=pos.get(m?.name);return i==null||!Number.isFinite(m?.f)?NaN:i+m.f;};
+  const out=[...marks],byId=new Map(out.map(m=>[key(m),m]));
+  const item=m=>({id:m?.id,at:at(m),end:isObj(m?.end)?(at(m.end)>at(m)?at(m.end):null):undefined});
+  // 两头都在、终点在起点之后时才检查冲突；暂不生效的区段不占范围，照常并入。
+  const ok=(start,end)=>{const a=at(start),b=at(end);return !(Number.isFinite(a)&&Number.isFinite(b)&&b>a)||fits(out.map(item),start.id,a,b);};
+  for(const m of incoming){
+    const mine=byId.get(key(m));
+    if(mine){if(isObj(mine)&&!mine.end&&isObj(m?.end)&&ok(mine,m.end))mine.end=m.end;continue;}
+    let add=m;if(isObj(m)&&isObj(m.end)&&!ok(m,m.end)){const {end,...rest}=m;add=rest;}
+    out.push(add);byId.set(key(add),add);
+  }
+  return out;
+}
+// 合并：同 id 以本机记录为准，只并入标签和书签（含区段书签，见 mergeMarks）、补上自定义封面；阅读位置只补缺；设置覆盖（mv2:last 除外）；缩略图只补缺。
 export async function merge(ctx,data){
   ctx.flush();
   const saved=new Map((await ctx.library('getAll')).map(b=>[b.id,b]));let added=0,merged=0;
   for(const b of data.books){
     const mine=ctx.books.get(b.id)??saved.get(b.id);
     if(!mine){await ctx.library('put',b);added++;continue;}
-    const tags=Array.isArray(mine.tags)?mine.tags:[],marks=Array.isArray(mine.bookmarks)?mine.bookmarks:[],id=m=>m?.id??JSON.stringify(m);
+    const tags=Array.isArray(mine.tags)?mine.tags:[],marks=Array.isArray(mine.bookmarks)?mine.bookmarks:[];
     mine.tags=[...new Set([...tags,...b.tags])];
-    const have=new Set(marks.map(id));mine.bookmarks=[...marks,...b.bookmarks.filter(m=>!have.has(id(m)))];
+    mine.bookmarks=mergeMarks(mine.pages,marks,b.bookmarks);
+    if(!mine.customCover&&isObj(b.customCover))mine.customCover=b.customCover; // 自定义封面的缩略图（`${id}:custom`）随下面的缩略图补缺一起并入
     await ctx.library('put',mine);merged++;
   }
   const keys=new Set(await ctx.thumbs('getAllKeys'));

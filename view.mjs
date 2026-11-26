@@ -121,7 +121,7 @@ export class Reader {
     if(end && i>=0)main.scrollTop=main.scrollHeight;
     this.correctedTop=this.main.scrollTop;
     if(navPos)this.preview.scrollTop=point(nav.starts,navPos)-H/2;
-    this.follow();this.schedule();
+    this.follow();this.schedule();this.hooks.laid?.();
   }
   // 页码与整体进度，供页码浮标、工具栏和书架显示。
   position(){

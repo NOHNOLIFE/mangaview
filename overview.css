@@ -54,3 +54,17 @@
 .side-open .i{width:18px;height:18px;color:var(--accent)}
 .side-open .side-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-open .count{flex:none;margin-left:auto;padding:0 2px;background:none;color:var(--faint);font-weight:600}
+
+/* 标题行的搜索框（两个全屏界面各一个）：宽度固定上限，窄窗口时收缩，不挤动右侧按钮。 */
+.ov-find{position:relative;display:flex;flex:0 1 15rem;min-width:7.5rem}
+.ov-find .i{position:absolute;left:10px;top:8px;width:17px;height:17px;color:var(--faint);pointer-events:none}
+.ov-find input{width:100%;height:33px;padding-left:33px}
+/* 没有匹配的项：浮在列表区上方，不参与布局。 */
+.ov-none{position:absolute;left:0;right:0;top:22%;display:grid;justify-items:center;gap:6px;color:var(--faint);font-size:13.5px;text-align:center}
+/* 区段范围（选中带起点或区段书签的页时）：覆盖的页叠一层淡色和描边，两端加粗；不改变排布。 */
+.ov-item.in-sec::before{content:'';position:absolute;inset:0;z-index:1;background:rgba(255,122,89,.14);box-shadow:inset 0 0 0 2px rgba(255,122,89,.7);pointer-events:none}
+.ov-item.sec-a::before,.ov-item.sec-b::before{box-shadow:inset 0 0 0 3px var(--accent)}
+/* 全屏书架书签：选中带区段书签的一格时，区段书签小图一起高亮。 */
+.ov-mark.sel .bm-sub,.ov-mark:hover .bm-sub{box-shadow:0 0 0 2px var(--accent),0 3px 10px rgba(0,0,0,.5)}
+/* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */
+@media (max-width:560px){.overview>.ov-head{flex-wrap:wrap;row-gap:6px;column-gap:8px}.overview .ov-hint{display:none}.overview .ov-title{flex:0 1 auto;max-width:45%}.overview .ov-pos{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}.ov-find{order:1;flex:1 1 100%}}

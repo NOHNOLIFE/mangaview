@@ -13,6 +13,7 @@ import {install as backup} from './backup.mjs';
 import {install as bookmarks} from './bookmarks.mjs';
 import {install as focusMode} from './focus.mjs';
 import {install as helpPanel} from './help.mjs';
+import {install as coverPicker} from './cover.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -80,7 +81,8 @@ function flush(){savePos();saveDims();}
 const view=new Reader(main,nav,{
   file:source,invalid:()=>t('invalid'),error(e,page){if(e.name!=='EncodingError'){unavailablePage=page;accessState();$('access').hidden=false;}},
   progress(){if(!posTimer)posTimer=setTimeout(savePos,250);if(!hudFrame)hudFrame=requestAnimationFrame(()=>{hudFrame=0;updateProgress(true);});},
-  measured(){dirty=current;clearTimeout(dimTimer);dimTimer=setTimeout(saveDims,800);}
+  measured(){dirty=current;clearTimeout(dimTimer);dimTimer=setTimeout(saveDims,800);},
+  laid(){emit('layout');} // 重新排版后（缩略图栏的书签标记据此重新定位）
 });
 let defaultSort=get('defaultSort',{mode:'nameAsc',revision:0});
 view.fit=get('fit',true);let pinned=get('preview',false);
@@ -590,12 +592,12 @@ async function joinLoose(list){
   for(const b of list){
     if(b===keep)continue;
     const names=await addLoose(keep,allPages(b)),have=new Set(keep.bookmarks.map(m=>m?.id));
-    for(const m of b.bookmarks){if(!m||have.has(m.id))continue;if(typeof m.name==='string')m.name=names.get(m.name)??m.name;keep.bookmarks.push(m);if(m.id!=null)moved.push([b,m]);}
+    for(const m of b.bookmarks){if(!m||have.has(m.id))continue;if(typeof m.name==='string')m.name=names.get(m.name)??m.name;if(typeof m.end?.name==='string')m.end.name=names.get(m.end.name)??m.end.name;keep.bookmarks.push(m);if(m.id!=null)moved.push([b,m]);}
     keep.tags=[...new Set([...keep.tags,...b.tags])];if(keep.name==null&&b.name)keep.name=b.name;
   }
   if(sortMode(keep)!=='shuffle')keep.pages=sortedPages(keep.pages,sortMode(keep),dirOf(keep));
   delete keep.folderTime;await persist(keep);
-  for(const [b,m] of moved){const th=await thumbs('get',b.id+':bm:'+m.id).catch(()=>null);if(th)await thumbs('put',th,keep.id+':bm:'+m.id);} // 书签缩略图键带书的 id（bookmarks.mjs）
+  for(const [b,m] of moved)for(const k of [':bm:'+m.id,':bm:'+m.id+':end']){const th=await thumbs('get',b.id+k).catch(()=>null);if(th)await thumbs('put',th,keep.id+k);} // 书签（及区段书签）缩略图键带书的 id（bookmarks.mjs）
   for(const b of list)if(b!==keep){books.delete(b.id);await library('delete',b.id);await dropThumbs(b.id);dropKey('pos:'+b.id);}
 }
 // 功能模块共用的上下文。keys：{down(e)→true 表示已处理, up(e), blur()}；settings：设置面板条目，见 settings 描述。
@@ -614,7 +616,7 @@ ctx.settings.push(
 try{for(const b of await library('getAll')){try{const old=b.added==null;books.set(b.id,normalize(b));if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);
+shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);coverPicker(ctx);
 toolPanel(ctx);
 
 await probeAll([...books.values()]);probed=true;

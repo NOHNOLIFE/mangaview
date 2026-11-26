@@ -2,6 +2,8 @@ import {extend} from './lang.mjs';
 import {imageJob,release} from './view.mjs';
 import {pageKey} from './thumbs.mjs';
 import {shownName} from './model.mjs';
+import {sourceOf} from './sources.mjs';
+import {norm} from './match.mjs';
 // 全屏总览：
 // · 全屏缩略图：缩略图栏顶部的按钮，或快捷键 V / ]。整本书的页面排成规整网格（默认）或瀑布流，只为可见范围创建元素；
 //   缩略图与缩略图栏共用会话内存缓存（thumbs.mjs），再次打开、切书后回来都不必重读原图。
@@ -9,6 +11,8 @@ import {shownName} from './model.mjs';
 // 标题行的按钮在“网格 / 瀑布流”间切换，两个全屏界面共用一个偏好（mv2:ovLayout）。
 // 面板里 WASD / 方向键按网格行列（瀑布流按列）移动选中；鼠标移到哪格就选中哪格，悬停与键盘共用同一个选中样式（缩小 + 描边，不遮挡相邻格）。
 // 空格 / Enter 或点击跳过去并关闭。
+// 标题行的搜索框：输入即过滤，键盘选择只在结果内移动；打开时焦点仍在列表上，/ 或 Ctrl+F 聚焦搜索框，搜索框内 Esc 先清空并回到列表。
+// 搜索词只在本次打开期间有效，关闭即清空，不影响上一本 / 下一本和书签跳转。
 // 标题行的书架按钮（或 B）在上层打开书架，全屏界面留在下面：书架里切书时全屏缩略图跟着换成新书，关闭书架后回到全屏界面（全屏书签按书架的最新状态重排）。
 extend({
   ovOpen:['Full-screen thumbnails (V)','全屏缩略图（V）','全画面サムネイル（V）','전체 화면 미리보기 (V)'],
@@ -18,6 +22,9 @@ extend({
   pvOpenLabel:['Full screen','全屏缩略图','全画面で表示','전체 화면'],
   ovPos:['Page {n} / {m}','第 {n} / {m} 页','{n} / {m} ページ','{n} / {m} 페이지'],
   ovShelf:['Bookshelf (B)','书架（B）','本棚（B）','책장 (B)'],
+  ovFindPages:['Search file names','搜索文件名','ファイル名を検索','파일 이름 검색'],
+  ovFindMarks:['Search titles, file names','搜索作品名、文件名','作品名・ファイル名を検索','작품명, 파일 이름 검색'],
+  ovNoMatch:['No matching items','没有匹配的项','一致する項目はありません','일치하는 항목 없음'],ovClear:['Clear search','清除搜索','検索をクリア','검색 지우기'],
   ovHint:['WASD / arrows: choose · Space / Enter: open · {key} / Esc: close','WASD / 方向键选择 · 空格 / Enter 打开 · {key} / Esc 关闭','WASD / 矢印で選択 · Space / Enter で開く · {key} / Esc で閉じる','WASD / 화살표로 선택 · Space / Enter로 열기 · {key} / Esc로 닫기']
 });
 // 侧栏顶部“打开全屏”按钮的图标（2×2 网格）；模块加载时就放进 sprite，书签列表安装时即可引用。
@@ -43,13 +50,20 @@ export function install(ctx){
     // 切换布局后焦点回到列表，空格 / Enter 仍是“打开选中项”而不是再按一次按钮。
     const lay=ctx.iconButton('overview','',()=>{ctx.put('ovLayout',masonry()?'grid':'masonry');syncLayout();for(const o of sheets)if(o.dialog.open)o.relayout();scroller.focus({preventScroll:true});},'ov-layout');
     const scroller=make('div','ov-scroll'),body=make('div',bodyClass);scroller.tabIndex=-1;scroller.setAttribute('role','listbox');
-    scroller.append(body);head.append(name,pos,hint,shelfBtn,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
+    // 搜索框；没有结果时在列表区显示「没有匹配的项」和一键清除（与“本来就没有”区分）。
+    const find=make('label','ov-find'),q=make('input'),none=make('div','ov-none'),noneText=make('span'),clear=make('button','link-btn');
+    q.type='search';q.autocomplete='off';q.spellcheck=false;find.append(ctx.icon('search'),q);
+    clear.type='button';none.hidden=true;none.append(noneText,clear);
+    clear.onclick=()=>{q.value='';hooks.filter();scroller.focus({preventScroll:true});};
+    q.addEventListener('input',()=>hooks.filter());
+    scroller.append(body,none);head.append(name,pos,hint,find,shelfBtn,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
     let closing=0;
     const s={dialog,name,pos,scroller,body,lay,relayout:()=>hooks.relayout(),
+      query:()=>q.value,none(on){none.hidden=!on;},
       is:e=>plain(e)&&keys.includes(e.key.toLowerCase()),
       open(quiet=false){
         if(dialog.open||document.querySelector('dialog[open]')||!hooks.setup(quiet))return false;
-        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();for(const [b,k] of [[shut,'close'],[shelfBtn,'ovShelf']]){b.title=t(k);b.setAttribute('aria-label',t(k));}
+        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();q.placeholder=t(hooks.find);q.setAttribute('aria-label',q.placeholder);noneText.textContent=t('ovNoMatch');clear.textContent=t('ovClear');for(const [b,k] of [[shut,'close'],[shelfBtn,'ovShelf']]){b.title=t(k);b.setAttribute('aria-label',t(k));}
         clearTimeout(closing);closing=0;dialog.classList.remove('closing');
         dialog.showModal();scroller.focus({preventScroll:true});hooks.show();return true;
       },
@@ -62,6 +76,13 @@ export function install(ctx){
         dialog.classList.add('closing');closing=setTimeout(()=>dialog.close(),140);
       }};
     dialog.addEventListener('keydown',e=>{
+      // 搜索框内：Esc 清空并回到列表（再按一次才关闭界面），Enter / ↓ 回到列表，其余按键照常输入。
+      if(e.target===q){
+        if(e.key==='Escape'||e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();
+          if(e.key==='Escape'&&q.value){q.value='';hooks.filter();}scroller.focus({preventScroll:true});}
+        return;
+      }
+      if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==='f'||plain(e)&&e.key==='/'){e.preventDefault();e.stopPropagation();q.focus();q.select();return;}
       if(!plain(e))return;
       if(s.is(e)){e.preventDefault();e.stopPropagation();if(!e.repeat)s.close();return;}
       const other=sheets.find(o=>o!==s&&o.is(e));
@@ -78,35 +99,51 @@ export function install(ctx){
       const node=e.target.closest('.ov-item');if(node)hooks.hover(node);
     });
     dialog.addEventListener('cancel',e=>{e.preventDefault();s.close();});
-    dialog.addEventListener('close',()=>{if(dialog.open)return; /* close 事件异步派发：期间已重新打开就不清理 */clearTimeout(closing);closing=0;dialog.classList.remove('closing');px=py=null;hooks.cleanup();main.focus({preventScroll:true});});
+    dialog.addEventListener('close',()=>{if(dialog.open)return; /* close 事件异步派发：期间已重新打开就不清理 */clearTimeout(closing);closing=0;dialog.classList.remove('closing');px=py=null;q.value='';none.hidden=true;hooks.cleanup();main.focus({preventScroll:true});});
     sheets.push(s);ctx.keys.push({down(e){if(!s.is(e))return false;e.preventDefault();if(!e.repeat)s.open();return true;}});
     return s;
   }
 
   // ---- 全屏缩略图 ----
-  // items：每页的位置 {x,y,w,h,c(列),r(列内序号),tall}；cols：每列的页序号。网格与瀑布流共用这套数据，导航也就一致。
-  let book=null,items=[],cols=[],n=2,ratio=1.4,sel=0,here=-1,frame=0,dirty=false,follow=false;const nodes=new Map();
+  // items：每页的位置 {x,y,w,h,c(列),r(列内序号),k(结果内序号),tall}，不符合搜索的页为 null；cols：每列的页序号；shown：符合搜索的页序号。
+  // 网格与瀑布流共用这套数据，导航也就一致，且只在结果内移动。
+  // pm：每页的书签标记（ctx.marks.pages），格子一角显示角标；spans：生效的区段，选中带起点或区段书签的页时标出区段覆盖的页（span）。
+  let book=null,items=[],cols=[],shown=[],n=2,ratio=1.4,sel=0,here=-1,frame=0,dirty=false,follow=false,hays=[],pm=new Map(),spans=[],span=null;const nodes=new Map();
   const thumbs=sheet('overview',['v',']'],'ov-grid',{
-    setup(){const b=ctx.current;if(!b?.pages.length)return false;book=b;thumbs.name.textContent=ctx.title(b);here=view.position()?.i??0;sel=here;ratio=cellRatio(b);return true;},
-    show(){follow=false;layout();const it=items[sel];sc.scrollTop=it?it.y+it.h/2-sc.clientHeight/2:0;select(sel,false);paint();},
+    find:'ovFindPages',
+    setup(){const b=ctx.current;if(!b?.pages.length)return false;book=b;thumbs.name.textContent=ctx.title(b);here=view.position()?.i??0;sel=here;ratio=cellRatio(b);
+      hays=[];pm=ctx.marks?.pages(b)??new Map();spans=ctx.marks?.spans(b)??[];return true;},
+    show(){follow=false;layout();if(!items[sel])sel=shown[0]??sel;const it=items[sel];sc.scrollTop=it?it.y+it.h/2-sc.clientHeight/2:0;thumbs.none(!shown.length);select(sel,false);paint();},
     move(act){
-      if(!items[sel])return;
-      select({left:sel-1,right:sel+1,home:0,end:items.length-1,up:vertical(-1),down:vertical(1),pageUp:vertical(-1,true),pageDown:vertical(1,true)}[act]);
+      const it=items[sel];if(!it)return;
+      select({left:shown[it.k-1]??sel,right:shown[it.k+1]??sel,home:shown[0],end:shown.at(-1),up:vertical(-1),down:vertical(1),pageUp:vertical(-1,true),pageDown:vertical(1,true)}[act]);
     },
     hover(node){const i=+node.dataset.i;if(i!==sel){follow=false;select(i,false);}},
     relayout(){keep(layout);reveal(sel);schedule();},
-    choose(){choose(sel);},
-    cleanup(){for(const i of [...nodes.keys()])drop(i);items=[];cols=[];book=null;}
+    choose(){if(items[sel])choose(sel);},
+    // 搜索词变化：保留仍在结果里的选中项，否则选中第一个结果；清空后回到当前页。
+    filter(){
+      if(!book)return;const all=!thumbs.query().trim();layout();thumbs.none(!shown.length);
+      const to=all?here:items[sel]?sel:shown[0];
+      if(items[to]){if(all){const it=items[to];sc.scrollTop=it.y+it.h/2-sc.clientHeight/2;select(to,false);}else{if(to!==sel)sc.scrollTop=0;select(to);}}
+      paint();
+    },
+    cleanup(){for(const i of [...nodes.keys()])drop(i);items=[];cols=[];shown=[];hays=[];book=null;span=null;}
   });
+  // 搜索：文件名（合并作品含卷的文件夹名和路径），多个词须都出现。
+  const terms=s=>norm(s).split(' ').filter(Boolean);
+  function hayOf(i){const p=book.pages[i],s=sourceOf(book,p);return hays[i]??=norm([shownName(p),s?.key?s.title??'':'',s?.key?s.path??'':''].join(' '));}
   const sc=thumbs.scroller,grid=thumbs.body;
   function cellRatio(b){const r=b.pages.filter(p=>p.w&&p.h).map(p=>p.h/p.w).sort((x,y)=>x-y);return Math.min(1.6,Math.max(.7,r.length?r[r.length>>1]:1.4));}
   function layout(){
-    const pages=book?.pages||[],W=sc.clientWidth,m=masonry();n=Math.max(2,Math.floor((W-GAP)/(MIN_COL+GAP)));
-    const w=(W-GAP*(n+1))/n,gh=Math.round(w*ratio),heights=Array(n).fill(GAP);cols=Array.from({length:n},()=>[]);
+    const pages=book?.pages||[],W=sc.clientWidth,m=masonry(),words=terms(thumbs.query());n=Math.max(2,Math.floor((W-GAP)/(MIN_COL+GAP)));
+    const w=(W-GAP*(n+1))/n,gh=Math.round(w*ratio),heights=Array(n).fill(GAP);cols=Array.from({length:n},()=>[]);shown=[];
     items=pages.map((p,i)=>{
-      let c=i%n;if(m){c=0;for(let k=1;k<n;k++)if(heights[k]<heights[c]-.5)c=k;}
+      if(words.length&&!words.every(x=>hayOf(i).includes(x)))return null;
+      const k=shown.length;shown.push(i);
+      let c=k%n;if(m){c=0;for(let j=1;j<n;j++)if(heights[j]<heights[c]-.5)c=j;}
       const pr=(p.h||1120)/(p.w||800),h=m?Math.round(w*Math.min(MAX_RATIO,pr)):gh;
-      const it={x:GAP+c*(w+GAP),y:m?heights[c]:GAP+Math.floor(i/n)*(gh+GAP),w,h,c,r:cols[c].length,tall:!!p.w&&pr>(m?MAX_RATIO:ratio*TALL)};
+      const it={x:GAP+c*(w+GAP),y:m?heights[c]:GAP+Math.floor(k/n)*(gh+GAP),w,h,c,r:cols[c].length,k,tall:!!p.w&&pr>(m?MAX_RATIO:ratio*TALL)};
       heights[c]=it.y+h+GAP;cols[c].push(i);return it;});
     grid.style.height=Math.max(...heights)+'px';
     for(const [i,node] of nodes)place(node,i);
@@ -118,12 +155,12 @@ export function install(ctx){
     const top=sc.scrollTop,H=sc.clientHeight,lo=top-H*.5,hi=top+H*1.5,b=book;
     for(const i of [...nodes.keys()]){const it=items[i];if(!it||it.y+it.h<lo||it.y>hi)drop(i);}
     items.forEach((it,i)=>{
-      if(it.y+it.h<lo||it.y>hi)return;
+      if(!it||it.y+it.h<lo||it.y>hi)return;
       const visible=it.y+it.h>=top&&it.y<=top+H,page=b.pages[i];let node=nodes.get(i);
       if(!node){
         node=make('div','ov-item');node.dataset.i=i;node.setAttribute('role','option');node.title=shownName(page);
         node.append(make('div','ov-img'),make('span','ov-n',String(i+1)));node.classList.toggle('sel',i===sel);node.classList.toggle('here',i===here);
-        node.setAttribute('aria-selected',String(i===sel));place(node,i);grid.append(node);nodes.set(i,node);
+        node.setAttribute('aria-selected',String(i===sel));badge(node,i);inSpan(node,i);place(node,i);grid.append(node);nodes.set(i,node);
       }
       // 已在队列里的只更新优先级（imageJob 对同一个槽位不会重复读取）；缓存命中时立即显示。
       imageJob(node.firstChild,()=>view.hooks.file(b,page),visible?1:3,true,(w,h)=>{if(page.w!==w||page.h!==h){page.w=w;page.h=h;dirty=true;schedule();}},
@@ -138,11 +175,20 @@ export function install(ctx){
   for(const type of ['wheel','pointerdown'])sc.addEventListener(type,()=>{follow=false;},{passive:true});
   sc.addEventListener('scroll',schedule,{passive:true});
   new ResizeObserver(()=>{if(thumbs.dialog.open&&book){keep(layout);if(follow)reveal(sel);schedule();}}).observe(sc);
+  // 书签角标：只在内容变化时替换（ctx.on('marks')）。
+  function badge(node,i){const m=pm.get(i),k=m?ctx.marks.sig(m):'';if(node._mk===k)return;node._mk=k;node.querySelector(':scope>.mk')?.remove();if(m)node.append(ctx.marks.badge(m));}
+  // 区段范围：选中（悬停或键盘聚焦）带起点或区段书签的页时，标出这些区段覆盖的所有页；移到别的页即消失。叠加层，不改变排布。
+  function inSpan(node,i){const on=!!span&&i>=span[0]&&i<=span[1];node.classList.toggle('in-sec',on);node.classList.toggle('sec-a',on&&i===span[0]);node.classList.toggle('sec-b',on&&i===span[1]);}
+  function showSpan(i){
+    let lo=Infinity,hi=-1;for(const s of spans)if(s.a===i||s.b===i){lo=Math.min(lo,s.a);hi=Math.max(hi,s.b);}
+    const next=hi>=0?[lo,hi]:null;if(String(next)===String(span))return;span=next;for(const [j,node] of nodes)inSpan(node,j);
+  }
+  ctx.on('marks',b=>{if(!thumbs.dialog.open||b!==book)return;pm=ctx.marks.pages(b);spans=ctx.marks.spans(b);for(const [i,node] of nodes)badge(node,i);span=null;showSpan(sel);});
   function select(i,scroll=true){
-    if(!items.length)return;i=Math.max(0,Math.min(items.length-1,i));
+    if(!items[i])return;
     const old=nodes.get(sel);old?.classList.remove('sel');old?.setAttribute('aria-selected','false');sel=i;
     nodes.get(sel)?.classList.add('sel');nodes.get(sel)?.setAttribute('aria-selected','true');
-    thumbs.pos.textContent=fmt('ovPos',{n:i+1,m:items.length});
+    thumbs.pos.textContent=fmt('ovPos',{n:i+1,m:items.length});showSpan(i);
     if(scroll){follow=true;reveal(i);schedule();}
   }
   function reveal(i){const it=items[i];if(!it)return;const top=sc.scrollTop,H=sc.clientHeight;
@@ -150,7 +196,7 @@ export function install(ctx){
   // 上下在同一列里移动（网格即上 / 下一行）；网格末行较短、本列下面没有格子时停在最后一张。Page Up / Down 在同一列跳过约一屏。
   function vertical(d,far){
     const it=items[sel],col=cols[it.c];
-    if(!far){const to=col[it.r+d];if(to!=null)return to;return d>0&&!masonry()&&Math.floor(sel/n)<Math.floor((items.length-1)/n)?items.length-1:sel;}
+    if(!far){const to=col[it.r+d];if(to!=null)return to;return d>0&&!masonry()&&Math.floor(it.k/n)<Math.floor((shown.length-1)/n)?shown.at(-1):sel;}
     const target=it.y+d*sc.clientHeight*.9;let k=it.r;while(col[k+d]!=null&&(d>0?items[col[k]].y<target:items[col[k]].y>target))k+=d;return col[k];
   }
   function choose(i){
@@ -165,23 +211,19 @@ export function install(ctx){
   // 按书分组并显示书名，当前书高亮。上下按画面位置找最近的一格。
   let marks=[],msel=0,mframe=0,mfollow=false,prefer=null; // prefer：重建时保留的选中书签 id
   const sm=()=>ctx.shelfmarks;
+  // groups：打开时的全部书签（按书分组）；搜索只在其中过滤后重建列表，不重新读取书架。
+  let groups=[];
   const shelfSheet=sheet('shelfOverview',['c','['],'ov-marks',{
-    setup(quiet){const groups=sm()?.groups()||[];if(!groups.length){if(!quiet)ctx.notice(null,t(sm()?.emptyKey()??'smEmpty'));return false;}
+    find:'ovFindMarks',
+    setup(quiet){groups=sm()?.groups()||[];if(!groups.length){if(!quiet)ctx.notice(null,t(sm()?.emptyKey()??'smEmpty'));return false;}
       shelfSheet.name.textContent=t('shelfmarks');shelfSheet.body.style.setProperty('--bm-ar',sm().ratio());
-      marks=[];const start=prefer??sm().start();prefer=null;
-      shelfSheet.body.replaceChildren(...groups.map(({book,items})=>{
-        const sec=make('section','ov-sec'+(book===ctx.current?' current':'')),head=make('div','ov-sec-head'),list=make('div','ov-sec-grid');
-        head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,list);
-        for(const x of items){
-          const node=make('div','ov-item ov-mark'),img=make('img');img.alt='';img.draggable=false;node.dataset.k=marks.length;node.setAttribute('role','option');
-          node.setAttribute('aria-label',ctx.title(book)+' · '+fmt('bmPage',{n:x.i+1}));
-          img.onload=()=>{node.dataset.r=Math.min(2.5,Math.max(.4,img.naturalHeight/img.naturalWidth));if(masonry())markSchedule();};
-          ctx.getThumb(sm().thumbKey(book,x.bm)).then(th=>{if(th)img.src=th.url;else img.remove();},()=>img.remove());
-          node.append(img,make('span','ov-n',String(x.i+1)));list.append(node);marks.push({book,x,node});
-        }
-        return sec;}));
-      msel=Math.max(0,marks.findIndex(m=>m.x.bm.id===start));return true;},
+      const start=prefer??sm().start();prefer=null;build(start);return true;},
     show(){markLayout();mark(msel);mfollow=true;marks[msel]?.node.scrollIntoView({block:'center'});},
+    // 搜索词变化：保留仍在结果里的选中项，否则选中第一个结果；清空后回到当前位置附近的书签。
+    filter(){
+      const all=!shelfSheet.query().trim();build(all?sm().start():marks[msel]?.x.bm.id);markLayout();mark(msel);mfollow=true;
+      marks[msel]?.node.scrollIntoView({block:all?'center':'nearest'});
+    },
     move(act){
       const to={left:msel-1,right:msel+1,home:0,end:marks.length-1,up:near(-1,0),down:near(1,0),pageUp:near(-1,1),pageDown:near(1,1)}[act];
       mark(to);mfollow=true;marks[msel]?.node.scrollIntoView({block:'nearest'});
@@ -191,6 +233,34 @@ export function install(ctx){
     choose(){pick(msel);},
     cleanup(){shelfSheet.body.replaceChildren();marks=[];}
   });
+  // 匹配作品名（含原文件夹名）、书签所在文件和区段书签所在文件的文件名、书签名称（label，来自 .pbf 导入）；作品名命中即显示该作品的全部书签。
+  function hayMark(book,x){
+    const file=i=>i>=0&&book.pages[i]?shownName(book.pages[i]):'';
+    return norm([ctx.title(book),book.title??'',file(x.i),x.bm.end?file(x.e):'',typeof x.bm.label==='string'?x.bm.label:''].join(' '));
+  }
+  // 按当前搜索词重建列表，start 为要选中的书签 id。带区段书签的书签左下角叠一张区段书签小图（与书签列表相同），点它跳到区段书签。
+  function build(start){
+    const words=norm(shelfSheet.query()).split(' ').filter(Boolean),body=shelfSheet.body;marks=[];
+    const list=words.length?groups.map(({book,items})=>({book,items:items.filter(x=>{const h=hayMark(book,x);return words.every(w=>h.includes(w));})})).filter(g=>g.items.length):groups;
+    body.replaceChildren(...list.map(({book,items})=>{
+      const sec=make('section','ov-sec'+(book===ctx.current?' current':'')),head=make('div','ov-sec-head'),grid=make('div','ov-sec-grid');
+      head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,grid);
+      for(const x of items){
+        const node=make('div','ov-item ov-mark'),img=make('img');img.alt='';img.draggable=false;node.dataset.k=marks.length;node.setAttribute('role','option');
+        node.setAttribute('aria-label',ctx.title(book)+' · '+fmt('bmPage',{n:x.i+1})+(x.bm.end?' · '+t('secStart'):''));
+        img.onload=()=>{node.dataset.r=Math.min(2.5,Math.max(.4,img.naturalHeight/img.naturalWidth));if(masonry())markSchedule();};
+        ctx.getThumb(sm().thumbKey(book,x.bm)).then(th=>{if(th)img.src=th.url;else img.remove();},()=>img.remove());
+        node.append(img,make('span','ov-n',String(x.i+1)));
+        if(x.bm.end){
+          const mk=kind=>{const el=make('span','bm-mk '+kind);el.append(ctx.icon('bm-'+kind));return el;},sub=make('span','bm-sub'+(x.live?'':' off')),simg=make('img');
+          simg.alt='';simg.draggable=false;sub.append(simg,mk('end'));node.classList.add('paired');node.append(mk('start'),sub);
+          const gone=()=>{simg.remove();sub.classList.add('empty');};ctx.getThumb(sm().endKey(book,x.bm)).then(th=>{if(th)simg.src=th.url;else gone();},gone);
+        }
+        grid.append(node);marks.push({book,x,node});
+      }
+      return sec;}));
+    msel=Math.max(0,marks.findIndex(m=>m.x.bm.id===start));shelfSheet.none(!marks.length);
+  }
   // 书架关闭后回到下面的全屏界面：全屏书签按书架的最新状态（移动、删除、筛选）重排并保留选中，焦点回到列表。
   ctx.shelf.addEventListener('close',()=>{
     if(ctx.shelf.open)return;const s=sheets.find(o=>o.live());if(!s)return;
@@ -198,7 +268,7 @@ export function install(ctx){
     if(s.live())s.scroller.focus({preventScroll:true});
   });
   function mark(i){
-    if(!marks.length)return;i=Math.max(0,Math.min(marks.length-1,i));
+    if(!marks.length){shelfSheet.pos.textContent='';return;}i=Math.max(0,Math.min(marks.length-1,i));
     marks[msel]?.node.classList.remove('sel');marks[msel]?.node.setAttribute('aria-selected','false');msel=i;const m=marks[i];
     m.node.classList.add('sel');m.node.setAttribute('aria-selected','true');
     shelfSheet.pos.textContent=fmt('bmN',{n:i+1,m:marks.length})+' · '+ctx.title(m.book);
@@ -230,8 +300,8 @@ export function install(ctx){
     const row=ahead.reduce((best,[r])=>Math.abs(cy(r)-target)<Math.abs(best-target)?cy(r):best,cy(ahead[0][0]));
     return ahead.filter(([r])=>Math.abs(cy(r)-row)<1).reduce((a,b)=>Math.abs(cx(b[0])-cx(cur))<Math.abs(cx(a[0])-cx(cur))?b:a)[1];
   }
-  function pick(i){const m=marks[i];if(!m)return;shelfSheet.close();sm().go(m.book,m.x);}
-  shelfSheet.body.addEventListener('click',e=>{const node=e.target.closest('.ov-mark');if(node)pick(+node.dataset.k);});
+  function pick(i,end=false){const m=marks[i];if(!m||end&&m.x.e<0)return;shelfSheet.close();sm()[end?'goEnd':'go'](m.book,m.x);}
+  shelfSheet.body.addEventListener('click',e=>{const node=e.target.closest('.ov-mark');if(node)pick(+node.dataset.k,!!e.target.closest('.bm-sub'));});
 
   // ---- 缩略图栏顶部：占满整行的块状“全屏缩略图”按钮（图标、文字、页数；书架书签列表的同款按钮见 bookmarks.mjs，两侧镜像、等高）----
   // 浮动弹出和常驻时都可用；浮动时点开后先收起窄条。
