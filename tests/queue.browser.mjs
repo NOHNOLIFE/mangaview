@@ -110,7 +110,7 @@ try {
   const add = (name, prefix, button) =>
     js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('${name}',{create:true});
     for(let i=0;i<12;i++){const out=await (await dir.getFileHandle('${prefix}'+i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>');await out.close();}
-    window.lastDir=dir;window.showDirectoryPicker=async()=>dir;document.querySelector('${button}').click();})()`);
+    window.lastDir=dir;window.showDirectoryPicker=async()=>dir;document.querySelector('${button}').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   const shown = (prefix) =>
     js(`document.querySelector('#reader [data-name="${prefix}0.svg"] img')?.naturalWidth===600`);
   const go = async (prefix) => {
@@ -166,7 +166,7 @@ try {
   await wait(() => js(`!document.querySelector('[data-act="refresh"]').disabled`));
   assert.ok(Date.now() - t0 < 8000, 'Refresh does not hang on a stuck folder');
   await js(
-    `window.showDirectoryPicker=async()=>(await navigator.storage.getDirectory()).getDirectoryHandle('Kept');document.querySelector('#bar [data-act="folder"]').click()`,
+    `window.showDirectoryPicker=async()=>(await navigator.storage.getDirectory()).getDirectoryHandle('Kept');document.querySelector('#bar [data-act="folder"]').click();(async()=>{await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(async () => {
     const r = await rec('Kept');
@@ -188,7 +188,7 @@ try {
   // 选一次上级文件夹，单文件夹书和散图图集一起接回原记录，书签保留；文件夹里没有对应记录的内容不会被加成新书。
   await js(`(async()=>{const root=await navigator.storage.getDirectory();
     for(const [d,p] of [['Loose','l'],['Extra','x']]){const dir=await root.getDirectoryHandle(d,{create:true});for(let i=0;i<2;i++){const out=await (await dir.getFileHandle(p+i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="navy"/></svg>');await out.close();}}
-    const loose=await root.getDirectoryHandle('Loose');window.showOpenFilePicker=async()=>[await loose.getFileHandle('l0.svg'),await loose.getFileHandle('l1.svg')];document.querySelector('#bar [data-act="files"]').click();})()`);
+    const loose=await root.getDirectoryHandle('Loose');window.showOpenFilePicker=async()=>[await loose.getFileHandle('l0.svg'),await loose.getFileHandle('l1.svg')];document.querySelector('#bar [data-act="files"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addLoose.click();})()`);
   const all = () =>
     js(
       `new Promise(r=>{const q=indexedDB.open('mangaview-reader-v2');q.onsuccess=()=>{const g=q.result.transaction('books').objectStore('books').getAll();g.onsuccess=()=>r(g.result.map(b=>b.id+':'+(b.title??'')+':'+b.pages.length+':'+(b.bookmarks||[]).length).sort());};})`,

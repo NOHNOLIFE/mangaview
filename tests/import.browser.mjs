@@ -135,7 +135,7 @@ try {
   };
   const pick = (path, act) =>
     js(
-      `(async()=>{const d=await dirOf(${JSON.stringify(path)});window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="${act}"]').click();})()`,
+      `(async()=>{const d=await dirOf(${JSON.stringify(path)});window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});${act === 'merge' ? 'addOne' : 'addMany'}.click();})()`,
     );
   const count = (v) => js(`document.querySelector('[data-view="${v}"] .count').textContent`);
   const refresh = async () => {
@@ -280,7 +280,7 @@ try {
     await js(
       `[...new Set([...document.querySelectorAll('[data-act="folder"]')].map(b=>b.textContent.trim()||b.title))]`,
     ),
-    ['添加文件夹'],
+    ['添加'],
     'One name for adding a folder everywhere',
   );
   await js(`mk('drop/A','deep',1,'olive')`);
@@ -550,9 +550,9 @@ try {
   assert.equal((await js('records()')).filter((b) => b.title === 'q9').length, 1);
   // 13. 再次导入为单个作品时有的源没有目录句柄：回退模式（无 File System Access）按相对路径找到原书，不报错、不重复，重新载入后再导入页面可读；
   // 备份导入后尚未接回的卷同样按相对路径对上。
-  const fallback = `window.fallbackMerge=async()=>{delete window.showDirectoryPicker;document.querySelector('#shelf [data-act="merge"]').click();await new Promise(r=>setTimeout(r,50));
+  const fallback = `window.fallbackMerge=async()=>{delete window.showDirectoryPicker;document.querySelector('#shelf [data-act="folder"]').click();await new Promise(r=>setTimeout(r,50));
     const files=['fb/X/1.svg','fb/X/2.svg','fb/Y/1.svg'].map(p=>{const f=new File(['<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40"/>'],p.split('/').pop(),{type:'image/svg+xml'});Object.defineProperty(f,'webkitRelativePath',{value:p});return f;});
-    notice.textContent='';folderInput.onchange({target:{files}});};`;
+    notice.textContent='';folderInput.onchange({target:{files}});await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();};`;
   const fb = () => js('records()').then((r) => r.filter((b) => b.title === 'fb'));
   await js(fallback);
   await js('fallbackMerge()');
@@ -674,7 +674,9 @@ try {
   await js(`query.value='Leaf';query.dispatchEvent(new Event('input',{bubbles:true}))`);
   await wait(() => js(`!!${card('nm')}&&document.querySelectorAll('#books .book').length===1`));
   await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
-  await js(`${card('nm')}.closest('.book').querySelector('[aria-label="编辑书名"]').click()`);
+  await js(
+    `${card('nm')}.closest('.book').querySelector('.more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='编辑书名').click()`,
+  );
   await wait(() => js('renameBook.open'));
   assert.equal(await js('renameHint.textContent'), '原名：Leaf。留空即恢复原名。');
   await js(`renameInput.value='Custom';renameForm.requestSubmit()`);

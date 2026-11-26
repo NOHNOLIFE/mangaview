@@ -105,7 +105,7 @@ try {
   await js(`(async()=>{const root=await (await navigator.storage.getDirectory()).getDirectoryHandle('lib',{create:true});
     for(let i=1;i<=80;i++){const d=await root.getDirectoryHandle('B'+String(i).padStart(2,'0'),{create:true});
       for(let j=0;j<1+(i-1)%5;j++){const w=await (await d.getFileHandle(j+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="'+(400+(i%3)*90)+'"><rect width="100%" height="100%" fill="hsl('+i*37+',50%,40%)"/></svg>');await w.close();}}
-    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   const records = () => js(`import('./src/core/store.mjs').then(({library})=>library('getAll'))`);
   const longWait = async (check) => {
     for (let i = 0; i < 60; i++) {
@@ -266,7 +266,9 @@ try {
   const witness2 = await js(
     `[...document.querySelectorAll('#books .book')].filter(n=>!n.classList.contains('active')).slice(0,3).map(n=>n.dataset.id)`,
   );
-  await js(`document.querySelector('#books .book.active [aria-label="Edit title"]').click()`);
+  await js(
+    `document.querySelector('#books .book.active .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Edit title').click()`,
+  );
   await wait(() => js('renameBook.open'));
   await js(`renameInput.value='Renamed';renameForm.requestSubmit()`);
   await wait(async () => (await active())?.name === 'Renamed');
@@ -276,7 +278,9 @@ try {
       2,
       'Masonry update reuses the other cards',
     );
-  await js(`document.querySelector('#books .book.active [aria-label="Edit title"]').click()`);
+  await js(
+    `document.querySelector('#books .book.active .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Edit title').click()`,
+  );
   await wait(() => js('renameBook.open'));
   await js(`renameInput.value='';renameForm.requestSubmit()`);
   await wait(async () => (await active())?.name === r2.name);
@@ -311,10 +315,10 @@ try {
   );
   assert.equal(
     await js(
-      `new Set(['#views [data-view="all"] use','#shelf [data-act="merge"] use','#bulkBtn use','#layoutBtn use'].map(s=>document.querySelector(s).getAttribute('href'))).size`,
+      `new Set(['#views [data-view="all"] use','#shelf [data-act="files"] use','#bulkBtn use','#layoutBtn use'].map(s=>document.querySelector(s).getAttribute('href'))).size`,
     ),
     4,
-    'All / merge / batch / layout icons differ',
+    'All / add to loose images / batch / layout icons differ',
   );
   await js('filterToggle.click()');
   assert.equal(await js('filterPanel.hidden'), false);

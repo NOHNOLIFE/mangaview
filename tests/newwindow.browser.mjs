@@ -193,10 +193,10 @@ try {
     const clips=await root.getDirectoryHandle('Clips',{create:true});
     await mvMedia.write(clips,'01.svg',${svg('orange')});await mvMedia.write(clips,'02 clip.webm',await mvMedia.webm({seconds:3,width:320,height:180}));
     await mvMedia.write(clips,'03 song.wav',mvMedia.wav({seconds:14}));await mvMedia.write(clips,'04.svg',${svg('navy')});
-    window.showDirectoryPicker=async()=>other;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>other;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => A.js(`bookTitle.textContent==='Other'`), 'import Other');
   await A.js(
-    `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('Clips');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();})()`,
+    `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('Clips');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(() => A.js(`bookTitle.textContent==='Clips'`), 'import Clips');
   await A.js('reader.focus()');

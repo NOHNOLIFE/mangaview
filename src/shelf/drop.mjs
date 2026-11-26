@@ -1,9 +1,9 @@
-// 拖放导入：拖入覆盖层（默认区域、「导入为单个作品」、「添加到散图图集」三块）与窗口的拖放事件。拖放不经过选择框。
+// 拖放导入：拖入覆盖层（默认区域、「添加为单个作品」、「添加到散图图集」三块）与窗口的拖放事件。拖放不经过选择框。
 import { skipped, fileGroups, handleGroups, looseImages, looseFiles } from '../core/sources.mjs';
 import { t } from '../core/locale.mjs';
 import { $, notice, safe } from '../ui/dom.mjs';
 import { add, addMerged, importPlace } from './import.mjs';
-// 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。上方是默认区域（按文件夹建书），下方左右并排「导入为单个作品」和「添加到散图图集」两块区域。
+// 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。上方是默认区域（按文件夹建书），下方左右并排「添加为单个作品」和「添加到散图图集」两块区域。
 // 散图区域：拖入内容里的所有图片（包括文件夹里的，递归）都作为散图加入散图图集，不按文件夹建书。
 // 只拖入图片文件（没有文件夹）时，整个覆盖层就是「添加到散图图集」。拖动途中读不到文件内容，只能看 items 的 kind / type：
 // 图片、视频、音频文件的 type 是 image/* 等，文件夹的 type 为空；判断不出时按含文件夹处理。

@@ -171,7 +171,7 @@ try {
     const pics=await r.getDirectoryHandle('Pics',{create:true});await mvMedia.write(pics,'1.svg',${svg('orange')});await mvMedia.write(pics,'2.svg',${svg('navy')});})()`);
   const add = async (name, first = false) => {
     await js(
-      `(async()=>{const d=await (await root()).getDirectoryHandle(${JSON.stringify(name)});window.showDirectoryPicker=async()=>d;document.querySelector('${first ? '#empty' : '#bar'} [data-act="folder"]').click();})()`,
+      `(async()=>{const d=await (await root()).getDirectoryHandle(${JSON.stringify(name)});window.showDirectoryPicker=async()=>d;document.querySelector('${first ? '#empty' : '#bar'} [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
     );
     await wait(() => js(`bookTitle.textContent===${JSON.stringify(name)}`), 'import ' + name);
   };

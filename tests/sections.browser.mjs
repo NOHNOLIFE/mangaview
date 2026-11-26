@@ -112,7 +112,7 @@ try {
   const pics = Array.from({ length: 30 }, (_, i) => [i + '.svg', svg(i, i === 29 ? 4000 : 1120)]);
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Sections',{create:true});
     for(const [name,body] of ${JSON.stringify(pics)}){const out=await (await dir.getFileHandle(name,{create:true})).createWritable();await out.write(body);await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`document.querySelector('#reader [data-name="0.svg"] img')?.naturalHeight===1120`));
   await js('reader.focus()');
   const H = await js('reader.clientHeight'),
@@ -648,7 +648,7 @@ try {
   // 另一本没有书签的书。
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Plain',{create:true});
     for(const [name,body] of ${JSON.stringify(pics.slice(0, 3))}){const out=await (await dir.getFileHandle(name,{create:true})).createWritable();await out.write(body);await out.close();}
-    window.showDirectoryPicker=async()=>dir;const b=document.createElement('button');b.dataset.act='folder';document.body.append(b);b.click();b.remove();})()`);
+    window.showDirectoryPicker=async()=>dir;const b=document.createElement('button');b.dataset.act='folder';document.body.append(b);b.click();b.remove();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(async () => !!(await record('Plain')));
   const sections = await record(),
     fp = JSON.stringify(sections.fp);
@@ -666,7 +666,10 @@ try {
     `window.__plain=${card('Plain')}.querySelector('.cover img');window.__old=${card('Sections')}.querySelector('.cover img').src`,
   );
   // 卡片的操作按钮多了「设置封面」，按钮换行也不溢出卡片。
-  const coverBtn = (t) => js(`${card(t)}.querySelector('.actions [aria-label="Set cover"]').click()`);
+  const coverBtn = (t) =>
+    js(
+      `${card(t)}.querySelector('.actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Set cover').click()`,
+    );
   const over = await js(
     `(()=>{const el=${card('Sections')},r=el.getBoundingClientRect();return [...el.querySelectorAll('.actions button')].every(b=>{const q=b.getBoundingClientRect();return q.left>=r.left-.5&&q.right<=r.right+.5;});})()`,
   );

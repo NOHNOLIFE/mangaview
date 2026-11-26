@@ -1,5 +1,5 @@
 // 书卡片：卡片的内容（书名、进度、标签、书签数、类型角标）、按内容摘要增量更新，以及封面的显示（进入视窗时加载，文字封面）。
-// 卡片的位置与挂载见 layout.mjs，卡片上的操作按钮见 actions.mjs，封面的后台生成见 covercache.mjs。
+// 卡片的位置与挂载见 layout.mjs，卡片上的操作按钮与「更多」菜单见 actions.mjs，封面的后台生成见 covercache.mjs。
 import { extend } from '../core/lang.mjs';
 import { KIND_LABEL, tagsOf, marksOf, pagesOf, kindsOf } from './criteria.mjs';
 import { $ } from './util.mjs';
@@ -123,7 +123,11 @@ export function install(ctx, S) {
       pick = el._pick,
       hash = coverSig(b);
     el._sig = sig(b);
-    el.className = 'book' + (b === ctx.current ? ' current' : '') + (ex ? ' expired' : '');
+    el.className =
+      'book' +
+      (b === ctx.current ? ' current' : '') +
+      (ex ? ' expired' : '') +
+      (S.menuFor?.() === b.id ? ' menu-open' : '');
     // 封面换了（例如文件夹内容变化）才重新加载，否则保留已显示的图。
     if (!el._cover || el._hash !== hash) {
       const cover = make('span', 'cover');
@@ -193,9 +197,15 @@ export function install(ctx, S) {
       for (const x of media) k.append(icon(x === 'video' ? 'film' : 'music'));
       pick.append(k);
     }
-    const tools = cardActions(b, ex, lost);
-    el.querySelector(':scope>.actions')?.remove();
-    el.append(tools);
+    // 操作按钮只在状态（过期、缺卷、书架 / 书库、语言）变化时重建，其余更新不动按钮和打开着的「更多」菜单（actions.mjs）。
+    const act = S.actionKey(b, ex, lost);
+    if (el._act !== act) {
+      const tools = cardActions(b, ex, lost),
+        old = el.querySelector(':scope>.actions');
+      if (old) old.replaceWith(tools);
+      else el.append(tools);
+      el._act = act;
+    }
     mark(el, el.dataset.id === S.activeId);
   }
   // 别的窗口换了封面缩略图（缓存已由 windows.mjs 清掉）：重新加载这张卡片的封面。

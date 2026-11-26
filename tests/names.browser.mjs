@@ -107,7 +107,7 @@ try {
     for(const [n,c] of [['Short','teal'],[${JSON.stringify(LONG)},'navy']]){const d=await root.getDirectoryHandle(n,{create:true});for(let i=0;i<3;i++)await put(d,i+'.svg',svg(c));}
     await put(await root.getDirectoryHandle(${JSON.stringify(LONG)}),${JSON.stringify(FILE)},'not an image');
     const m=await root.getDirectoryHandle('M '+${JSON.stringify(LONG)},{create:true});for(const v of ['V1','V2'])await put(await m.getDirectoryHandle(v,{create:true}),'1.svg',svg('olive'));
-    window.add=async(name,sel)=>{const d=await root.getDirectoryHandle(name);window.showDirectoryPicker=async()=>d;document.querySelector(sel).click();};})()`);
+    window.add=async(name,sel)=>{const d=await root.getDirectoryHandle(name);window.showDirectoryPicker=async()=>d;document.querySelector(sel).click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();};})()`);
   await js(`add('Short','#empty [data-act="folder"]')`);
   await wait(() => js(`bookTitle.textContent==='Short'`));
   await js(`add(${JSON.stringify(LONG)},'#bar [data-act="folder"]')`);
@@ -218,7 +218,7 @@ try {
   await shot('names-shelf');
   // 通知：书名按字符截短（末尾省略），通知保持简短。
   await js(
-    `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('M '+${JSON.stringify(LONG)});window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="merge"]').click();})()`,
+    `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('M '+${JSON.stringify(LONG)});window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();})()`,
   );
   const { clipEnd } = await import('../src/core/model.mjs');
   await wait(() => js(`notice.textContent.includes(${JSON.stringify(clipEnd('M ' + LONG))})`));

@@ -30,7 +30,7 @@ Handles huge libraries, works offline, and never uploads your files.
 
 - **Open anything local**: pick or drag in folders and loose images. Every folder that directly contains images, videos or audio becomes a book.
 - **Video and audio**: videos and audio the browser can play sit in the same strip as images, with their own controls, one volume for the whole app, and autoplay.
-- **Import as one book**: a series stored as several folders (one per volume, say) can be joined into a single book and read straight through.
+- **Add as one book**: a series stored as several folders (one per volume, say) can be joined into a single book and read straight through.
 - **Built for long strips**: each book is one continuous vertical strip with no snapping at image borders, so tall webtoon pages read naturally.
 - **Fast with big libraries**: only visible pages are created and decoded, behind a small read queue. Thousands of images on a spinning hard drive stay responsive.
 - **Thumbnail navigator**: pops out at the right window edge or stays pinned beside the page, and can show the whole book full screen. Click any point of a thumbnail to jump to that exact spot, even inside a very tall image.
@@ -49,13 +49,21 @@ Handles huge libraries, works offline, and never uploads your files.
 
 1. Open **https://nohnolife.github.io/mangaview/** in the latest desktop **Chrome** or **Edge**.
 2. *(Optional)* Install it: click the install icon at the right end of the address bar, or open the browser menu and choose *Install MangaView*. It opens in its own window, can be pinned to the taskbar and works offline.
-3. Add a folder or drop images, videos or audio into the window.
+3. Click **Add** and pick a folder, or drop images, videos or audio into the window.
 
 New versions arrive automatically. There is nothing to download, unzip or set up.
 
 ## How to use
 
-Use **Add folder** or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Dropping only files (images, videos or audio, no folders) adds them to the loose images. When the drop includes folders, the overlay shows **Import as one book** and **Add to Loose images** side by side at the bottom; drop on **Add to Loose images** to add every image, video and audio file, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
+Click **Add** (on the welcome screen, in the toolbar or in the shelf header) and pick a folder, or click **Add to Loose images** and pick files (several at once). Either way the add dialog opens with what you picked (remove any item from the list); add more with **+ Folder** and **+ Files**, or drop several folders and files onto the dialog at once. The same folder or file is listed only once, and nothing is scanned until you confirm:
+
+- **Add as separate books** (the default): every folder becomes a book by the usual rules, and loose files go to the loose images;
+- **Add as one book**: everything is joined into one book (see *Add as one book* below); available when the list contains a folder;
+- When you came from **Add to Loose images**, the only button is **Add to Loose images**: the files inside folders (subfolders included) go to the loose images too.
+
+The file picker also accepts subtitle files (.srt .vtt .ass .ssa .lrc).
+
+You can also drop things anywhere in the window, which skips the dialog. Dropping only files (images, videos or audio, no folders) adds them to the loose images. When the drop includes folders, the overlay shows **Add as one book** and **Add to Loose images** side by side at the bottom; drop on **Add to Loose images** to add every image, video and audio file, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
 
 ### Mouse
 
@@ -136,7 +144,7 @@ The **Bookshelf** button (or **B**) opens a full-screen view with four lists (cl
 
 *Previous / next book* move through the list the current book is in (shelf or library). Importing while the shelf view is open doesn't switch the book you're reading; you just get a note of how many books were added.
 
-When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, set the cover, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
+When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus four buttons: edit tags, move to library / shelf, delete the record, and **More** (⋯), a menu with edit title, set cover and copy title. For a book with a missing source folder the first button becomes **Restore** and edit tags moves into the menu; a missing book has restore, delete and More (edit title, set cover). The buttons keep their places whatever the state. In the menu, `↑` `↓` choose, Enter runs the item, and `Esc` closes it and returns to **More**. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
 
 **Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. While filters are active, the search box shows the number of results on its right. The **Filters** button opens a panel with a page-count range, **Has bookmarks**, file types (images / videos / audio; pick any number, and a book matches if it has a page of any chosen type) and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it, and the **Clear filters** button next to the search box clears them all. Filters are remembered and stay in place as you switch between shelf, library and all; previous / next book and the shelf bookmarks also stay within the filtered results.
 
@@ -146,13 +154,13 @@ When the shelf opens, the book you're reading is selected and scrolled into view
 
 The **Batch actions** menu copies the listed titles, has **Move all to shelf / library** for everything the current filters show, and **Clear shelf / library**, which deletes the records of every book in that list (filters don't apply) after asking for confirmation. The original files are never deleted.
 
-The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested in a pop-up below the box as you type (`↑` `↓` to choose, then `←` `→` too, Enter to add, `Esc` closes the suggestions first), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
+**Edit title** in a cover's **More** menu changes the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested in a pop-up below the box as you type (`↑` `↓` to choose, then `←` `→` too, Enter to add, `Esc` closes the suggestions first), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
 
-**Custom cover**: the **Set cover** button on a cover lists the thumbnails of the book's bookmarks; pick one to use the picture at that bookmark as the cover (cut again from the original image at the cover's proportions when it can be read, otherwise the bookmark thumbnail is used). A book without bookmarks asks you to add one first. **Reset cover** at the bottom brings back the default cover. A custom cover is a separate small picture: deleting that bookmark, refreshing, restoring or importing again doesn't change it, and it is included in backups. Setting or resetting it only updates that one cover. Folders are still recognised by the default cover only.
+**Custom cover**: **Set cover** in a cover's **More** menu lists the thumbnails of the book's bookmarks; pick one to use the picture at that bookmark as the cover (cut again from the original image at the cover's proportions when it can be read, otherwise the bookmark thumbnail is used). A book without bookmarks asks you to add one first. **Reset cover** at the bottom brings back the default cover. A custom cover is a separate small picture: deleting that bookmark, refreshing, restoring or importing again doesn't change it, and it is included in backups. Setting or resetting it only updates that one cover. Folders are still recognised by the default cover only.
 
-### Import as one book
+### Add as one book
 
-When a series is split across several folders (one per volume, for example), you can join them into one book and read straight through. While dragging, drop the folders on the **Import as one book** area at the bottom of the drop overlay, or use the **Import as one book** button in the shelf header and pick a folder: every folder with images inside it becomes part of one book, in path order.
+When a series is split across several folders (one per volume, for example), you can join them into one book and read straight through. Pick the folders in the add dialog and choose **Add as one book**, or while dragging, drop the folders on the **Add as one book** area at the bottom of the drop overlay: the chosen folders and every folder with images inside them become one book, in path order.
 
 - Importing the same set of folders again updates that book instead of adding a second copy: new volumes are added, volumes that are gone are removed, and bookmarks and progress are kept.
 - The same folder can be a book of its own and a volume in one or more joined books at the same time; refreshing or re-importing it updates all of them.
@@ -161,7 +169,7 @@ When a series is split across several folders (one per volume, for example), you
 
 ### Loose images
 
-There is a single **Loose images** album: images picked with **Add to Loose images**, images dropped on their own, and everything dropped on the **Add to Loose images** area all go there. Different images with the same name can live side by side, and adding the same file again doesn't duplicate it. If some of its images can't be found, the album stays readable and those images show as unreadable; use **Locate originals** (or **Restore** on its cover when the whole album is missing) and pick the folder that holds them, at any depth, to find them again by relative path and file name.
+There is a single **Loose images** album: files and folders added with **Add to Loose images**, loose files added together with folders in the add dialog, images dropped on their own, and everything dropped on the **Add to Loose images** area all go there. Different images with the same name can live side by side, and adding the same file again doesn't duplicate it. If some of its images can't be found, the album stays readable and those images show as unreadable; use **Locate originals** (or **Restore** on its cover when the whole album is missing) and pick the folder that holds them, at any depth, to find them again by relative path and file name.
 
 ### Video and audio
 
@@ -295,7 +303,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | Path | Purpose |
 | --- | --- |
 | `index.html`, `src/style.css` | Markup, icons and styles |
-| `src/app.mjs` | Core logic: books, importing (including import as one book), sorting, refresh, keyboard, restoring defaults; installs the feature modules |
+| `src/app.mjs` | Core logic: books, importing (including add as one book), sorting, refresh, keyboard, restoring defaults; installs the feature modules |
 | `src/core/control.mjs` | Control bar play modes, speed ranges and steps, which buttons each mode disables |
 | `src/core/lang.mjs` | Built-in translations |
 | `src/core/match.mjs` | Matching missing books (volume by volume) to folders, tag colours |
@@ -320,6 +328,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `src/reader/toolbar.mjs`, `src/reader/toolbar.css` | Top toolbar |
 | `src/reader/transport.mjs` | Control state (play mode, speeds, toggles) and running (the big play button) |
 | `src/reader/view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
+| `src/shelf/add.mjs`, `src/shelf/addlist.mjs` | Add dialog: items to add (handles only, de-duplicated), importing on confirm |
 | `src/shelf/cover.mjs`, `src/shelf/bookcover.mjs` | Custom covers; a book's current cover (background for audio) |
 | `src/shelf/shelf.mjs`, `src/shelf/shelf.css` | Shelf, library, missing books, filters and presets, tags, restore, storage usage |
 | `sw.js` | Offline cache |

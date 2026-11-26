@@ -83,6 +83,8 @@ const shell = [
     'src/reader/transport.mjs',
     'src/reader/view.mjs',
     'src/shelf/actions.mjs',
+    'src/shelf/add.mjs',
+    'src/shelf/addlist.mjs',
     'src/shelf/bookcover.mjs',
     'src/shelf/bulk.mjs',
     'src/shelf/card.mjs',

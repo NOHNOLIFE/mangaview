@@ -111,7 +111,7 @@ try {
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long',{create:true});
     for(let i=0;i<40;i++){const [w,h]=i===9?[400,4000]:i%2?[600,1000]:[600,900];const out=await (await dir.getFileHandle(String(i).padStart(2,'0')+'.svg',{create:true})).createWritable();
       await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'"><rect width="100%" height="100%" fill="hsl('+i*9+',60%,45%)"/></svg>');await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Long'`));
   const W = await js('innerWidth');
   const move = (x, y = 150) => cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
@@ -426,7 +426,7 @@ try {
   assert.equal(await js('document.querySelector("#shelfmarks .side-open").disabled'), false);
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Short',{create:true});
     for(let i=0;i<4;i++){const out=await (await dir.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="navy"/></svg>');await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Short'`));
   await js('reader.scrollTop=500');
   await delay(100);

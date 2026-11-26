@@ -153,7 +153,7 @@ try {
     await mvMedia.write(dir,'03.svg',new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>'],{type:'image/svg+xml'}));
     await mvMedia.write(dir,'lonely.pbf',pbf([[1000,'Nobody']]));
     localStorage.setItem('mv2:autoplay','false');
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Pbf'`), 'book opened');
   await js('reader.focus()');
 

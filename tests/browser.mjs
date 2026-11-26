@@ -109,7 +109,7 @@ try {
   await wait(() => js('!!navigator.serviceWorker.controller'));
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Test book',{create:true});
     for(let i=64;i>=0;i--){const out=await (await dir.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="'+(i===0?12000:900)+'"><rect width="100%" height="100%" fill="green"/></svg>');await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`document.querySelector('#reader [data-name="0.svg"] img')?.naturalHeight===12000`));
   assert.ok(await js(`document.querySelectorAll('#reader .page').length<10`));
   const rect = () => js(`[reader.clientWidth,reader.clientHeight,reader.scrollHeight,reader.scrollTop]`);
@@ -289,7 +289,7 @@ try {
   await js(`(async()=>{const root=await navigator.storage.getDirectory();
     const other=await (await root.getDirectoryHandle('other',{create:true})).getDirectoryHandle('Test book',{create:true});
     for(const name of ['10','1','2']){const w=await (await other.getFileHandle(name+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="6" height="9"/>');await w.close();}
-    window.showDirectoryPicker=async()=>other;document.querySelector('#bar [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>other;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   const second = await wait(async () => {
     const b = await record();
     return b.id !== original && b.mode === 'nameDesc' && b;
@@ -303,7 +303,9 @@ try {
   assert.deepEqual(await order(), reversed);
   await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(async () => (await record()).id === original);
-  await js(`document.querySelector('#bar [data-act="folder"]').click()`);
+  await js(
+    `(async()=>{document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
+  );
   await wait(async () => (await record()).id === second.id);
   assert.equal((await record()).override, 'nameDesc');
   assert.deepEqual(await order(), reversed);

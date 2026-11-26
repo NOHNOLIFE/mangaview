@@ -111,7 +111,7 @@ try {
     window.records=()=>import('./src/core/store.mjs').then(({library})=>library('getAll'));
     window.byTitle=async t=>(await records()).find(b=>b.title===t);`);
   await js(`(async()=>{await mk('lib','Alpha',3,'red');await mk('lib','Beta',4,'blue');await mk('lib','Gamma',2,'green');
-    const root=await dirOf('lib');window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    const root=await dirOf('lib');window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(async () => (await js('records()')).length === 3);
   // 封面缩略图在后台生成，只存压缩 WebP 与摘要。
   await wait(() => js(`records().then(r=>r.every(b=>b.fp?.thumb&&b.fp.cover.hash))`));
@@ -196,7 +196,7 @@ try {
   await js('shelf.close()');
   // 重新添加文件夹：同名同封面的过期书接回原记录，不产生重复条目，并回到书架。
   await js(
-    `(async()=>{await mk('again','Beta',4,'blue');const d=await dirOf('again');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();})()`,
+    `(async()=>{await mk('again','Beta',4,'blue');const d=await dirOf('again');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(async () => {
     const b = await js(`byTitle('Beta')`);
@@ -224,7 +224,7 @@ try {
   assert.ok(await js(`document.querySelector('[data-view="expired"]').hidden`));
   // 删除后晚到的保存（这里用删除前打开的书名编辑框模拟后台任务）不会把刚删的记录写回。
   await js(
-    `[...document.querySelectorAll('#books .book')].find(x=>x.querySelector('.pick').getAttribute('aria-label')==='Zeta').querySelector('[aria-label="编辑书名"]').click()`,
+    `[...document.querySelectorAll('#books .book')].find(x=>x.querySelector('.pick').getAttribute('aria-label')==='Zeta').querySelector('.more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='编辑书名').click()`,
   );
   await wait(() => js('renameBook.open'));
   await js(
