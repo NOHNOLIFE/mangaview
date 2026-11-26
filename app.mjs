@@ -17,6 +17,8 @@ import {install as helpPanel} from './help.mjs';
 import {install as windows} from './windows.mjs';
 import {install as coverPicker} from './cover.mjs';
 import {install as mediaPlayer} from './media.mjs';
+import {install as pbfImport} from './pbf.mjs';
+import {pairFrom} from './sources.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -248,6 +250,7 @@ async function addGroup(group,place='shelf',later=null){
 // links：[{cand,source}]，同一本书的多个源一次处理完再排序保存。
 function link(book,cand,s){
   applyNames(book,s,cand.pages.map(p=>p.name),true);
+  if(cand.dir)pairFrom(book,s,cand.pages); // PotPlayer 书签（.pbf）的配对，扫描时已按文件名得出（sources.mjs）
   if(!cand.dir)reconnect(book,cand,s); // 回退模式（无目录句柄）：页面绑定到本次会话选中的文件
   s.dir=cand.dir;s.title=cand.title;if(cand.path)s.path=cand.path;delete s.missing;
   if(!s.key){book.title=cand.title;if(cand.path)book.path=cand.path;}
@@ -270,6 +273,7 @@ function imported(list,place,odd){
   if($('notice').textContent===t('scanning'))$('notice').textContent='';
   if(shelf.open&&current)notice(null,[fmt(place==='library'?'addedLibraryN':'addedShelfN',{n:list.length}),bad].filter(Boolean).join(' · '),bad?8000:undefined);
   else if(bad)notice(null,bad,8000);
+  ctx.pbf?.check(list); // 后台读取配对的 PotPlayer 书签（pbf.mjs）
   ctx.redrawShelf();emit('books');
 }
 async function add(groups,place=importPlace(),odd=null){
@@ -345,7 +349,7 @@ async function rebuild(book,order){
     if(i>=0)s=old.splice(i,1)[0];
     if(s)link(book,g,s);
     else{let k=key;for(let n=2;book.sources.some(x=>x.key===k)||next.some(x=>x.key===k);n++)k=key+' ('+n+')';
-      s={key:k,title:g.title,...g.path&&{path:g.path},...g.dir&&{dir:g.dir}};book.pages.push(...g.pages.map(p=>makePage(k,p.name)));}
+      s={key:k,title:g.title,...g.path&&{path:g.path},...g.dir&&{dir:g.dir}};book.pages.push(...g.pages.map(p=>makePage(k,p.name)));pairFrom(book,s,g.pages);}
     next.push(s);
   }
   const gone=new Set(old.map(s=>s.key));
@@ -374,7 +378,7 @@ async function pick(kind,book=null){
     else if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
     else{const odd=skipped();await add(scan(dir,'',odd),undefined,odd);}
   }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('imageTypes'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg'],
-      'video/*':['.mp4','.m4v','.webm','.mkv','.mov','.ogv'],'audio/*':['.mp3','.flac','.wav','.ogg','.oga','.opus','.m4a','.aac','.weba']}}]});
+      'video/*':['.mp4','.m4v','.webm','.mkv','.mov','.ogv'],'audio/*':['.mp3','.flac','.wav','.ogg','.oga','.opus','.m4a','.aac','.weba'],'application/x-potplayer-bookmark':['.pbf']}}]});
     const odd=skipped();await add(handleGroups(handles,odd),undefined,odd);
   }else input(kind,book);
 }
@@ -458,6 +462,7 @@ async function sync(list,ask){
     if(changed&&!expired(book))out.updated++;
     out.added+=added;out.removed+=removed;
   }
+  ctx.pbf?.check(list); // 配对的 PotPlayer 书签随文件夹检查一起看大小和修改时间，有变化才读（pbf.mjs）
   return out;
 }
 let refreshing=null;
@@ -708,6 +713,7 @@ try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 windows(ctx);shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);coverPicker(ctx);
 toolPanel(ctx);mediaPlayer(ctx);installFrames(ctx);
+pbfImport(ctx);
 
 await probeAll([...books.values()]);probed=true;
 select(books.get(get('last'))||books.values().next().value);
