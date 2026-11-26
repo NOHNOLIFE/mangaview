@@ -123,6 +123,7 @@
   - `src/core/`：不含界面的数据与逻辑
     - `books.mjs`：书目（`books`）与保存：`persist` 只写本窗口改过的字段，`pull` 接收别的窗口的改动。
     - `control.mjs`：总控栏的纯逻辑：模式、滚动 / 播放速率的范围与档位、各模式下的禁用规则。
+    - `engine.mjs`：总控运行的纯规则：滚动速率换算、下一步（滚动 / 停下播放 / 跳区段 / 换页 / 到书末）、只播区段的图片区段、跨书的下一本、翻屏对齐视频。
     - `events.mjs`：模块间的事件表（`ctx.on` / `emit`）。
     - `fling.mjs`：拖动惯性的速度估算与衰减（纯计算）。
     - `lang.mjs`：内置翻译：`index.html` 静态标签与多个模块共用的文案，各模块经 `extend()` 登记自己的文案。
@@ -179,9 +180,11 @@
     - `settings.mjs`：设置面板（按 group 渲染 `ctx.settings`）与还原默认设置。
   - `src/reader/`：阅读区
     - `actions.mjs`：按钮动作表（`ctx.actions`）与全局点击分派。
+    - `autoscroll.mjs`：匀速滚动的推进（`Glide` / `cruise`，总控的自动滚动与按住 W / S 共用）。
     - `controlbar-dial.mjs`：总控栏上速率、音量按钮的小面板。
     - `controlbar.css`：总控栏的样式。
     - `controlbar.mjs`：底部总控栏（阅读、通用、媒体三区）。
+    - `engine.mjs`：漫画、混合模式的驱动器（自动滚动、停下播放媒体、书末与跨书），单文件模式下按页推进。
     - `focus.css`：专注模式的样式。
     - `focus.mjs`：专注模式的开关。
     - `keys.mjs`：全局快捷键的分派（`ctx.keys`）、按住 W / S 持续滚动、长按翻页键（`ctx.pageHold`）。
@@ -193,6 +196,8 @@
     - `panel.mjs`：右侧缩略图栏的开合与调宽。
     - `session.mjs`：当前书与阅读位置、切书、阅读范围（`readingList`）。
     - `shell.mjs`：阅读区外壳的状态显示（书名、进度、提示条）与切换界面语言。
+    - `single.css`：单文件模式的样式。
+    - `single.mjs`：单文件模式：进入 / 退出、翻页、滚轮与吸附（`ctx.single`）。
     - `sort.mjs`：页面排序与排序对话框。
     - `tap.mjs`：正文与缩略图栏的点按（翻屏、点媒体播放 / 暂停）、回到书首 / 滚到书尾。
     - `thumbs.mjs`：缩略图的生成与会话缓存、视频截帧。

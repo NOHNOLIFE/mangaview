@@ -6,11 +6,13 @@ import { step, view } from './session.mjs';
 import { bar, showBar } from './toolbar.mjs';
 import { flip } from './single.mjs';
 let ctx;
+// 翻一屏的距离：留 64px 重叠，方便接着读。
+export const screenSpan = () => Math.max(1, main.clientHeight - 64);
 // 单文件模式下翻屏即翻页（上一个 / 下一个文件，single.mjs）。
 export function screenStep(d) {
   if (view.single) return void flip(d);
   stop();
-  main.scrollTop += d * Math.max(1, main.clientHeight - 64);
+  main.scrollTop += d * screenSpan();
 }
 // 点击正文：左半屏前一屏、右半屏后一屏；点在视频、音频上是播放 / 暂停（media.mjs）；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的总控栏里（controlbar.mjs）。
 export const atStart = () => main.scrollTop < 1,

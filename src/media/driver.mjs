@@ -2,7 +2,9 @@
 // - 'media' 模式的驱动器：开始 = 播放当前媒体（没有当前媒体时取视窗内或其后最近的媒体，滚到居中再播放），停止 = 暂停；
 //   播完之后的切换沿用 order.mjs 的「播放顺序 × 循环」。running 与实际播放保持一致：有媒体开始播放即报告运行，
 //   暂停、播完不再继续、打不开时报告停止（ctx.transport.report，只在 'media' 是当前模式生效的驱动器时起作用）。
-// - 单个媒体自己的播放键（press，也用于点击画面）：影音、混合模式下等同大播放键并把它设为当前媒体；漫画模式下只播这一个文件，播完即停。
+// - 单个媒体自己的播放键（press，也用于点击画面）：影音、混合模式下等同大播放键并把它设为当前媒体（混合模式下由 reader/engine.mjs 先播它，
+//   播完接着往下滚）；漫画模式下只播这一个文件，播完即停。
+// - 混合模式的驱动器（reader/engine.mjs）经 ctx.media.run 播放、暂停媒体并查看它的状态；翻屏对齐经 ctx.media.align（autoplay.mjs）。
 // - 当前媒体（autoplay.mjs current）带 .current 类（强调色外框）。S.chosen 是选定的媒体（按过自己的播放键、开始播放或被切到的）：
 //   在播放或仍在视窗内时优先作为当前媒体；没有在播放时，正文一滚动就不再优先。
 // - 上一个 / 下一个媒体（总控栏）：按播放顺序找（列表、单集按页序，随机按本轮洗牌、上一个按播放记录），滚到居中；在播放时接着播放。
@@ -22,7 +24,9 @@ export function install(ctx, S) {
     sectionMap = (...a) => S.sectionMap(...a),
     switchTo = (...a) => S.switchTo(...a),
     savedPos = (...a) => S.savedPos(...a),
-    popout = (...a) => S.popout(...a);
+    popout = (...a) => S.popout(...a),
+    inView = (...a) => S.inView(...a),
+    align = (...a) => S.align(...a);
   const on = (p) => (p.state === 'ready' && !p.el.paused) || p.wantPlay;
   const busy = () => [...players.values()].some(on) || !!S.queued?.play;
   const playerOf = (el) => players.get(el?.closest?.('.page'));
@@ -39,18 +43,20 @@ export function install(ctx, S) {
       }
       return ahead();
     },
-    stop() {
-      if (S.queued?.play) S.queued = null;
-      for (const p of players.values())
-        if (p.wantPlay) {
-          p.wantPlay = false;
-          p.userPaused = true;
-        } else if (p.state === 'ready' && !p.el.paused) {
-          p.userPaused = true;
-          p.el.pause();
-        }
-    },
+    stop: pauseAll,
   });
+  // 停止：暂停正在播放和等着播放的媒体（算作手动暂停）。
+  function pauseAll() {
+    if (S.queued?.play) S.queued = null;
+    for (const p of players.values())
+      if (p.wantPlay) {
+        p.wantPlay = false;
+        p.userPaused = true;
+      } else if (p.state === 'ready' && !p.el.paused) {
+        p.userPaused = true;
+        p.el.pause();
+      }
+  }
   // 视窗里没有当前媒体：从视窗顶部所在的页起往后找第一个可播放的媒体，滚到居中，从记住的位置播放。
   function ahead() {
     const book = ctx.current;
@@ -85,9 +91,62 @@ export function install(ctx, S) {
     if (ctx.transport.mode === 'comic') {
       if (!on(p)) p.solo = true;
       toggle(p);
-    } else if (on(p)) ctx.transport.stop();
-    else ctx.transport.start();
+    } else if (on(p)) {
+      ctx.transport.stop();
+      if (on(p)) toggle(p); // 未运行时在播放的（混合模式下自动播放的视频）：直接暂停
+    } else {
+      S.pressed = p; // 混合模式的驱动器从它开始（run.first）
+      ctx.transport.start();
+      S.pressed = null;
+    }
   }
+
+  // ---- 混合模式的驱动器（reader/engine.mjs）用：媒体按页（page 对象）指称，只看当前书、正文里的播放器。
+  const playerAt = (page) => [...players.values()].find((p) => p.page === page && p.book === ctx.current);
+  const run = {
+    // 能否停下来播放：视频、音频，且没有记为播不了。
+    playable: (page) => ['video', 'audio'].includes(pageKind(page)) && !page.bad && !S.failedPages.has(page),
+    // 开始运行时先播哪一个：刚按了自己播放键的；否则正在播放的；否则选定的当前媒体（仍在视窗内、没有播完）；都没有为 null。
+    first() {
+      const ok = (p) => p && players.has(p.node) && p.book === ctx.current && p.state !== 'failed';
+      if (ok(S.pressed)) return S.pressed.page;
+      const p = [...players.values()].find((q) => ok(q) && on(q));
+      if (p) return p.page;
+      const c = S.chosen;
+      return ok(c) && !c.done && inView(c) ? c.page : null;
+    },
+    // 播放这一页的媒体（已滚到视窗中央）：正在播放的不动；否则从记住的位置播放（只播区段时从区段开始，见 player.mjs start）。
+    play(page) {
+      const p = playerAt(page);
+      if (p && on(p)) {
+        S.chosen = p;
+        return;
+      }
+      if (p && p.state === 'ready' && inView(p)) {
+        S.chosen = p;
+        start(p);
+        mark();
+        return;
+      }
+      S.queued = { page, time: times.get(page) ?? savedPos(ctx.current, page), play: true, auto: false };
+      claimNow();
+      requestAnimationFrame(claimNow);
+    },
+    // 'wait' 等着挂源 / 播放；'playing' 在播放；'done' 播完（含区段播完）；'failed' 播不了；'away' 已离开视窗；'paused' 在视窗内被暂停。
+    state(page) {
+      if (S.queued?.page === page && S.queued.play) return 'wait';
+      const p = playerAt(page);
+      if (!p) return 'away';
+      if (p.state === 'failed') return 'failed';
+      if (on(p)) return 'playing';
+      if (p.done || (p.state === 'ready' && p.el.ended)) return 'done'; // 'pause' 先于 'ended' 到达
+      return inView(p) ? 'paused' : 'away';
+    },
+    pause: pauseAll,
+    get loop() {
+      return S.loop;
+    },
+  };
 
   // ---- 当前媒体的外框
   let marked = null,
@@ -171,9 +230,12 @@ export function install(ctx, S) {
   ctx.on('transport', (key) => {
     if (key === 'playRate') for (const p of players.values()) applyRate(p);
   });
-  ctx.on('select', () => {
+  // 切书。影音模式运行中用户切到别的书：在新书里接着运行（从阅读位置往后找媒体），没有媒体即停止；跨书自动切过去的由 order.mjs 接手。
+  ctx.on('select', (book) => {
     S.trail = [];
     S.chosen = null;
+    if (book && book === S.onward) S.onward = null;
+    else if (book && ctx.transport.running && ctx.transport.driver === 'media') ahead();
     changed();
   });
 
@@ -260,6 +322,8 @@ export function install(ctx, S) {
     step,
     canStep: (d) => target(d) != null,
     hasMedia: (book) => !!book?.pages.some((pg) => ['video', 'audio'].includes(pageKind(pg))),
+    run,
+    align: (d, step) => align(d, step),
     // 当前媒体的名称（最末一段）、完整路径、时间与时长（秒）、是否在播放；没有当前媒体时为 null。
     now() {
       const p = marked && players.has(marked.node) ? marked : current();

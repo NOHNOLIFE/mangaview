@@ -1,0 +1,527 @@
+// 总控的运行引擎（docs/requirements-2.4.zh-CN.md 第 8、8.0–8.3 节）：漫画、混合模式的自动滚动与停下播放、暂停与继续、书末 / 循环 / 跨书、
+// 只播区段、手动操作不打断运行、低速不卡住、未运行时的自动播放规则与翻屏对齐视频、影音模式的跨书。
+// 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+const binary = process.argv[2];
+if (!binary) throw Error('Usage: node tests/transport.browser.mjs <chrome-or-edge-executable>');
+const profile = await mkdtemp(join(process.env.MV_TEST_TEMP || tmpdir(), 'mv-transport-'));
+const mime = {
+  mjs: 'text/javascript',
+  js: 'text/javascript',
+  html: 'text/html',
+  webmanifest: 'application/manifest+json',
+  png: 'image/png',
+  css: 'text/css',
+};
+const server = createServer(async (req, res) => {
+  try {
+    const path = new URL(req.url, 'http://localhost').pathname.slice(1) || 'index.html';
+    if (!/^(?:[\w-]+\/)*[\w.-]+$/.test(path)) throw Error();
+    const data = await readFile(new URL('../' + path, import.meta.url));
+    res.writeHead(200, { 'Content-Type': mime[path.split('.').pop()], 'Cache-Control': 'no-cache' });
+    res.end(data);
+  } catch {
+    res.writeHead(404);
+    res.end();
+  }
+});
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const origin = 'http://127.0.0.1:' + server.address().port + '/';
+// 自动播放由应用自己的规则（有过用户操作才自动播放）判断，这里关掉浏览器的出声拦截，结果才确定。
+const chrome = spawn(
+  binary,
+  [
+    '--headless=new',
+    '--remote-debugging-port=0',
+    '--user-data-dir=' + profile,
+    '--no-first-run',
+    '--disable-background-networking',
+    '--autoplay-policy=no-user-gesture-required',
+    '--window-size=800,900',
+    'about:blank',
+  ],
+  { stdio: 'ignore' },
+);
+let ws,
+  id = 0;
+const pending = new Map(),
+  errors = [];
+async function wait(check, what = '') {
+  let last;
+  for (let i = 0; i < 160; i++) {
+    try {
+      last = await check();
+      if (last) return last;
+    } catch (e) {
+      last = e;
+    }
+    await delay(60);
+  }
+  throw Error('Timed out: ' + what + ' ' + check + '; last: ' + last);
+}
+try {
+  const port = await wait(async () => (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]);
+  const target = (await (await fetch('http://127.0.0.1:' + port + '/json/list')).json()).find((t) => t.type === 'page');
+  ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((r) => ws.addEventListener('open', r, { once: true }));
+  ws.onmessage = ({ data }) => {
+    const m = JSON.parse(data);
+    if (m.id) {
+      const p = pending.get(m.id);
+      pending.delete(m.id);
+      if (m.error) p.reject(Error(m.error.message));
+      else p.resolve(m.result);
+    }
+    if (m.method === 'Runtime.exceptionThrown')
+      errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
+  };
+  const cdp = (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      pending.set(++id, { resolve, reject });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+  const js = async (expression) => {
+    const r = await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (r.exceptionDetails) throw Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    return r.result.value;
+  };
+  const shot = async (name) => {
+    if (!process.env.MV_SHOTS) return;
+    const { data } = await cdp('Page.captureScreenshot', { format: 'png' });
+    await writeFile(join(process.env.MV_SHOTS, name + '.png'), Buffer.from(data, 'base64'));
+  };
+  const key = async (key, code, vk, opts = {}) => {
+    const text = key.length === 1 ? key : undefined;
+    await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, text, ...opts });
+    if (!opts.hold) await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
+  };
+  const up = (key, code, vk) => cdp('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
+  const click = async (x, y) => {
+    await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    for (const type of ['mousePressed', 'mouseReleased'])
+      await cdp('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, x, y });
+  };
+  const center = async (sel) =>
+    js(
+      `(()=>{const r=document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`,
+    );
+  const tap = async (sel) => {
+    const [x, y] = await center(sel);
+    await click(x, y);
+  };
+
+  await cdp('Runtime.enable');
+  await cdp('Page.enable');
+  const wide = () =>
+    cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 900, deviceScaleFactor: 1, mobile: false });
+  await wide();
+  await cdp('Page.addScriptToEvaluateOnNewDocument', {
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});`,
+  });
+  await cdp('Page.navigate', { url: origin });
+  await wait(() => js('document.querySelector("#empty")?.hidden===false'));
+  await js(MEDIA_FIXTURES);
+  const helpers = `window.frame=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+    window.node=name=>reader.querySelector('.page[data-name="'+CSS.escape(name)+'"]');
+    window.el=name=>node(name)?.querySelector('video,audio');
+    window.mid=name=>{const n=node(name);return n.offsetTop+n.offsetHeight/2;};
+    window.toPage=async name=>{let from=0;for(let i=0;i<300;i++){const n=node(name);if(!n){reader.scrollTop=from;from+=300;await frame();continue;}
+      const want=n.offsetTop+n.offsetHeight/2-reader.clientHeight/2;if(Math.abs(reader.scrollTop-Math.max(0,Math.min(want,reader.scrollHeight-reader.clientHeight)))<1&&i>2){await frame();if(Math.abs(n.offsetTop+n.offsetHeight/2-reader.clientHeight/2-want)<1)return true;}
+      reader.scrollTop=want;await frame();}return false;};
+    // 记录每一帧的 scrollTop（rec.on 为真时）。
+    window.record=()=>{window.rec=[];window.recOn=true;const f=()=>{rec.push(reader.scrollTop);if(recOn)requestAnimationFrame(f);};requestAnimationFrame(f);};
+    window.sample=ms=>new Promise(r=>{const out=[],t0=performance.now();const f=t=>{out.push([t,reader.scrollTop]);t-t0<ms?requestAnimationFrame(f):r(out);};requestAnimationFrame(f);});
+    window.session=()=>import('./src/reader/session.mjs');
+    window.openBook=async title=>{const s=await session(),{books}=await import('./src/core/books.mjs');s.select([...books.values()].find(b=>b.title===title));};
+    window.listTitles=async()=>{const s=await session();return s.readingList(s.current).map(b=>b.title);};`;
+  await js(helpers);
+  // 书：Strip（8 张矮图）、Tail（3 张矮图）、Mix（图、音频、高图、视频、高图）、Next（一段音频）。
+  await js(`(async()=>{const root=await navigator.storage.getDirectory();
+    const svg=(w,h,c)=>new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'"><rect width="100%" height="100%" fill="'+c+'"/><circle cx="50%" cy="50%" r="20%" fill="#fff"/></svg>'],{type:'image/svg+xml'});
+    const strip=await root.getDirectoryHandle('Strip',{create:true});for(let i=0;i<8;i++)await mvMedia.write(strip,'0'+i+'.svg',svg(600,300,'hsl('+i*40+',50%,40%)'));
+    const tail=await root.getDirectoryHandle('Tail',{create:true});for(let i=0;i<3;i++)await mvMedia.write(tail,'0'+i+'.svg',svg(600,300,'#455'));
+    const mix=await root.getDirectoryHandle('Mix',{create:true});
+    await mvMedia.write(mix,'01.svg',svg(600,300,'teal'));await mvMedia.write(mix,'02 a.wav',mvMedia.wav({seconds:2}));
+    await mvMedia.write(mix,'03.svg',svg(600,900,'#534'));await mvMedia.write(mix,'04 v.webm',await mvMedia.webm({seconds:1.5,width:320,height:180}));
+    await mvMedia.write(mix,'05.svg',svg(600,900,'#345'));
+    const nx=await root.getDirectoryHandle('Next',{create:true});await mvMedia.write(nx,'01 n.wav',mvMedia.wav({seconds:1}));})()`);
+  // 添加文件夹：点「添加」后若出现添加对话框（确认后才导入），点它的默认确认按钮；两种流程都能过。
+  const addFolder = async (name) => {
+    await js(
+      `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle(${JSON.stringify(name)});window.showDirectoryPicker=async()=>d;
+      const b=[...document.querySelectorAll('#empty [data-act="folder"],#bar [data-act="folder"],#shelf [data-act="folder"]')].find(b=>b.offsetParent)||document.querySelector('#bar [data-act="folder"]')||document.querySelector('#shelf [data-act="folder"]');b.click();})()`,
+    );
+    await wait(
+      () =>
+        js(
+          `(()=>{const d=document.getElementById('addDialog');if(d?.open){(d.querySelector('#addMany')||d.querySelector('button[autofocus]'))?.click();return false;}return bookTitle.textContent===${JSON.stringify(name)};})()`,
+        ),
+      'added ' + name,
+    );
+  };
+  for (const name of ['Strip', 'Tail', 'Mix', 'Next']) await addFolder(name);
+  await js(`localStorage.setItem('mv2:autoplay','false')`); // 自动播放的规则在后面单独检查
+  const storage = (k, v) =>
+    js(
+      `(()=>{const key='mv2:${k}',v=${JSON.stringify(JSON.stringify(v))};if(v==='null')localStorage.removeItem(key);else localStorage.setItem(key,v);dispatchEvent(new StorageEvent('storage',{key,newValue:v==='null'?null:v,storageArea:localStorage}));})()`,
+    );
+  const B = (id) => `document.querySelector('#controlbar [data-id="${id}"]')`;
+  const running = async () => (await js(`${B('play')}.getAttribute('aria-pressed')`)) === 'true';
+  const space = () => key(' ', 'Space', 32);
+  const top = () => js('reader.scrollTop');
+  const maxTop = () => js('reader.scrollHeight-reader.clientHeight');
+  const H = () => js('reader.clientHeight');
+  const mode = (m) => js(`${B('mode-' + m)}.click()`);
+  const open = async (title) => {
+    await js(`openBook(${JSON.stringify(title)})`);
+    await wait(() => js(`bookTitle.textContent===${JSON.stringify(title)}`), 'opened ' + title);
+    await js('reader.focus()');
+  };
+  const playing = () =>
+    js(`[...reader.querySelectorAll('video,audio')].filter(m=>!m.paused).map(m=>m.closest('.page').dataset.name)`);
+  const centred = (name) =>
+    js(
+      `!!node(${JSON.stringify(name)})&&Math.abs(mid(${JSON.stringify(name)})-reader.scrollTop-reader.clientHeight/2)<2`,
+    );
+  const text = () => js(`document.getElementById('notice').textContent`);
+  const stopped = async () => {
+    if (await running()) await space();
+    await wait(async () => !(await running()), 'stopped');
+  };
+  const [rx, ry] = await center('#reader');
+  const wheel = (deltaY) => cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY });
+
+  // ---- 8 / 8.3：漫画模式。按下播放匀速向下滚动：1.0× = 每秒视窗高度的 10%；低速下也在走、不倒退、每帧不跳；运行状态与大播放键一致。
+  await open('Strip');
+  await mode('comic');
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(running, 'comic runs');
+  const rate = (s) => (s.at(-1)[1] - s[0][1]) / ((s.at(-1)[0] - s[0][0]) / 1000);
+  {
+    const h = await H(),
+      s = await js('sample(1200)');
+    assert.ok(
+      s.every((x, k) => !k || x[1] >= s[k - 1][1]),
+      'Scrolls down only',
+    );
+    const v = rate(s);
+    assert.ok(v > h * 0.1 * 0.6 && v < h * 0.1 * 1.4, '1.0× ≈ 10% of the view per second: ' + v + ' / ' + h);
+    await storage('scrollRate', 0.25);
+    const slow = await js('sample(2000)'),
+      vs = rate(slow),
+      steps = slow.slice(1).map((x, k) => x[1] - slow[k][1]);
+    assert.ok(vs > h * 0.025 * 0.5 && vs < h * 0.025 * 1.5, '0.25× keeps moving: ' + vs);
+    assert.ok(Math.min(...steps) >= 0 && Math.max(...steps) <= 1, 'Low speed: whole pixels, never backwards: ' + steps);
+  }
+  // 暂停：停在原处；继续：从原处接着走。
+  await space();
+  await wait(async () => !(await running()), 'paused');
+  const t0 = await top();
+  await delay(500);
+  assert.equal(await top(), t0, 'Paused: stays put');
+  await storage('scrollRate', 1);
+  await space();
+  await wait(async () => (await running()) && (await top()) > t0, 'resumes from where it was');
+  assert.ok((await top()) - t0 < 60, 'No jump on resume');
+  // 运行中手动滚动、翻屏不停止运行，从新位置继续。
+  await wheel(240);
+  await delay(400);
+  assert.equal(await running(), true, 'Wheel does not stop the run');
+  let t1 = await top();
+  await wait(async () => (await top()) > t1 + 5, 'continues after the wheel');
+  await key('d', 'KeyD', 68);
+  await delay(100);
+  t1 = await top();
+  assert.equal(await running(), true, 'Turning a screen does not stop the run');
+  await wait(async () => (await top()) > t1 + 5, 'continues after turning');
+  await key('w', 'KeyW', 87, { hold: true }); // 按住 W 往回滚（与自动滚动共用推进逻辑），松开后接着往下
+  await delay(400);
+  await up('w', 'KeyW', 87);
+  t1 = await top();
+  assert.equal(await running(), true, 'Holding W does not stop the run');
+  await wait(async () => (await top()) > t1 + 5, 'continues after holding W');
+  // 窗口宽度变化：正文重排，视窗中央的内容不跳，运行继续。
+  {
+    const anchor = () =>
+      js(
+        'session().then(s=>{const a=s.view.anchor(),b=s.current;return a?b.pages.findIndex(p=>p.name===a.name)+a.f:0;})',
+      );
+    const a0 = await anchor();
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 640, height: 900, deviceScaleFactor: 1, mobile: false });
+    await delay(400);
+    const a1 = await anchor();
+    assert.ok(a1 >= a0 - 0.02 && a1 - a0 < 0.5, 'Centre content stays through a resize: ' + a0 + ' → ' + a1);
+    assert.equal(await running(), true);
+    await wide();
+    await delay(300);
+  }
+  // 书末：停止（循环关、跨书关）。
+  await storage('scrollRate', 4);
+  await wait(async () => !(await running()), 'stops at the end of the book');
+  assert.ok(Math.abs((await top()) - (await maxTop())) <= 1, 'At the end');
+  // 循环开：回到开头继续。
+  await storage('playLoop', true);
+  await space();
+  await wait(async () => (await running()) && (await top()) < 200, 'loop: back to the start');
+  await stopped();
+  await storage('playLoop', false);
+
+  // ---- 8.0 跨书：开启时到书末进入阅读列表的下一本，从书首继续；最后一本之后停止，循环开则回到第一本。
+  await storage('crossBook', true);
+  {
+    const list = await js('listTitles()');
+    assert.ok(list.length === 4 && list.at(-2) !== 'Next', 'Reading list: ' + list);
+    await open(list.at(-2));
+    await mode('comic');
+    await js('reader.scrollTop=reader.scrollHeight');
+    await space();
+    await wait(() => js(`bookTitle.textContent===${JSON.stringify(list.at(-1))}`), 'next book');
+    assert.equal(await running(), true, 'Keeps running in the next book');
+    assert.ok((await top()) < 300, 'From the top of the next book');
+    await stopped();
+    // 最后一本：循环关则停在这本，循环开则回到第一本。
+    const last = list.at(-1);
+    await open(last);
+    await mode('comic');
+    await js('reader.scrollTop=reader.scrollHeight');
+    await space();
+    await wait(async () => !(await running()), 'stops after the last book');
+    assert.equal(await js('bookTitle.textContent'), last);
+    await storage('playLoop', true);
+    await js('reader.scrollTop=reader.scrollHeight');
+    await js(
+      `window.titles=[];new MutationObserver(()=>titles.push(bookTitle.textContent)).observe(bookTitle,{childList:true,characterData:true,subtree:true})`,
+    );
+    await space();
+    await wait(() => js(`titles.includes(${JSON.stringify(list[0])})`), 'loop: first book');
+    assert.equal(await running(), true);
+    await stopped();
+    await storage('playLoop', false);
+  }
+  await storage('crossBook', false);
+  // 跨书关：到书末即停，不进入别的书。
+  await open('Tail');
+  await js('reader.scrollTop=reader.scrollHeight');
+  await space();
+  await wait(async () => !(await running()), 'cross-book off: stops');
+  assert.equal(await js('bookTitle.textContent'), 'Tail');
+  // 运行中用户切书：在新书里（从它的阅读位置）照常运行。
+  await js('reader.scrollTop=0');
+  await delay(400); // 阅读位置去抖保存
+  await storage('scrollRate', 1);
+  await open('Strip');
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(running);
+  await js(`openBook('Tail')`);
+  await wait(() => js(`bookTitle.textContent==='Tail'`));
+  await delay(500);
+  assert.equal(await running(), true, 'Switching books keeps the run going');
+  await stopped();
+  // 混合模式下纯图片的书：空格同样开始滚动；影音模式下没有媒体则没有效果。
+  await open('Strip');
+  await mode('mixed');
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(async () => (await running()) && (await top()) > 5, 'mixed mode scrolls a book of images');
+  await stopped();
+  await mode('media');
+  t1 = await top();
+  await space();
+  await delay(400);
+  assert.deepEqual([await running(), await top()], [false, t1], 'Media mode without media: nothing');
+  await mode('mixed');
+
+  // ---- 8 混合模式：匀速滚动，媒体到视窗中央停住播放，播完接着滚；暂停 = 暂停正在播放的媒体，继续从原处接着；书末停止。
+  await open('Mix');
+  await storage('scrollRate', 4);
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav' && (await centred('02 a.wav')), 'stops at the audio');
+  assert.equal(await running(), true);
+  t1 = await top();
+  await delay(300);
+  assert.equal(await top(), t1, 'Does not scroll while the media plays');
+  await shot('transport-mixed');
+  await space();
+  await wait(async () => !(await playing()).length && !(await running()), 'pause pauses the media');
+  const at = await js(`el('02 a.wav').currentTime`);
+  await delay(300);
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav' && (await running()), 'resumes the same media');
+  assert.ok((await js(`el('02 a.wav').currentTime`)) >= at - 0.05, 'From where it was paused');
+  await wait(async () => (await playing()).join() === '04 v.webm' && (await centred('04 v.webm')), 'next: the video');
+  await wait(async () => !(await running()), 'stops at the end of the book');
+  assert.deepEqual(await playing(), []);
+  assert.ok(Math.abs((await top()) - (await maxTop())) <= 1);
+  // 正在播放的媒体被用户滚出视窗：停播，从新位置接着滚（下一个停靠点是视频）。
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav', 'plays the audio');
+  await js('reader.scrollTop+=reader.clientHeight*0.8');
+  t1 = await top();
+  await wait(
+    async () => (await js(`!el('02 a.wav')||el('02 a.wav').paused`)) && (await top()) > t1 + 20,
+    'moves on from the new place',
+  );
+  assert.equal(await running(), true);
+  await wait(async () => (await playing()).join() === '04 v.webm', 'then plays the video');
+  await stopped();
+  // 单个媒体自己的播放键：等同大播放键并设为当前媒体，播完接着往下滚。
+  assert.ok(await js(`toPage('02 a.wav')`));
+  await wait(() => js(`el('02 a.wav')?.readyState>=1`));
+  await js('reader.scrollTop-=120'); // 不在视窗中央的也是
+  await tap('#reader .page[data-name="02 a.wav"] .mv-play');
+  await wait(async () => (await playing()).join() === '02 a.wav' && (await running()), 'own play button runs');
+  t1 = await top();
+  await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
+  await wait(async () => !(await playing()).length && (await top()) > t1 + 20, 'scrolls on after it ends');
+  assert.equal(await running(), true);
+  await stopped();
+
+  // ---- 8.2 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段起点；整个处在图片区段之内的媒体整段播放，其余没有区段的媒体跳过。
+  // 区段：01.svg 中部 → 03.svg 30%（盖住 02 a.wav），05.svg 20% → 80%；视频 04 没有区段，也不在图片区段内。
+  await js(
+    `(async()=>{const s=await session(),b=s.current;b.bookmarks=[{id:'s1',name:'01.svg',f:0.5,at:1,end:{name:'03.svg',f:0.3,at:2}},{id:'s2',name:'05.svg',f:0.2,at:3,end:{name:'05.svg',f:0.8,at:4}}];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
+  );
+  await storage('sectionsOnly', true);
+  await js('reader.scrollTop=0');
+  const gap = await js(
+    `session().then(m=>{const s=m.view.panes[0].starts;return [s[2]+(s[3]-s[2])*0.3,s[4]+(s[5]-s[4])*0.2];})`,
+  );
+  await js('record()');
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav', 'covered audio plays');
+  await wait(async () => !(await running()), 'ends after the last section');
+  const centres = await js('recOn=false,rec.map(t=>t+reader.clientHeight/2)');
+  assert.ok(
+    centres.some((c) => Math.abs(c - gap[1]) < 3),
+    'Lands on the start of the next section: ' + gap,
+  );
+  assert.ok(!centres.some((c) => c > gap[0] + 3 && c < gap[1] - 3), 'Jumps over the gap between sections: ' + gap);
+  assert.equal(
+    await js(`!el('04 v.webm')||el('04 v.webm').currentTime===0`),
+    true,
+    'The video without a section is skipped',
+  );
+  // 影音模式同样：整个在图片区段内的音频整段播放，没有区段的视频跳过。
+  await mode('media');
+  await js('reader.scrollTop=0');
+  await delay(200);
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav', 'media mode: covered audio');
+  await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
+  await wait(async () => !(await running()), 'media mode: the video is skipped, then stops');
+  assert.deepEqual(await playing(), []);
+  await mode('mixed');
+  // 整本书没有任何区段：提示并不启动。
+  await open('Tail');
+  await space();
+  await wait(async () => (await text()) === 'This book has no bookmark sections', 'no sections: hint');
+  assert.equal(await running(), false);
+  await storage('sectionsOnly', false);
+  await open('Mix');
+  await js(
+    `(async()=>{const s=await session(),b=s.current;b.bookmarks=[];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
+  );
+
+  // ---- 8.0 影音模式跨书：本书的媒体播完后进入下一本有媒体的书（循环开时最后一本之后回到第一本）。
+  await mode('media');
+  await storage('crossBook', true);
+  await storage('playLoop', true);
+  assert.ok(await js(`toPage('04 v.webm')`));
+  await wait(() => js(`el('04 v.webm')?.readyState>=1`));
+  await space();
+  await wait(async () => (await playing()).join() === '04 v.webm');
+  await js(`el('04 v.webm').currentTime=el('04 v.webm').duration-0.2`);
+  await wait(
+    async () => (await js('bookTitle.textContent')) === 'Next' && (await playing()).join() === '01 n.wav',
+    'next book with media plays',
+  );
+  await stopped();
+  await storage('playLoop', false);
+  await storage('crossBook', false);
+  // 影音模式运行中用户切书：在新书里接着播放（从阅读位置往后的媒体）。
+  await open('Mix');
+  assert.ok(await js(`toPage('02 a.wav')`));
+  await wait(() => js(`el('02 a.wav')?.readyState>=1`));
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav');
+  await js(`openBook('Next')`);
+  await wait(
+    async () => (await js('bookTitle.textContent')) === 'Next' && (await playing()).join() === '01 n.wav',
+    'plays on in the book switched to',
+  );
+  assert.equal(await running(), true);
+  await stopped();
+  await mode('mixed');
+
+  // ---- 8.1 未运行时的自动播放：混合、影音模式下只有视频在滚动停稳时自动播放，音频不会；漫画模式下都不自动播放。
+  await open('Mix');
+  await js(`localStorage.setItem('mv2:autoplay','true')`);
+  assert.ok(await js(`toPage('02 a.wav')`));
+  await wheel(4);
+  await delay(900);
+  assert.deepEqual(await playing(), [], 'Audio does not autoplay');
+  assert.ok(await js(`toPage('04 v.webm')`));
+  await wheel(4);
+  await wait(async () => (await playing()).join() === '04 v.webm', 'video autoplays');
+  await js(`el('04 v.webm').pause()`);
+  await mode('comic');
+  await js('reader.scrollTop=0');
+  await delay(300);
+  assert.ok(await js(`toPage('04 v.webm')`));
+  await wheel(4);
+  await delay(900);
+  assert.deepEqual(await playing(), [], 'Comic mode: no autoplay');
+  // 翻屏对齐：翻过去之后有视频进入播放范围，这一次直接落在视频居中处（一次滚动到位）；漫画模式、自动播放关闭时照常翻一屏。
+  const turn = async () => {
+    const [vm, h] = await js(`[mid('04 v.webm'),reader.clientHeight]`);
+    const from = Math.round(vm - h - 100);
+    await js(`reader.scrollTop=${from}`);
+    await delay(150);
+    await js('record()');
+    await key('d', 'KeyD', 68);
+    await delay(400);
+    const seen = await js('recOn=false,rec');
+    return { from, plain: from + h - 64, centre: Math.round(vm - h / 2), seen, now: await top() };
+  };
+  {
+    const r = await turn();
+    assert.equal(r.now, r.plain, 'Comic mode: a plain screen turn');
+  }
+  await mode('mixed');
+  {
+    const r = await turn();
+    assert.ok(Math.abs(r.now - r.centre) <= 1, 'Lands with the video centred: ' + JSON.stringify([r.now, r.centre]));
+    assert.ok(!r.seen.some((t) => Math.abs(t - r.plain) < 2), 'In one move, not a turn and a correction');
+    await wait(async () => (await playing()).join() === '04 v.webm', 'and it autoplays');
+    await js(`el('04 v.webm').pause()`);
+  }
+  await js(`localStorage.setItem('mv2:autoplay','false')`);
+  {
+    const r = await turn();
+    assert.equal(r.now, r.plain, 'Autoplay off: a plain screen turn');
+  }
+  assert.deepEqual(errors, []);
+  console.log(
+    'PASS: comic mode scrolls at 10% of the view per second at 1.0× (low speed keeps moving in whole pixels), pause / resume in place, wheel / turning / holding W / resizing keep the run going, end of book stops, loop wraps, cross-book moves to the next book (stops after the last, loop wraps to the first), switching books keeps running, Space in a book of images, mixed mode stops and plays media at the centre and moves on, pause resumes the same media, a media scrolled away lets the run continue, own play button, sections only (jump between image sections, covered media play, others skipped, no sections: hint), media mode across books, autoplay only for videos and not in comic mode, screen turns land on a video',
+  );
+} finally {
+  if (ws?.readyState === 1) {
+    ws.send(JSON.stringify({ id: ++id, method: 'Browser.close' }));
+    ws.close();
+  }
+  server.close();
+  for (let i = 0; i < 30 && chrome.exitCode === null; i++) await delay(100);
+  if (chrome.exitCode === null) chrome.kill();
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
+}

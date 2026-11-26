@@ -374,8 +374,9 @@ try {
   assert.deepEqual(await state(), ['false', '1.0×', 'false', 'false', 'false', '1.0×', 1], 'Back to the defaults');
   await js('reader.focus()');
 
-  // ---- 8：空格 = 大播放键（混合模式在本批退回影音模式的驱动器：播放当前媒体）；运行状态与实际播放一致。
+  // ---- 8：空格 = 大播放键；影音模式下运行状态与实际播放一致（漫画、混合模式的运行见 transport.browser.mjs）。
   const running = () => pressed('play');
+  await js(`${B('mode-media')}.click()`);
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '03 b.wav', 'space plays the current media');
   assert.equal(await running(), 'true');
@@ -423,6 +424,7 @@ try {
   );
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
+  await js(`${B('mode-mixed')}.click()`);
 
   // ---- 6：单个文件的播放面板。状态一眼可辨：当前媒体外框；播放中播放键与进度条为强调色、卡片提亮并显示音柱。
   assert.ok(await js(`toPage('03 b.wav')`));
@@ -594,7 +596,7 @@ try {
   await wide();
   await closeBar().catch(() => {});
 
-  // ---- 只有图片的书：右区全部禁用，影音模式下大播放键也禁用；空格没有效果、不滚动。
+  // ---- 只有图片的书：右区全部禁用，影音模式下大播放键也禁用、空格没有效果；混合模式下空格开始滚动（requirements-2.4 10）。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),pics=await root.getDirectoryHandle('Pics');window.showDirectoryPicker=async()=>pics;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
@@ -604,12 +606,20 @@ try {
   assert.deepEqual(await disabled([...RIGHT, 'play']), RIGHT, 'No media: the right zone is disabled');
   await js(`${B('mode-media')}.click()`);
   assert.deepEqual(await disabled(['play']), ['play'], 'No media in media mode: the big play button too');
-  await js(`${B('mode-mixed')}.click()`);
   await js('reader.focus()');
   await key(' ', 'Space', 32);
   await delay(300);
-  assert.equal(await js('reader.scrollTop'), 300, 'Space does nothing in a book of images');
+  assert.equal(await js('reader.scrollTop'), 300, 'Media mode: Space does nothing in a book of images');
   assert.equal(await running(), 'false');
+  await js(`${B('mode-mixed')}.click()`);
+  await js('reader.focus()');
+  await key(' ', 'Space', 32);
+  await wait(
+    async () => (await running()) === 'true' && (await js('reader.scrollTop')) > 302,
+    'Mixed mode: Space scrolls',
+  );
+  await key(' ', 'Space', 32);
+  await wait(async () => (await running()) === 'false');
   // 文件名只显示最末一段（不带路径），完整路径在悬停提示：添加为单个作品时页名带卷的路径。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),nest=await root.getDirectoryHandle('Nest');window.showDirectoryPicker=async()=>nest;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();})()`,
