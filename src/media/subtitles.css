@@ -1,0 +1,55 @@
+/* 字幕（subtitles.mjs）：统一的基础样式（白字、半透明深色底、无特效），最多 3 行，超出的省略。 */
+.mv-cue {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mv-cue[hidden] {
+  display: none;
+}
+.media.video .mv-cue {
+  font-size: clamp(14px, 2.4vw, 28px);
+}
+.page.media:fullscreen .mv-cue {
+  font-size: clamp(18px, 3vw, 44px);
+}
+
+/* 面板没有提供字幕容器时自建的（mv-subs-own）：视频叠在画面底部、壳的上方；音频放在卡片标题行的右侧，只有一行。 */
+.media.video > .mv-subs-own {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 56px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.mv-head > .mv-subs-own {
+  display: flex;
+  flex: 0 1 60%;
+  justify-content: flex-end;
+  min-width: 0;
+  margin-left: auto;
+}
+.mv-head > .mv-subs-own .mv-cue {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  padding: 0 8px;
+  font-size: 13px;
+  white-space: normal;
+}

@@ -47,7 +47,7 @@ export async function relinkAll(book, links) {
   forgetPages(book.id + ':');
   for (const { cand, source: s } of links) {
     if (cand.dir && s) link(book, cand, s);
-    else await addLoose(book, cand.pages);
+    else await addLoose(book, cand.pages, cand.subs);
   } // 无源：加入散图图集
   delete book.folderTime;
   settle(book);

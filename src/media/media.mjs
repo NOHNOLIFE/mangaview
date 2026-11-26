@@ -15,7 +15,7 @@
 // 本文件是唯一入口：建立子模块共享的 S，按顺序装配子模块，对外提供 ctx.media、ctx.player（含 api）和正文的 ctx.view.hooks.media。
 // 子模块（安装顺序）：volume 统一音量；order 播放顺序与循环、播完后的切换、待接手的播放请求；sections 只播放书签区段；
 // position 播放位置记忆；hud 提示浮层；tile 缩略图里的占位；shell 壳的 DOM 与状态显示；player 播放器的状态（挂源、失败、播放 / 暂停）；
-// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；buttons 壳上的列表级按钮登记。进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
+// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；buttons 壳上的列表级按钮登记；subtitles 外挂字幕。进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
 import { pageKind } from '../core/model.mjs';
 import { addIcons } from '../ui/icons.mjs';
 import { install as volume } from './volume.mjs';
@@ -30,6 +30,7 @@ import { install as autoplay } from './autoplay.mjs';
 import { install as popout } from './popout.mjs';
 import { install as keys } from './keys.mjs';
 import { install as buttons } from './buttons.mjs';
+import { install as subtitles } from './subtitles.mjs';
 
 const ICONS = {
   play: '<path d="M7 4.5v15l12-7.5z"/>',
@@ -175,6 +176,7 @@ export function install(ctx) {
     api,
   };
   buttons(ctx, S);
+  subtitles(ctx);
   // 书签增删（本窗口或别的窗口）后重画该书的播放器上的标记；别的窗口保存的播放位置，本窗口还没挂上源的播放器随之跟进。
   const refreshBook = (book) => {
     for (const p of players.values())

@@ -9,6 +9,8 @@ import {
   kindOf,
   isPbf,
   pairPbf,
+  isSub,
+  pairSubs,
 } from './model.mjs';
 
 // 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含内容（图片、视频或音频）的文件夹。
@@ -151,12 +153,108 @@ export async function pbfFile(book, page) {
   const fh = await timed(dir, () => dir.getFileHandle(name));
   return timed(dir, () => fh.getFile());
 }
-export const pairFrom = (book, s, pages) =>
+// 用扫描结果（页上已配好的 .pbf、字幕）更新某个源的配对。
+export function pairFrom(book, s, pages) {
   pairSource(
     book,
     s,
     new Map(pages.filter((p) => typeof p.pbf?.file === 'string').map((p) => [fileOf(p), p.pbf.file])),
   );
+  pairSubsSource(book, s, new Map(pages.map((p) => [fileOf(p), subEntries(p).map((e) => e.file)])));
+}
+// 外挂字幕（model.mjs pairSubs）：与 .pbf 一样在列目录时顺带看到，按文件名配对，不为此多读盘；字幕文件不是页，不计数、不提示。
+// 配上的记在页上：page.subs=[{file}]（按文件名顺序；文件夹里的页经源文件夹按文件名读取），散图另记句柄 {file,handle}
+// （与散图页的 handle、page.pbf.handle 同一做法，备份里只留文件名）；文件选择器回退只在本次会话持有 File（subLive）。
+const subLive = new WeakMap();
+const subEntries = (p) => (Array.isArray(p?.subs) ? p.subs.filter((e) => typeof e?.file === 'string') : []);
+// 文件夹里的页：字幕换成这些文件名。返回是否有变化。
+function setSubs(p, files) {
+  const old = subEntries(p).map((e) => e.file),
+    next = [...new Set(files)].sort(natural);
+  if (old.length === next.length && old.every((x, i) => x === next[i])) return false;
+  if (next.length) p.subs = next.map((file) => ({ file }));
+  else delete p.subs;
+  return true;
+}
+// 散图：补上这些字幕（[{file,handle?}]），同名的换成新句柄，已有的不去掉。返回是否有变化。
+function addSubs(p, entries) {
+  const list = subEntries(p);
+  let changed = list.length !== (p.subs?.length ?? 0);
+  for (const e of entries) {
+    const i = list.findIndex((x) => x.file === e.file),
+      next = { file: e.file, ...(e.handle && { handle: e.handle }) };
+    if (i < 0) list.push(next);
+    else if (e.handle && list[i].handle !== e.handle) list[i] = next;
+    else continue;
+    changed = true;
+  }
+  if (changed) p.subs = list.sort((a, b) => natural(a.file, b.file));
+  return changed;
+}
+function liveSubs(p, files) {
+  const m = subLive.get(p) ?? new Map();
+  for (const f of files) m.set(f.name, f);
+  subLive.set(p, m);
+}
+const subOf = (h) => ({ file: h.name, handle: h });
+// pages：同一目录（或同一批）的页；subs：字幕的文件名或句柄 / File；put(页, [配上的字幕])。返回没配上的字幕。
+function attachSubs(pages, subs, put) {
+  if (!subs.length) return [];
+  const byName = new Map(subs.map((x) => [typeof x === 'string' ? x : x.name, x])),
+    map = pairSubs(pages.map(fileOf), [...byName.keys()]),
+    used = new Set();
+  for (const p of pages) {
+    const list = map.get(fileOf(p));
+    if (!list) continue;
+    put(
+      p,
+      list.map((n) => byName.get(n)),
+    );
+    for (const n of list) used.add(n);
+  }
+  return [...byName.values()].filter((x) => !used.has(typeof x === 'string' ? x : x.name));
+}
+// 按某个源的最新目录内容（Map(媒体文件名 → [字幕文件名])）更新它各页的字幕。返回是否有变化。
+function pairSubsSource(book, s, map) {
+  let changed = false;
+  for (const p of allPages(book)) if (keyOf(p) === s.key && setSubs(p, map.get(fileOf(p)) ?? [])) changed = true;
+  return changed;
+}
+// 页上配对的字幕文件名（按文件名顺序）。
+export function subsOf(page) {
+  const set = new Set(subEntries(page).map((e) => e.file));
+  for (const f of subLive.get(page)?.keys() ?? []) set.add(f);
+  return [...set].sort(natural);
+}
+// 读字幕用的 File（只取元数据，内容由调用方按需读取）：本次会话的 File、散图的句柄，或经源文件夹按文件名取；经句柄的都限时（timed）。
+export async function subFile(book, page, file) {
+  const live = subLive.get(page)?.get(file);
+  if (live) return live;
+  const e = subEntries(page).find((x) => x.file === file),
+    h = e?.handle;
+  if (h?.getFile) return timed(h, () => h.getFile());
+  const dir = e && sourceOf(book, page)?.dir;
+  if (!dir) throw new DOMException('', 'NotFoundError');
+  const fh = await timed(dir, () => dir.getFileHandle(file));
+  return timed(dir, () => fh.getFile());
+}
+// 之后单独加入散图图集的字幕（[{file,handle?,path?}]）：按主文件名与图集里已有的媒体配对，相对目录相同的优先，
+// 其次是一个为另一个末尾几段的（同 addLoose）。返回配上的字幕数。
+export function addLooseSubs(book, subs = []) {
+  let n = 0;
+  const media = allPages(book).filter((p) => isMediaName(fileOf(p)));
+  for (const e of subs) {
+    const pick = (list) => {
+      const map = pairSubs(list.map(fileOf), [e.file]);
+      return list.filter((p) => map.has(fileOf(p)));
+    };
+    let hit = pick(media.filter((p) => (p.path ?? '') === (e.path ?? '')));
+    if (!hit.length) hit = pick(media.filter((p) => related(p.path, e.path)));
+    for (const p of hit) addSubs(p, [e]);
+    if (hit.length) n++;
+  }
+  return n;
+}
 export const hasPbf = (page) => pbfLive.has(page) || !!page.pbf?.handle?.getFile || typeof page.pbf?.file === 'string';
 const ordered = (pages) => pages.sort(nameOrder());
 const loosePage = (path, file, extra) =>
@@ -175,20 +273,23 @@ export async function* scan(dir, base = '', odd = null) {
   const path = base ? base + '/' + dir.name : dir.name;
   const pages = [],
     children = [],
-    pbfs = [];
+    pbfs = [],
+    subs = [];
   for await (const h of dir.values()) {
     if (h.kind === 'directory') children.push(h);
     else if (isContent(h.name)) pages.push({ name: h.name });
     else if (isPbf(h.name)) pbfs.push(h.name);
+    else if (isSub(h.name)) subs.push(h.name);
     else skip(odd, h.name);
   }
   attachPbf(pages, pbfs, (p, f) => {
     p.pbf = { file: f };
   });
+  attachSubs(pages, subs, setSubs);
   if (pages.length) yield { title: dir.name, dir, path, pages: ordered(pages) };
   for (const child of children) yield* scan(child, path, odd);
 }
-// 刷新用：只列目录，返回内容文件名（另带 .pbf 文件名：names.pbf，见 applyNames）；找不到、句柄卡住或没有内容时为 'gone'，没有权限为 'denied'。不支持的文件不提示、不读取。
+// 刷新用：只列目录，返回内容文件名（另带 .pbf 文件名 names.pbf、字幕文件名 names.subs，见 applyNames）；找不到、句柄卡住或没有内容时为 'gone'，没有权限为 'denied'。不支持的文件不提示、不读取。
 export async function listDir(dir, ask) {
   try {
     let state = dir.queryPermission ? await timed(dir, () => dir.queryPermission({ mode: 'read' })) : 'granted';
@@ -196,6 +297,7 @@ export async function listDir(dir, ask) {
     if (state !== 'granted') return 'denied';
     const names = [],
       pbf = [],
+      subs = [],
       it = dir.values();
     for (;;) {
       const r = await timed(dir, () => it.next());
@@ -203,9 +305,11 @@ export async function listDir(dir, ask) {
       if (r.value.kind === 'file') {
         if (isContent(r.value.name)) names.push(r.value.name);
         else if (isPbf(r.value.name)) pbf.push(r.value.name);
+        else if (isSub(r.value.name)) subs.push(r.value.name);
       }
     }
     Object.defineProperty(names, 'pbf', { value: pbf });
+    Object.defineProperty(names, 'subs', { value: subs });
     return names.length ? names : 'gone';
   } catch (e) {
     if (['NotFoundError', 'TimeoutError'].includes(e.name)) return 'gone';
@@ -218,12 +322,14 @@ const accepted = (f) => isContent(f.name) || (!unplayable(f.name) && f.type.star
 export function fileGroups(files, odd = null) {
   const groups = new Map(),
     pbfs = new Map(),
+    subs = new Map(),
     dirOfFile = (f) => f.webkitRelativePath?.split('/').slice(0, -1).join('/') || '';
   for (const f of files) {
-    if (isPbf(f.name)) {
+    const side = isPbf(f.name) ? pbfs : isSub(f.name) ? subs : null;
+    if (side) {
       const path = dirOfFile(f);
-      if (!pbfs.has(path)) pbfs.set(path, []);
-      pbfs.get(path).push(f);
+      if (!side.has(path)) side.set(path, []);
+      side.get(path).push(f);
       continue;
     }
     if (!accepted(f)) {
@@ -234,7 +340,10 @@ export function fileGroups(files, odd = null) {
     if (!groups.has(path)) groups.set(path, []);
     groups.get(path).push(pageFor(f));
   }
-  for (const [path, list] of groups) attachPbf(list, pbfs.get(path) ?? [], (p, f) => pbfLive.set(p, f));
+  for (const [path, list] of groups) {
+    attachPbf(list, pbfs.get(path) ?? [], (p, f) => pbfLive.set(p, f));
+    attachSubs(list, subs.get(path) ?? [], liveSubs);
+  }
   return Array.from(groups, ([path, pages]) => ({
     title: path.split('/').pop() || null,
     ...(path && { path }),
@@ -243,44 +352,58 @@ export function fileGroups(files, odd = null) {
 }
 export async function* handleGroups(handles, odd = null) {
   const loose = [],
-    pbfs = handles.filter((h) => h.kind !== 'directory' && isPbf(h.name));
+    pbfs = handles.filter((h) => h.kind !== 'directory' && isPbf(h.name)),
+    subs = handles.filter((h) => h.kind !== 'directory' && isSub(h.name));
   for (const h of handles) {
     if (h.kind === 'directory') yield* scan(h, '', odd);
     else if (isContent(h.name)) loose.push({ name: h.name, handle: h });
-    else if (!isPbf(h.name)) skip(odd, h.name);
+    else if (!isPbf(h.name) && !isSub(h.name)) skip(odd, h.name);
   }
   attachPbf(loose, pbfs, (p, h) => bindPbf(p, 'handle', h));
-  if (loose.length) yield { title: null, pages: ordered(loose) };
+  // 没配上同一批媒体的字幕（group.subs）：并入散图图集时与图集里已有的媒体配对（addLooseSubs）。
+  const rest = attachSubs(loose, subs, (p, hs) => addSubs(p, hs.map(subOf)));
+  if (loose.length || rest.length)
+    yield { title: null, pages: ordered(loose), ...(rest.length && { subs: rest.map(subOf) }) };
 }
 // 拖到「添加到散图图集」：所有图片、视频、音频（包括文件夹里的，递归）合成一组散图（title 为 null，归入散图图集）。
 // 来自文件夹的图记下相对目录（如“卷1”），页名为“卷1/001.jpg”，按名称排序时按文件夹聚在一起。
 export async function looseImages(handles, odd = null) {
-  const pages = [];
-  const pair = (list, pbfs) => {
+  const pages = [],
+    orphans = [];
+  const pair = (list, pbfs, subs, path) => {
     attachPbf(list, pbfs, (p, h) => bindPbf(p, 'handle', h));
+    for (const h of attachSubs(list, subs, (p, hs) => addSubs(p, hs.map(subOf))))
+      orphans.push({ ...subOf(h), ...(path && { path }) });
     pages.push(...list);
   };
   async function walk(dir, base) {
     const list = [],
-      pbfs = [];
+      pbfs = [],
+      subs = [];
     for await (const h of dir.values()) {
       if (h.kind === 'directory') await walk(h, base + '/' + h.name);
       else if (isContent(h.name)) list.push(loosePage(base, h.name, { handle: h }));
       else if (isPbf(h.name)) pbfs.push(h);
+      else if (isSub(h.name)) subs.push(h);
       else skip(odd, h.name);
     }
-    pair(list, pbfs);
+    pair(list, pbfs, subs, base);
   }
   const top = [],
-    pbfs = [];
+    pbfs = [],
+    subs = [];
   for (const h of handles) {
     if (h.kind === 'directory') await walk(h, h.name);
     else if (isContent(h.name)) top.push({ name: h.name, handle: h });
     else if (isPbf(h.name)) pbfs.push(h);
+    else if (isSub(h.name)) subs.push(h);
     else skip(odd, h.name);
   }
-  pair(top, pbfs);
-  return pages.length ? [{ title: null, pages: ordered(pages) }] : [];
+  pair(top, pbfs, subs, '');
+  // 没配上同一批媒体的字幕（group.subs，带相对目录）：并入时与图集里已有的媒体配对（addLooseSubs）。
+  return pages.length || orphans.length
+    ? [{ title: null, pages: ordered(pages), ...(orphans.length && { subs: orphans }) }]
+    : [];
 }
 // 同上，用于不支持文件句柄的浏览器（只有本次会话的 File）。记下大小，供去重时比较。
 export function looseFiles(files, odd = null) {
@@ -304,7 +427,8 @@ async function meta(p) {
   const f = live.get(p) ?? (p.handle ? await timed(p.handle, () => p.handle.getFile()).catch(() => null) : null);
   return f ? { size: f.size, lastModified: f.lastModified } : p;
 }
-export async function addLoose(book, pages) {
+// subs：没配上这批媒体的字幕（looseImages / handleGroups 的 group.subs），与图集里已有的媒体配对（addLooseSubs）。
+export async function addLoose(book, pages, subs = []) {
   const byFile = new Map(),
     names = new Set(),
     out = new Map();
@@ -346,6 +470,8 @@ export async function addLoose(book, pages) {
       if (live.has(p)) live.set(same, live.get(p));
       if (p.pbf?.handle) bindPbf(same, 'handle', p.pbf.handle);
       if (pbfLive.has(p)) pbfLive.set(same, pbfLive.get(p));
+      if (p.subs) addSubs(same, subEntries(p));
+      if (subLive.has(p)) liveSubs(same, subLive.get(p).values());
       out.set(old, same.name);
       continue;
     }
@@ -358,6 +484,7 @@ export async function addLoose(book, pages) {
     book.pages.push(p);
     out.set(old, name);
   }
+  addLooseSubs(book, subs);
   return out;
 }
 // 旧版散图的页名就是“相对目录/文件名”：载入时补上 file 和 path，页名（书签、阅读位置依赖它）不变。
@@ -386,7 +513,8 @@ export function mergeKeys(groups) {
   });
 }
 // 按某个源的最新文件列表更新页表：保留仍存在的页（尺寸等），追加新图，去掉已不存在的图。
-// reset：重新关联文件夹时清掉旧的修改时间，按需重新读取。pbf：目录里的 .pbf 文件名（listDir 的结果带着），给出时重新配对。
+// reset：重新关联文件夹时清掉旧的修改时间，按需重新读取。pbf：目录里的 .pbf 文件名（listDir 的结果带着），给出时重新配对；
+// 字幕文件名（names.subs，listDir 的结果带着）同样重新配对，返回值的 subs 表示页上的字幕有没有变化（增删字幕不改变页表，调用方据此保存）。
 export function applyNames(book, s, names, reset = false, pbf = names.pbf) {
   const now = new Set(names),
     old = new Set(),
@@ -407,7 +535,8 @@ export function applyNames(book, s, names, reset = false, pbf = names.pbf) {
     .map((n) => makePage(s.key, n));
   book.pages.push(...fresh);
   if (pbf) pairSource(book, s, pairPbf(names, pbf));
-  return { added: fresh.length, removed: total + fresh.length - allPages(book).length };
+  const subs = !!names.subs && pairSubsSource(book, s, pairSubs(names, names.subs));
+  return { added: fresh.length, removed: total + fresh.length - allPages(book).length, subs };
 }
 // 源是否暂时不可用：刷新时找不到、句柄卡住，或者既没有目录句柄、也没有本次会话的文件（如从备份导入）。
 export const down = (book, s) =>
@@ -498,8 +627,11 @@ export function reconnect(book, group, s = book.sources?.[0]) {
     else delete p.handle;
     if (pbfLive.has(fresh)) pbfLive.set(p, pbfLive.get(fresh));
     if (fresh.pbf?.handle) bindPbf(p, 'handle', fresh.pbf.handle);
+    if (subLive.has(fresh)) subLive.set(p, subLive.get(fresh));
+    if (!s && fresh.subs) addSubs(p, subEntries(fresh)); // 散图：接回字幕的句柄
     p.lastModified = fresh.lastModified;
   }
+  if (!s) addLooseSubs(book, group.subs);
   if (pairs.length && group.dir && s) {
     s.dir = group.dir;
     delete s.missing;

@@ -2,7 +2,7 @@
 import { timed, listDir, applyNames, settle, down } from '../core/sources.mjs';
 import { fmt } from '../core/locale.mjs';
 import { emit } from '../core/events.mjs';
-import { books } from '../core/books.mjs';
+import { books, persist } from '../core/books.mjs';
 import { expired, probeAll } from '../core/status.mjs';
 import { notice, safe } from '../ui/dom.mjs';
 import { current, here } from '../reader/session.mjs';
@@ -57,7 +57,8 @@ async function sync(list, ask) {
     let changed = false,
       added = 0,
       removed = 0,
-      denied = false;
+      denied = false,
+      subs = false;
     for (const [s, r] of results) {
       if (!book.sources.includes(s)) continue; // 列目录期间这一卷已被移除或重建
       if (r === 'denied') denied = true;
@@ -74,11 +75,15 @@ async function sync(list, ask) {
         const d = applyNames(book, s, r);
         added += d.added;
         removed += d.removed;
+        subs ||= d.subs;
       }
     }
     if (added || removed) delete book.folderTime; // 文件夹时间待重新计算
     if (settle(book) || added || removed) {
       await arrange(book, false, before);
+      changed = true;
+    } else if (subs) {
+      await persist(book); // 只有字幕增减：页表不变，不重排
       changed = true;
     }
     if (denied) out.denied++;
