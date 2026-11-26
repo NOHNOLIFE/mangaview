@@ -1,4 +1,4 @@
-// 顶部工具栏与底部操作栏：边缘悬停弹出、离开收起、设置项、换行布局与阅读键位。框架同 tests/browser.mjs。
+// 顶部工具栏与底部总控栏（总控栏的布局与控件另见 controlbar.browser.mjs）：边缘悬停弹出、离开收起、设置项、换行布局与阅读键位。框架同 tests/browser.mjs。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -240,25 +240,27 @@ try {
   await wait(() => js('bar.hidden'));
   await js(`localStorage.removeItem('mv2:edgeTop')`);
 
-  // 底缘操作栏：贴近底缘稍停弹出；固定为 上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本，到首尾时不再变成切书按钮；离开后收起。
-  const [prev, toTop, toEnd, next, endbarName] = await js(
-    `import('./src/core/lang.mjs').then(m=>['prev','toTop','toEnd','next','endbar'].map(k=>m.translate(k,document.documentElement.lang)))`,
+  // 底缘总控栏：贴近底缘稍停弹出；左区为 上一本 / 到顶部 / 到底部 / 下一本（图标按钮，名称在 aria-label 与悬停提示），到首尾时不变成切书按钮；离开后收起。
+  const [prev, toTop, toEnd, next, barName] = await js(
+    `import('./src/core/lang.mjs').then(m=>['prev','toTop','toEnd','next','controlBar'].map(k=>m.translate(k,document.documentElement.lang)))`,
   );
   const labels = () =>
-    js(`[...endbar.querySelectorAll('.eb')].map(b=>[b.dataset.act,b.textContent,b.title,b.disabled])`);
+    js(
+      `[...controlbar.querySelectorAll('[data-act]')].map(b=>[b.dataset.act,b.getAttribute('aria-label'),b.title,b.disabled])`,
+    );
   const press = async (act) => {
-    const b = await box(`#endbar [data-act="${act}"]`);
+    const b = await box(`#controlbar [data-act="${act}"]`);
     await move(b.x, b.y);
     for (const type of ['mousePressed', 'mouseReleased'])
       await cdp('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, x: b.x, y: b.y });
   };
-  assert.equal(await js('endbar.getAttribute("aria-label")'), endbarName);
+  assert.equal(await js('controlbar.getAttribute("aria-label")'), barName);
   await js('reader.scrollTop=1500');
   await move(400, height - 3);
   await delay(40);
-  assert.equal(await js('endbar.hidden'), true, 'Bottom edge needs a short dwell');
-  await wait(() => js('!endbar.hidden'));
-  await settle('#endbar');
+  assert.equal(await js('controlbar.hidden'), true, 'Bottom edge needs a short dwell');
+  await wait(() => js('!controlbar.hidden'));
+  await settle('#controlbar');
   // 只有一本书：上一本 / 下一本变灰。
   assert.deepEqual(await labels(), [
     ['prev', prev, prev, true],
@@ -266,34 +268,31 @@ try {
     ['toEnd', toEnd, toEnd, false],
     ['next', next, next, true],
   ]);
-  assert.match(await js('endPos.textContent'), /^\d+ \/ 12$/, 'Position shows read / total only, no percentage');
-  const lefts = () => js(`[...endbar.children].map(e=>e.getBoundingClientRect().left)`),
+  const posText = () => js(`controlbar.querySelector('.cb-pos').textContent`);
+  assert.match(await posText(), /^\d+ \/ 12 · \d+%$/, 'Position: read / total · progress');
+  const lefts = () => js(`[...controlbar.querySelectorAll('.cb-btn,.cb-info')].map(e=>e.getBoundingClientRect().left)`),
     mid = await lefts();
-  assert.deepEqual(
-    await js(`[...endbar.children].map(e=>e.dataset.act||e.id)`),
-    ['prev', 'toStart', 'endPos', 'toEnd', 'next'],
-    'Order: prev, start, position, end, next',
-  );
-  assert.equal(await js('endbar.classList.contains("compact")'), false, 'Labels fit at 800px');
-  await shot('endbar-800');
-  const end = await box('#endbar');
+  assert.equal(await js('controlbar.classList.contains("compact")'), false, 'Everything fits at 800px');
+  await shot('controlbar-800');
+  const end = await box('#controlbar');
   assert.ok(Math.abs(end.x - view.x) <= 1 && end.bottom <= height - 10, 'Centred at the bottom');
   await press('toEnd');
   await wait(() => js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
   await wait(async () => (await labels())[2][3] === true);
   assert.equal((await labels())[2][1], toEnd, 'Still “jump to end” at the end');
-  assert.equal(await js('endPos.textContent'), '12 / 12', 'At the end: n / n');
+  assert.equal(await posText(), '12 / 12 · 100%', 'At the end: n / n');
   await delay(250);
-  const atEndLefts = await lefts(); // 等按下的缩放过渡结束assert.deepEqual(atEndLefts,mid,'Buttons keep their place at the end');assert.equal(await js('bookTitle.textContent'),'Toolbar book');
+  const atEndLefts = await lefts(); // 等按下的缩放过渡结束
+  assert.deepEqual(atEndLefts, mid, 'Buttons keep their place at the end');
   await press('toStart');
   await wait(() => js('reader.scrollTop===0'));
   await wait(async () => (await labels())[1][3] === true);
-  assert.equal(await js('endPos.textContent'), '1 / 12');
+  assert.equal(await posText(), '1 / 12 · 0%');
   await delay(250);
-  assert.deepEqual(await lefts(), atEndLefts, 'Start and end: the five buttons keep the same left positions');
+  assert.deepEqual(await lefts(), atEndLefts, 'Start and end: every control keeps its left position');
   assert.equal(await js('document.activeElement===reader'), true, 'Buttons hand focus back to the reader');
   await move(400, 400);
-  await wait(() => js('endbar.hidden'));
+  await wait(() => js('controlbar.hidden'));
   // 点击正文只翻屏：上 / 下 15% 不再跳首尾。
   for (const y of [20, height - 20]) {
     const top = await js('reader.scrollTop=600');
@@ -306,12 +305,12 @@ try {
       'Right half pages forward at y=' + y,
     );
     await move(400, 400);
-    await wait(() => js('endbar.hidden&&bar.hidden'));
+    await wait(() => js('controlbar.hidden&&bar.hidden'));
   }
   await js(`localStorage.setItem('mv2:edgeBottom','false')`);
   await move(400, height - 3);
   await delay(400);
-  assert.equal(await js('endbar.hidden'), true, 'edgeBottom off disables the bottom bar');
+  assert.equal(await js('controlbar.hidden'), true, 'edgeBottom off disables the bottom bar');
   // 旧版的单列 / 双列设置被清除；面板避开窗口控件覆盖区（--top），窄窗口时换行，内容不超出面板和窗口。
   await js(`localStorage.setItem('mv2:toolbarColumns','2');localStorage.removeItem('mv2:edgeBottom')`);
   await cdp('Page.reload');
@@ -340,29 +339,24 @@ try {
     );
     assert.ok(f.rows > 1, 'Wraps at ' + w + 'px');
   }
-  // 窄窗口下操作栏只显示图标（文字视觉隐藏，仍是按钮的名称），不超出窗口。
+  // 窄窗口下总控栏不超出窗口（布局细节见 controlbar.browser.mjs）。
   await js(`document.documentElement.style.removeProperty('--top')`);
   await move(180, 250);
   await move(180, 497);
-  await wait(() => js('!endbar.hidden'));
-  await settle('#endbar');
-  await shot('endbar-360');
-  const narrow = await box('#endbar');
-  assert.ok(narrow.left >= 0 && narrow.right <= 360, 'Action bar fits at 360px: ' + JSON.stringify(narrow));
-  assert.equal(
-    await js(
-      `endbar.classList.contains('compact')&&[...endbar.querySelectorAll('.eb')].every(b=>b.title&&b.textContent===b.title&&b.querySelector('span').getBoundingClientRect().width<=1)`,
-    ),
-    true,
-  );
+  await wait(() => js('!controlbar.hidden'));
+  await settle('#controlbar');
+  await shot('controlbar-360');
+  const narrow = await box('#controlbar');
+  assert.ok(narrow.left >= 0 && narrow.right <= 360, 'Control bar fits at 360px: ' + JSON.stringify(narrow));
+  assert.equal(await js('controlbar.scrollWidth<=controlbar.clientWidth'), true);
   await cdp('Emulation.clearDeviceMetricsOverride');
   await wait(async () => (await js('innerWidth')) === width);
   await move(400, 300);
-  await wait(() => js('endbar.hidden'));
+  await wait(() => js('controlbar.hidden'));
 
   // 四边的边缘触发区同为 32px（app.mjs 的 ctx.atEdge）：距边缘 31px 内触发，32px 外不触发。
   await key('Escape', 'Escape');
-  await wait(() => js('bar.hidden&&endbar.hidden'));
+  await wait(() => js('bar.hidden&&controlbar.hidden'));
   const zone = async (x, y, shown, yes) => {
     await move(width / 2, height / 2);
     await delay(50);
@@ -374,7 +368,7 @@ try {
       await move(width / 2, height / 2);
       await wait(() =>
         js(
-          'bar.hidden&&endbar.hidden&&document.getElementById("shelfmarks").hidden&&document.getElementById("panel").hidden',
+          'bar.hidden&&controlbar.hidden&&document.getElementById("shelfmarks").hidden&&document.getElementById("panel").hidden',
         ),
       );
     }
@@ -382,8 +376,8 @@ try {
   for (const [x, y, shown, yes] of [
     [400, 32, '!bar.hidden', false],
     [400, 31, '!bar.hidden', true],
-    [400, height - 33, '!endbar.hidden', false],
-    [400, height - 32, '!endbar.hidden', true],
+    [400, height - 33, '!controlbar.hidden', false],
+    [400, height - 32, '!controlbar.hidden', true],
     [32, 400, '!document.getElementById("shelfmarks").hidden', false],
     [31, 400, '!document.getElementById("shelfmarks").hidden', true],
     [width - 33, 400, '!document.getElementById("panel").hidden', false],
@@ -466,14 +460,14 @@ try {
   // 按钮等交互控件里的文字不可选中（避免快速点击时误选文字）；输入框照常可选。
   assert.deepEqual(
     await js(
-      `['#endbar .eb','#bar .tb','#views [role=tab]','#empty button','.set-switch,#filterToggle'].map(s=>getComputedStyle(document.querySelector(s)).userSelect)`,
+      `['#controlbar .cb-btn','#bar .tb','#views [role=tab]','#empty button','.set-switch,#filterToggle'].map(s=>getComputedStyle(document.querySelector(s)).userSelect)`,
     ),
     ['none', 'none', 'none', 'none', 'none'],
   );
   assert.equal(await js(`getComputedStyle(query).userSelect`), 'text');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: same 32px edge zone on all four sides, position shows read / total with stable button positions, no text selection in buttons, top edge popup, centred icon row with tooltips, title row, leave to fade out, no corner menu button, keyboard access, edgeTop off, bottom action bar, click pages only, WCO-safe top, wrapping in narrow windows, Esc / T, WASD / arrow keys',
+    'PASS: same 32px edge zone on all four sides, position shows read / total with stable button positions, no text selection in buttons, top edge popup, centred icon row with tooltips, title row, leave to fade out, no corner menu button, keyboard access, edgeTop off, bottom control bar, click pages only, WCO-safe top, wrapping in narrow windows, Esc / T, WASD / arrow keys',
   );
 } finally {
   if (ws?.readyState === 1) {

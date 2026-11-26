@@ -1,7 +1,7 @@
 /* 顶部工具栏：收起时不占任何位置（鼠标移到顶缘或按 T 唤出）；展开为阅读区顶部居中的图标行（文字只给读屏和悬停提示），浮在正文之上，
    窗口窄时自动换行，不会超出阅读区。书名行在工具栏下方居中。
    #toolbar 是横跨阅读区顶部、不接收鼠标的纵向容器，工具栏和书名行在其中依次居中排列。
-   底部操作栏：贴近底缘弹出，上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本。 */
+   底部的总控栏见 controlbar.css。 */
 #toolbar {
   position: fixed;
   z-index: 5;
@@ -181,101 +181,6 @@
   transform-origin: left;
   transition: transform 0.25s var(--ease);
 }
-#endbar {
-  --leave-y: 8px;
-  position: fixed;
-  z-index: 5;
-  bottom: 14px;
-  left: calc(var(--dockL) + (100% - var(--dock) - var(--dockL)) / 2);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: calc(100% - var(--dock) - var(--dockL) - 16px);
-  padding: 6px;
-  overflow: hidden;
-  border: 1px solid var(--line2);
-  border-radius: 14px;
-  background: rgba(16, 17, 20, 0.92);
-  backdrop-filter: blur(22px) saturate(1.5);
-  box-shadow: var(--shadow);
-  transform: translateX(-50%);
-  animation: eb-in 0.2s var(--ease);
-}
-#endbar .eb {
-  flex: none;
-  height: 38px;
-  padding: 0 14px 0 10px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-#endbar .eb:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: transparent;
-}
-#endbar .eb:disabled {
-  opacity: 0.38;
-}
-#endbar .eb .i {
-  width: 18px;
-  height: 18px;
-  color: var(--accent);
-}
-#endbar .eb-book .i {
-  color: var(--accent-hi);
-}
-/* 书架筛选生效时，上一本 / 下一本只在筛选结果内切换：图标右上角一个小圆点（说明在 title 提示里）。 */
-#endbar .eb-book.scoped {
-  position: relative;
-}
-#endbar .eb-book.scoped::after {
-  content: '';
-  position: absolute;
-  top: 7px;
-  left: 23px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px rgba(16, 17, 20, 0.92);
-}
-/* 放不下文字时（toolbar.mjs 加 .compact）只显示图标，文字视觉隐藏，读屏和悬停提示仍可用。 */
-#endbar.compact .eb {
-  padding: 0 10px;
-}
-#endbar.compact .eb span {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-/* 位置：下方一个零高度、不可见的占位串（按总张数的位数生成，toolbar.mjs 的 syncPos）撑开宽度，宽度只取决于位数。 */
-.eb-pos {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 72px;
-  padding: 0 6px;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.eb-pos::after {
-  content: attr(data-room);
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-}
-body.endbar-open #hud {
-  opacity: 0;
-}
 .on-full,
 :root:fullscreen .on-window {
   display: none;
@@ -293,11 +198,5 @@ body.endbar-open #hud {
   from {
     opacity: 0;
     transform: translateY(-8px);
-  }
-}
-@keyframes eb-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 10px);
   }
 }

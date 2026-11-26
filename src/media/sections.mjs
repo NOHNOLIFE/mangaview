@@ -1,4 +1,5 @@
-// 只播放书签区段（4.5）：开关状态 S.only（设置类偏好，跨窗口同步）、一个媒体内只播放它的区段、全书各媒体的区段（sectionMap）。
+// 只播放书签区段（4.5）：开关状态 S.only（即 ctx.transport.sectionsOnly，偏好由 reader/transport.mjs 登记、跨窗口同步，开关在总控栏）、
+// 一个媒体内只播放它的区段、全书各媒体的区段（sectionMap）。
 // 区段规则在 playlist.mjs（sectionStart / sectionStep），区段来自 bookmarks.mjs（ctx.marks.ranges / mediaRanges）。
 import { extend } from '../core/lang.mjs';
 import { sectionStep } from '../core/playlist.mjs';
@@ -13,17 +14,20 @@ extend({
   ],
 });
 export function install(ctx, S) {
-  const { t, get, put } = ctx,
+  const { t } = ctx,
     { times } = S;
   const selfSeek = (...a) => S.selfSeek(...a),
     remember = (...a) => S.remember(...a),
     render = (...a) => S.render(...a),
     finished = (...a) => S.finished(...a),
     refreshAll = (...a) => S.refreshAll(...a);
-  S.only = get('sectionsOnly', false) === true;
-  ctx.prefs.sync('sectionsOnly', (v) => {
-    S.only = v === true;
+  S.only = !!ctx.transport?.sectionsOnly;
+  // 本窗口打开开关而本书一个区段都没有时提示（别的窗口同步过来的不提示）。
+  ctx.on('transport', (key, local) => {
+    if (key !== 'sectionsOnly') return;
+    S.only = ctx.transport.sectionsOnly;
     refreshAll();
+    if (local && S.only && ctx.current && !sectionMap(ctx.current)) ctx.notice(null, t('mvNoSections'));
   });
   // ---- 只播放书签区段（4.5）：一个媒体内只播放它的区段（ctx.marks.ranges，秒），区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
   const rangesOf = (p) => (p.ranges ??= ctx.marks?.ranges?.(p.book, p.page) ?? []);
@@ -51,12 +55,5 @@ export function install(ctx, S) {
     const m = S.only ? ctx.marks?.mediaRanges?.(book) : null;
     return m && [...m.values()].some((r) => r.length) ? m : null;
   };
-  // 壳上「只播放书签区段」按钮（buttons.mjs）的操作。
-  function toggleSections() {
-    S.only = !S.only;
-    put('sectionsOnly', S.only);
-    refreshAll();
-    if (S.only && ctx.current && !sectionMap(ctx.current)) ctx.notice(null, t('mvNoSections'));
-  }
-  Object.assign(S, { rangesOf, sectionTick, sectionMap, toggleSections });
+  Object.assign(S, { rangesOf, sectionTick, sectionMap });
 }

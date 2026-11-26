@@ -1,0 +1,343 @@
+/* 总控栏（controlbar.mjs）：底缘弹出，阅读区底部居中；三区（左阅读、中通用、右媒体）各两行，高度约 84px。
+   只有大播放键是主按钮（强调色实心）；模式切换次之；其余为普通图标按钮；第二行为小号灰字。禁用的控件只变暗，不隐藏、不移动。
+   窄窗口：.compact 时次要按钮收进各区的「⋯」弹出层；.stacked 时中区在上一行、左右两区在下一行；.tall 时三区各占一行。 */
+#controlbar {
+  --leave-y: 8px;
+  position: fixed;
+  z-index: 5;
+  bottom: 12px;
+  left: calc(var(--dockL) + (100% - var(--dock) - var(--dockL)) / 2);
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  grid-template-areas: 'left mid right';
+  align-items: start;
+  column-gap: 14px;
+  row-gap: 4px;
+  width: min(1040px, calc(100% - var(--dock) - var(--dockL) - 16px));
+  padding: 6px 10px;
+  overflow: hidden;
+  border: 1px solid var(--line2);
+  border-radius: 16px;
+  background: rgba(16, 17, 20, 0.94);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: cb-in 0.2s var(--ease);
+  -webkit-user-select: none;
+  user-select: none;
+}
+#controlbar.stacked {
+  grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
+  grid-template-areas:
+    'mid mid'
+    'left right';
+  row-gap: 6px;
+}
+#controlbar.tall {
+  grid-template-columns: minmax(max-content, 1fr);
+  grid-template-areas:
+    'mid'
+    'left'
+    'right';
+}
+.cb-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.cb-left {
+  grid-area: left;
+  align-items: flex-start;
+}
+.cb-mid {
+  grid-area: mid;
+  align-items: center;
+}
+.cb-right {
+  grid-area: right;
+  align-items: flex-end;
+}
+.cb-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+}
+/* 普通图标按钮 */
+.cb-btn {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+}
+.cb-btn .i {
+  width: 20px;
+  height: 20px;
+}
+.cb-btn:not(:disabled):hover {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.cb-btn:disabled {
+  opacity: 0.3;
+}
+.cb-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cb-btn[aria-pressed='true']:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent-hi);
+}
+.cb-book .i {
+  color: var(--accent-hi);
+}
+.cb-book:disabled .i {
+  color: inherit;
+}
+/* 书架筛选生效时，上一本 / 下一本只在筛选结果内切换：图标右上角一个小圆点（说明在悬停提示里）。 */
+.cb-book.scoped::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(16, 17, 20, 0.94);
+}
+/* 速率：显示数字，宽度按最长的 '0.25×' 预留；音量显示图标。 */
+.cb-rate {
+  width: 52px;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.cb-volume[aria-pressed='true'] {
+  background: transparent;
+  color: var(--muted);
+}
+/* 大播放键：唯一的主按钮。运行中显示暂停。 */
+.cb-play {
+  width: 44px;
+  height: 44px;
+  margin: 0 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 18px rgba(255, 110, 80, 0.28);
+}
+.cb-play .i {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+.cb-play:not(:disabled):hover,
+.cb-play[aria-pressed='true'],
+.cb-play[aria-pressed='true']:not(:disabled):hover {
+  background: var(--accent-hi);
+  color: var(--accent-ink);
+}
+.cb-play:disabled {
+  box-shadow: none;
+}
+/* 模式切换：三段，选中的一段为浅强调色底。 */
+.cb-modes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.cb-mode {
+  width: 40px;
+  height: 24px;
+  border-radius: 7px;
+}
+.cb-mode .i {
+  width: 17px;
+  height: 17px;
+}
+.cb-mode[aria-checked='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cb-mode[aria-checked='true']:not(:disabled):hover {
+  background: rgba(255, 122, 89, 0.22);
+  color: var(--accent-hi);
+}
+/* 第二行：小号灰字。位置与时间按位数预留宽度（零高度、不可见的 ::after 占位串），数字变化不推动别的元素。 */
+.cb-info {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cb-pos,
+.cb-time {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 28px;
+}
+.cb-time {
+  align-items: flex-end;
+}
+.cb-pos::after,
+.cb-time::after {
+  content: attr(data-room);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+.cb-now {
+  max-width: 100%;
+  min-width: 0;
+}
+.cb-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.cb-name:not(:empty) + .cb-time::before {
+  content: '·';
+  position: absolute;
+  margin-left: -10px;
+}
+.cb-name:not(:empty) + .cb-time {
+  position: relative;
+  margin-left: 14px;
+}
+#controlbar[data-mode='comic'] .cb-now {
+  opacity: 0.45;
+}
+/* 弹出层：「⋯」收进来的次要按钮排成一行；速率、音量的小面板（滑杆 + 常用档位，音量另有静音）。 */
+.cb-pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  background: var(--solid);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  overflow: visible;
+}
+.cb-more-pop:popover-open {
+  display: flex;
+  gap: 2px;
+}
+.dial-pop:popover-open {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 8px;
+  width: 248px;
+}
+/* 面板与按钮之间的空隙：透明延伸区，指针经过时面板不收起。 */
+.dial-pop::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+}
+.dial-line {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dial-mute + .dial-line {
+  grid-column: 2;
+}
+.dial-value {
+  flex: none;
+  width: 44px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+input.dial-range {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+input.dial-range:hover {
+  border: 0;
+}
+input.dial-range:focus {
+  box-shadow: none;
+}
+input.dial-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+.dial-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent) calc(var(--v, 1) * 100%), rgba(255, 255, 255, 0.24) 0);
+}
+.dial-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dial-presets {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 4px;
+}
+.dial-preset {
+  flex: 1;
+  height: 28px;
+  padding: 0 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dial-preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+body.controlbar-open #hud {
+  opacity: 0;
+}
+@keyframes cb-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}

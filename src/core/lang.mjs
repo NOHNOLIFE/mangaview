@@ -251,7 +251,7 @@ const strings = {
     '元の名前：{name}。空欄にすると元に戻ります。',
     '원래 이름: {name}. 비워 두면 원래 이름으로 돌아갑니다.',
   ],
-  endbar: ['Action bar', '操作栏', '操作バー', '작업 표시줄'],
+  controlBar: ['Control bar', '总控栏', 'コントロールバー', '컨트롤 바'],
   shelfSort: ['Sort books', '书籍排序', '本の並べ替え', '책 정렬'],
   bsAddedNew: ['Date added · descending', '添加时间 · 反序', '追加日時 · 降順', '추가일 · 내림차순'],
   bsAddedOld: ['Date added · ascending', '添加时间 · 正序', '追加日時 · 昇順', '추가일 · 오름차순'],

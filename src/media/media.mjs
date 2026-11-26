@@ -4,18 +4,21 @@
 //   离开视窗即卸载源、释放解码器；相邻页不预加载。缩略图栏、全屏缩略图里是固定样式的占位（ctx.mediaTile），不读文件。
 // - 帧尺寸、时长在首次挂上源时读到，记入页记录（page.w / h / d），之后排版不再读文件；浏览器播不了的文件记下当时的
 //   大小和修改时间（page.bad），文件没变就不再探测，只在用户点「重试」或文件变化后重做（变化在该页本来要读取时顺带比较）。
-// - 壳上的按钮登记在 ctx.player.add：之后的「添加书签」「播放顺序」等按钮照此加入，默认是次要控件（宽度不够时收进弹出层）；
+// - 壳（单个文件的播放面板）上的按钮登记在 ctx.player.add：只放与该文件有关的（添加书签、添加区段书签、字幕等），默认是次要控件（宽度不够时收进弹出层）；
+//   列表级的控制（音量、播放顺序、循环、只播区段、新窗口播放、上一个 / 下一个媒体、播放速率）在总控栏（reader/controlbar.mjs），经 ctx.media 读写；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
-// - 当前媒体（ctx.media.current）：本窗口正在播放的；否则中线在视窗内、离视窗中心最近的；都没有为 null。
+// - 当前媒体（ctx.media.current，带强调色外框）：选定的媒体（最近播放、按过自己的播放键或被切到的）正在播放或仍在视窗内时是它；
+//   否则本窗口正在播放的；否则中线在视窗内、离视窗中心最近的；都没有为 null。空格与总控栏操作的就是它。
+// - 总控（ctx.transport）的 'media' 驱动器、单个媒体自己的播放键、上一个 / 下一个媒体、播放速率在 driver.mjs。
 // - 播放顺序与循环（3.7）、只播放书签区段（4.5）的规则在 playlist.mjs；区段来自 bookmarks.mjs（ctx.marks.ranges）。
 // - 播放位置记忆（3.9）：会话内存在 times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs），
 //   只在暂停、离开视窗、切书、关闭窗口时保存，播放中至多每 POS_EVERY 毫秒保存一次；播到结尾（剩余不足 5 秒）清除。
-// - 新窗口播放（10.2）：壳上的按钮、快捷键 Z、/ 打开一个新的 MangaView 窗口（地址带上书、页名和时间点，playlist.mjs popoutUrl），
+// - 新窗口播放（10.2）：总控栏的按钮、快捷键 Z、/ 打开一个新的 MangaView 窗口（地址带上书、页名和时间点，playlist.mjs popoutUrl），
 //   本窗口的该媒体暂停；新窗口启动时（app.mjs）经 ctx.media.resume 定位到该媒体并从该处播放，浏览器拦截出声时提示并停在该处等待点击。
 // 本文件是唯一入口：建立子模块共享的 S，按顺序装配子模块，对外提供 ctx.media、ctx.player（含 api）和正文的 ctx.view.hooks.media。
 // 子模块（安装顺序）：volume 统一音量；order 播放顺序与循环、播完后的切换、待接手的播放请求；sections 只播放书签区段；
 // position 播放位置记忆；hud 提示浮层；tile 缩略图里的占位；shell 壳的 DOM 与状态显示；player 播放器的状态（挂源、失败、播放 / 暂停）；
-// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；buttons 壳上的列表级按钮登记；subtitles 外挂字幕。进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
+// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；driver 与总控的衔接；subtitles 外挂字幕。进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
 import { pageKind } from '../core/model.mjs';
 import { addIcons } from '../ui/icons.mjs';
 import { install as volume } from './volume.mjs';
@@ -29,7 +32,7 @@ import { install as player } from './player.mjs';
 import { install as autoplay } from './autoplay.mjs';
 import { install as popout } from './popout.mjs';
 import { install as keys } from './keys.mjs';
-import { install as buttons } from './buttons.mjs';
+import { install as driver } from './driver.mjs';
 import { install as subtitles } from './subtitles.mjs';
 
 const ICONS = {
@@ -72,7 +75,6 @@ export function install(ctx) {
   const { players, times, controls, decorators } = S;
   const start = (...a) => S.start(...a),
     seek = (...a) => S.seek(...a),
-    toggle = (...a) => S.toggle(...a),
     build = (...a) => S.build(...a),
     tile = (...a) => S.tile(...a),
     claim = (...a) => S.claim(...a),
@@ -113,6 +115,7 @@ export function install(ctx) {
       return;
     }
     const p = players.get(node) ?? build(node, book, page, kind);
+    S.mark?.();
     if (visible && S.queued?.page === page) claim(p);
     if (visible) {
       if (p.state === 'idle') load(p);
@@ -120,13 +123,13 @@ export function install(ctx) {
   };
   autoplay(ctx, S);
 
-  // 点击正文里的媒体（壳以外）：播放 / 暂停，不翻屏（app.mjs 的正文点击先问这里）。
+  // 点击正文里的媒体：画面、卡片上等同它自己的播放键（driver.mjs press），面板控件之间的空白处不动作；都不翻屏（tap.mjs 的正文点击先问这里）。
   ctx.media = {
     tap(target) {
       const node = target?.closest?.('.page.media');
       const p = node && players.get(node);
       if (!p) return false;
-      toggle(p);
+      if (!target.closest('.mv-shell,.mv-subs')) S.press(p);
       return true;
     },
     current: () => current(),
@@ -175,7 +178,7 @@ export function install(ctx) {
     current: () => current(),
     api,
   };
-  buttons(ctx, S);
+  driver(ctx, S);
   subtitles(ctx);
   // 书签增删（本窗口或别的窗口）后重画该书的播放器上的标记；别的窗口保存的播放位置，本窗口还没挂上源的播放器随之跟进。
   const refreshBook = (book) => {

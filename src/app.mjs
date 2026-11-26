@@ -48,7 +48,8 @@ import { install as overview } from './reader/overview.mjs';
 import { install as helpPanel } from './panels/help.mjs';
 import { install as coverPicker } from './shelf/cover.mjs';
 import { install as toolPanel } from './reader/toolbar.mjs';
-import { install as endBar } from './reader/endbar.mjs';
+import { install as transport } from './reader/transport.mjs';
+import { install as controlBar } from './reader/controlbar.mjs';
 import { install as mediaPlayer } from './media/media.mjs';
 import { install as pbfImport } from './marks/pbf.mjs';
 
@@ -159,6 +160,7 @@ ctx.pageHold = null; // 长按翻页键的接入点（见 keys.mjs 的 HOLD_LONG
 // - windows.mjs：disk（后台读盘的轮次）、hold / reloadOthers（全局操作前后通知其他窗口）
 // - 书架页（shelf/）：autoMatch、restoreBatch、restoreOne、shelfView、filtering、clearFilters、refreshCard；cover.mjs：pickCover
 // - bookmarks.mjs：marks、shelfmarks；overview.mjs：overview；thumbs.mjs：frames；pbf.mjs：pbf
+// - transport.mjs：transport（总控的状态与驱动器）；controlbar.mjs：controlBar
 // - media.mjs：media、player、mediaTile、pageHold
 // - 本文件启动流程：popout（新窗口播放打开的窗口）、started（启动完成）
 prefsSync(ctx);
@@ -249,7 +251,8 @@ overview(ctx);
 helpPanel(ctx);
 coverPicker(ctx);
 toolPanel(ctx);
-endBar(ctx);
+transport(ctx);
+controlBar(ctx);
 mediaPlayer(ctx);
 installFrames(ctx);
 pbfImport(ctx);

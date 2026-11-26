@@ -188,6 +188,7 @@ try {
     await press(n, 'keyUp', m);
   };
   const ctl = (name, id) => `node(${JSON.stringify(name)}).querySelector('[data-control="${id}"]')`;
+  const bar = (id) => `document.querySelector('#controlbar [data-id="${id}"]')`; // 总控栏上的按钮
   const ready = (name) => wait(() => js(`el(${JSON.stringify(name)})?.readyState>=1`), 'loaded ' + name);
   const at = (name, s) =>
     js(
@@ -229,20 +230,23 @@ try {
   // 添加书签的步骤里不让自动播放插手（3.6 由 media.browser.mjs 覆盖）；跳转书签时再打开。
   await js(`localStorage.setItem('mv2:autoplay','false')`);
 
-  // ---- 3.7 / 4.5：壳上的播放顺序、循环、只播放书签区段按钮（设置类偏好，持久化，跨窗口同步）。
+  // ---- 3.7 / 4.5：总控栏上的播放顺序、循环、只播放书签区段按钮（设置类偏好，持久化，跨窗口同步）；面板上只有与该文件有关的按钮。
   await toPageReady('03 long.wav');
   assert.deepEqual(
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
-    ['bookmark', 'loop', 'order', 'popout', 'section', 'sections', 'subs'],
+    ['bookmark', 'section', 'subs'],
   );
+  // 播放顺序只在影音模式下可用（混合模式按页序）。
+  await js(`${bar('mode-media')}.click()`);
+  assert.equal(await js(`${bar('order')}.disabled`), false);
   const orderState = () =>
     js(
-      `(()=>{const b=${ctl('03 long.wav', 'order')};return [b.querySelector('use').getAttribute('href'),b.getAttribute('aria-label')];})()`,
+      `(()=>{const b=${bar('order')};return [b.querySelector('use').getAttribute('href'),b.getAttribute('aria-label')];})()`,
     );
   assert.deepEqual(await orderState(), ['#i-order-list', 'Play order: list'], 'Default: list');
   const icons = [];
   for (let k = 0; k < 3; k++) {
-    await js(`${ctl('03 long.wav', 'order')}.click()`);
+    await js(`${bar('order')}.click()`);
     icons.push((await orderState())[0]);
   }
   assert.deepEqual(
@@ -251,24 +255,26 @@ try {
     'One button cycles three states with three icons',
   );
   assert.equal(await js(`localStorage.getItem('mv2:playOrder')`), '"list"');
-  await js(`${ctl('03 long.wav', 'loop')}.click()`);
-  assert.equal(await js(`${ctl('03 long.wav', 'loop')}.getAttribute('aria-pressed')`), 'true');
+  await js(`${bar('loop')}.click()`);
+  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'true');
   assert.equal(await js(`localStorage.getItem('mv2:playLoop')`), 'true');
-  await js(`${ctl('03 long.wav', 'loop')}.click()`);
-  assert.equal(await js(`${ctl('03 long.wav', 'loop')}.getAttribute('aria-pressed')`), 'false');
+  await js(`${bar('loop')}.click()`);
+  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'false');
   // 别的窗口改了设置：即时应用。
   await storage('playOrder', 'single');
   assert.equal((await orderState())[0], '#i-order-single', 'Synced from another window');
   await storage('playOrder', 'list');
   await storage('playLoop', true);
-  assert.equal(await js(`${ctl('03 long.wav', 'loop')}.getAttribute('aria-pressed')`), 'true');
+  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'true');
   await storage('playLoop', false);
+  await js(`${bar('mode-mixed')}.click()`);
+  assert.equal(await js(`${bar('order')}.disabled`), true, 'Play order is unavailable in mixed mode');
   // 书里一个区段都没有：开关可以开，提示「本书没有书签区段」。
-  await js(`${ctl('03 long.wav', 'sections')}.click()`);
+  await js(`${bar('sections')}.click()`);
   await said('This book has no bookmark sections');
-  assert.equal(await js(`${ctl('03 long.wav', 'sections')}.getAttribute('aria-pressed')`), 'true');
+  assert.equal(await js(`${bar('sections')}.getAttribute('aria-pressed')`), 'true');
   assert.equal(await js(`localStorage.getItem('mv2:sectionsOnly')`), 'true');
-  await js(`${ctl('03 long.wav', 'sections')}.click()`);
+  await js(`${bar('sections')}.click()`);
 
   // ---- 3.9：播放位置记忆。暂停时记入书目记录（book.mediaPos），重新打开从该处继续；剩余不足 5 秒清除。
   await playAt('03 long.wav', 7);
@@ -545,7 +551,7 @@ try {
   await js(`${ctl('06 tail.wav', 'section')}.click()`);
   await said('Section bookmark added');
   await toPageReady('03 long.wav');
-  await js(`${ctl('03 long.wav', 'sections')}.click()`);
+  await js(`${bar('sections')}.click()`);
   assert.equal(await js(`node('03 long.wav').classList.contains('sec-only')`), true);
   assert.deepEqual(
     await js(
@@ -582,14 +588,10 @@ try {
   assert.ok((await now('06 tail.wav')) > 5.3 && !(await paused('06 tail.wav')), 'Plays on outside the sections');
   await stopAll();
   await shot('mediamarks-only');
-  const onColor = await js(`getComputedStyle(${ctl('06 tail.wav', 'sections')}).color`);
-  await js(`${ctl('06 tail.wav', 'sections')}.click()`);
+  const onColor = await js(`getComputedStyle(${bar('sections')}).color`);
+  await js(`${bar('sections')}.click()`);
   await delay(250);
-  assert.notEqual(
-    await js(`getComputedStyle(${ctl('06 tail.wav', 'sections')}).color`),
-    onColor,
-    'The toggle shows its state',
-  );
+  assert.notEqual(await js(`getComputedStyle(${bar('sections')}).color`), onColor, 'The toggle shows its state');
   assert.equal(await js(`localStorage.getItem('mv2:sectionsOnly')`), 'false');
   await shot('mediamarks');
 

@@ -1,4 +1,6 @@
-/* 播放器的壳（shell.mjs）：正文里的视频画面与大播放键、壳（按钮、进度条、时间、音量、「更多」弹出层）、音频卡片、播不了时的占位。壳的宽度预算见 shell.mjs（BTN、VOL 等）。 */
+/* 单个文件的播放面板（shell.mjs）：正文里的视频画面与大播放键、壳（按钮、进度条、时间、「更多」弹出层）、文件名、字幕容器、音频卡片、播不了时的占位。
+   壳的宽度预算见 shell.mjs（BTN 等）。状态一眼可辨：当前媒体（.current）强调色外框；播放中（.playing）播放键强调色实心、进度条强调色、
+   音频卡片底色提亮并显示跳动的音柱（唯一的动态效果，减少动态效果时静止）；未播放时灰阶，视频画面压暗、中央显示大播放键。 */
 .page.media.video {
   background: #000;
 }
@@ -8,6 +10,19 @@
   height: 100%;
   max-height: var(--vh, 100%);
   object-fit: contain;
+  pointer-events: none;
+  transition: filter 0.2s;
+}
+.page.media.video:not(.playing) video {
+  filter: brightness(0.55);
+}
+/* 当前媒体的外框：叠在画面之上、不占位。 */
+.page.media.video.current::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 2px solid var(--accent);
   pointer-events: none;
 } /* --vh：拖动缩放期间视窗变矮时临时等比缩小，不改变占位 */
 .page.media:fullscreen {
@@ -22,18 +37,19 @@
   top: 50%;
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
-  margin: -30px 0 0 -30px;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   color: #fff;
   pointer-events: none;
   transition: opacity 0.2s;
 }
 .mv-big .i {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   margin-left: 3px;
   fill: currentColor;
 }
@@ -66,8 +82,31 @@
 }
 .media.video:hover:not(.idle) .mv-shell,
 .media.video .mv-shell:focus-within,
-.media.video:has(.mv-pop:popover-open) .mv-shell {
+.media.video:has(.mv-pop:popover-open) .mv-shell,
+.media.video:hover:not(.idle) .mv-title,
+.media.video .mv-title:focus-within {
   opacity: 1;
+}
+/* 视频的文件名：浮在画面左上角，与壳一起显隐；可选中复制。 */
+.mv-title {
+  position: absolute;
+  z-index: 2;
+  left: 8px;
+  top: 8px;
+  display: flex;
+  max-width: calc(100% - 16px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(14, 15, 18, 0.92);
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.mv-title .mid-name {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
 }
 .media.video.idle {
   cursor: none;
@@ -78,7 +117,24 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
+  color: var(--muted);
+}
+.media.playing .mv-shell .icon-btn {
   color: var(--text);
+}
+/* 播放键：未播放为灰阶描边，播放中为强调色实心（主按钮）。 */
+.mv-shell .mv-play {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+}
+.mv-shell .mv-play .i {
+  fill: currentColor;
+}
+.media.playing .mv-shell .mv-play,
+.media.playing .mv-shell .mv-play:not(:disabled):hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .mv-shell .icon-btn[aria-pressed='true'] {
   background: transparent;
@@ -107,9 +163,12 @@
 .mv-fill {
   position: absolute;
   inset: 0;
-  background: var(--accent);
+  background: rgba(255, 255, 255, 0.5);
   transform: scaleX(0);
   transform-origin: left;
+}
+.media.playing .mv-fill {
+  background: var(--accent);
 }
 .mv-knob {
   position: absolute;
@@ -133,7 +192,7 @@
   inset: 0;
   pointer-events: none;
 } /* 书签标记层：标记自己设 pointer-events */
-/* 壳上的开关（循环、只播放书签区段）打开时图标为强调色。 */
+/* 壳上登记的开关（如字幕）打开时图标为强调色。 */
 .mv-shell .mv-x[aria-pressed='true'],
 .mv-pop .mv-x[aria-pressed='true'] {
   color: var(--accent);
@@ -147,61 +206,6 @@
   text-align: center;
   white-space: nowrap;
   color: var(--muted);
-}
-input.mv-vol {
-  flex: none;
-  width: 72px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
-}
-input.mv-vol:hover {
-  border: 0;
-}
-input.mv-vol:focus {
-  box-shadow: none;
-}
-input.mv-vol:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
-}
-.mv-vol::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent) calc(var(--v, 1) * 100%), rgba(255, 255, 255, 0.24) 0);
-}
-.mv-vol::-webkit-slider-thumb {
-  width: 12px;
-  height: 12px;
-  margin-top: -4px;
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
-  -webkit-appearance: none;
-  appearance: none;
-}
-.mv-vol::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.24);
-}
-.mv-vol::-moz-range-progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--accent);
-}
-.mv-vol::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
 }
 /* 「更多」弹出层：窄宽度下收进来的次要控件排成一行。 */
 .mv-pop {
@@ -221,23 +225,75 @@ input.mv-vol:focus-visible {
   gap: 2px;
 }
 
-/* 音频：固定高度的横条（AUDIO_H），宽度随阅读区并设上限、居中；类型图标 + 文件名 + 壳。 */
+/* 字幕容器（字幕模块往里写内容）：视频叠在画面底部、控件上方，不遮挡进度条；音频在卡片里始终占位 3 行，有无字幕卡片高度不变。 */
+.mv-subs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-align: center;
+  pointer-events: none;
+}
+.media.video .mv-subs {
+  position: absolute;
+  z-index: 1;
+  left: 6%;
+  right: 6%;
+  bottom: 60px;
+  font-size: clamp(14px, 2.2vw, 26px);
+  line-height: 1.35;
+}
+.media.video .mv-subs:empty {
+  display: none;
+}
+.mv-card .mv-subs {
+  height: calc(3 * 20px);
+  padding: 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+}
+
+/* 音频：固定高度（model.mjs AUDIO_H）的卡片，横向占满阅读区（两侧留边距），不设最大宽度；类型图标 / 音柱 + 文件名、3 行字幕区、壳。 */
 .page.media.audio {
-  max-width: 744px;
   padding: 8px 12px;
   background: transparent;
 }
 .mv-card {
   display: grid;
-  grid-template-rows: auto 40px;
+  grid-template-rows: 22px auto 40px;
   align-content: center;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   height: 100%;
-  padding: 8px 10px 6px;
+  padding: 10px 14px 8px;
   border: 1px solid var(--line2);
   border-radius: 14px;
   background: var(--solid);
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+.media.audio.playing .mv-card {
+  border-color: rgba(255, 122, 89, 0.35);
+  background-color: #2b2a31;
+}
+.media.audio.current .mv-card {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* 书有封面时以封面作背景（像内嵌的专辑图），压暗以保证文字对比度；播放中压暗略少。 */
+.mv-card.has-cover {
+  background:
+    linear-gradient(rgba(12, 12, 15, 0.78), rgba(12, 12, 15, 0.78)),
+    var(--cover) center / cover no-repeat,
+    var(--solid);
+}
+.media.audio.playing .mv-card.has-cover {
+  background:
+    linear-gradient(rgba(12, 12, 15, 0.66), rgba(12, 12, 15, 0.66)),
+    var(--cover) center / cover no-repeat,
+    var(--solid);
 }
 .mv-head {
   display: flex;
@@ -245,19 +301,70 @@ input.mv-vol:focus-visible {
   gap: 8px;
   min-width: 0;
   padding: 0 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
+}
+.media.audio.playing .mv-head {
+  color: var(--text);
 }
 .mv-head .i {
   width: 16px;
   height: 16px;
-  color: var(--accent);
+  color: var(--faint);
 }
 .mv-head .mid-name {
   justify-content: flex-start;
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
+}
+/* 播放中：音符图标换成跳动的音柱。 */
+.mv-eq {
+  display: none;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  width: 16px;
+  height: 14px;
+}
+.mv-eq i {
+  flex: 1;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: mv-eq 0.9s ease-in-out infinite alternate;
+}
+.mv-eq i:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.mv-eq i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+.mv-eq i:nth-child(4) {
+  animation-delay: -0.15s;
+}
+.media.audio.playing .mv-eq {
+  display: flex;
+}
+.media.audio.playing .mv-head > .i {
+  display: none;
+}
+@keyframes mv-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mv-eq i {
+    animation: none;
+  }
+  .mv-eq i:nth-child(odd) {
+    transform: scaleY(0.6);
+  }
 }
 .media.audio .mv-shell {
   padding: 0;

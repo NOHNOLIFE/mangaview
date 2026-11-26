@@ -164,7 +164,7 @@ try {
   assert.deepEqual(tb, { title: LONG, cut: true, one: true, pe: 'auto', us: 'text', inside: true });
   const longLefts = await tbLefts();
   await shot('names-toolbar');
-  await js(`document.querySelector('#endbar [data-act="prev"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="prev"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Short'`));
   await delay(300);
   assert.equal(await tbLefts(), longLefts, 'Toolbar buttons do not move with the title length');
@@ -191,7 +191,7 @@ try {
   };
   const so = await ov();
   await closeOv();
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent===${JSON.stringify(LONG)}`));
   const lo = await ov();
   await shot('names-overview');

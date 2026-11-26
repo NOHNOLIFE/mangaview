@@ -168,29 +168,42 @@ try {
       await cdp('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, x, y });
   };
   const height = await js('innerHeight');
-  // 底缘弹出操作栏：上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本。滚到书尾、回到书首；点击正文右半屏后一屏。
+  // 底缘弹出总控栏：左区有上一本 / 到顶部 / 到底部 / 下一本（图标按钮，名称在 aria-label）。滚到书尾、回到书首；点击正文右半屏后一屏。
   const rr = JSON.parse(await js('JSON.stringify(reader.getBoundingClientRect())')),
     move = (x, y) => cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   const endBtn = async (act) => {
+    if (await js('controlbar.hidden')) {
+      await move(rr.left + rr.width / 2, height / 2);
+      await move(rr.left + rr.width / 2, height - 4);
+      await wait(() => js('!controlbar.hidden'));
+    }
+    // 窄的阅读区里到顶部 / 到底部收在左区的「⋯」弹出层里：先打开它。
+    if (await js(`!!controlbar.querySelector('.cb-more-pop [data-act="${act}"]')`)) {
+      const [mx, my] = await js(
+        `(()=>{const r=controlbar.querySelector('[data-id="moreLeft"]').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`,
+      );
+      await tap(my, mx);
+      await wait(() => js(`controlbar.querySelector('.cb-more-pop').matches(':popover-open')`));
+    }
     const [x, y] = await js(
-      `(()=>{const r=endbar.querySelector('[data-act="${act}"]').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`,
+      `(()=>{const r=controlbar.querySelector('[data-act="${act}"]').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`,
     );
     await tap(y, x);
   };
   await move(rr.left + rr.width / 2, height - 4);
-  await wait(() => js('!endbar.hidden'));
-  assert.deepEqual(await js(`[...endbar.querySelectorAll('.eb')].map(b=>b.textContent)`), [
-    '이전 책',
-    '맨 위로',
-    '맨 아래로',
-    '다음 책',
-  ]);
+  await wait(() => js('!controlbar.hidden'));
+  assert.deepEqual(
+    await js(
+      `['prev','toStart','toEnd','next'].map(a=>controlbar.querySelector('[data-act="'+a+'"]').getAttribute('aria-label'))`,
+    ),
+    ['이전 책', '맨 위로', '맨 아래로', '다음 책'],
+  );
   await endBtn('toEnd');
   await wait(() => js('reader.scrollHeight-reader.scrollTop-reader.clientHeight<=1'));
   await endBtn('toStart');
   await wait(() => js('reader.scrollTop===0'));
   await move(rr.left + rr.width / 2, height / 2);
-  await wait(() => js('endbar.hidden'));
+  await wait(() => js('controlbar.hidden'));
   await tap(height / 2, rr.left + rr.width * 0.75);
   await wait(() => js('reader.scrollTop>0'));
   // 取消常驻后，鼠标贴近右缘临时弹出缩略图栏，移开即收起。
@@ -288,7 +301,7 @@ try {
   await wait(async () => (await record()).override === 'nameDesc');
   await setSort('nameAsc', 'global');
   assert.deepEqual(await order(), reversed);
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(async () => (await record()).id === original);
   await js(`document.querySelector('#bar [data-act="folder"]').click()`);
   await wait(async () => (await record()).id === second.id);
@@ -309,12 +322,12 @@ try {
   await wait(() => js(`bookTitle.textContent==='Test book'`));
   assert.equal((await record()).override, null);
   assert.deepEqual(await order(), defaultMix);
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(async () => (await record()).id === original);
   assert.equal((await record()).override, 'shuffle');
   assert.deepEqual(await order(), mixed);
   await setSort('nameDesc', 'global');
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(async () => {
     const b = await record();
     return b.id === second.id && b.mode === 'nameDesc';

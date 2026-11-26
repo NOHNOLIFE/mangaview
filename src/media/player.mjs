@@ -94,6 +94,7 @@ export function install(ctx, S) {
       fail(p, c === 3 || c === 4 ? 'decode' : 'read');
     });
     el.addEventListener('play', () => {
+      if (el.paused) return; // 事件送到前已被后开始的媒体暂停（start 里同步暂停其他媒体），不要反过来暂停它
       for (const q of players.values()) if (q !== p && !q.el.paused) q.el.pause();
       S.playing = p;
       p.done = false;
@@ -261,6 +262,7 @@ export function install(ctx, S) {
     p.fail.hidden = false;
     p.node.classList.add('mv-failed');
     render(p);
+    S.changed?.(); // 运行状态（driver.mjs）：等着播放的媒体打不开
     if (p.auto) {
       p.auto = false;
       finished(p);
@@ -280,7 +282,9 @@ export function install(ctx, S) {
         if (Math.abs(s - now) > 0.01) selfSeek(p, s);
       }
     }
-    if (p.state === 'ready')
+    if (p.state === 'ready') {
+      // 同一时间只播一个：调用时就暂停其他媒体。只靠 play 事件的话，连续快速开始两个时先到的事件会把后开始的那个暂停。
+      for (const q of players.values()) if (q !== p && q.state === 'ready' && !q.el.paused) q.el.pause();
       p.el.play().catch((e) => {
         if (e.name === 'NotAllowedError' && p.popped) {
           p.popped = false;
@@ -289,7 +293,7 @@ export function install(ctx, S) {
           ctx.notice(null, t('mvSoundBlocked'), 20000);
         } else if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.warn(e);
       });
-    else if (p.state !== 'failed') {
+    } else if (p.state !== 'failed') {
       p.wantPlay = true;
       if (p.state === 'idle') load(p);
     }

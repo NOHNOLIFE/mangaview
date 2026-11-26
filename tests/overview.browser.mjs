@@ -433,7 +433,7 @@ try {
   await holdG();
   await wait(async () => (await count()) === 3);
   // 切书后回来：缓存仍在，全屏缩略图不再读图。
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Long'`));
   await js('reader.scrollTop=9000');
   await delay(800);
@@ -475,7 +475,7 @@ try {
   await press('Escape');
   await wait(closed);
   // 书架书签列表顶部的按钮（内侧上角，与缩略图栏镜像）：专注模式下内容隐藏时不可点，悬停显示后才能点。
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Short'`));
   const smOpen = () => js('shelfOverview.open&&!shelfOverview.classList.contains("closing")'),
     mClosed = () => js('!shelfOverview.open');
@@ -504,7 +504,7 @@ try {
   assert.equal(await msel(), 0);
   await press('Escape');
   await wait(mClosed);
-  await js(`document.querySelector('#endbar [data-act="next"]').click()`);
+  await js(`document.querySelector('#controlbar [data-act="next"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Long'`));
   await js('reader.scrollTop=9000');
   await delay(100);

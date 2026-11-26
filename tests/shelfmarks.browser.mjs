@@ -385,7 +385,7 @@ try {
     js(`(()=>{const all=document.querySelectorAll('#shelfmarks .bm-item.active'),a=all[0],l=${smList}.getBoundingClientRect();if(all.length!==1)return all.length+' marked';
     const r=a.getBoundingClientRect();return (r.top>=l.top-1&&r.bottom<=l.bottom+1?'':'hidden ')+a.getAttribute('aria-label');})()`);
   const listTop = () => js(`${smList}.scrollTop`),
-    nav = (d) => js(`document.querySelector('#endbar [data-act="${d}"]').click()`);
+    nav = (d) => js(`document.querySelector('#controlbar [data-act="${d}"]').click()`);
   await mouse('mouseMoved', 600, 400);
   let top = await listTop();
   await goto(8, 0.75);
