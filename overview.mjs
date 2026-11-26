@@ -263,14 +263,16 @@ export function install(ctx){
       head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,grid);
       for(const x of items){
         const node=make('div','ov-item ov-mark'),img=make('img');img.alt='';img.draggable=false;node.dataset.k=marks.length;node.setAttribute('role','option');
-        node.setAttribute('aria-label',ctx.title(book)+' · '+fmt('bmPage',{n:x.i+1})+(x.bm.end?' · '+t('secStart'):''));
+        node.setAttribute('aria-label',ctx.title(book)+' · '+(ctx.marks?.where(book,x)??fmt('bmPage',{n:x.i+1}))+(x.bm.end?' · '+t('secStart'):''));
         img.onload=()=>{node.dataset.r=Math.min(2.5,Math.max(.4,img.naturalHeight/img.naturalWidth));if(masonry())markSchedule();};
-        ctx.getThumb(sm().thumbKey(book,x.bm)).then(th=>{if(th)img.src=th.url;else img.remove();},()=>img.remove());
         node.append(img,make('span','ov-n',String(x.i+1)));
+        // 媒体书签：视频为书签时间点的画面（懒生成）、音频为占位小块，带类型角标和时间点（bookmarks.mjs）。
+        if(ctx.marks?.isMedia(x.bm)){ctx.marks.paint(node,img,book,x);node.append(ctx.marks.mediaBadge(book,x));}
+        else ctx.getThumb(sm().thumbKey(book,x.bm)).then(th=>{if(th)img.src=th.url;else img.remove();},()=>img.remove());
         if(x.bm.end){
           const mk=kind=>{const el=make('span','bm-mk '+kind);el.append(ctx.icon('bm-'+kind));return el;},sub=make('span','bm-sub'+(x.live?'':' off')),simg=make('img');
           simg.alt='';simg.draggable=false;sub.append(simg,mk('end'));node.classList.add('paired');node.append(mk('start'),sub);
-          const gone=()=>{simg.remove();sub.classList.add('empty');};ctx.getThumb(sm().endKey(book,x.bm)).then(th=>{if(th)simg.src=th.url;else gone();},gone);
+          const gone=()=>{simg.remove();sub.classList.add('empty');};if(ctx.marks?.isMedia(x.bm.end))ctx.marks.paint(sub,simg,book,x,true);else ctx.getThumb(sm().endKey(book,x.bm)).then(th=>{if(th)simg.src=th.url;else gone();},gone);
         }
         grid.append(node);marks.push({book,x,node});
       }

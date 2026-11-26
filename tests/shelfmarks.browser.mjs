@@ -75,7 +75,7 @@ try{
   const dock=await box('#shelfmarks'),reader=await box('#reader');
   assert.ok(Math.abs(dock.width-260)<=1&&dock.left===0,'Dock is 260px at the left: '+dock.width);assert.ok(Math.abs(reader.left-dock.right)<=1,'Reader starts after the dock');
   assert.deepEqual(await js(`[...document.querySelectorAll('#shelfmarks .sm-book')].map(s=>[s.getAttribute('aria-label'),[...s.querySelectorAll('.bm-item')].map(p=>p.getAttribute('aria-label')).join(),s.classList.contains('current')])`),
-    [['Alpha','Alpha · Image 3,Alpha · Image 7',false],['Beta','Beta · Image 4',true]]);
+    [['Alpha','Alpha · Page 3,Alpha · Page 7',false],['Beta','Beta · Page 4',true]]);
   // 紧凑显示：不显示书名、文件名或页码文字；缩略图比例限制在 3:4 ~ 4:3。
   assert.equal(await js(`document.querySelector('#shelfmarks .sm-list').innerText.trim()`),'');
   const ar=await js(`(()=>{const r=document.querySelector('#shelfmarks .bm-thumb').getBoundingClientRect();return r.width/r.height;})()`);assert.ok(ar>=.74&&ar<=1.34,'Thumbnail is not a strip: '+ar);
@@ -152,16 +152,16 @@ try{
     const r=a.getBoundingClientRect();return (r.top>=l.top-1&&r.bottom<=l.bottom+1?'':'hidden ')+a.getAttribute('aria-label');})()`);
   const listTop=()=>js(`${smList}.scrollTop`),nav=d=>js(`document.querySelector('#endbar [data-act="${d}"]').click()`);
   await mouse('mouseMoved',600,400);let top=await listTop();
-  await goto(8,.75);await wait(async()=>await marked()==='Alpha · Image 9');assert.equal(await listTop(),top,'Reading does not scroll the list');
-  await goto(1,.2);await wait(async()=>/^(hidden )?Alpha · Image 2$/.test(await marked()));
-  await nav('next');await wait(async()=>(await marked())==='Beta · Image 4'&&await listTop()>0); // 切到 Beta：滚到它离阅读位置最近的书签
+  await goto(8,.75);await wait(async()=>await marked()==='Alpha · Page 9');assert.equal(await listTop(),top,'Reading does not scroll the list');
+  await goto(1,.2);await wait(async()=>/^(hidden )?Alpha · Page 2$/.test(await marked()));
+  await nav('next');await wait(async()=>(await marked())==='Beta · Page 4'&&await listTop()>0); // 切到 Beta：滚到它离阅读位置最近的书签
   await shot('shelfmarks-locate');
   // 指针在列表上：切书不抢滚动位置。
   const dk=await box('#shelfmarks');await mouse('mouseMoved',dk.x,dk.y);
   await js(`${smList}.scrollTop=1e6`);top=await listTop();await nav('prev');await wait(()=>js(`bookTitle.textContent==='Alpha'`));await delay(300);
   assert.equal(await listTop(),top,'No auto-scroll while hovered');assert.match(await marked(),/^hidden Alpha/);
   await mouse('mouseMoved',600,400);await nav('next');await wait(()=>js(`bookTitle.textContent==='Beta'`));await nav('prev');
-  await wait(async()=>/^Alpha · Image \d+$/.test(await marked()));
+  await wait(async()=>/^Alpha · Page \d+$/.test(await marked()));
   // 没有书签的书：列表不动。
   top=await listTop();await book('Gamma',false);await delay(300);assert.equal(await listTop(),top,'Book without bookmarks leaves the list alone');
   assert.equal(await js(`document.querySelectorAll('#shelfmarks .bm-item.active').length`),0);
@@ -211,8 +211,8 @@ try{
   assert.deepEqual(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>[m.name,Math.round(m.f*100)/100]))`),[['P/0.svg (2)',.5],['P/1.svg (2)',.5]]);
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   const looseMarked=()=>js(`[...document.querySelectorAll('#shelfmarks .sm-book.current .bm-item.active')].map(a=>a.getAttribute('aria-label')).join()`);
-  await wait(async()=>await looseMarked()==='Loose images · Image 4');
-  await goto(1,.4);await wait(async()=>await looseMarked()==='Loose images · Image 2');
+  await wait(async()=>await looseMarked()==='Loose images · Page 4');
+  await goto(1,.4);await wait(async()=>await looseMarked()==='Loose images · Page 2');
   await js('reader.scrollTop=0');await tap();await wait(async()=>{const c=await center();return c[1]===1&&c[2]===.5;});
   await tap();await wait(async()=>{const c=await center();return c[1]===3&&c[2]===.5;});
   assert.deepEqual(errors,[]);console.log('PASS: shelf bookmark dock, filtered-empty hint, hover vs click, cross-book F and Shift+F, delete, top toolbar, title row, focus mode, persistence, list locating the nearest bookmark, floating at the left edge, loose album page names');

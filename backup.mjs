@@ -94,14 +94,16 @@ export async function parse(file){
 }
 
 // 书签按 id 取并集。区段书签（bookmarks.mjs 的 end）：本机的同一个书签没有区段书签而备份里有时补上；
-// 并入后会与已有区段嵌套或交叉的区段书签不并入（书签本身照常并入），本机的区段一律保留。位置按本机记录的页序换算（sections.mjs）。
+// 并入后会与已有区段嵌套或交叉的区段书签不并入（书签本身照常并入），本机的区段一律保留。位置按本机记录的页序换算（sections.mjs）；
+// 图片书签全书一个坐标系，媒体书签（t：时间点）每个文件各自一个，只与同一坐标系里的区段比较。
 export function mergeMarks(pages,marks,incoming){
   const pos=new Map((Array.isArray(pages)?pages:[]).map((p,i)=>[p?.name,i])),key=m=>m?.id??JSON.stringify(m);
-  const at=m=>{const i=pos.get(m?.name);return i==null||!Number.isFinite(m?.f)?NaN:i+m.f;};
+  const group=m=>Number.isFinite(m?.t)?'m:'+m.name:'i';
+  const at=m=>{const i=pos.get(m?.name);return i==null?NaN:Number.isFinite(m?.t)?m.t:Number.isFinite(m?.f)?i+m.f:NaN;};
   const out=[...marks],byId=new Map(out.map(m=>[key(m),m]));
-  const item=m=>({id:m?.id,at:at(m),end:isObj(m?.end)?(at(m.end)>at(m)?at(m.end):null):undefined});
-  // 两头都在、终点在起点之后时才检查冲突；暂不生效的区段不占范围，照常并入。
-  const ok=(start,end)=>{const a=at(start),b=at(end);return !(Number.isFinite(a)&&Number.isFinite(b)&&b>a)||fits(out.map(item),start.id,a,b);};
+  const item=m=>({id:m?.id,g:group(m),at:at(m),end:isObj(m?.end)?(group(m.end)===group(m)&&at(m.end)>at(m)?at(m.end):null):undefined});
+  // 两头都在、同一坐标系、终点在起点之后时才检查冲突；暂不生效的区段不占范围，照常并入。
+  const ok=(start,end)=>{const a=at(start),b=at(end),g=group(start);return !(g===group(end)&&Number.isFinite(a)&&Number.isFinite(b)&&b>a)||fits(out.map(item).filter(x=>x.g===g),start.id,a,b);};
   for(const m of incoming){
     const mine=byId.get(key(m));
     if(mine){if(isObj(mine)&&!mine.end&&isObj(m?.end)&&ok(mine,m.end))mine.end=m.end;continue;}

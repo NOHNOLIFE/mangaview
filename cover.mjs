@@ -1,5 +1,7 @@
 import {extend} from './lang.mjs';
 import {forget} from './thumbs.mjs';
+import {pageKind} from './model.mjs';
+import {grabFrame} from './media.mjs';
 // 自定义封面：书架卡片的「设置封面」列出这本书的全部书签缩略图，点选其一即设为封面；「重置封面」恢复默认封面。对所有书可用。
 // 自定义封面是一份独立的压缩小图，存在 thumbs 的 `${book.id}:custom`，记录为 book.customCover={bm,r,at}（r：高宽比，瀑布流按它排版；at：设置时间，卡片据此判断要不要换图）。
 // 之后删除该书签、刷新、恢复、重新导入都不改变它；随书目和缩略图进入备份。它不参与识别：恢复用的指纹（book.fp）只来自默认封面。
@@ -32,14 +34,15 @@ export function install(ctx){
     if(!b||dialog.open)return;book=b;
     title.textContent=t('coverSet');name.textContent=ctx.title(b);name.title=ctx.title(b);shut.title=t('close');shut.setAttribute('aria-label',t('close'));
     resetBtn.textContent=t('coverReset');resetBtn.disabled=!b.customCover;
-    // 音频书签没有画面，以后不列出；现在都是图片书签。
-    const items=ctx.marks?.list(b)??[];
+    // 音频书签没有画面，不列出；视频书签用书签时间点的画面。
+    const items=(ctx.marks?.list(b)??[]).filter(x=>!(ctx.marks.isMedia(x.bm)&&x.i>=0&&pageKind(b.pages[x.i])==='audio'));
     hint.textContent=t(items.length?'coverHint':'coverNone');hint.classList.toggle('empty',!items.length);
     dialog.style.setProperty('--bm-ar',ctx.shelfmarks?.ratio()??'.75');
     grid.replaceChildren(...items.map(x=>{
       const btn=make('button','cp-item'+(b.customCover?.bm===x.bm.id?' current':'')),img=make('img');btn.type='button';img.alt='';img.draggable=false;
-      btn.setAttribute('aria-label',x.i<0?t('bmGone'):ctx.fmt('bmPage',{n:x.i+1}));btn.append(img);
-      ctx.getThumb(ctx.marks.thumbKey(b,x.bm)).then(th=>{if(th)img.src=th.url;else btn.classList.add('empty');},()=>btn.classList.add('empty'));
+      btn.setAttribute('aria-label',ctx.marks.where(b,x));btn.append(img);
+      if(ctx.marks.isMedia(x.bm))ctx.marks.paint(btn,img,b,x);
+      else ctx.getThumb(ctx.marks.thumbKey(b,x.bm)).then(th=>{if(th)img.src=th.url;else btn.classList.add('empty');},()=>btn.classList.add('empty'));
       btn.onclick=()=>{dialog.close();ctx.safe(choose)(b,x);};return btn;
     }));
     dialog.showModal();(grid.querySelector('.current')||grid.firstChild||shut).focus();
@@ -47,7 +50,7 @@ export function install(ctx){
   // 源文件可读时按封面尺寸从书签位置重新截取，读不到（过期、句柄失效、图片已不存在）时用现有的书签缩略图。
   async function choose(b,x){
     let th=null;const page=x.i>=0?b.pages[x.i]:null;
-    if(page&&!ctx.expired(b))try{th=await ctx.makeThumb(await ctx.source(b,page),{width:320,crop:cropFor(page,x.bm.f)});}catch{}
+    if(page&&!ctx.expired(b))try{const file=await ctx.source(b,page);th=ctx.marks.isMedia(x.bm)?await grabFrame(file,x.bm.t,{width:320}):await ctx.makeThumb(file,{width:320,crop:cropFor(page,x.bm.f)});}catch{}
     if(!th){const rec=await ctx.thumbs('get',ctx.marks.thumbKey(b,x.bm));if(rec?.blob)th={blob:rec.blob,w:rec.w,h:rec.h};}
     if(!th){notice('failed');return;}
     if(!ctx.books.has(b.id))return; // 期间这本书已被删除

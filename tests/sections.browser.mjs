@@ -101,7 +101,7 @@ try{
   // 区段书签不计入书签数量，也不单独占一项。
   assert.equal(await js(`document.querySelector('.bm-head .count').textContent`),'5');
   assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-sub')?.getAttribute('aria-label')??null])`),
-    [['Image 3 · Section start','Section bookmark · Image 6'],['Image 4',null],['Image 9 · Section start','Section bookmark · Image 13'],['Image 21',null],['Image 21',null]]);
+    [['Page 3 · Section start','Section bookmark · Page 6'],['Page 4',null],['Page 9 · Section start','Section bookmark · Page 13'],['Page 21',null],['Page 21',null]]);
   await wait(()=>js(`[...document.querySelectorAll('.bm-sub img')].every(i=>i.complete&&i.naturalWidth===240)`));
   assert.equal(await js(`document.querySelectorAll('.bm-item.paired .bm-mk.start use[href="#i-bm-start"]').length+document.querySelectorAll('.bm-sub .bm-mk.end use[href="#i-bm-end"]').length`),4,'Paired marks on both thumbnails');
   // 悬停起点缩略图：区段书签小图一起高亮。
@@ -205,10 +205,10 @@ try{
   // ==== 5. 全屏书架书签：成组显示、搜索（作品名 / 文件名）、点区段书签小图跳过去 ====
   await tap('c');await wait(()=>sheetOpen('shelfOverview'));await delay(200);
   const sm=()=>js(`[...document.querySelectorAll('#shelfOverview .ov-mark')].map(n=>n.getAttribute('aria-label')+(n.querySelector('.bm-sub')?' +':''))`);
-  assert.deepEqual(await sm(),['Sections · Image 3 · Section start +','Sections · Image 4','Sections · Image 9 · Section start +','Sections · Image 15','Sections · Image 21','Sections · Image 21']);
+  assert.deepEqual(await sm(),['Sections · Page 3 · Section start +','Sections · Page 4','Sections · Page 9 · Section start +','Sections · Page 15','Sections · Page 21','Sections · Page 21']);
   assert.equal(await js(`document.querySelector('#shelfOverview .ov-find input').placeholder`),'Search titles, file names');
   await tap('/');await cdp('Input.insertText',{text:'12.svg'});await wait(async()=>(await sm()).length===1);
-  assert.deepEqual(await sm(),['Sections · Image 9 · Section start +'],'The section bookmark file name matches too');
+  assert.deepEqual(await sm(),['Sections · Page 9 · Section start +'],'The section bookmark file name matches too');
   await js(`(()=>{const q=document.querySelector('#shelfOverview .ov-find input');q.value='sections';q.dispatchEvent(new Event('input'));})()`);
   await wait(async()=>(await sm()).length===6);
   await js(`(()=>{const q=document.querySelector('#shelfOverview .ov-find input');q.value='nothing here';q.dispatchEvent(new Event('input'));})()`);
@@ -277,7 +277,7 @@ try{
   await tap('Escape');await wait(()=>js(`!document.querySelector('.cover-pick').open`));assert.equal(await js('shelf.open'),true,'Esc closes only the picker');
   // 列出本书全部书签的缩略图，点选即设为封面。
   await coverBtn('Sections');await wait(()=>js(`document.querySelector('.cover-pick')?.open`));
-  assert.deepEqual(await js(`[...document.querySelectorAll('.cover-pick .cp-item')].map(b=>b.getAttribute('aria-label'))`),['Image 4','Image 9','Image 15','Image 21','Image 21','Image 30']);
+  assert.deepEqual(await js(`[...document.querySelectorAll('.cover-pick .cp-item')].map(b=>b.getAttribute('aria-label'))`),['Page 4','Page 9','Page 15','Page 21','Page 21','Page 30']);
   assert.equal(await js(`document.querySelector('.cover-pick .cp-foot button').disabled`),true,'Nothing to reset yet');
   await shot('cover-pick');
   await js(`[...document.querySelectorAll('.cover-pick .cp-item')].at(-1).click()`);

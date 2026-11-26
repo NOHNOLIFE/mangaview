@@ -20,6 +20,25 @@
 .mv-knob{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5);opacity:0;transition:opacity .15s;pointer-events:none}
 .mv-bar:hover .mv-knob,.mv-bar:focus-visible .mv-knob{opacity:1}
 .mv-marks{position:absolute;inset:0;pointer-events:none} /* 书签标记层：标记自己设 pointer-events */
+/* 进度条上的书签标记（bookmarks.mjs drawPlayer）：普通书签是圆点，起点与区段书签是一对方括号；浮在进度条之上，不改变壳的布局。
+   区段（.mv-span）在悬停 / 聚焦一对中的任意一个时高亮，开启「只播放书签区段」时常显，区段以外的部分变暗（.mv-dim）。 */
+.mv-mk{position:absolute;top:50%;z-index:1;width:14px;height:20px;min-width:0;margin:-10px 0 0 -7px;padding:0;border:0;border-radius:4px;background:none;cursor:pointer;pointer-events:auto}
+.mv-mk::before{content:'';position:absolute;left:50%;top:50%;box-sizing:border-box;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9))}
+.mv-mk.mark::before{width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--accent);border:1.5px solid #fff}
+.mv-mk.start::before,.mv-mk.end::before{width:6px;height:14px;margin:-7px 0 0 -1px;border:0 solid var(--accent);border-width:3px 0 3px 3px}
+.mv-mk.end::before{margin-left:-5px;border-width:3px 3px 3px 0}
+.mv-mk:hover::before,.mv-mk:focus-visible::before,.mv-mk.hot::before{border-color:#fff;filter:drop-shadow(0 0 3px var(--accent))}
+.mv-mk.mark:hover::before,.mv-mk.mark:focus-visible::before{background:#fff;border-color:var(--accent)}
+.mv-mk:focus-visible{outline:2px solid var(--accent);outline-offset:0}
+.mv-mk:not(:disabled):hover{background:none;border:0}
+.mv-span,.mv-dim{position:absolute;top:50%;height:4px;margin-top:-2px;pointer-events:none}
+.mv-span{border-radius:2px;background:rgba(255,255,255,.7);opacity:0;transition:opacity .12s}
+.mv-span.hot,.sec-only .mv-span{opacity:1}
+.sec-only .mv-span:not(.hot){background:rgba(255,122,89,.55)}
+.mv-dim{display:none;background:rgba(0,0,0,.62)}
+.sec-only .mv-dim{display:block}
+/* 壳上的开关（循环、只播放书签区段）打开时图标为强调色。 */
+.mv-shell .mv-x[aria-pressed=true],.mv-pop .mv-x[aria-pressed=true]{color:var(--accent)}
 .mv-time{flex:none;padding:0 4px;box-sizing:content-box;font-size:12px;font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap;color:var(--muted)}
 input.mv-vol{flex:none;width:72px;height:32px;margin:0;padding:0;border:0;border-radius:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
 input.mv-vol:hover{border:0}

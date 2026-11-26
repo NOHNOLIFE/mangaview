@@ -7,11 +7,16 @@
 // - 壳上的按钮登记在 ctx.player.add：之后的「添加书签」「播放顺序」等按钮照此加入，默认是次要控件（宽度不够时收进弹出层）；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
 // - 当前媒体（ctx.media.current）：本窗口正在播放的；否则中线在视窗内、离视窗中心最近的；都没有为 null。
+// - 播放顺序与循环（3.7）、只播放书签区段（4.5）的规则在 playlist.mjs；区段来自 bookmarks.mjs（ctx.marks.ranges）。
+// - 播放位置记忆（3.9）：会话内存在 times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs），
+//   只在暂停、离开视窗、切书、关闭窗口时保存，播放中至多每 POS_EVERY 毫秒保存一次；播到结尾（剩余不足 5 秒）清除。
+// - grabFrame / grabFrames：截取视频某一时刻的画面（书签缩略图等），对象 URL 按需读取，有超时。
 import {extend} from './lang.mjs';
 import {shownName,pageKind,clock,seekStep,nudge} from './model.mjs';
 import {fileStamp} from './thumbs.mjs';
 import {midName,limits} from './view.mjs';
 import {addIcons} from './settings.mjs';
+import {orderOf,ORDERS,following,sectionStart,sectionStep} from './playlist.mjs';
 
 extend({
   mvPlay:['Play','播放','再生','재생'],mvPause:['Pause','暂停','一時停止','일시 정지'],mvSeek:['Playback position','播放进度','再生位置','재생 위치'],
@@ -21,6 +26,12 @@ extend({
   mvUnreadable:['Can\'t read this file right now','暂时无法读取此文件','このファイルを読み込めません','지금은 이 파일을 읽을 수 없습니다'],
   mvRetry:['Retry','重试','再試行','다시 시도'],mvVideo:['Video','视频','動画','동영상'],mvAudio:['Audio','音频','音声','오디오'],
   mvAutoplay:['Autoplay media','自动播放','メディアを自動再生','미디어 자동 재생'],
+  mvOrderList:['Play order: list','播放顺序：列表','再生順：リスト','재생 순서: 목록'],
+  mvOrderShuffle:['Play order: shuffle','播放顺序：随机','再生順：シャッフル','재생 순서: 무작위'],
+  mvOrderSingle:['Play order: single','播放顺序：单集','再生順：1 つだけ','재생 순서: 하나만'],
+  mvLoop:['Loop','循环','ループ','반복'],
+  mvSections:['Play bookmark sections only','只播放书签区段','しおり区間だけ再生','책갈피 구간만 재생'],
+  mvNoSections:['This book has no bookmark sections','本书没有书签区段','この本にはしおり区間がありません','이 책에는 책갈피 구간이 없습니다'],
   mvAutoplayHint:['Play a video or audio when scrolling stops on it','滚动停在视频或音频上时自动开始播放','スクロールが止まったところの動画や音声を再生します','스크롤이 멈춘 곳의 동영상이나 오디오를 재생합니다']
 });
 const ICONS={
@@ -31,12 +42,54 @@ const ICONS={
   film:'<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M7.5 3v18M16.5 3v18M3 7.5h4.5M3 12h18M3 16.5h4.5M16.5 7.5H21M16.5 16.5H21"/>',
   music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   more:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  'order-list':'<path d="M4 6h12M4 12h12M4 18h8M17 15l3 3-3 3"/>',
+  'order-shuffle':'<path d="M3 7h3a5 5 0 0 1 4 2l4 6a5 5 0 0 0 4 2h3M3 17h3a5 5 0 0 0 4-2M14 9a5 5 0 0 1 4-2h3M18 4l3 3-3 3M18 14l3 3-3 3"/>',
+  'order-single':'<path d="M4 12h11M12 8l4 4-4 4M20 6v12"/>',
+  repeat:'<path d="m17 2 3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/>',
+  sections:'<path d="M7 5H4v14h3M17 5h3v14h-3M9 12h6"/>',
   'fast-forward':'<path d="m13 19 9-7-9-7zM2 19l9-7-9-7z"/>',rewind:'<path d="m11 19-9-7 9-7zM22 19l-9-7 9-7z"/>'
 };
 // 壳的宽度预算（像素，与 media.css 一致）：放不下全部控件时，次要控件收进「更多」弹出层。
 const BTN=32,VOL=72,GAP=2,PAD=12,BAR_MIN=120;
 // 自动播放：滚动停稳 SETTLE 毫秒后才开始；视频的壳在播放中静止 IDLE 毫秒后淡出；读取元数据的上限 META 毫秒（超时按失败处理，不记录）。
 const SETTLE=300,IDLE=2500,META=20000;
+// 播放位置：播放中至多每 POS_EVERY 毫秒记一次；记下后 POS_SAVE 毫秒内合并为一次写入。剩余不足 POS_END 秒视为播完，清除位置。
+const POS_EVERY=10000,POS_SAVE=1000,POS_END=5;
+const ORDER_ICON={list:'order-list',shuffle:'order-shuffle',single:'order-single'},ORDER_LABEL={list:'mvOrderList',shuffle:'mvOrderShuffle',single:'mvOrderSingle'};
+
+// ---- 截取视频画面：书签缩略图等共用。file 为 File / Blob，seconds 为时间点（秒），width 为缩略图宽度上限。
+// 只挂一个不出声的 <video>，读到元数据后逐个定位截图（同一个文件的多个时间点一次打开截完），结束即释放；每一步有超时。
+// 返回 {blob,w,h,iw,ih}（与 thumbs.mjs makeThumb 相同，可直接 saveThumb）。
+export async function grabFrame(file,seconds,{width=240,timeout=META}={}){
+  const [r]=await grabFrames(file,[seconds],{width,timeout});if(!r)throw new DOMException('No frame','EncodingError');return r;
+}
+// 多个时间点：返回与 list 等长的数组，截不到的为 null；文件打不开（元数据读不到、超时）时抛出。
+export async function grabFrames(file,list,{width=240,timeout=META}={}){
+  const url=URL.createObjectURL(file),v=document.createElement('video');v.muted=true;v.preload='auto';v.playsInline=true;
+  const once=type=>new Promise((ok,no)=>{
+    const off=()=>{clearTimeout(tm);v.removeEventListener(type,done);v.removeEventListener('error',bad);};
+    const done=()=>{off();ok();},bad=()=>{off();no(new DOMException('Unplayable','EncodingError'));},tm=setTimeout(()=>{off();no(new DOMException('Timed out','TimeoutError'));},timeout);
+    v.addEventListener(type,done);v.addEventListener('error',bad);
+  });
+  try{
+    const meta=once('loadedmetadata');v.src=url;await meta;
+    if(!v.videoWidth)throw new DOMException('No video track','EncodingError');
+    const out=[],end=Number.isFinite(v.duration)?Math.max(0,v.duration-.05):Infinity;
+    for(const s of list){
+      if(!Number.isFinite(s)){out.push(null);continue;}
+      const seeked=once('seeked');v.currentTime=Math.max(0,Math.min(end,s));await seeked;
+      out.push(await frameOf(v,{width}).catch(()=>null));
+    }
+    return out;
+  }finally{v.removeAttribute('src');v.load();URL.revokeObjectURL(url);}
+}
+// 把视频元素当前显示的画面缩小成 WebP（正在播放器里的视频可直接截，不必再读文件）。
+export async function frameOf(v,{width=240}={}){
+  const vw=v.videoWidth,vh=v.videoHeight;if(!vw||!vh||v.readyState<2)throw new DOMException('No frame','InvalidStateError');
+  const k=Math.min(1,width/vw),w=Math.max(1,Math.round(vw*k)),h=Math.max(1,Math.round(vh*k));
+  const c=new OffscreenCanvas(w,h);c.getContext('2d').drawImage(v,0,0,w,h);
+  return {blob:await c.convertToBlob({type:'image/webp',quality:.82}),w,h,iw:vw,ih:vh};
+}
 
 export function install(ctx){
   const {t,make,icon,main,get,put}=ctx;addIcons(ICONS);
@@ -44,16 +97,37 @@ export function install(ctx){
   const times=new WeakMap(); // 本次会话里各媒体的播放位置（页对象 → 秒），卸载源之后回来从这里继续
   const controls=[],decorators=[];
   let playing=null,armed=false;
+  // 播放顺序与循环、只播放书签区段：设置类偏好，跨窗口同步（壳上的按钮）。
+  let order=orderOf(get('playOrder','list')),loop=get('playLoop',false)===true,only=get('sectionsOnly',false)===true;
+  const failedPages=new WeakSet(); // 本次会话里打不开的页：按播放顺序自动切换时跳过
+  const rounds=new WeakMap(); // 书 → 本轮随机已播过的页名
+  let queued=null; // 按播放顺序或书签跳转要播放的页 {page,time,play,auto}：该页的播放器出现在视窗里时接手
   // ---- 统一音量：全应用一套音量和静音，所有媒体共用；设置类偏好，跨窗口即时同步，去抖保存。
   const level=v=>Number.isFinite(+v)&&v!==null&&v!==''?Math.min(1,Math.max(0,+v)):1;
   let volume=level(get('volume',1)),muted=!!get('muted',false),saveTimer=0;
-  ctx.prefs.sync('volume',v=>{volume=level(v??1);applyVolume();}).sync('muted',v=>{muted=!!v;applyVolume();}).sync('autoplay');
+  ctx.prefs.sync('volume',v=>{volume=level(v??1);applyVolume();}).sync('muted',v=>{muted=!!v;applyVolume();}).sync('autoplay')
+    .sync('playOrder',v=>{order=orderOf(v);rounds.delete(ctx.current);refreshControls();}).sync('playLoop',v=>{loop=v===true;refreshControls();})
+    .sync('sectionsOnly',v=>{only=v===true;refreshAll();});
   function applyVolume(){for(const p of players.values()){p.el.volume=volume;p.el.muted=muted;renderVolume(p);}}
   function saveVolume(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{put('volume',volume);put('muted',muted);},300);}
   function setVolume(v,hud=false){volume=level(v);if(volume>0)muted=false;applyVolume();saveVolume();if(hud)showHud(volIcon(),Math.round(volume*100)+'%',volume);}
   function setMuted(on){muted=!!on;applyVolume();saveVolume();}
   const volIcon=()=>muted||!volume?'volume-x':volume<.5?'volume-low':'volume';
   window.addEventListener('pagehide',()=>{if(saveTimer){clearTimeout(saveTimer);put('volume',volume);put('muted',muted);}});
+
+  // ---- 播放位置记忆：随书目记录保存（book.mediaPos，进入备份），已移除的媒体的位置在下次保存时一并清掉。
+  const savedPos=(book,page)=>{const e=Array.isArray(book.mediaPos)?book.mediaPos.find(x=>x?.id===page.name):null;return Number.isFinite(e?.t)&&e.t>0?e.t:0;};
+  const dirtyBooks=new Set();let posTimer=0;
+  function remember(p,t){
+    const book=p.book,name=p.page.name,d=api.duration(p),list=Array.isArray(book.mediaPos)?book.mediaPos:[];
+    const v=Number.isFinite(t)&&t>.5&&!(d&&d-t<POS_END)?Math.round(t*1000)/1000:0;
+    const names=new Set(book.pages.map(x=>x.name)),old=list.find(x=>x?.id===name),stale=list.some(x=>!names.has(x?.id));
+    if(!stale&&(v?old?.t===v:!old))return;
+    const next=list.filter(x=>x?.id!==name&&names.has(x?.id));if(v)next.push({id:name,t:v});
+    book.mediaPos=next;dirtyBooks.add(book);clearTimeout(posTimer);posTimer=setTimeout(flushPos,POS_SAVE);
+  }
+  function flushPos(){clearTimeout(posTimer);posTimer=0;for(const b of dirtyBooks)ctx.persist(b);dirtyBooks.clear();}
+  window.addEventListener('pagehide',()=>{for(const p of players.values())if(p.state==='ready')remember(p,p.el.currentTime);flushPos();});
 
   // ---- 提示浮层：调音量、长按快进 / 快退时短暂显示。
   const hud=make('div','mv-hud'),hudIcon=icon('volume'),hudText=make('span','mv-hud-text'),hudBar=make('i','mv-hud-bar');let hudTimer=0;
@@ -82,7 +156,7 @@ export function install(ctx){
   function build(node,book,page,kind){
     const el=document.createElement(kind);el.preload='metadata';el.controls=false;el.disableRemotePlayback=true;
     if(kind==='video'){el.playsInline=true;el.disablePictureInPicture=true;}
-    const p={node,book,page,kind,el,state:'idle',url:null,stamp:null,timer:0,time:times.get(page)??0,wantPlay:false,userPaused:false,done:false,narrow:null,extra:new Map()};
+    const p={node,book,page,kind,el,state:'idle',url:null,stamp:null,timer:0,time:times.get(page)??savedPos(book,page),wantPlay:false,userPaused:false,done:false,narrow:null,extra:new Map()};
     node.classList.add('media',kind);
     shell(p);
     if(kind==='video'){p.big=make('span','mv-big');p.big.append(icon('play'));node.replaceChildren(el,p.big,p.shell);}
@@ -91,7 +165,7 @@ export function install(ctx){
     p.fail=make('div','mv-fail');p.fail.dataset.nodrag='';p.fail.hidden=true;node.append(p.fail);
     el.volume=volume;el.muted=muted;
     events(p);node._dispose=()=>dispose(p);players.set(node,p);
-    for(const fn of decorators)try{fn(p);}catch(e){console.warn(e);}
+    decorate(p);
     render(p);return p;
   }
   // 播放器对外的操作（供之后的书签、播放顺序等使用）。
@@ -158,14 +232,19 @@ export function install(ctx){
       if(p.kind==='video'&&el.videoWidth&&el.videoHeight&&(page.w!==el.videoWidth||page.h!==el.videoHeight))ctx.view.sized(page,el.videoWidth,el.videoHeight);
       else if(changed)ctx.view.hooks.measured();
       if(p.time>0&&(!d||p.time<d-.5))el.currentTime=p.time;
-      sizeTime(p);render(p);
+      sizeTime(p);render(p);decorate(p); // 进度条上的书签标记要用到时长
       if(p.wantPlay){p.wantPlay=false;start(p);}
     });
     el.addEventListener('error',()=>{if(p.state!=='loading'&&p.state!=='ready')return;const c=el.error?.code;if(c===1)return;fail(p,c===3||c===4?'decode':'read');});
-    el.addEventListener('play',()=>{for(const q of players.values())if(q!==p&&!q.el.paused)q.el.pause();playing=p;p.done=false;p.userPaused=false;render(p);idle(p);});
-    el.addEventListener('pause',()=>{if(playing===p)playing=null;if(p.state==='ready'){p.time=el.currentTime;times.set(page,p.time);}render(p);});
-    el.addEventListener('ended',()=>{p.done=true;p.time=0;times.delete(page);render(p);});
-    el.addEventListener('timeupdate',()=>progress(p));
+    el.addEventListener('play',()=>{
+      for(const q of players.values())if(q!==p&&!q.el.paused)q.el.pause();playing=p;p.done=false;p.userPaused=false;p.auto=false;render(p);idle(p);
+      let r=rounds.get(p.book);if(!r)rounds.set(p.book,r=new Set());r.add(page.name);
+      clearInterval(p.posEvery);p.posEvery=setInterval(()=>{if(p.state==='ready'&&!el.paused)remember(p,el.currentTime);},POS_EVERY);
+    });
+    el.addEventListener('pause',()=>{clearInterval(p.posEvery);if(playing===p)playing=null;if(p.state==='ready'&&!p.done){p.time=el.currentTime;times.set(page,p.time);remember(p,p.time);}render(p);});
+    el.addEventListener('ended',()=>{clearInterval(p.posEvery);p.done=true;p.time=0;times.delete(page);remember(p,0);render(p);finished(p);});
+    el.addEventListener('timeupdate',()=>{progress(p);if(only)sectionTick(p);});
+    el.addEventListener('seeking',()=>{if(p.selfSeek)p.selfSeek=false;else p.sec=null;}); // 手动定位到区段之外不强行跳回
     el.addEventListener('seeked',()=>progress(p));
     if(p.kind==='video'){
       p.node.addEventListener('pointermove',()=>idle(p));
@@ -189,20 +268,21 @@ export function install(ctx){
   }
   function unload(p){
     clearTimeout(p.timer);if(p.state==='idle')return;
-    if(p.state==='ready'){if(!p.el.paused)p.el.pause();p.time=p.el.currentTime;times.set(p.page,p.time);}
+    clearInterval(p.posEvery);if(p.state==='ready'){if(!p.el.paused)p.el.pause();if(!p.done){p.time=p.el.currentTime;times.set(p.page,p.time);remember(p,p.time);}}
     p.el.removeAttribute('src');p.el.load();if(p.url){URL.revokeObjectURL(p.url);p.url=null;}
     if(p.state!=='failed')p.state='idle';p.wantPlay=false;if(playing===p)playing=null;render(p);
   }
   function dispose(p){unload(p);fitter.unobserve(p.shell);clearTimeout(p.idleTimer);if(p.pop.matches(':popover-open'))p.pop.hidePopover();if(document.fullscreenElement===p.node)document.exitFullscreen().catch(()=>{});players.delete(p.node);}
   // why：decode 浏览器播不了（记下文件的大小和修改时间，不再探测）；known 已记录过；read / timeout 暂时读不到（不记录，可重试）。
   function fail(p,why){
-    unload(p);p.state='failed';p.wantPlay=false;
+    unload(p);p.state='failed';p.wantPlay=false;failedPages.add(p.page);
     if(why==='decode'&&p.stamp&&p.page.bad!==p.stamp){p.page.bad=p.stamp;ctx.view.hooks.measured();}
     const bad=why==='decode'||why==='known',retry=button('refresh',t('mvRetry'),()=>{if(p.page.bad){delete p.page.bad;ctx.view.hooks.measured();}p.state='idle';load(p);},'mv-retry');
     const name=midName(shownName(p.page));name.title=shownName(p.page);
     retry.append(make('span','',t('mvRetry')));retry.classList.remove('icon-btn');
     p.fail.replaceChildren(icon(p.kind==='video'?'film':'music'),make('strong','',t(bad?'mvUnplayable':'mvUnreadable')),name,retry);
     p.fail.hidden=false;p.node.classList.add('mv-failed');render(p);
+    if(p.auto){p.auto=false;finished(p);} // 按播放顺序切到的媒体播不了：跳过它，接着找下一个
   }
   // 时间显示按总时长的位数预留宽度：播放中数字变化不推动其他控件。
   function sizeTime(p){const d=api.duration(p),w=(clock(d||0)+' / '+clock(d||0)).length;if(p.timeEl.dataset.w!==String(w)){p.timeEl.dataset.w=w;p.timeEl.style.width=w+'ch';layoutControls(p);}}
@@ -227,8 +307,10 @@ export function install(ctx){
     renderVolume(p);renderControls(p);progress(p);
   }
   // 开始播放：源还没挂上时先挂上，读到元数据后再播。浏览器拦截自动出声时不提示（等用户自己点）。
+  // 开启「只播放书签区段」且这个媒体有区段时，从当前时间之后的第一个区段起点开始（playlist.mjs sectionStart）。
   function start(p){
     p.userPaused=false;p.done=false;
+    if(p.state==='ready'){const rs=only?rangesOf(p):[];if(rs.length){const now=p.el.currentTime,s=sectionStart(rs,now);if(Math.abs(s-now)>.01)selfSeek(p,s);}}
     if(p.state==='ready')p.el.play().catch(e=>{if(e.name!=='AbortError'&&e.name!=='NotAllowedError')console.warn(e);});
     else if(p.state!=='failed'){p.wantPlay=true;if(p.state==='idle')load(p);}
   }
@@ -236,11 +318,61 @@ export function install(ctx){
   function toggle(p){if(p.state==='failed')return;if(p.state==='ready'&&!p.el.paused){p.userPaused=true;p.el.pause();}else if(p.wantPlay){p.wantPlay=false;p.userPaused=true;}else start(p);}
   function fullscreen(p){if(document.fullscreenElement===p.node)document.exitFullscreen().catch(()=>{});else p.node.requestFullscreen?.().catch(()=>{});}
   document.addEventListener('fullscreenchange',()=>{for(const p of players.values())render(p);});
+  function selfSeek(p,s){p.selfSeek=true;p.el.currentTime=s;p.time=s;progress(p,s);}
+
+  // ---- 只播放书签区段（4.5）：一个媒体内只播放它的区段（ctx.marks.ranges，秒），区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
+  const rangesOf=p=>p.ranges??=(ctx.marks?.ranges?.(p.book,p.page)??[]);
+  function sectionTick(p){
+    if(p.el.paused||p.el.seeking||p.state!=='ready')return;
+    const rs=rangesOf(p);if(!rs.length){p.sec=null;return;}
+    const r=sectionStep(rs,p.el.currentTime,p.sec??null);p.sec=r.k;
+    if(r.seek!=null)selfSeek(p,r.seek);
+    else if(r.done){p.done=true;p.time=0;times.delete(p.page);p.el.pause();remember(p,0);render(p);finished(p);}
+  }
+  // 进度条上的标记、区段常显 / 变暗（sec-only）随书签、设置变化重画。
+  function decorate(p){p.node.classList.toggle('sec-only',only&&rangesOf(p).length>0);for(const fn of decorators)try{fn(p);}catch(e){console.warn(e);}}
+  function refreshControls(){for(const p of players.values())renderControls(p);}
+  function refreshAll(){for(const p of players.values()){p.ranges=null;renderControls(p);decorate(p);}}
+
+  // ---- 播放顺序与循环（3.7）：一个媒体播完之后做什么。「列表」是当前书里可播放的媒体（图片、播不了的跳过），按当前页序；
+  // 开启「只播放书签区段」且书里有区段时，没有区段的媒体也跳过。切到下一个媒体时把它滚到视窗中央、从头（或第一个区段）播放。
+  function candidates(book,withSec){
+    const out=[];book.pages.forEach((pg,i)=>{const k=pageKind(pg);if((k==='video'||k==='audio')&&!pg.bad&&!failedPages.has(pg)&&(!withSec||withSec.get(pg.name)?.length))out.push(i);});return out;
+  }
+  const sectionMap=book=>{const m=only?ctx.marks?.mediaRanges?.(book):null;return m&&[...m.values()].some(r=>r.length)?m:null;};
+  let lastFinish=null;
+  function finished(p){
+    const now=performance.now();if(lastFinish?.p===p&&now-lastFinish.at<800)return;lastFinish={p,at:now}; // 区段播完与 ended 可能先后到达
+    const book=p.book,cur=book.pages.indexOf(p.page);if(book!==ctx.current||!players.has(p.node)||cur<0)return;
+    const withSec=sectionMap(book);
+    if(order==='single'){if(loop)restart(p);return;}
+    const list=candidates(book,withSec),names=rounds.get(book)??new Set();
+    const r=following({order,loop,list,cur,played:new Set(book.pages.flatMap((pg,i)=>names.has(pg.name)?[i]:[]))});
+    rounds.set(book,new Set([...r.played].map(i=>book.pages[i]?.name)));
+    if(r.next==null)return;
+    if(r.next===cur)restart(p);else switchTo(book,r.next,withSec);
+  }
+  function restart(p){const rs=only?rangesOf(p):[];if(p.state==='ready')selfSeek(p,rs.length?rs[0].a:0);else p.time=rs.length?rs[0].a:0;start(p);}
+  function switchTo(book,i,withSec){
+    const page=book.pages[i],rs=withSec?.get(page.name)??[],s=rs.length?rs[0].a:0;
+    times.set(page,s);queued={page,time:s,play:true,auto:true};
+    if(document.fullscreenElement?.classList.contains('media'))document.exitFullscreen().catch(()=>{});
+    ctx.view.jump({i,f:.5});if(document.hidden)ctx.view.paint(); // 窗口在后台时不会有动画帧：立即排版，播放顺序照常生效
+    claimNow();requestAnimationFrame(claimNow);
+  }
+  // 要播放的页的播放器在视窗里时接手：定位到指定时间，play 为真则播放，否则只挂上源停在该画面。
+  function claim(p){
+    if(!queued||queued.page!==p.page||p.book!==ctx.current)return;
+    const q=queued;queued=null;if(p.state==='failed')return;
+    p.auto=!!q.auto;seek(p,q.time);if(q.play)start(p);
+  }
+  function claimNow(){if(!queued)return;for(const p of players.values())if(p.page===queued?.page&&inView(p))claim(p);}
 
   // ---- 正文里的媒体页（view.mjs paint 调用）：k 为 0 是正文，1 是缩略图栏；visible 为与视窗相交。
   ctx.view.hooks.media=(node,book,page,kind,k,visible)=>{
     if(k){if(!node.firstChild)node.append(tile(page,kind));return;}
     const p=players.get(node)??build(node,book,page,kind);
+    if(visible&&queued?.page===page)claim(p);
     if(visible){if(p.state==='idle')load(p);}
     else if(p.state==='loading'||p.state==='ready')unload(p);
   };
@@ -272,12 +404,19 @@ export function install(ctx){
   main.addEventListener('scroll',()=>{watch();clearTimeout(settleTimer);settleTimer=setTimeout(settled,SETTLE);},{passive:true});
   // 启动或切书（恢复阅读位置）后，本窗口有过用户操作（按键、点击、滚轮）之前不自动播放，避免一打开就出声。
   for(const type of ['keydown','pointerdown','wheel'])window.addEventListener(type,e=>{if(e.isTrusted)armed=true;},{capture:true,passive:true});
-  ctx.on('select',()=>{armed=false;});
+  ctx.on('select',()=>{armed=false;queued=null;rounds.delete(ctx.current);});
 
   // 点击正文里的媒体（壳以外）：播放 / 暂停，不翻屏（app.mjs 的正文点击先问这里）。
   ctx.media={
     tap(target){const node=target?.closest?.('.page.media');const p=node&&players.get(node);if(!p)return false;toggle(p);return true;},
-    current:()=>current()
+    current:()=>current(),
+    // 跳到媒体书签（bookmarks.mjs，正文已滚到该页）：定位到书签时间；自动播放开启则从该处播放，关闭则停在该画面（正在播放的继续播放）。
+    goto(book,page,s){
+      times.set(page,s);queued={page,time:s,play:get('autoplay',true)!==false,auto:false};
+      const p=[...players.values()].find(q=>q.page===page&&q.book===book);
+      if(p&&!queued.play&&p.state==='ready'&&!p.el.paused)queued.play=true;
+      claimNow();
+    }
   };
   // 长按 A / D / ← / →（app.mjs 的 pageHold）：当前媒体快退 / 快进，暂停中的也可以；没有当前媒体时无功能。
   let held=null;
@@ -306,8 +445,21 @@ export function install(ctx){
   ctx.player={
     add(c){controls.push(c);for(const p of players.values())layoutControls(p);},
     decorate(fn){decorators.push(fn);for(const p of players.values())try{fn(p);}catch(e){console.warn(e);}},
-    refresh(){for(const p of players.values()){renderControls(p);for(const fn of decorators)try{fn(p);}catch(e){console.warn(e);}}},
+    refresh(){refreshAll();},
     list:()=>[...players.values()],current:()=>current(),api
   };
+  // 播放顺序（列表 / 随机 / 单集，一个按钮轮换，图标随状态变化）、循环（开关）、只播放书签区段（开关）。
+  ctx.player.add({id:'sections',icon:'sections',label:'mvSections',order:30,click(){only=!only;put('sectionsOnly',only);refreshAll();
+    if(only&&ctx.current&&!sectionMap(ctx.current))ctx.notice(null,t('mvNoSections'));},state:()=>({pressed:only})});
+  ctx.player.add({id:'order',icon:ORDER_ICON[order],label:ORDER_LABEL[order],order:40,click(){order=ORDERS[(ORDERS.indexOf(order)+1)%ORDERS.length];put('playOrder',order);rounds.delete(ctx.current);refreshControls();ctx.notice(null,t(ORDER_LABEL[order]));},
+    state:()=>({icon:ORDER_ICON[order],label:ORDER_LABEL[order]})});
+  ctx.player.add({id:'loop',icon:'repeat',label:'mvLoop',order:41,click(){loop=!loop;put('playLoop',loop);refreshControls();},state:()=>({pressed:loop})});
+  // 书签增删（本窗口或别的窗口）后重画该书的播放器上的标记；别的窗口保存的播放位置，本窗口还没挂上源的播放器随之跟进。
+  const refreshBook=book=>{for(const p of players.values())if(p.book===book){p.ranges=null;decorate(p);}};
+  ctx.on('marks',refreshBook);
+  ctx.on('synced',(book,keys)=>{
+    if(keys.includes('bookmarks'))refreshBook(book);
+    if(keys.includes('mediaPos'))for(const p of players.values())if(p.book===book&&p.state!=='ready'){p.time=savedPos(book,p.page);times.set(p.page,p.time);progress(p);}
+  });
   ctx.on('lang',()=>{for(const p of players.values()){p.bar.setAttribute('aria-label',t('mvSeek'));p.vol.setAttribute('aria-label',t('mvVolume'));setLabel(p.more,t('mvMore'));render(p);}});
 }

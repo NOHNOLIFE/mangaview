@@ -1,22 +1,25 @@
 import {extend} from './lang.mjs';
-import {at,point,clipEnd} from './model.mjs';
+import {at,point,clipEnd,pageKind,clock,shownName} from './model.mjs';
 import {forget} from './thumbs.mjs';
 import {pair} from './sections.mjs';
-// 书签：book.bookmarks=[{id,name,f,at,end?}]，按图片文件名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
-// end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，
-// 不计数、不是 F / Enter 的停靠点、不在列表里单独占一项。图片书签的位置是「页 + 页内位置」，媒体以后按「文件 + 时间点」扩展（coord）。
+import {grabFrames,frameOf} from './media.mjs';
+// 书签：book.bookmarks=[{id,name,f,at,end?}]，按页名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
+// 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label?,from?,end?}；label 为名称（目前只来自 .pbf 导入）。
+// end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f|t,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，
+// 不计数、不是 F / Enter 的停靠点、不在列表里单独占一项。配对只在同一坐标系里：图片为「页序 + 页内位置」（可跨页），每个媒体文件各自按时间。
+// 视频书签的缩略图是书签时间点的画面：在播放器里添加时直接截当前画面，否则在列表里可见时排队截取（懒生成、串行、持久化）；音频没有画面，显示占位。
 extend({
   bmAdd:['Add bookmark','添加书签','しおりを追加','책갈피 추가'],bmHold:['Hold','长按','長押し','길게'],
   bmEmpty:['No bookmarks yet','还没有书签','しおりはまだありません','아직 책갈피가 없습니다'],
   bmNone:['No bookmarks yet — hold F or Enter to add one','还没有书签，长按 F 或 Enter 添加','しおりはまだありません。F か Enter を長押しで追加','아직 책갈피가 없습니다. F 또는 Enter를 길게 눌러 추가하세요'],
-  bmAllGone:['The bookmarked images no longer exist','书签所在的图片都已不存在','しおりの画像が見つかりません','책갈피한 이미지가 더 이상 없습니다'],
+  bmAllGone:['The bookmarked files no longer exist','书签所在的文件都已不存在','しおりのファイルが見つかりません','책갈피한 파일이 더 이상 없습니다'],
   bmAdded:['Bookmark added','已添加书签','しおりを追加しました','책갈피를 추가했습니다'],
   bmExists:['There is already a bookmark here','这里已有书签','ここにはすでにしおりがあります','여기에 이미 책갈피가 있습니다'],
   bmKeep:['Keep holding to add a bookmark','继续按住添加书签','押し続けるとしおりを追加','계속 누르면 책갈피 추가'],
   bmN:['Bookmark {n} / {m}','书签 {n} / {m}','しおり {n} / {m}','책갈피 {n} / {m}'],
   bmWrap:['Back to the first bookmark','已回到第一个书签','最初のしおりに戻りました','첫 번째 책갈피로 돌아왔습니다'],
   bmWrapBack:['Back to the last bookmark','已回到最后一个书签','最後のしおりに戻りました','마지막 책갈피로 돌아왔습니다'],
-  bmPage:['Image {n}','第 {n} 张','{n} 枚目','{n}번째'],bmGone:['Image missing','图片已不存在','画像なし','이미지 없음'],
+  bmPage:['Page {n}','第 {n} 页','{n} ページ目','{n}페이지'],bmGone:['File missing','文件已不存在','ファイルなし','파일 없음'],
   bmDelete:['Delete bookmark','删除书签','しおりを削除','책갈피 삭제'],
   secAdd:['Add section bookmark','添加区段书签','区間しおりを追加','구간 책갈피 추가'],
   secKeep:['Keep holding to add a section bookmark','继续按住添加区段书签','押し続けると区間しおりを追加','계속 누르면 구간 책갈피 추가'],
@@ -31,7 +34,8 @@ extend({
   smEdgeLeft:['Show shelf bookmarks at the left edge (when not pinned)','书架书签未常驻时，鼠标移到左缘弹出','本棚のしおりを固定していないとき、左端で表示','책장 책갈피를 고정하지 않았을 때 왼쪽 가장자리에서 표시'],
   smWidth:['Bookmark list width','书签列表宽度','しおり一覧の幅','책갈피 목록 너비']
 });
-const SHOW=150,ADD=550,DWELL=150,MIN_W=160,BROWSE=1500; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
+const SHOW=150,ADD=550,DWELL=150,MIN_W=160,BROWSE=1500,NEAR=2,THUMB_W=240,READ=20000; // NEAR：同一媒体这么多秒内已有书签即视为已存在；READ：截取书签画面时取文件的时限（毫秒）
+const isMedia=m=>Number.isFinite(m?.t),spot=m=>isMedia(m)?m.t:m?.f; // DWELL / MIN_W：与右侧缩略图栏（app.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
 export function install(ctx){
   const {main,view,t,fmt,notice,make,icon}=ctx;
   const sprite=document.querySelector('svg.sprite'),mark='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z';
@@ -42,24 +46,58 @@ export function install(ctx){
   function starts(){const s=view.panes[0].starts,b=ctx.current;return b?.pages.length&&s.length===b.pages.length+1?s:null;}
   // 屏幕中心所在的图与图内位置（view.anchor() 在书首返回 null，这里不能用）。
   function here(){const s=starts();if(!s)return null;const {i,f}=at(s,main.scrollTop+main.clientHeight/2);return {i,f,name:ctx.current.pages[i].name,h:s[i+1]-s[i]};}
+  // 添加书签的位置：有当前媒体（ctx.media.current，从壳上的按钮添加时是那个播放器）时为它的当前播放时间；
+  // 否则是屏幕中央的图片位置，中央是播放不了的媒体时不添加。
+  function target(player=ctx.media?.current?.()){
+    const book=ctx.current;if(!book)return null;
+    if(player&&player.book===book){const i=book.pages.indexOf(player.page);if(i>=0)return {i,name:player.page.name,t:Math.round((ctx.player.api.time(player)||0)*1000)/1000,player};}
+    const h=here();return h&&pageKind(book.pages[h.i])==='image'?h:null;
+  }
+  // 当前媒体所在的页与播放时间（媒体书签按时间比较前后）。
+  function mediaNow(){const p=ctx.media?.current?.(),b=ctx.current;if(!p||p.book!==b)return null;const i=b.pages.indexOf(p.page);return i<0?null:{i,t:ctx.player.api.time(p)||0};}
+  // 书签相对阅读位置的前后：返回比较函数，>0 在后，<0 在前，0 视为就在这里。当前媒体里的书签按播放时间比较，其余按画面位置（媒体页取其中线）。
+  function cursor(){
+    const s=starts();if(!s)return null;const y=main.scrollTop+main.clientHeight/2,m=mediaNow();
+    return x=>{
+      if(m&&x.i===m.i&&isMedia(x.bm))return x.bm.t>m.t+.5?1:x.bm.t<m.t-.5?-1:0;
+      const py=point(s,{i:x.i,f:isMedia(x.bm)?.5:x.bm.f});return py>y+2?1:py<y-2?-1:0;
+    };
+  }
   // 按当前页序排列；文件名已不存在的排在最后，i 为 -1。e：区段书签所在的页（没有或已不存在为 -1）；
   // live：区段生效（两头都在、区段书签在起点之后）；页序改变使区段书签排到前面时暂不生效，数据保留。
   function list(book){const pos=new Map(book.pages.map((p,i)=>[p.name,i]));
     return (book.bookmarks||[]).map(bm=>{const i=pos.get(bm.name)??-1,e=bm.end?pos.get(bm.end.name)??-1:-1;
-      return {bm,i,e,live:i>=0&&e>=0&&coord(e,bm.end)>coord(i,bm)};}).sort((a,b)=>(a.i<0)-(b.i<0)||a.i-b.i||a.bm.f-b.bm.f||a.bm.at-b.bm.at);}
-  // 配对用的一维坐标（sections.mjs）：图片为页序 + 页内位置，全书一个坐标系。媒体书签以后按所在文件分组、以时间为坐标。
+      return {bm,i,e,live:i>=0&&e>=0&&(isMedia(bm)?e===i&&isMedia(bm.end)&&bm.end.t>bm.t:!isMedia(bm.end)&&coord(e,bm.end)>coord(i,bm))};})
+      .sort((a,b)=>(a.i<0)-(b.i<0)||a.i-b.i||spot(a.bm)-spot(b.bm)||a.bm.at-b.bm.at);}
+  // 配对用的一维坐标（sections.mjs）：图片为页序 + 页内位置，全书一个坐标系（page 为 -1）；媒体按所在文件分组（page 为它的页序），以时间为坐标。
+  // 图片书签与媒体书签互不配对。
   const coord=(i,m)=>i+m.f;
-  const coords=items=>items.filter(x=>x.i>=0).map(x=>({id:x.bm.id,at:coord(x.i,x.bm),end:x.bm.end?(x.live?coord(x.e,x.bm.end):null):undefined}));
+  const coords=(items,page=-1)=>items.filter(x=>x.i>=0&&(page<0?!isMedia(x.bm):x.i===page&&isMedia(x.bm)))
+    .map(x=>({id:x.bm.id,at:page<0?coord(x.i,x.bm):x.bm.t,end:x.bm.end?(x.live?(page<0?coord(x.e,x.bm.end):x.bm.end.t):null):undefined}));
+  // 一个媒体内生效的区段 [{id,a,b}]（秒，按起点排序）；mediaRanges：全书各媒体的区段（页名 → 区段），供只播放书签区段（media.mjs）使用。
+  function mediaRanges(book){
+    const out=new Map();
+    for(const x of list(book))if(x.live&&isMedia(x.bm)){const name=book.pages[x.i].name;let r=out.get(name);if(!r)out.set(name,r=[]);r.push({id:x.bm.id,a:x.bm.t,b:x.bm.end.t});}
+    for(const r of out.values())r.sort((a,b)=>a.a-b.a);return out;
+  }
+  // 书签所在位置的说明（读屏、提示）：第 N 页，媒体另带时间点和名称。
+  function where(book,x,end=false){
+    const m=end?x.bm.end:x.bm,i=end?x.e:x.i;if(i<0)return t('bmGone');
+    return fmt('bmPage',{n:i+1})+(isMedia(m)?' · '+clock(m.t):'')+(!end&&typeof x.bm.label==='string'&&x.bm.label?' · '+x.bm.label:'');
+  }
   let last=null; // 最近一次跳到的书签：滚动位置被夹住（书首 / 书尾）时仍能接着跳下一个。
-  function go(x){view.jump({i:x.i,f:x.bm.f});last={id:x.bm.id,top:main.scrollTop,book:ctx.current};markDock();reveal();}
-  const repeat=book=>last&&last.book===book&&Math.abs(main.scrollTop-last.top)<2;
+  // 跳到媒体书签：把该媒体滚到视窗中央，定位到书签时间（自动播放开启则从该处播放，见 media.mjs goto）。
+  function seat(i,m){const book=ctx.current;if(isMedia(m)){view.jump({i,f:.5});ctx.media?.goto(book,book.pages[i],m.t);}else view.jump({i,f:m.f});}
+  function go(x){seat(x.i,x.bm);last={id:x.bm.id,top:main.scrollTop,book:ctx.current,t:isMedia(x.bm)?x.bm.t:null};markDock();reveal();}
+  // 刚跳到的书签：滚动位置没变，媒体书签还要求播放时间仍在它附近（播放了一会儿就按当前时间重新找）。
+  const repeat=book=>last&&last.book===book&&Math.abs(main.scrollTop-last.top)<2&&(last.t==null||Math.abs((mediaNow()?.t??last.t)-last.t)<1.5);
   // d=1：下一个书签，到末尾回到第一个；d=-1（Shift）：上一个，到开头回到最后一个。
   function next(d=1){
     const book=ctx.current;if(!book)return;
     if(!book.bookmarks?.length){notice(null,t('bmNone'));return;}
     const valid=list(book).filter(x=>x.i>=0),s=starts();if(!valid.length){notice('bmAllGone');return;}if(!s)return;
     let k=repeat(book)?valid.findIndex(x=>x.bm.id===last.id):-1;
-    if(k>=0)k+=d;else{const y=main.scrollTop+main.clientHeight/2,p=x=>point(s,{i:x.i,f:x.bm.f});k=d>0?valid.findIndex(x=>p(x)>y+2):valid.findLastIndex(x=>p(x)<y-2);}
+    if(k>=0)k+=d;else{const r=cursor();k=d>0?valid.findIndex(x=>r(x)>0):valid.findLastIndex(x=>r(x)<0);}
     const wrap=k<0||k>=valid.length;if(wrap)k=d>0?0:valid.length-1;
     go(valid[k]);notice(null,wrap?t(d>0?'bmWrap':'bmWrapBack'):fmt('bmN',{n:k+1,m:valid.length}));
   }
@@ -72,26 +110,38 @@ export function install(ctx){
     const thumb=await ctx.makeThumb(await ctx.source(book,page),{width:240,crop});
     if(!book.bookmarks.includes(bm)||end&&bm.end!==end)return;await ctx.saveThumb(end?endKey(book,bm):key(book,bm),thumb);if(book===ctx.current&&!panel.hidden)render();renderDock();
   }
-  async function add(){
-    const book=ctx.current,p=here();if(!book||!p)return false;
-    if(book.bookmarks.some(b=>b.name===p.name&&Math.abs(b.f-p.f)*p.h<main.clientHeight/2)){notice('bmExists');return false;}
-    const bm={id:crypto.randomUUID(),name:p.name,f:p.f,at:Date.now()},page=book.pages[p.i];
+  // 媒体书签的缩略图：视频在播放器里正停在书签时间时直接截当前画面；截不到就删掉旧图（更新区段书签时），等它在列表里可见时再截。音频没有画面。
+  async function shoot(book,bm,player,end=null){
+    const k=end?endKey(book,bm):key(book,bm),m=end??bm,v=player.el;if(player.kind!=='video')return;
+    const th=player.state==='ready'&&!v.seeking&&Math.abs(v.currentTime-m.t)<.3?await frameOf(v,{width:THUMB_W}).catch(()=>null):null;
+    if(!book.bookmarks.includes(bm)||end&&bm.end!==end)return;
+    if(th)await ctx.saveThumb(k,th);else{forget(k);await ctx.thumbs('delete',k);}
+    if(book===ctx.current&&!panel.hidden)render();renderDock();
+  }
+  async function add(player){
+    const book=ctx.current,p=target(player);if(!book||!p)return false;
+    const close=p.player?b=>b.name===p.name&&[b,b.end].some(m=>isMedia(m)&&m.name===p.name&&Math.abs(m.t-p.t)<NEAR):b=>b.name===p.name&&Math.abs(b.f-p.f)*p.h<main.clientHeight/2;
+    if(book.bookmarks.some(close)){notice('bmExists');return false;}
+    const bm=p.player?{id:crypto.randomUUID(),name:p.name,t:p.t,at:Date.now()}:{id:crypto.randomUUID(),name:p.name,f:p.f,at:Date.now()},page=book.pages[p.i];
     book.bookmarks=list({pages:book.pages,bookmarks:[...book.bookmarks,bm]}).map(x=>x.bm);await ctx.persist(book);
     notice('bmAdded');changed(book);
-    snap(book,bm,page,p,main.clientWidth,main.clientHeight).catch(e=>console.warn(e)); // 读图失败只缺缩略图，书签照常可用
+    if(p.player)shoot(book,bm,p.player).catch(e=>console.warn(e));
+    else snap(book,bm,page,p,main.clientWidth,main.clientHeight).catch(e=>console.warn(e)); // 读图失败只缺缩略图，书签照常可用
     return true;
   }
   // 添加区段书签：取屏幕中央的位置，按 sections.mjs 的规则配给前面的一个区段（更新终点）或普通书签（新建区段）。
   // 返回 'added' | 'updated'，没有添加时为 false。终点离起点不到半屏（同一张图内）按“这里已有书签”处理。
-  async function addSection(){
-    const book=ctx.current,p=here();if(!book||!p)return false;
-    const r=pair(coords(list(book)),coord(p.i,p));
+  // 媒体：只在同一个文件内按时间配对（当前媒体的当前时间）；离起点不到 NEAR 秒按“这里已有书签”处理。
+  async function addSection(player){
+    const book=ctx.current,p=target(player);if(!book||!p)return false;
+    const r=pair(coords(list(book),p.player?p.i:-1),p.player?p.t:coord(p.i,p));
     if(!r){notice(null,t('secNone'));return false;}
     const bm=book.bookmarks.find(b=>b.id===r.id);
-    if(bm.name===p.name&&Math.abs(bm.f-p.f)*p.h<main.clientHeight/2){notice('bmExists');return false;}
-    const had=!!bm.end,end=bm.end={name:p.name,f:p.f,at:Date.now()};await ctx.persist(book);
+    if(p.player?Math.abs(bm.t-p.t)<NEAR:bm.name===p.name&&Math.abs(bm.f-p.f)*p.h<main.clientHeight/2){notice('bmExists');return false;}
+    const had=!!bm.end,end=bm.end=p.player?{name:p.name,t:p.t,at:Date.now()}:{name:p.name,f:p.f,at:Date.now()};await ctx.persist(book);
     notice(had?'secUpdated':'secAdded');changed(book);
-    snap(book,bm,book.pages[p.i],p,main.clientWidth,main.clientHeight,end).catch(e=>console.warn(e)); // 旧终点的缩略图换成新的
+    if(p.player)shoot(book,bm,p.player,end).catch(e=>console.warn(e));
+    else snap(book,bm,book.pages[p.i],p,main.clientWidth,main.clientHeight,end).catch(e=>console.warn(e)); // 旧终点的缩略图换成新的
     return had?'updated':'added';
   }
   // 删除起点书签：它的区段书签一并删除。删除区段书签：起点变回普通书签。
@@ -131,18 +181,68 @@ export function install(ctx){
   // 悬停任意一张，两张一起高亮。区段暂不生效时小图变灰，仍可删除。
   function tile(book,x,withBook=false){
     const item=make('div','bm-item'+(x.i<0?' gone':'')),thumb=make('span','bm-thumb'),img=make('img');
-    const label=x.i<0?t('bmGone'):fmt('bmPage',{n:x.i+1});
+    const label=where(book,x);
     item.dataset.id=x.bm.id;item.setAttribute('aria-label',(withBook?ctx.title(book)+' · '+label:label)+(x.bm.end?' · '+t('secStart'):''));img.alt='';img.draggable=false;thumb.append(img);
-    const none=()=>{img.remove();thumb.classList.add('empty');};ctx.getThumb(key(book,x.bm)).then(th=>{if(th)img.src=th.url;else none();},none);
+    if(typeof x.bm.label==='string'&&x.bm.label)item.title=x.bm.label;
+    paint(thumb,img,book,x);if(isMedia(x.bm))thumb.append(mediaBadge(book,x));
     item.append(thumb,ctx.iconButton('close',t('bmDelete'),()=>drop(book,x.bm),'bm-del'));
     if(x.bm.end){
       item.classList.add('paired');thumb.append(markIcon('start'));
       const sub=make('span','bm-sub'+(x.live?'':' off')),simg=make('img');simg.alt='';simg.draggable=false;
-      sub.setAttribute('aria-label',t('secEnd')+' · '+(x.e<0?t('bmGone'):fmt('bmPage',{n:x.e+1})));sub.setAttribute('role','button');
-      const gone=()=>{simg.remove();sub.classList.add('empty');};ctx.getThumb(endKey(book,x.bm)).then(th=>{if(th)simg.src=th.url;else gone();},gone);
-      sub.append(simg,markIcon('end'),ctx.iconButton('close',t('secDelete'),()=>dropEnd(book,x.bm),'bm-sub-del'));item.append(sub);
+      sub.setAttribute('aria-label',t('secEnd')+' · '+where(book,x,true));sub.setAttribute('role','button');
+      sub.append(simg);paint(sub,simg,book,x,true);
+      sub.append(markIcon('end'),ctx.iconButton('close',t('secDelete'),()=>dropEnd(book,x.bm),'bm-sub-del'));item.append(sub);
     }
     return item;
+  }
+  // ---- 书签缩略图（书签面板、书架书签、全屏书架书签、设置封面共用）：holder 为缩略图容器，img 为其中的 <img>，end 为区段书签那一张。
+  // 图片书签：保存的缩略图，没有时显示空白占位。视频书签：书签时间点的画面，还没有时先显示占位，进入可见范围后排队截取；
+  // 音频书签：始终是占位小块。媒体的占位是类型图标 + 名称（没有名称时为文件名），时间点在类型角标里（mediaBadge）；区段书签的小图里是图标 + 时间。
+  function paint(holder,img,book,x,end=false){
+    const m=end?x.bm.end:x.bm,k=end?endKey(book,x.bm):key(book,x.bm),i=end?x.e:x.i,page=i>=0?book.pages[i]:null;
+    if(!isMedia(m)){const none=()=>{img.remove();holder.classList.add('empty');};ctx.getThumb(k).then(th=>{if(th)img.src=th.url;else none();},none);return;}
+    const kind=page?pageKind(page):'video',ph=make('span','bm-ph '+kind),name=typeof x.bm.label==='string'&&x.bm.label?x.bm.label:page?shownName(page):'';
+    ph.append(icon(kind==='audio'?'music':'film'),end?make('b','',clock(m.t)):make('span','bm-ph-name',name));holder.classList.add('bm-media');img.hidden=true;img.after(ph);
+    if(kind!=='video'||!page)return;
+    const show=th=>{if(!th||!holder.isConnected)return;img.src=th.url;img.hidden=false;ph.remove();};
+    ctx.getThumb(k).then(th=>{if(th)show(th);else{holder._shot={book,bm:x.bm,end:end?m:null,k,name:m.name,t:m.t,show};seen.observe(holder);}},()=>{});
+  }
+  // 类型角标：视频 / 音频的图标 + 时间点，叠在缩略图右下角，不改变排布。
+  function mediaBadge(book,x){
+    const el=make('span','mv-badge bm-type'),page=x.i>=0?book.pages[x.i]:null;el.setAttribute('aria-hidden','true');
+    el.append(icon(page&&pageKind(page)==='audio'?'music':'film'),make('span','',clock(x.bm.t)));return el;
+  }
+  // 懒生成：缩略图进入可见范围才排队；串行、空闲时进行，同一个视频的多个书签一次打开截完；截好即保存（别的窗口经 'thumbs' 同步）。
+  // 截不到的（文件读不到、播放不了）本次会话不再重试。
+  const seen=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){seen.unobserve(e.target);const j=e.target._shot;e.target._shot=null;if(j)enqueue(j);}});
+  const shots=new Map(),failedShots=new Set();let shooting=false;
+  function enqueue(j){
+    const id=j.k+'@'+j.t;if(failedShots.has(id))return;
+    const had=shots.get(j.k);if(had&&had.t===j.t){had.shows.push(j.show);return;}
+    shots.set(j.k,{...j,shows:[j.show]});pump();
+  }
+  const idle=()=>new Promise(r=>window.requestIdleCallback?requestIdleCallback(()=>r(),{timeout:1500}):setTimeout(r,60));
+  const timed=(promise,ms)=>{let tm;return Promise.race([promise,new Promise((_,no)=>{tm=setTimeout(()=>no(new DOMException('','TimeoutError')),ms);})]).finally(()=>clearTimeout(tm));};
+  async function pump(){
+    if(shooting)return;shooting=true;
+    try{while(shots.size){
+      await idle();
+      const first=shots.values().next().value,batch=[...shots.values()].filter(j=>j.book===first.book&&j.name===first.name);for(const j of batch)shots.delete(j.k);
+      const book=first.book,page=book.pages.find(p=>p.name===first.name),todo=[];
+      for(const j of batch){
+        if(!book.bookmarks.includes(j.bm)||j.end&&j.bm.end!==j.end)continue;
+        const th=await ctx.getThumb(j.k).catch(()=>null);if(th){for(const f of j.shows)f(th);continue;} // 别的窗口已经截好
+        todo.push(j);
+      }
+      if(!todo.length)continue;
+      let out=null;
+      try{if(!page||ctx.expired?.(book))throw 0;out=await grabFrames(await timed(Promise.resolve().then(()=>ctx.source(book,page)),READ),todo.map(j=>j.t),{width:THUMB_W});}catch{}
+      for(const [n,j] of todo.entries()){
+        const th=out?.[n];if(!th){failedShots.add(j.k+'@'+j.t);continue;}
+        if(!book.bookmarks.includes(j.bm)||j.end&&j.bm.end!==j.end)continue;
+        await ctx.saveThumb(j.k,th);const got=await ctx.getThumb(j.k).catch(()=>null);for(const f of j.shows)f(got);
+      }
+    }}catch(e){console.warn(e);}finally{shooting=false;}
   }
   const markIcon=kind=>{const el=make('span','bm-mk '+kind);el.append(icon(kind==='start'?'bm-start':'bm-end'));return el;};
   // 缩略图按视口形状截取；显示时把比例限制在 3:4 ~ 4:3，避免窄窗口或宽屏下变成长条（居中裁切，书签位置仍在中央）。
@@ -164,7 +264,7 @@ export function install(ctx){
   }
   function jumpTo(id,end=false){const book=ctx.current,x=book&&list(book).find(x=>x.bm.id===id);if(!x)return;if(end){if(x.e>=0)goEnd(x);}else if(x.i>=0)go(x);}
   // 跳到区段书签：它不是 F / Enter 的停靠点，不记为“刚跳到的书签”。
-  function goEnd(x){view.jump({i:x.e,f:x.bm.end.f});last=null;markDock();reveal();}
+  function goEnd(x){seat(x.e,x.bm.end);last=null;markDock();reveal();}
   main.addEventListener('contextmenu',e=>{if(!ctx.current)return;e.preventDefault();open(e.clientX,e.clientY);});
   panel.addEventListener('contextmenu',e=>e.preventDefault());
   panel.addEventListener('click',e=>{
@@ -196,7 +296,7 @@ export function install(ctx){
     blur(){cancel();}
   });
   ctx.on('select',()=>{cancel();close();if(last?.book!==ctx.current)last=null;renderDock();reveal();});
-  ctx.on('lang',()=>{if(!panel.hidden)render();renderDock();});
+  ctx.on('lang',()=>{if(!panel.hidden)render();renderDock();for(const p of ctx.player?.list()??[]){p.marks._sig=null;drawPlayer(p);}});
   // 别的窗口改了书签或存好了书签缩略图（windows.mjs）：书架书签列表随 'books' 更新，这里补上打开着的书签面板。
   ctx.on('synced',book=>{if(book===ctx.current&&!panel.hidden)render();});
   ctx.on('thumbs',keys=>{if(!keys.some(k=>k.includes(':bm:')))return;if(!panel.hidden)render();renderDock();});
@@ -242,8 +342,11 @@ export function install(ctx){
   // 离屏幕中心最近的有效书签；刚跳到的书签被夹在书首 / 书尾时仍是它。还没有版面时返回 null。
   function nearest(book){
     if(repeat(book))return last.id;const s=starts();if(!s)return null;
+    const items=list(book).filter(x=>x.i>=0),m=book===ctx.current?mediaNow():null;
+    // 当前媒体里有书签：取播放时间之前最近的一个（还没到第一个时取第一个）。
+    if(m){const own=items.filter(x=>x.i===m.i&&isMedia(x.bm));if(own.length)return (own.findLast(x=>x.bm.t<=m.t+.5)??own[0]).bm.id;}
     const y=main.scrollTop+main.clientHeight/2;let best=null,gap=Infinity;
-    for(const x of list(book))if(x.i>=0){const d=Math.abs(point(s,{i:x.i,f:x.bm.f})-y);if(d<gap){gap=d;best=x.bm.id;}}
+    for(const x of items){const d=Math.abs(point(s,{i:x.i,f:isMedia(x.bm)?.5:x.bm.f})-y);if(d<gap){gap=d;best=x.bm.id;}}
     return best;
   }
   let marked=null;
@@ -277,8 +380,8 @@ export function install(ctx){
     if(!flat.length){notice(null,t(all.length?'bmAllGone':emptyKey()));return;}
     const s=starts();if(!s)return;
     let k=-1,found=false;if(repeat(book)){const j=flat.findIndex(x=>x.bm.id===last.id);if(j>=0){k=j+d;found=true;}}
-    if(!found){const r=rank.get(book),y=main.scrollTop+main.clientHeight/2,p=x=>point(s,{i:x.i,f:x.bm.f});
-      k=d>0?flat.findIndex(x=>rank.get(x.book)>r||x.book===book&&p(x)>y+2):flat.findLastIndex(x=>rank.get(x.book)<r||x.book===book&&p(x)<y-2);}
+    if(!found){const r=rank.get(book),c=cursor();
+      k=d>0?flat.findIndex(x=>rank.get(x.book)>r||x.book===book&&c(x)>0):flat.findLastIndex(x=>rank.get(x.book)<r||x.book===book&&c(x)<0);}
     const wrap=k<0||k>=flat.length;if(wrap)k=d>0?0:flat.length-1;
     const x=flat[k],moved=x.book!==book;goShelf(x.book,x);
     notice(null,wrap?t(d>0?'bmWrap':'bmWrapBack'):fmt('bmN',{n:k+1,m:flat.length})+(moved?' · '+clipEnd(ctx.title(x.book)):''));
@@ -325,17 +428,18 @@ export function install(ctx){
     go:goShelf,goEnd:(book,x)=>goShelf(book,x,true),thumbKey:key,endKey,ratio,emptyKey,
     start(){const book=ctx.current;if(!book)return null;if(last?.book===book)return last.id;
       const items=list(book).filter(x=>x.i>=0),s=starts();if(!items.length)return null;if(!s)return items[0].bm.id;
-      const y=main.scrollTop+main.clientHeight/2;return (items.find(x=>point(s,{i:x.i,f:x.bm.f})>=y-2)||items.at(-1)).bm.id;}
+      const c=cursor();return (items.find(x=>c(x)>=0)||items.at(-1)).bm.id;}
   };
   // ---- 缩略图上的书签标记（缩略图栏、全屏缩略图共用）----
   // 每页一份：n 为书签数（起点和普通书签，区段书签不计数）；mark / start / end 表示这一页出现的标记种类；
-  // ticks 为页内位置的细标记 [{f,kind,id}]（只在缩略图栏画）。暂不生效的区段，起点按普通书签显示，区段书签不画。
+  // ticks 为页内位置的细标记 [{f,kind,id}]（只在缩略图栏画，媒体页不画位置标记）。暂不生效的区段，起点按普通书签显示，区段书签不画。
   function pageMarks(book){
     const out=new Map(),at=i=>{let m=out.get(i);if(!m)out.set(i,m={n:0,mark:false,start:false,end:false,ticks:[]});return m;};
     for(const x of list(book)){
       if(x.i<0)continue;const m=at(x.i);m.n++;
-      if(x.live){m.start=true;m.ticks.push({f:x.bm.f,kind:'start',id:x.bm.id});const e=at(x.e);e.end=true;e.ticks.push({f:x.bm.end.f,kind:'end',id:x.bm.id});}
-      else{m.mark=true;m.ticks.push({f:x.bm.f,kind:'mark',id:x.bm.id});}
+      const media=isMedia(x.bm);
+      if(x.live){m.start=true;if(!media)m.ticks.push({f:x.bm.f,kind:'start',id:x.bm.id});const e=at(x.e);e.end=true;if(!media)e.ticks.push({f:x.bm.end.f,kind:'end',id:x.bm.id});}
+      else{m.mark=true;if(!media)m.ticks.push({f:x.bm.f,kind:'mark',id:x.bm.id});}
     }
     return out;
   }
@@ -349,7 +453,51 @@ export function install(ctx){
   }
   // 生效的区段覆盖的页：[{id,a,b}]（a 起点页，b 区段书签所在页），全屏缩略图悬停 / 聚焦时标出范围。
   const spans=book=>list(book).filter(x=>x.live).map(x=>({id:x.bm.id,a:x.i,b:x.e}));
-  ctx.marks={list,pages:pageMarks,sig,badge,spans,thumbKey:key,endKey};
+  // ranges(book,page)：一个媒体内生效的区段（秒）；paint / mediaBadge / where：书签缩略图、类型角标、位置说明（全屏书架书签、设置封面共用）。
+  ctx.marks={list,pages:pageMarks,sig,badge,spans,thumbKey:key,endKey,isMedia,mediaRanges,ranges:(book,page)=>mediaRanges(book).get(page.name)??[],paint,mediaBadge,where};
+
+  // ---- 播放器上的书签（media.mjs 的 ctx.player）：壳上的「添加书签」「添加区段书签」按钮；进度条上按时间位置画出该文件全部书签的标记。
+  // 普通书签是圆点，起点与区段书签是一对方括号；悬停或聚焦一对中的任意一个，两者之间的区段高亮，提示两端的时间与名称；点击跳到该标记的时间。
+  // 区段在开启「只播放书签区段」时常显，区段以外的部分变暗（.sec-only，media.mjs）。
+  function drawPlayer(p){
+    const d=ctx.player.api.duration(p),book=p.book,items=d&&book.bookmarks?.length?list(book).filter(x=>x.i>=0&&isMedia(x.bm)&&x.bm.name===p.page.name):[];
+    const sig=d+'|'+items.map(x=>[x.bm.id,x.bm.t,x.live?x.bm.end.t:'',x.bm.label??''].join(',')).join(';');
+    if(p.marks._sig===sig)return;p.marks._sig=sig;
+    const pct=s=>Math.min(100,Math.max(0,s/d*100))+'%',out=[],spans=items.filter(x=>x.live).map(x=>[x.bm.t,x.bm.end.t]);
+    // 变暗：区段以外的部分（没有区段时不画）。
+    let from=0;for(const [a,b] of spans){if(a>from)out.push(dim(from,a));from=Math.max(from,b);}if(spans.length&&from<d)out.push(dim(from,d));
+    function dim(a,b){const el=make('i','mv-dim');el.style.left=pct(a);el.style.width=(b-a)/d*100+'%';return el;}
+    const name=x=>typeof x.bm.label==='string'&&x.bm.label?' · '+x.bm.label:'';
+    for(const x of items){
+      if(x.live){
+        const tip=t('secStart')+' '+clock(x.bm.t)+' – '+clock(x.bm.end.t)+name(x),span=make('i','mv-span');span.dataset.sec=x.bm.id;span.style.left=pct(x.bm.t);span.style.width=(x.bm.end.t-x.bm.t)/d*100+'%';
+        out.push(span,marker(p,x.bm.t,'start',tip,x.bm.id),marker(p,x.bm.end.t,'end',t('secEnd')+' '+clock(x.bm.end.t)+' · '+t('secStart')+' '+clock(x.bm.t)+name(x),x.bm.id));
+      }else out.push(marker(p,x.bm.t,'mark',clock(x.bm.t)+name(x)));
+    }
+    p.marks.replaceChildren(...out);
+  }
+  function marker(p,s,kind,tip,sec){
+    const b=make('button','mv-mk '+kind);b.type='button';b.title=tip;b.setAttribute('aria-label',tip);b.style.left=Math.min(100,Math.max(0,s/ctx.player.api.duration(p)*100))+'%';b.dataset.t=s;
+    if(sec)b.dataset.sec=sec;return b;
+  }
+  // 标记层里的事件：按下不触发进度条的拖动定位，点击跳到标记的时间；悬停 / 聚焦一对中的任意一个，两者及区段一起高亮。
+  function hotPair(layer,id){for(const el of layer.querySelectorAll('[data-sec]'))el.classList.toggle('hot',el.dataset.sec===id);}
+  function wire(p){
+    const layer=p.marks;if(layer._wired)return;layer._wired=true;
+    layer.addEventListener('pointerdown',e=>{if(e.target.closest('.mv-mk')){e.stopPropagation();e.preventDefault();}});
+    layer.addEventListener('click',e=>{const b=e.target.closest('.mv-mk');if(!b)return;e.stopPropagation();ctx.player.api.seek(p,+b.dataset.t);});
+    layer.addEventListener('pointerover',e=>{const b=e.target.closest('.mv-mk');hotPair(layer,b?.dataset.sec??null);});
+    layer.addEventListener('pointerleave',()=>hotPair(layer,layer.contains(document.activeElement)?document.activeElement.dataset.sec??null:null));
+    layer.addEventListener('focusin',e=>hotPair(layer,e.target.dataset?.sec??null));
+    layer.addEventListener('focusout',()=>hotPair(layer,null));
+  }
+  // media.mjs 在 bookmarks.mjs 之后安装：等安装完再登记到播放器。
+  queueMicrotask(()=>{
+    if(!ctx.player)return;
+    ctx.player.decorate(p=>{wire(p);drawPlayer(p);});
+    ctx.player.add({id:'bookmark',icon:'bookmark-plus',label:'bmAdd',order:20,click:p=>ctx.safe(add)(p)});
+    ctx.player.add({id:'section',icon:'bm-start',label:'secAdd',order:21,click:p=>ctx.safe(addSection)(p)});
+  });
 
   // 缩略图栏：在正文的等比缩小长条上，为有书签的页叠一层标记（角标 + 按页内位置画的细标记：普通书签一道横线，起点与区段书签是一对方括号）。
   // 标记层在长条之外（切书时长条被清空也不受影响），只随排版（ctx.on('layout')）重新定位；书签变化时只重建内容变了的那几页。

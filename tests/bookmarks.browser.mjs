@@ -95,7 +95,7 @@ try{
   await goto(5,.5);const start=await center();
   await menu(300,400);const add=await rect('.bm-add');
   assert.ok(Math.abs(add.x-300)<1&&Math.abs(add.y-400)<1,'Add button sits under the cursor');
-  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Image 4','Image 11','Image 21']);
+  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Page 4','Page 11','Page 21']);
   assert.equal(await js(`document.querySelector('.bm-add').textContent`),'Add bookmarkHoldF/Enter');
   await wait(()=>js(`[...document.querySelectorAll('.bm-item img')].every(i=>i.complete&&i.naturalWidth===240)`));
   // 紧凑显示：没有文字；缩略图比例跟随视口但限制在 3:4 ~ 4:3，不显示成长条。
@@ -106,7 +106,7 @@ try{
   const item=n=>rect(`.bm-item:nth-child(${n}) .bm-thumb`);
   let p=await item(3);await mouse('mouseMoved',p.x,p.y);await delay(300);assert.deepEqual(await center(),start,'Hover does not jump');
   // 离阅读视窗最近的书签与悬停同一高亮（书架书签列表共用 .bm-item.active 样式）。
-  assert.equal(await js(`[...document.querySelectorAll('.bm-panel .bm-item.active')].map(e=>e.getAttribute('aria-label')).join()`),'Image 4','Nearest bookmark is marked');
+  assert.equal(await js(`[...document.querySelectorAll('.bm-panel .bm-item.active')].map(e=>e.getAttribute('aria-label')).join()`),'Page 4','Nearest bookmark is marked');
   assert.equal(await js("getComputedStyle(document.querySelector('.bm-item:nth-child(1) .bm-thumb')).boxShadow"),await js("getComputedStyle(document.querySelector('.bm-item:nth-child(3) .bm-thumb')).boxShadow"),'Nearest bookmark looks like the hovered one');
   await shot('panel');
   await key('Escape','keyDown');await key('Escape','keyUp');await wait(()=>js('document.querySelector(".bm-panel").hidden'));
@@ -138,13 +138,13 @@ try{
   await wait(async()=>(await record()).sortMode==='nameDesc');await js('reader.focus()');
   await js('reader.scrollTop=0');await tap();await wait(async()=>(await center())[0]===9);assert.equal(await text(),'Bookmark 1 / 2');
   await wait(()=>js(`document.querySelector('#reader [data-name="20.svg"]')?.style.top===${9*ph}+'px'`));
-  await menu(300,400);assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Image 10','Image 20']);
+  await menu(300,400);assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`),['Page 10','Page 20']);
   await key('Escape','keyDown');await key('Escape','keyUp');
   // 图片已不存在的书签显示为不可用，仍可删除。
   await js(`navigator.storage.getDirectory().then(r=>r.getDirectoryHandle('Marked')).then(d=>d.removeEntry('20.svg'))`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);await wait(async()=>(await record()).pages.length===29);
   await js('reader.focus()');await menu(300,400);
-  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.classList.contains('gone'),e.getAttribute('aria-label')])`),[[false,'Image 19'],[true,'Image missing']]);
+  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>[e.classList.contains('gone'),e.getAttribute('aria-label')])`),[[false,'Page 19'],[true,'File missing']]);
   await shot('panel-gone');
   const before=await center();p=await item(2);await mouse('mouseMoved',p.x,p.y);await mouse('mousePressed',p.x,p.y,'left');await mouse('mouseReleased',p.x,p.y,'left');await delay(200);
   assert.deepEqual(await center(),before,'Missing bookmark does not jump');assert.equal(await js('document.querySelector(".bm-panel").hidden'),false);
