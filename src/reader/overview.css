@@ -1,76 +1,403 @@
 /* 全屏缩略图 / 全屏书架书签（overview.mjs）：铺满窗口的规整网格，右侧是加宽的滚动条。 */
-.overview{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-shadow:none;background:var(--solid)}
-.overview[open]{animation:ov-in .16s var(--ease)}
-.overview.closing{animation:ov-out .14s ease-in forwards}
-.overview::backdrop{background:var(--reader);backdrop-filter:none}
-@keyframes ov-in{from{opacity:0;transform:scale(.985)}}
-@keyframes ov-out{to{opacity:0;transform:scale(.985)}}
-.overview>.ov-head{display:flex;align-items:center;gap:14px;padding:calc(var(--top) + 8px) 10px 8px 18px;border-bottom:1px solid var(--line)}
-.ov-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.ov-pos{flex:none;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-.ov-hint{flex:none;max-width:max(0px,min(40%,100% - 32rem - clamp(7.5rem,20vw,15rem)));margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
+.overview {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--solid);
+}
+.overview[open] {
+  animation: ov-in 0.16s var(--ease);
+}
+.overview.closing {
+  animation: ov-out 0.14s ease-in forwards;
+}
+.overview::backdrop {
+  background: var(--reader);
+  backdrop-filter: none;
+}
+@keyframes ov-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+@keyframes ov-out {
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+.overview > .ov-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: calc(var(--top) + 8px) 10px 8px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.ov-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.ov-pos {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-hint {
+  flex: none;
+  max-width: max(0px, min(40%, 100% - 32rem - clamp(7.5rem, 20vw, 15rem)));
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: 12px;
+}
 /* 名称长短不改变说明文字和按钮的尺寸与位置：只有书名（和全屏书签里带书名的位置）收缩并末尾省略。 */
-.ov-head>.icon-btn{flex:none}
-#shelfOverview .ov-pos{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.ov-scroll{position:relative;flex:1;overflow-x:hidden;overflow-y:scroll;overscroll-behavior:contain;outline:none;scrollbar-width:auto;scrollbar-color:auto}
-.ov-scroll::-webkit-scrollbar{width:20px}
-.ov-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.035)}
-.ov-scroll::-webkit-scrollbar-thumb{min-height:56px;border:4px solid transparent;border-radius:10px;background:rgba(255,255,255,.26) padding-box}
-.ov-scroll::-webkit-scrollbar-thumb:hover{background-color:rgba(255,255,255,.4)}
-.ov-scroll::-webkit-scrollbar-thumb:active{background-color:var(--accent)}
-.ov-grid{position:relative}
-.ov-item{position:absolute;overflow:hidden;border-radius:4px;background:rgba(255,255,255,.045);cursor:pointer;transition:transform .14s var(--ease),box-shadow .14s var(--ease)}
-.ov-img,.ov-img>canvas,.ov-img>img{display:block;width:100%;height:100%;object-fit:contain}
+.ov-head > .icon-btn {
+  flex: none;
+}
+#shelfOverview .ov-pos {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-scroll {
+  position: relative;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  outline: none;
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+.ov-scroll::-webkit-scrollbar {
+  width: 20px;
+}
+.ov-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.035);
+}
+.ov-scroll::-webkit-scrollbar-thumb {
+  min-height: 56px;
+  border: 4px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.26) padding-box;
+}
+.ov-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+.ov-scroll::-webkit-scrollbar-thumb:active {
+  background-color: var(--accent);
+}
+.ov-grid {
+  position: relative;
+}
+.ov-item {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.045);
+  cursor: pointer;
+  transition:
+    transform 0.14s var(--ease),
+    box-shadow 0.14s var(--ease);
+}
+.ov-img,
+.ov-img > canvas,
+.ov-img > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 /* 长条页：只显示顶部，底部渐隐提示还有内容。 */
-.ov-item.tall .ov-img>canvas,.ov-item.tall .ov-img>img{object-fit:cover;object-position:top}
-.ov-item.tall::after{content:'';position:absolute;inset:auto 0 0;height:22%;background:linear-gradient(transparent,rgba(0,0,0,.55));pointer-events:none}
-.ov-n{position:absolute;z-index:1;right:3px;bottom:3px;padding:0 5px;border-radius:4px;background:rgba(0,0,0,.66);font-size:11px;line-height:17px;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .12s}
-.ov-item.sel .ov-n,.ov-item.here .ov-n{opacity:1}
-.ov-item.here .ov-n{background:var(--accent);color:var(--accent-ink)}
+.ov-item.tall .ov-img > canvas,
+.ov-item.tall .ov-img > img {
+  object-fit: cover;
+  object-position: top;
+}
+.ov-item.tall::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 22%;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+.ov-n {
+  position: absolute;
+  z-index: 1;
+  right: 3px;
+  bottom: 3px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.66);
+  font-size: 11px;
+  line-height: 17px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.ov-item.sel .ov-n,
+.ov-item.here .ov-n {
+  opacity: 1;
+}
+.ov-item.here .ov-n {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
 /* 选中（鼠标悬停与键盘共用，同一时间只有一格）：略微缩小并加强调色描边，留在自己的格子里，不遮挡相邻格子。 */
 /* .here：当前阅读位置所在的页，与选中 / 悬停同一描边，但不缩小，以便和移动中的选中项区分。 */
-.ov-item.here{z-index:1;box-shadow:0 0 0 3px var(--accent),0 8px 22px rgba(0,0,0,.55)}
-.ov-item.sel{z-index:1;transform:scale(.93);box-shadow:0 0 0 3px var(--accent),0 8px 22px rgba(0,0,0,.55);scroll-margin:12px}
-@media (prefers-reduced-motion:reduce){.ov-item{transition:none}}
-.ov-item.failed{background:rgba(255,102,114,.12)}
+.ov-item.here {
+  z-index: 1;
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 8px 22px rgba(0, 0, 0, 0.55);
+}
+.ov-item.sel {
+  z-index: 1;
+  transform: scale(0.93);
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 8px 22px rgba(0, 0, 0, 0.55);
+  scroll-margin: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov-item {
+    transition: none;
+  }
+}
+.ov-item.failed {
+  background: rgba(255, 102, 114, 0.12);
+}
 /* 全屏书架书签：按书分组的等宽网格（书签缩略图比例统一，即紧密排列）。 */
-.ov-marks{padding:0 4px 16px}
-.ov-sec{padding-bottom:10px}
-.ov-sec-head{display:flex;align-items:baseline;gap:8px;padding:12px 4px 4px;color:var(--faint);font-size:12px}
-.ov-sec-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;font-weight:600}
-.ov-sec.current .ov-sec-head strong{color:var(--accent)}
-.ov-sec-grid{padding-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px}
-.ov-mark{position:relative;aspect-ratio:var(--bm-ar,3/4)}
-.ov-mark>img{display:block;width:100%;height:100%;object-fit:cover}
+.ov-marks {
+  padding: 0 4px 16px;
+}
+.ov-sec {
+  padding-bottom: 10px;
+}
+.ov-sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 4px 4px;
+  color: var(--faint);
+  font-size: 12px;
+}
+.ov-sec-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ov-sec.current .ov-sec-head strong {
+  color: var(--accent);
+}
+.ov-sec-grid {
+  padding-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 4px;
+}
+.ov-mark {
+  position: relative;
+  aspect-ratio: var(--bm-ar, 3/4);
+}
+.ov-mark > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 /* 瀑布流（overview.mjs 的 markLayout 按缩略图比例逐列定位）。 */
-.ov-marks.masonry .ov-sec-grid{display:block;position:relative;margin-top:10px;padding-top:0}
-.ov-marks.masonry .ov-mark{position:absolute;aspect-ratio:auto}
-.ov-layout,.ov-shelf{flex:none}
+.ov-marks.masonry .ov-sec-grid {
+  display: block;
+  position: relative;
+  margin-top: 10px;
+  padding-top: 0;
+}
+.ov-marks.masonry .ov-mark {
+  position: absolute;
+  aspect-ratio: auto;
+}
+.ov-layout,
+.ov-shelf {
+  flex: none;
+}
 
 /* 侧栏头部（缩略图栏 .pv-head；书架书签列表的 .sm-head 见 bookmarks.css）：两侧同高（52px）、镜像对称，各是一个占满整行的块状“打开全屏”按钮
    （图标、文字、数量），距内侧（靠阅读区）和外侧边缘同为 10px 左右。 */
-#panel>.pv-head{position:absolute;z-index:1;top:0;left:10px;right:0;height:52px}
-#panel>#preview{top:52px}
-.side-head{display:flex;flex:none;align-items:center;min-width:0;padding:0 10px 0 0;color:var(--muted);font-size:12.5px;font-weight:600}
-.side-open{flex:1;min-width:0;justify-content:flex-start;gap:8px;width:auto;height:36px;padding:0 8px 0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--s2);color:var(--text);font-size:13px;font-weight:600}
-.side-open:not(:disabled):hover{background:var(--s3);border-color:rgba(255,255,255,.18);color:var(--text)}
-.side-open .i{width:18px;height:18px;color:var(--accent)}
-.side-open .side-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.side-open .count{flex:none;margin-left:auto;padding:0 2px;background:none;color:var(--faint);font-weight:600}
+#panel > .pv-head {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 10px;
+  right: 0;
+  height: 52px;
+}
+#panel > #preview {
+  top: 52px;
+}
+.side-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.side-open {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 8px;
+  width: auto;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  background: var(--s2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.side-open:not(:disabled):hover {
+  background: var(--s3);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+.side-open .i {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+.side-open .side-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-open .count {
+  flex: none;
+  margin-left: auto;
+  padding: 0 2px;
+  background: none;
+  color: var(--faint);
+  font-weight: 600;
+}
 
 /* 标题行的搜索框（两个全屏界面各一个）：宽度固定上限，窄窗口时收缩，不挤动右侧按钮。 */
-.ov-find{position:relative;display:flex;flex:none;width:clamp(7.5rem,20vw,15rem)}
-.ov-find .i{position:absolute;left:10px;top:8px;width:17px;height:17px;color:var(--faint);pointer-events:none}
-.ov-find input{width:100%;height:33px;padding-left:33px}
+.ov-find {
+  position: relative;
+  display: flex;
+  flex: none;
+  width: clamp(7.5rem, 20vw, 15rem);
+}
+.ov-find .i {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  width: 17px;
+  height: 17px;
+  color: var(--faint);
+  pointer-events: none;
+}
+.ov-find input {
+  width: 100%;
+  height: 33px;
+  padding-left: 33px;
+}
 /* 没有匹配的项：浮在列表区上方，不参与布局。 */
-.ov-none{position:absolute;left:0;right:0;top:22%;display:grid;justify-items:center;gap:6px;color:var(--faint);font-size:13.5px;text-align:center}
+.ov-none {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 22%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 13.5px;
+  text-align: center;
+}
 /* 区段范围（选中带起点或区段书签的页时）：覆盖的页叠一层淡色和描边，两端加粗；不改变排布。 */
-.ov-item.in-sec::before{content:'';position:absolute;inset:0;z-index:1;background:rgba(255,122,89,.14);box-shadow:inset 0 0 0 2px rgba(255,122,89,.7);pointer-events:none}
-.ov-item.sec-a::before,.ov-item.sec-b::before{box-shadow:inset 0 0 0 3px var(--accent)}
+.ov-item.in-sec::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(255, 122, 89, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(255, 122, 89, 0.7);
+  pointer-events: none;
+}
+.ov-item.sec-a::before,
+.ov-item.sec-b::before {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
 /* 全屏书架书签：选中带区段书签的一格时，区段书签小图一起高亮。 */
-.ov-mark.sel .bm-sub,.ov-mark:hover .bm-sub{box-shadow:0 0 0 2px var(--accent),0 3px 10px rgba(0,0,0,.5)}
+.ov-mark.sel .bm-sub,
+.ov-mark:hover .bm-sub {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+}
 /* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */
-@media (max-width:560px){.overview>.ov-head{flex-wrap:wrap;row-gap:6px;column-gap:8px}.overview .ov-hint{display:none}.overview .ov-title{flex:0 1 auto;max-width:45%}.overview .ov-pos{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}.ov-find{order:1;flex:1 1 100%;width:auto}}
+@media (max-width: 560px) {
+  .overview > .ov-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 8px;
+  }
+  .overview .ov-hint {
+    display: none;
+  }
+  .overview .ov-title {
+    flex: 0 1 auto;
+    max-width: 45%;
+  }
+  .overview .ov-pos {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ov-find {
+    order: 1;
+    flex: 1 1 100%;
+    width: auto;
+  }
+}
 /* 搜索框旁的类型开关（图片 / 视频 / 音频）：始终占位，按下时高亮（.icon-btn[aria-pressed]）；说明文字的宽度上限已为它们留出位置（.ov-hint） */
-.ov-kinds{display:flex;flex:none;gap:2px}
-@media (max-width:560px){.overview .ov-find{flex:1 1 60%}.ov-kinds{order:1}}
+.ov-kinds {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+@media (max-width: 560px) {
+  .overview .ov-find {
+    flex: 1 1 60%;
+  }
+  .ov-kinds {
+    order: 1;
+  }
+}

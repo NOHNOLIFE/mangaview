@@ -1,13 +1,48 @@
 /* 专注模式：常驻侧栏（书架书签列表、停靠的缩略图栏）没有悬停、没有键盘焦点时隐藏内容但保留位置，底色与阅读区相同（--reader）。
    悬停或用键盘进入时，不透明底色（::before）和内容一起淡入：显示稍等 80ms 再开始、隐藏等 250ms，鼠标快速划过时不会闪。
    ::before 的负 z-index 落在面板自己的层叠上下文里。 */
-body.focus-mode.shelfmarks .sm-dock,body.focus-mode.docked #panel{border-color:transparent;background:var(--reader);transition:border-color .3s ease .25s}
-body.focus-mode.shelfmarks .sm-dock::before,body.focus-mode.docked #panel::before{content:'';position:absolute;inset:0;z-index:-1;background:var(--solid);pointer-events:none}
-body.focus-mode.shelfmarks .sm-dock::before,body.focus-mode.docked #panel::before,
-body.focus-mode.shelfmarks .sm-dock>*,body.focus-mode.docked #panel>*{opacity:0;transition:opacity .3s ease .25s}
-body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible)),body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible)){border-color:var(--line2);transition-delay:.08s}
-body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible))::before,body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible))::before,
-body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible))>*,body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible))>*{opacity:1;transition:opacity .18s ease .08s}
+body.focus-mode.shelfmarks .sm-dock,
+body.focus-mode.docked #panel {
+  border-color: transparent;
+  background: var(--reader);
+  transition: border-color 0.3s ease 0.25s;
+}
+body.focus-mode.shelfmarks .sm-dock::before,
+body.focus-mode.docked #panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--solid);
+  pointer-events: none;
+}
+body.focus-mode.shelfmarks .sm-dock::before,
+body.focus-mode.docked #panel::before,
+body.focus-mode.shelfmarks .sm-dock > *,
+body.focus-mode.docked #panel > * {
+  opacity: 0;
+  transition: opacity 0.3s ease 0.25s;
+}
+body.focus-mode.shelfmarks .sm-dock:is(:hover, :focus-visible, :has(:focus-visible)),
+body.focus-mode.docked #panel:is(:hover, :focus-visible, :has(:focus-visible)) {
+  border-color: var(--line2);
+  transition-delay: 0.08s;
+}
+body.focus-mode.shelfmarks .sm-dock:is(:hover, :focus-visible, :has(:focus-visible))::before,
+body.focus-mode.docked #panel:is(:hover, :focus-visible, :has(:focus-visible))::before,
+body.focus-mode.shelfmarks .sm-dock:is(:hover, :focus-visible, :has(:focus-visible)) > *,
+body.focus-mode.docked #panel:is(:hover, :focus-visible, :has(:focus-visible)) > * {
+  opacity: 1;
+  transition: opacity 0.18s ease 0.08s;
+}
 /* 顶部“打开全屏”按钮：内容隐藏时不可点（visibility），悬停约 150ms、内容基本显示出来后才可用，避免对着看不见的按钮误触。 */
-body.focus-mode.shelfmarks .sm-dock .side-open,body.focus-mode.docked #panel .side-open{visibility:hidden;transition:visibility 0s .25s}
-body.focus-mode.shelfmarks .sm-dock:is(:hover,:focus-visible,:has(:focus-visible)) .side-open,body.focus-mode.docked #panel:is(:hover,:focus-visible,:has(:focus-visible)) .side-open{visibility:visible;transition-delay:.15s}
+body.focus-mode.shelfmarks .sm-dock .side-open,
+body.focus-mode.docked #panel .side-open {
+  visibility: hidden;
+  transition: visibility 0s 0.25s;
+}
+body.focus-mode.shelfmarks .sm-dock:is(:hover, :focus-visible, :has(:focus-visible)) .side-open,
+body.focus-mode.docked #panel:is(:hover, :focus-visible, :has(:focus-visible)) .side-open {
+  visibility: visible;
+  transition-delay: 0.15s;
+}

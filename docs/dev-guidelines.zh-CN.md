@@ -125,6 +125,7 @@
   - `src/panels/`：设置（`settings`）、导出与导入（`backup`）、键鼠操作图示（`help`）。
 - 新模块放进职责对应的目录；出现新的领域时新建目录，不往根目录或 `app.mjs` 里堆。模块之间用相对路径 import。
 - 登记类列表一项一行，一行不写多条：`sw.js` 的 `shell` 列表、`index.html` 的图标 sprite（每个 `<symbol>` 一行）、`index.html` 的样式表 `<link>`、`app.mjs` 的导入与模块安装调用。与顺序无关的（`shell` 按路径、sprite 按 id，渐变 `defs` 和 `logo` 在最前）按字母序插入到对应位置，不追加在末尾；有顺序要求的（样式表的层叠、模块的安装顺序）按依赖排列。
+- 代码格式由 prettier 统一，配置在 `.prettierrc.json`：提交前运行 `npx prettier@3 --write "src/**/*.{mjs,css}" "tests/**/*.mjs" sw.js`。prettier 只在开发时经 `npx` 运行，不进仓库依赖；`index.html` 和文档不格式化。
 - 新增的界面文案放在使用它的模块自己的 `extend()` 里，四种语言一起写；`lang.mjs` 放 `index.html` 静态标签和多个模块共用的文案，不往里堆。
 - 新增、移动或删除 `src/` 下的文件要同步 `sw.js` 的 `shell` 列表；`tests/core/sw.test.mjs` 检查该列表正好是根目录的壳文件加 `src/` 下全部 `.mjs` / `.css`，漏登记会失败。
 - 测试：纯逻辑按被测模块放 `tests/core/<模块>.test.mjs`，界面行为放 `tests/<功能>.browser.mjs`（按此命名即被测试入口收入，不用另外登记）。统一入口是 `node tests/run.mjs "<浏览器路径>" [名称…]`：先跑核心测试，再逐个串行跑浏览器测试，失败的自动单独重跑一次，最后列出通过 / 失败清单；名称用来只跑文件名包含它的浏览器测试；不带浏览器路径时只跑核心测试（也可直接 `node --test "tests/core/*.test.mjs"`）。

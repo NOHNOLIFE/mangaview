@@ -5,7 +5,7 @@
 //   录制按真实时间进行；MediaRecorder 不写时长，生成后补上 Segment Info 的 Duration，浏览器才能读到时长并定位；
 // - mvMedia.withDuration(blob,ms) → Blob：给 MediaRecorder 录出的 WebM 补写时长；
 // - await mvMedia.write(dir,name,blob)：写进 OPFS 目录（测试里的书都放在 OPFS）。
-export const MEDIA_FIXTURES=`(()=>{
+export const MEDIA_FIXTURES = `(()=>{
   function wav({seconds=1,rate=8000,freq=440}={}){
     const n=Math.round(seconds*rate),buf=new ArrayBuffer(44+n*2),v=new DataView(buf),s=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};
     s(0,'RIFF');v.setUint32(4,36+n*2,true);s(8,'WAVE');s(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);

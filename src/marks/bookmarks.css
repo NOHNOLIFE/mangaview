@@ -1,88 +1,512 @@
 /* 书签面板：右键呼出，点击缩略图跳转（长按进度环在 style.css 的 .hold） */
-.bm-panel{position:fixed;z-index:8;left:0;top:0;display:flex;flex-direction:column;gap:6px;width:min(340px,calc(100vw - 16px));max-height:calc(100vh - 16px);padding:8px;border:1px solid var(--line2);border-radius:16px;background:rgba(22,23,27,.96);backdrop-filter:blur(20px) saturate(1.4);box-shadow:var(--shadow);user-select:none;animation:bm-pop .16s var(--ease)}
-.bm-add{flex:none;justify-content:flex-start;gap:10px;height:44px;padding:0 10px 0 12px;border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:600}
-.bm-add:not(:disabled):hover{background:rgba(255,122,89,.24);border-color:transparent;color:var(--accent-hi)}
-.bm-add .label{flex:1;overflow:hidden;text-align:start;text-overflow:ellipsis}
-.bm-keys{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;font-weight:500}
-.bm-keys kbd{height:20px;min-width:20px;padding:0 5px;font-size:11px}
-.bm-head{display:flex;flex:none;align-items:center;gap:8px;padding:4px 6px 0;color:var(--muted);font-size:12px;font-weight:600}
-.bm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-content:start;gap:6px;min-height:0;padding:4px 2px 2px;overflow-y:auto;overscroll-behavior:contain}
-.bm-item{position:relative;min-width:0;cursor:pointer}
-.bm-thumb{position:relative;display:block;aspect-ratio:var(--bm-ar,.75);overflow:hidden;border-radius:8px;background:linear-gradient(160deg,#25272d,#16171b);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);transition:box-shadow .12s,transform .12s var(--ease)}
-.bm-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.bm-panel {
+  position: fixed;
+  z-index: 8;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(340px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  padding: 8px;
+  border: 1px solid var(--line2);
+  border-radius: 16px;
+  background: rgba(22, 23, 27, 0.96);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow);
+  user-select: none;
+  animation: bm-pop 0.16s var(--ease);
+}
+.bm-add {
+  flex: none;
+  justify-content: flex-start;
+  gap: 10px;
+  height: 44px;
+  padding: 0 10px 0 12px;
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.bm-add:not(:disabled):hover {
+  background: rgba(255, 122, 89, 0.24);
+  border-color: transparent;
+  color: var(--accent-hi);
+}
+.bm-add .label {
+  flex: 1;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+}
+.bm-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.bm-keys kbd {
+  height: 20px;
+  min-width: 20px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.bm-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.bm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  padding: 4px 2px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.bm-item {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+.bm-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: var(--bm-ar, 0.75);
+  overflow: hidden;
+  border-radius: 8px;
+  background: linear-gradient(160deg, #25272d, #16171b);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    box-shadow 0.12s,
+    transform 0.12s var(--ease);
+}
+.bm-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 /* 媒体书签：还没有画面的视频、音频是占位小块（类型图标 + 名称；区段书签的小图里是图标 + 时间），时间点在类型角标（.bm-type）里。 */
-.bm-ph{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:4px;padding:6px;overflow:hidden;background:#16171b;color:var(--muted);font-size:11px;line-height:1.25;text-align:center}
-.bm-ph .i{width:26px;height:26px;color:var(--faint)}
-.bm-ph-name{display:-webkit-box;max-width:100%;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-all}
-.bm-ph b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
-.bm-sub .bm-ph{gap:1px;padding:2px;font-size:10px}
-.bm-sub .bm-ph .i{width:14px;height:14px}
-.bm-thumb .bm-type{z-index:1;pointer-events:none}
-.cp-item.bm-media{position:relative}
-.ov-mark .bm-type{z-index:1;top:3px;bottom:auto;pointer-events:none} /* 全屏书架书签：右下角是页码 */
-.bm-thumb.empty::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.12);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center/32% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center/32% no-repeat}
+.bm-ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px;
+  overflow: hidden;
+  background: #16171b;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+}
+.bm-ph .i {
+  width: 26px;
+  height: 26px;
+  color: var(--faint);
+}
+.bm-ph-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
+}
+.bm-ph b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.bm-sub .bm-ph {
+  gap: 1px;
+  padding: 2px;
+  font-size: 10px;
+}
+.bm-sub .bm-ph .i {
+  width: 14px;
+  height: 14px;
+}
+.bm-thumb .bm-type {
+  z-index: 1;
+  pointer-events: none;
+}
+.cp-item.bm-media {
+  position: relative;
+}
+.ov-mark .bm-type {
+  z-index: 1;
+  top: 3px;
+  bottom: auto;
+  pointer-events: none;
+} /* 全屏书架书签：右下角是页码 */
+.bm-thumb.empty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E")
+    center/32% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E")
+    center/32% no-repeat;
+}
 /* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮。 */
-.bm-item.active .bm-thumb,.bm-item:not(.gone):hover .bm-thumb{box-shadow:0 0 0 2px var(--accent),0 6px 16px rgba(0,0,0,.4)}
-.bm-item.gone{cursor:default}
-.bm-item.gone .bm-thumb{filter:grayscale(1);opacity:.35}
-.bm-del{position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:7px;background:rgba(10,10,12,.78);color:#fff;opacity:0}
-.bm-del:not(:disabled):hover{background:rgba(10,10,12,.92);color:var(--danger)}
-.bm-item:hover .bm-del,.bm-del:focus-visible{opacity:1}
-.bm-del .i{width:14px;height:14px}
-.bm-empty{grid-column:1/-1;margin:0;padding:18px 8px 20px;color:var(--faint);font-size:13px;text-align:center}
-@keyframes bm-pop{from{opacity:0;transform:scale(.97)}}
+.bm-item.active .bm-thumb,
+.bm-item:not(.gone):hover .bm-thumb {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.bm-item.gone {
+  cursor: default;
+}
+.bm-item.gone .bm-thumb {
+  filter: grayscale(1);
+  opacity: 0.35;
+}
+.bm-del {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(10, 10, 12, 0.78);
+  color: #fff;
+  opacity: 0;
+}
+.bm-del:not(:disabled):hover {
+  background: rgba(10, 10, 12, 0.92);
+  color: var(--danger);
+}
+.bm-item:hover .bm-del,
+.bm-del:focus-visible {
+  opacity: 1;
+}
+.bm-del .i {
+  width: 14px;
+  height: 14px;
+}
+.bm-empty {
+  grid-column: 1/-1;
+  margin: 0;
+  padding: 18px 8px 20px;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
+@keyframes bm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
 
 /* 书架书签：左侧常驻列表，正文让出宽度（--dockL）；悬停只高亮，点击才跳转。 */
-body.shelfmarks{--dockL:min(var(--sm-w,260px),45vw)}
+body.shelfmarks {
+  --dockL: min(var(--sm-w, 260px), 45vw);
+}
 /* 未常驻：左缘弹出的浮动面板，浮在正文上方，样式与右侧浮动缩略图栏一致；淡出方向向左。 */
-.sm-dock.floating{--leave-x:-16px;background:rgba(16,17,20,.94);backdrop-filter:blur(20px);box-shadow:14px 0 44px rgba(0,0,0,.45);animation:sm-in .22s var(--ease)}
-@keyframes sm-in{from{opacity:0;transform:translateX(-24px)}}
-.sm-dock{position:fixed;z-index:4;left:0;top:var(--top);bottom:0;display:flex;flex-direction:column;width:min(var(--sm-w,260px),45vw);border-right:1px solid var(--line2);background:var(--solid);user-select:none}
+.sm-dock.floating {
+  --leave-x: -16px;
+  background: rgba(16, 17, 20, 0.94);
+  backdrop-filter: blur(20px);
+  box-shadow: 14px 0 44px rgba(0, 0, 0, 0.45);
+  animation: sm-in 0.22s var(--ease);
+}
+@keyframes sm-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+.sm-dock {
+  position: fixed;
+  z-index: 4;
+  left: 0;
+  top: var(--top);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--sm-w, 260px), 45vw);
+  border-right: 1px solid var(--line2);
+  background: var(--solid);
+  user-select: none;
+}
 /* 头部是占满整行的块状“全屏书签”按钮，与右侧缩略图栏的 .pv-head 镜像对称、等高（.side-* 样式在 overview.css）。
    左上角的菜单按钮（#tab）已不常驻、只在 Tab 键聚焦时浮现，头部行不为它留出空位。 */
-.sm-head{display:flex;flex:none;align-items:center;min-height:52px;padding:0 10px}
-.sm-list{flex:1;min-height:0;padding:0 10px 16px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.sm-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 10px;
+}
+.sm-list {
+  flex: 1;
+  min-height: 0;
+  padding: 0 10px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 /* 每本书一组缩略图，不显示书名；组间留空，当前书的一组淡色高亮。 */
-.sm-book{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:6px;padding:6px;border-radius:12px;background:rgba(255,255,255,.03)}
-.sm-book+.sm-book{margin-top:8px}
-.sm-book.current{background:rgba(255,122,89,.08);box-shadow:inset 0 0 0 1px rgba(255,122,89,.22)}
-.sm-grip{position:absolute;z-index:2;top:0;bottom:0;right:-5px;width:10px;cursor:col-resize;touch-action:none}
-.sm-grip::after{content:'';position:absolute;left:3px;top:calc(50% - 20px);width:4px;height:40px;border-radius:4px;background:rgba(255,255,255,.18);opacity:0;transition:opacity .15s,background-color .15s,height .2s var(--ease),top .2s var(--ease)}
-.sm-dock:hover .sm-grip::after{opacity:1}
-.sm-grip:hover::after,.sm-grip:focus-visible::after{top:calc(50% - 32px);height:64px;background:var(--accent);opacity:1}
-.sm-grip:focus-visible{outline:none}
+.sm-book {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.sm-book + .sm-book {
+  margin-top: 8px;
+}
+.sm-book.current {
+  background: rgba(255, 122, 89, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 122, 89, 0.22);
+}
+.sm-grip {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  right: -5px;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sm-grip::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: calc(50% - 20px);
+  width: 4px;
+  height: 40px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s,
+    height 0.2s var(--ease),
+    top 0.2s var(--ease);
+}
+.sm-dock:hover .sm-grip::after {
+  opacity: 1;
+}
+.sm-grip:hover::after,
+.sm-grip:focus-visible::after {
+  top: calc(50% - 32px);
+  height: 64px;
+  background: var(--accent);
+  opacity: 1;
+}
+.sm-grip:focus-visible {
+  outline: none;
+}
 
 /* 「添加区段书签」：紧跟在「添加书签」下面，次要样式。 */
-.bm-sec{background:transparent;border-color:var(--line2);color:var(--text)}
-.bm-sec .i{color:var(--accent)}
-.bm-sec .label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2;white-space:normal} /* 较长的语言折成两行，不挤掉按键提示 */
-.bm-sec:not(:disabled):hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--text)}
+.bm-sec {
+  background: transparent;
+  border-color: var(--line2);
+  color: var(--text);
+}
+.bm-sec .i {
+  color: var(--accent);
+}
+.bm-sec .label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.2;
+  white-space: normal;
+} /* 较长的语言折成两行，不挤掉按键提示 */
+.bm-sec:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
 
 /* 成对标记（区段书签，bookmarks.mjs 的 i-bm-start / i-bm-end）：书签列表里起点缩略图左上角是起点标记，左下角叠一张较小的区段书签缩略图。 */
-.bm-mk{position:absolute;z-index:1;left:3px;top:3px;display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:rgba(10,10,12,.82);color:var(--accent);pointer-events:none}
-.bm-mk .i{width:14px;height:14px;stroke-width:2}
-.bm-sub{position:absolute;z-index:1;left:4px;bottom:4px;display:block;width:46%;aspect-ratio:var(--bm-ar,.75);overflow:hidden;border-radius:6px;background:linear-gradient(160deg,#2c2e35,#1b1c21);box-shadow:0 0 0 1.5px rgba(10,10,12,.9),0 3px 10px rgba(0,0,0,.5);cursor:pointer;transition:box-shadow .12s}
-.bm-sub img{display:block;width:100%;height:100%;object-fit:cover}
-.bm-sub .bm-mk{left:2px;top:2px;width:16px;height:16px;border-radius:5px}
-.bm-sub .bm-mk .i{width:12px;height:12px}
-.bm-sub.off img,.bm-sub.off.empty{filter:grayscale(1);opacity:.4}
+.bm-mk {
+  position: absolute;
+  z-index: 1;
+  left: 3px;
+  top: 3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(10, 10, 12, 0.82);
+  color: var(--accent);
+  pointer-events: none;
+}
+.bm-mk .i {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+.bm-sub {
+  position: absolute;
+  z-index: 1;
+  left: 4px;
+  bottom: 4px;
+  display: block;
+  width: 46%;
+  aspect-ratio: var(--bm-ar, 0.75);
+  overflow: hidden;
+  border-radius: 6px;
+  background: linear-gradient(160deg, #2c2e35, #1b1c21);
+  box-shadow:
+    0 0 0 1.5px rgba(10, 10, 12, 0.9),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: box-shadow 0.12s;
+}
+.bm-sub img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bm-sub .bm-mk {
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+.bm-sub .bm-mk .i {
+  width: 12px;
+  height: 12px;
+}
+.bm-sub.off img,
+.bm-sub.off.empty {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
 /* 悬停一组里的任意一张，两张一起高亮。 */
-.bm-item.paired:not(.gone):hover .bm-sub,.bm-item.paired.active .bm-sub{box-shadow:0 0 0 2px var(--accent),0 3px 10px rgba(0,0,0,.5)}
-.bm-item.gone .bm-sub{opacity:.5}
-.bm-sub-del{position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:5px;background:rgba(10,10,12,.82);color:#fff;opacity:0}
-.bm-sub-del:not(:disabled):hover{background:rgba(10,10,12,.95);color:var(--danger)}
-.bm-sub:hover .bm-sub-del,.bm-sub-del:focus-visible{opacity:1}
-.bm-sub-del .i{width:12px;height:12px}
+.bm-item.paired:not(.gone):hover .bm-sub,
+.bm-item.paired.active .bm-sub {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+}
+.bm-item.gone .bm-sub {
+  opacity: 0.5;
+}
+.bm-sub-del {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(10, 10, 12, 0.82);
+  color: #fff;
+  opacity: 0;
+}
+.bm-sub-del:not(:disabled):hover {
+  background: rgba(10, 10, 12, 0.95);
+  color: var(--danger);
+}
+.bm-sub:hover .bm-sub-del,
+.bm-sub-del:focus-visible {
+  opacity: 1;
+}
+.bm-sub-del .i {
+  width: 12px;
+  height: 12px;
+}
 
 /* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，bookmarks.mjs 的 badge）：标记种类的图标，多个书签时带数量。 */
-.mk{position:absolute;z-index:2;right:3px;top:3px;display:flex;align-items:center;gap:1px;height:18px;padding:0 3px;border-radius:6px;background:rgba(10,10,12,.85);color:var(--accent);font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;pointer-events:none}
-.mk .i{width:13px;height:13px;stroke-width:2.1}
-.mk b{padding:0 1px 0 2px;color:#fff;font-weight:700}
+.mk {
+  position: absolute;
+  z-index: 2;
+  right: 3px;
+  top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: rgba(10, 10, 12, 0.85);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.mk .i {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.1;
+}
+.mk b {
+  padding: 0 1px 0 2px;
+  color: #fff;
+  font-weight: 700;
+}
 /* 缩略图栏的标记层：与长条同一坐标，叠在页面之上，不接收指针（点击仍落在缩略图上跳转）。 */
-.pv-marks{position:absolute;left:0;right:0;top:0;height:0;pointer-events:none}
-.pv-mk{position:absolute;left:0;right:0;z-index:2}
+.pv-marks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  pointer-events: none;
+}
+.pv-mk {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
 /* 页内位置的细标记，贴在缩略图左侧：普通书签一道横线；起点 ┌ 与区段书签 └ 是一对方括号，一头一尾。 */
-.pv-mk .tick{position:absolute;left:0;width:12px;height:3px;margin-top:-1.5px;border-radius:0 2px 2px 0;background:var(--accent);box-shadow:0 0 0 1px rgba(0,0,0,.55)}
-.pv-mk .tick.start,.pv-mk .tick.end{width:10px;height:9px;margin-top:-1.5px;border:0 solid var(--accent);border-width:3px 0 0 3px;border-radius:0;background:none;box-shadow:none;filter:drop-shadow(0 0 1px rgba(0,0,0,.9))}
-.pv-mk .tick.end{margin-top:-7.5px;border-width:0 0 3px 3px}
-.pv-mk .tick.hot{border-color:#fff;filter:drop-shadow(0 0 3px var(--accent))}
+.pv-mk .tick {
+  position: absolute;
+  left: 0;
+  width: 12px;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.pv-mk .tick.start,
+.pv-mk .tick.end {
+  width: 10px;
+  height: 9px;
+  margin-top: -1.5px;
+  border: 0 solid var(--accent);
+  border-width: 3px 0 0 3px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+.pv-mk .tick.end {
+  margin-top: -7.5px;
+  border-width: 0 0 3px 3px;
+}
+.pv-mk .tick.hot {
+  border-color: #fff;
+  filter: drop-shadow(0 0 3px var(--accent));
+}

@@ -2,53 +2,302 @@
    窗口窄时自动换行，不会超出阅读区。书名行在工具栏下方居中。
    #toolbar 是横跨阅读区顶部、不接收鼠标的纵向容器，工具栏和书名行在其中依次居中排列。
    底部操作栏：贴近底缘弹出，上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本。 */
-#toolbar{position:fixed;z-index:5;top:calc(var(--top) + 8px);left:calc(var(--dockL) + 8px);right:calc(var(--dock) + 8px);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
-#toolbar>*{pointer-events:auto}
+#toolbar {
+  position: fixed;
+  z-index: 5;
+  top: calc(var(--top) + 8px);
+  left: calc(var(--dockL) + 8px);
+  right: calc(var(--dock) + 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+#toolbar > * {
+  pointer-events: auto;
+}
 /* 键盘可达：菜单按钮平时不可见、不接收鼠标，只在用 Tab 键聚焦时出现在左上角（跳转链接的做法），回车打开工具栏。 */
-#tab{position:fixed;left:8px;top:calc(var(--top) + 8px);border-color:var(--line2);background:var(--glass);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--shadow);color:var(--text);opacity:0;pointer-events:none}
-#tab:focus-visible{opacity:1}
-#tab:not(:disabled):active{transform:none}
-#bar{--leave-y:-8px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px;max-width:100%;padding:6px;border:1px solid var(--line2);border-radius:14px;background:rgba(16,17,20,.92);backdrop-filter:blur(22px) saturate(1.5);box-shadow:0 14px 44px rgba(0,0,0,.45);animation:tb-in .2s var(--ease)}
+#tab {
+  position: fixed;
+  left: 8px;
+  top: calc(var(--top) + 8px);
+  border-color: var(--line2);
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+#tab:focus-visible {
+  opacity: 1;
+}
+#tab:not(:disabled):active {
+  transform: none;
+}
+#bar {
+  --leave-y: -8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 6px;
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  background: rgba(16, 17, 20, 0.92);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
+  animation: tb-in 0.2s var(--ease);
+}
 /* 换行后落在行首 / 行尾的分隔线由 toolbar.mjs 隐藏（只隐藏不移除，避免布局来回跳）。 */
-#bar .sep.edge{visibility:hidden}
-#bar .sep{flex:none;align-self:stretch;width:1px;height:auto;margin:6px 4px;border:0;background:var(--line2)}
-#bar .tb{position:relative;display:flex;flex:none;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);text-decoration:none}
-#bar .tb .i{width:20px;height:20px}
+#bar .sep.edge {
+  visibility: hidden;
+}
+#bar .sep {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  height: auto;
+  margin: 6px 4px;
+  border: 0;
+  background: var(--line2);
+}
+#bar .tb {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+#bar .tb .i {
+  width: 20px;
+  height: 20px;
+}
 /* 文字收起：视觉隐藏，读屏仍可读到；悬停提示由 toolbar.mjs 写入 title。 */
-#bar .tb span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-#bar .tb:not(:disabled):hover{background:rgba(255,255,255,.08);border-color:transparent;color:var(--text)}
-#bar .tb:disabled{opacity:.32}
-#bar .tb[aria-pressed=true]{background:var(--accent-soft);color:var(--accent)}
-#bar .tb[aria-pressed=true]:not(:disabled):hover{background:rgba(255,122,89,.22);color:var(--accent-hi)}
-#bar .shelf-btn{margin-right:2px;background:var(--accent);color:var(--accent-ink);box-shadow:0 6px 18px rgba(255,110,80,.25)}
-#bar .shelf-btn:not(:disabled):hover{background:var(--accent-hi);color:var(--accent-ink)}
-#bar .shelf-btn .i{width:22px;height:22px}
+#bar .tb span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#bar .tb:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: transparent;
+  color: var(--text);
+}
+#bar .tb:disabled {
+  opacity: 0.32;
+}
+#bar .tb[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+#bar .tb[aria-pressed='true']:not(:disabled):hover {
+  background: rgba(255, 122, 89, 0.22);
+  color: var(--accent-hi);
+}
+#bar .shelf-btn {
+  margin-right: 2px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 18px rgba(255, 110, 80, 0.25);
+}
+#bar .shelf-btn:not(:disabled):hover {
+  background: var(--accent-hi);
+  color: var(--accent-ink);
+}
+#bar .shelf-btn .i {
+  width: 22px;
+  height: 22px;
+}
 /* 书名行：工具栏展开时显示在工具栏下方、阅读区居中，单行省略；只有书名接收鼠标（悬停看完整书名、可选中复制），其余部分不接收。 */
-#toolbar>#barTitle{position:relative;order:1;display:none;align-items:baseline;gap:10px;max-width:min(640px,100%);padding:7px 16px 9px;overflow:hidden;border:1px solid var(--line2);border-radius:12px;background:rgba(16,17,20,.92);backdrop-filter:blur(22px) saturate(1.5);box-shadow:var(--shadow);line-height:1.3;pointer-events:none;animation:title-in .22s var(--ease)}
-#toolbar.open>#barTitle{display:flex}
-#bookTitle{min-width:0;overflow:hidden;font-size:14.5px;font-weight:650;white-space:nowrap;text-overflow:ellipsis;pointer-events:auto;user-select:text}
-#bookMeta{flex:none;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-#bookMeta:empty{display:none}
-.bar-progress{position:absolute;left:0;right:0;bottom:0;height:3px;overflow:hidden;background:rgba(255,255,255,.08)}
-.bar-progress i{display:block;height:100%;background:var(--accent-grad);transform:scaleX(0);transform-origin:left;transition:transform .25s var(--ease)}
-#endbar{--leave-y:8px;position:fixed;z-index:5;bottom:14px;left:calc(var(--dockL) + (100% - var(--dock) - var(--dockL))/2);display:flex;align-items:center;gap:4px;max-width:calc(100% - var(--dock) - var(--dockL) - 16px);padding:6px;overflow:hidden;border:1px solid var(--line2);border-radius:14px;background:rgba(16,17,20,.92);backdrop-filter:blur(22px) saturate(1.5);box-shadow:var(--shadow);transform:translateX(-50%);animation:eb-in .2s var(--ease)}
-#endbar .eb{flex:none;height:38px;padding:0 14px 0 10px;border-color:transparent;background:transparent;color:var(--text);font-size:13px;font-weight:600;white-space:nowrap}
-#endbar .eb:not(:disabled):hover{background:rgba(255,255,255,.08);border-color:transparent}
-#endbar .eb:disabled{opacity:.38}
-#endbar .eb .i{width:18px;height:18px;color:var(--accent)}
-#endbar .eb-book .i{color:var(--accent-hi)}
+#toolbar > #barTitle {
+  position: relative;
+  order: 1;
+  display: none;
+  align-items: baseline;
+  gap: 10px;
+  max-width: min(640px, 100%);
+  padding: 7px 16px 9px;
+  overflow: hidden;
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  background: rgba(16, 17, 20, 0.92);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: var(--shadow);
+  line-height: 1.3;
+  pointer-events: none;
+  animation: title-in 0.22s var(--ease);
+}
+#toolbar.open > #barTitle {
+  display: flex;
+}
+#bookTitle {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  user-select: text;
+}
+#bookMeta {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#bookMeta:empty {
+  display: none;
+}
+.bar-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+.bar-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent-grad);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s var(--ease);
+}
+#endbar {
+  --leave-y: 8px;
+  position: fixed;
+  z-index: 5;
+  bottom: 14px;
+  left: calc(var(--dockL) + (100% - var(--dock) - var(--dockL)) / 2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - var(--dock) - var(--dockL) - 16px);
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  background: rgba(16, 17, 20, 0.92);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: eb-in 0.2s var(--ease);
+}
+#endbar .eb {
+  flex: none;
+  height: 38px;
+  padding: 0 14px 0 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#endbar .eb:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: transparent;
+}
+#endbar .eb:disabled {
+  opacity: 0.38;
+}
+#endbar .eb .i {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+#endbar .eb-book .i {
+  color: var(--accent-hi);
+}
 /* 书架筛选生效时，上一本 / 下一本只在筛选结果内切换：图标右上角一个小圆点（说明在 title 提示里）。 */
-#endbar .eb-book.scoped{position:relative}
-#endbar .eb-book.scoped::after{content:'';position:absolute;top:7px;left:23px;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px rgba(16,17,20,.92)}
+#endbar .eb-book.scoped {
+  position: relative;
+}
+#endbar .eb-book.scoped::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 23px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(16, 17, 20, 0.92);
+}
 /* 放不下文字时（toolbar.mjs 加 .compact）只显示图标，文字视觉隐藏，读屏和悬停提示仍可用。 */
-#endbar.compact .eb{padding:0 10px}
-#endbar.compact .eb span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#endbar.compact .eb {
+  padding: 0 10px;
+}
+#endbar.compact .eb span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 /* 位置：下方一个零高度、不可见的占位串（按总张数的位数生成，toolbar.mjs 的 syncPos）撑开宽度，宽度只取决于位数。 */
-.eb-pos{flex:none;display:flex;flex-direction:column;align-items:center;min-width:72px;padding:0 6px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.eb-pos::after{content:attr(data-room);height:0;overflow:hidden;visibility:hidden}
-body.endbar-open #hud{opacity:0}
-.on-full,:root:fullscreen .on-window{display:none}
-:root:fullscreen .on-full{display:block}
-@keyframes tb-in{from{opacity:0;transform:translateY(-10px)}}
-@keyframes title-in{from{opacity:0;transform:translateY(-8px)}}
-@keyframes eb-in{from{opacity:0;transform:translate(-50%,10px)}}
+.eb-pos {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 72px;
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eb-pos::after {
+  content: attr(data-room);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+body.endbar-open #hud {
+  opacity: 0;
+}
+.on-full,
+:root:fullscreen .on-window {
+  display: none;
+}
+:root:fullscreen .on-full {
+  display: block;
+}
+@keyframes tb-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes title-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+@keyframes eb-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}

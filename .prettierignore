@@ -1,0 +1,8 @@
+.claude/
+dist/
+docs/
+icons/
+*.md
+*.html
+*.json
+*.webmanifest
