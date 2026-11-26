@@ -61,7 +61,7 @@ Use **Add folder** or pick images with **Add to Loose images** on the welcome sc
 
 | Action | Result |
 | --- | --- |
-| Wheel / left-drag | Scroll |
+| Wheel / left-drag | Scroll (a drag keeps gliding after release; a click, wheel turn or key press stops it) |
 | Middle click | Browser auto-scroll (where your OS and browser support it) |
 | Click the left / right half | Back / forward one screen |
 | Click a video / audio (outside its controls) | Play / pause (doesn't turn the screen) |
@@ -74,6 +74,8 @@ Use **Add folder** or pick images with **Add to Loose images** on the welcome sc
 | Right click | Open the bookmark panel |
 
 The full-screen bookmark and thumbnail views switch between a regular grid (the default) and a masonry layout with one button. Hovering a tile selects it, exactly as the keyboard does.
+
+Left-drag scrolling works everywhere something scrolls: the page, the thumbnail strip, the shelf, bookmark lists, full-screen thumbnails / bookmarks, settings, help and the other lists, sideways too where a list scrolls sideways. A drag never counts as a click (it doesn't turn the screen or open a book or bookmark), and you can start one on a button, cover or bookmark. Pressing on a text box, slider, seek bar, resize edge or selectable text such as a title works as before (or selects the text) instead of dragging.
 
 ### Keyboard
 

@@ -35,6 +35,7 @@ import { install as dropImport } from './shelf/drop.mjs';
 import { install as folderRefresh } from './shelf/refresh.mjs';
 import { install as bookRemove } from './shelf/remove.mjs';
 import { install as actionTable } from './reader/actions.mjs';
+import { install as dragScroll } from './ui/dragscroll.mjs';
 import { install as tapInput } from './reader/tap.mjs';
 import { install as keyInput } from './reader/keys.mjs';
 import { install as windows } from './core/windows.mjs';
@@ -174,6 +175,7 @@ folderRefresh(ctx);
 bookRemove(ctx);
 actionTable(ctx);
 bindBar();
+dragScroll();
 tapInput(ctx);
 keyInput(ctx);
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}

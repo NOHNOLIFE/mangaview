@@ -9,6 +9,7 @@ const shell = [
     'src/app.mjs',
     'src/core/books.mjs',
     'src/core/events.mjs',
+    'src/core/fling.mjs',
     'src/core/lang.mjs',
     'src/core/locale.mjs',
     'src/core/match.mjs',
@@ -59,7 +60,6 @@ const shell = [
     'src/panels/settings.css',
     'src/panels/settings.mjs',
     'src/reader/actions.mjs',
-    'src/reader/drag.mjs',
     'src/reader/endbar.mjs',
     'src/reader/focus.css',
     'src/reader/focus.mjs',
@@ -106,6 +106,7 @@ const shell = [
     'src/shelf/util.mjs',
     'src/style.css',
     'src/ui/dom.mjs',
+    'src/ui/dragscroll.mjs',
     'src/ui/icons.mjs',
   ].map((p) => new URL(p, self.registration.scope).href),
   index = new URL('index.html', self.registration.scope).href;
