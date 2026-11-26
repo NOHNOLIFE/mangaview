@@ -119,7 +119,7 @@
   - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各功能模块）与全局样式。
   - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）。
   - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、工具栏（`toolbar`）、专注模式（`focus`）、全屏缩略图（`overview`）。
-  - `src/shelf/`：书架（`shelf`）、自定义封面（`cover`）。
+  - `src/shelf/`：书架。`shelf` 是唯一入口（装配子模块、重画、列表页签、布局切换），子模块：排序（`sort`）、封面与识别指纹的后台生成（`covercache`）、筛选状态（`filter`，纯逻辑在 `criteria`）、列表布局与焦点（`layout`）、卡片（`card`）、卡片操作按钮（`actions`）、批量操作（`bulk`）、筛选界面（`filterbar`）、搜索预设（`presets`）、存储空间（`storage`）、书名（`rename`）、标签（`tags`）、恢复流程与对话框（`restore`，配对规则在 `pairing`）、共用小工具（`util`）；自定义封面（`cover`）。子模块之间经 `shelf` 建立的共享对象 `S` 互相调用。
   - `src/marks/`：书签（`bookmarks`）、PotPlayer 书签（`pbf`）。
   - `src/media/`：视频、音频播放器（`media`）。
   - `src/panels/`：设置（`settings`）、导出与导入（`backup`）、键鼠操作图示（`help`）。

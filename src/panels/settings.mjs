@@ -1,4 +1,5 @@
 import { extend } from '../core/lang.mjs';
+import { addIcons } from '../ui/icons.mjs';
 // 设置面板：打开时按 group 分节渲染 ctx.settings。条目字段见 app.mjs，另支持可选字段：
 // hint(说明文案 key)；button 可加 action(按钮文字 key，缺省用 label)、icon、danger；type:'custom' 时 render(ctx)→Node 自绘整行。
 extend({
@@ -32,13 +33,7 @@ const icons = {
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
 };
-// 图标直接补进页面的 sprite，避免多个模块同时改 index.html。
-export function addIcons(table) {
-  const sprite = document.querySelector('svg.sprite');
-  for (const [name, body] of Object.entries(table))
-    if (!document.getElementById('i-' + name))
-      sprite.insertAdjacentHTML('beforeend', `<symbol id="i-${name}" viewBox="0 0 24 24">${body}</symbol>`);
-}
+export { addIcons }; // 原先定义在这里，现移到 src/ui/icons.mjs；保留导出名
 
 export function install(ctx) {
   const { make, icon, t } = ctx;
