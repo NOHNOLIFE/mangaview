@@ -1,4 +1,4 @@
-import {at,point,offsets,shownName,splitTail} from './model.mjs';
+import {at,point,offsets,shownName,splitTail,pageKind,videoWidth} from './model.mjs';
 import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageThumb,dropPage} from './thumbs.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
@@ -11,6 +11,7 @@ let running=0;
 function free(j){if(j.held){j.held=false;running--;queueMicrotask(pump);}}
 const within=p=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new DOMException('','TimeoutError')),limits.read);})]).finally(()=>clearTimeout(t));};
 export function release(slot){
+  if(slot._dispose){const fn=slot._dispose;slot._dispose=null;fn();} // 媒体页：卸载源、释放解码器（media.mjs）
   const job=jobs.get(slot);
   if(job){job.dead=true;free(job);if(job.url)URL.revokeObjectURL(job.url);jobs.delete(slot);}
   slot.replaceChildren();
@@ -102,6 +103,19 @@ export class Reader {
     for(const type of ['wheel','pointerdown'])preview.addEventListener(type,()=>{this.browsing=true;},{passive:true});
     preview.addEventListener('scroll',()=>this.schedule(),{passive:true});
     const resize=new ResizeObserver(()=>this.resized());resize.observe(main);resize.observe(preview);
+    this.cap=Infinity;main.style.setProperty('--vh',main.clientHeight+'px');
+  }
+  // 视频的高度封顶值（阅读视窗高度）：窗口尺寸停止变化约 200ms 后才重新计算，拖动过程中占位高度不变；
+  // 期间视窗变矮时，画面在原占位里按 --vh 临时等比缩小（media.css）。重算时沿用缩放锚点（held）。
+  recap(){
+    const h=this.main.clientHeight;if(!h||h===this.cap)return;
+    const had=this.cap!==Infinity;this.cap=h;
+    if(had&&this.book?.pages.some(p=>pageKind(p)==='video')){this.layout();this.paint();}
+  }
+  // 媒体读到帧尺寸后：与图片解码后相同，按锚点重排并保存。
+  sized(page,w,h){
+    if(page.w===w&&page.h===h)return;
+    const anchor=this.held?this.held.anchor:this.anchor();page.w=w;page.h=h;this.layout(anchor);this.hooks.measured();
   }
   // 阅读区尺寸变化（窗口缩放、侧栏停靠或调宽、进出全屏）：视窗中心处的内容不动。
   // 一次连续缩放的锚点在开始时按变化前的视窗高度取一次，沿用到停下（约 500ms 无变化）或用户滚动，不从已经漂移的滚动位置重新推导；
@@ -110,12 +124,13 @@ export class Reader {
     const main=this.main,top=main.scrollTop,h=this.viewH??main.clientHeight;
     if(!this.held)this.held={anchor:this.anchor(h),end:top>=1&&main.scrollHeight-top-Math.max(h,main.clientHeight)<=1};
     clearTimeout(this.heldTimer);this.heldTimer=setTimeout(()=>{this.held=null;},500);
+    main.style.setProperty('--vh',main.clientHeight+'px');clearTimeout(this.capTimer);this.capTimer=setTimeout(()=>this.recap(),200);
     this.layout();this.paint();
   }
   clear(p){for(const el of p.slots.values())release(el);p.slots.clear();p.strip.replaceChildren();}
   show(book,anchor){
     for(const p of this.panes)this.clear(p);
-    this.book=book;this.browsing=false;this.held=null;this.main.scrollTop=0;this.preview.scrollTop=0;this.layout(anchor||null);
+    this.book=book;this.browsing=false;this.held=null;this.main.scrollTop=0;this.preview.scrollTop=0;this.cap=this.main.clientHeight||Infinity;this.layout(anchor||null);
   }
   anchor(h=this.main.clientHeight){
     if(!this.book?.pages.length || this.panes[0].starts.length!==this.book.pages.length+1 || this.main.scrollTop<1)return null;
@@ -130,7 +145,7 @@ export class Reader {
     // 读者正在独立浏览缩略图时，补齐图片尺寸不能把导航拉回正文。
     const navPos=this.browsing && nav.starts.length>1 ? at(nav.starts,this.preview.scrollTop+H/2) : null;
     for(const [k,p] of this.panes.entries()){
-      p.starts=offsets(this.book?.pages||[],Math.max(1,p.el.clientWidth),k===1||this.fit);
+      p.starts=offsets(this.book?.pages||[],Math.max(1,p.el.clientWidth),k===1||this.fit,k?Infinity:this.cap,k===1);
       p.strip.style.height=p.starts.at(-1)+'px';
     }
     const i=anchor?this.book?.pages.findIndex(p=>p.name===anchor.name):-1;
@@ -171,6 +186,13 @@ export class Reader {
         const page=this.book.pages[i];let node=slots.get(i);
         if(!node){node=document.createElement('div');node.className='page';node.dataset.name=page.name;node.dataset.n=i+1;/* 只有缩略图悬停时显示文件名 */if(k)node.title=shownName(page);p.strip.append(node);slots.set(i,node);}
         node.style.top=starts[i]+'px';node.style.height=starts[i+1]-starts[i]+'px';
+        const kind=pageKind(page);
+        // 视频、音频页交给 media.mjs（hooks.media）：正文里是播放器，缩略图栏里是固定样式的占位，不读文件。
+        // visible：与视窗相交；只有它们持有媒体源，相邻页不预加载。
+        if(kind!=='image'){
+          node.style.maxWidth=!k&&kind==='video'?videoWidth(page,el.clientWidth,this.fit,this.cap)+'px':'';
+          this.hooks.media?.(node,this.book,page,kind,k,i>=first&&i<=last);continue;
+        }
         if(!k && !this.fit && page.w)node.style.maxWidth=page.w+'px';else node.style.maxWidth='';
         const ahead=this.up ? i<first : i>last;
         const priority=(k?8:0)+(ahead?2:i<first||i>last?4:0);

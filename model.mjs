@@ -1,4 +1,12 @@
 export const isImage = name => /\.(avif|bmp|gif|ico|jfif|jpe?g|png|svg|webp|apng)$/i.test(name);
+// 页的类型（图片、视频、音频）只按扩展名判断，导入、刷新都不打开文件。媒体只收浏览器原生能播的格式；
+// 浏览器播不了的常见媒体格式（unplayable）导入时提示、不建记录，刷新时不再提示。
+const KINDS=new Map([...'mp4 m4v webm mkv mov ogv'.split(' ').map(x=>[x,'video']),...'mp3 flac wav ogg oga opus m4a aac weba'.split(' ').map(x=>[x,'audio'])]);
+const UNPLAYABLE=new Set('avi wmv flv f4v rmvb rm ts m2ts mts mpg mpeg vob 3gp 3g2 asf divx wma ape ac3 dts amr'.split(' '));
+export const extOf=name=>{const m=/\.([^./\\]+)$/.exec(name??'');return m?m[1].toLowerCase():'';};
+export const kindOf=name=>typeof name!=='string'?'image':KINDS.get(extOf(name))??(isImage(name)?'image':null);
+export const isContent=name=>kindOf(name)!==null;
+export const unplayable=name=>UNPLAYABLE.has(extOf(name));
 const collator = new Intl.Collator('en',{numeric:true,sensitivity:'base'});
 export const natural = (a,b) => collator.compare(a,b) || (a>b?1:a<b?-1:0);
 export function shuffled(list) {
@@ -21,6 +29,8 @@ export const byTime=mode=>mode==='timeAsc'||mode==='timeDesc';
 export const fileOf=p=>p.file??(p.src?p.name.slice(p.src.length+1):p.name);
 // 界面上显示的名称：散图为“相对目录/文件名”（不带区分用的序号），其他书为页名。
 export const shownName=p=>p.file!=null?(p.path?p.path+'/':'')+p.file:p.name;
+// 页的类型：'image' | 'video' | 'audio'（散图的页名可能带区分序号，按文件名判断）。
+export const pageKind=p=>kindOf(fileOf(p))??'image';
 // 目录路径逐段自然比较（'' 为根）：父目录在其子目录之前。
 export function compareDirs(a,b){
   if(a===b)return 0;const A=a?a.split('/'):[],B=b?b.split('/'):[];
@@ -54,13 +64,29 @@ export function splitTail(name,keep=8){
   return n>=a.length?[name,'']:[a.slice(0,a.length-n).join(''),a.slice(a.length-n).join('')];
 }
 // 只为可见项创建元素；累计高度同时用于虚拟窗口、长图内跳转和续读。
-export function offsets(pages,width,fit) {
+// 媒体页：视频的宽度规则与图片相同、高度按帧比例（尺寸未知时按 16:9），高于 cap（阅读视窗高度）时等比缩小到正好一屏；
+// 音频在正文里是固定高度的横条（AUDIO_H），在缩略图栏（nav）里是固定比例的小块。
+export const AUDIO_H=104;
+export function offsets(pages,width,fit,cap=Infinity,nav=false) {
   const starts=[0];
   for(const p of pages){
-    const w=p.w||800, h=p.h||1120;
-    starts.push(starts.at(-1)+Math.max(1,h*(fit?width:Math.min(width,w))/w));
+    const kind=pageKind(p);let h;
+    if(kind==='audio')h=nav?width*.5:AUDIO_H;
+    else{const w=p.w||(kind==='video'?1600:800), ph=p.h||(kind==='video'?900:1120);h=ph*(fit?width:Math.min(width,w))/w;if(kind==='video'&&!nav)h=Math.min(h,cap);}
+    starts.push(starts.at(-1)+Math.max(1,h));
   }
   return starts;
+}
+// 媒体时间（秒）显示为 m:ss 或 h:mm:ss。
+export function clock(s){s=Math.max(0,Math.floor(Number.isFinite(s)?s:0));const h=Math.floor(s/3600),m=Math.floor(s/60)%60,x=String(s%60).padStart(2,'0');return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x;}
+// 长按快进 / 快退的步长（秒）：按住第 1 秒内 2 秒，第 2 秒内 5 秒，第 3 秒内 10 秒，之后 30 秒封顶。ms 为已按住的毫秒数。
+export const seekStep=ms=>ms<1000?2:ms<2000?5:ms<3000?10:30;
+// 音量每次调 5%，夹在 0–1 之间，避免浮点误差累积。
+export const nudge=(v,d)=>Math.round(Math.min(1,Math.max(0,(Number.isFinite(v)?v:1)+d*.05))*100)/100;
+// 视频在正文里的显示宽度（封顶后等比缩小，居中）：与 offsets 同一规则。
+export function videoWidth(p,width,fit,cap=Infinity){
+  const w=p.w||1600,h=p.h||900,dw=fit?width:Math.min(width,w);
+  return h*dw/w>cap?cap*w/h:dw;
 }
 export function at(starts,y) {
   let lo=0, hi=starts.length-1;

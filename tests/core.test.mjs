@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {detect,translate} from '../lang.mjs';
-import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort,fileOf,shownName,compareDirs,clipEnd,splitTail} from '../model.mjs';
+import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort,fileOf,shownName,compareDirs,clipEnd,splitTail,kindOf,pageKind,isContent,unplayable,videoWidth,AUDIO_H,clock,seekStep,nudge} from '../model.mjs';
 import {grade,assign,coverName,hue,norm} from '../match.mjs';
 import {KEYS,ZONES,ROWS,MOUSE,MORE,pieces,plain} from '../help.mjs';
 import {snap,merge,changes,adopt,refresh,print} from '../merge.mjs';
 import {pair,ranges,fits} from '../sections.mjs';
 import {mergeMarks} from '../backup.mjs';
-import {fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive} from '../sources.mjs';
+import {skipped,handleGroups,fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive} from '../sources.mjs';
 
 test('语言按偏好顺序匹配地区变体，否则显示英文',()=>{
   for(const [list,want] of [[['fr-CA','zh-Hant-TW','en'],'zh'],[['ko-KR'],'ko'],[['ja-JP'],'ja'],[['en-US','zh'],'en'],[['fr','de'],'en'],[[],'en']])assert.equal(detect(list),want);
@@ -195,7 +195,7 @@ test('刷新只列目录：找不到为 gone，没有权限为 denied，不读�
   assert.equal(await listDir(dir([],'prompt')),'denied');
   assert.equal(await listDir({queryPermission:async()=>'granted',async *values(){throw new DOMException('','NotFoundError');}}),'gone');
 });
-test('键鼠操作图示：功能键都在显示的键盘局部内，文案四语齐全；长按 / Shift 的标记与说明一致；Delete 是删除这本书的记录（不删原图）',()=>{
+test('键鼠操作图示：功能键都在显示的键盘局部内，文案四语齐全；长按 / Shift 的标记与说明一致；Delete 是删除这本书的记录（不删原文件）',()=>{
   const shown=new Set();
   for(const z of ZONES)for(const r of z.rows){if(!r)continue;let x=0;for(const [id,w] of ROWS[r]){if(id&&Math.min(x+w,z.to)-Math.max(x,z.from)>=.25)shown.add(id);x+=w;}}
   for(const id of Object.keys(KEYS))assert.ok(shown.has(id),id+' 在图示范围内');
@@ -210,7 +210,7 @@ test('键鼠操作图示：功能键都在显示的键盘局部内，文案四�
     assert.equal(p.map(x=>x[1]).join(''),plain(translate(f.tip,lang)),id+' '+lang+' pieces');
   }
   assert.deepEqual(pieces('上一屏，*长按*上一本'),[['','上一屏，'],['hold','长按'],['','上一本']]);
-  const want={en:/Delete this book's record.*images kept/,zh:/删除本书记录.*不删原图/,ja:/記録を削除.*元画像は残す/,ko:/기록 삭제.*원본 이미지 유지/};
+  const want={en:/Delete this book's record.*files kept/,zh:/删除本书记录.*不删原文件/,ja:/記録を削除.*元のファイルは残す/,ko:/기록 삭제.*원본 파일 유지/};
   for(const [lang,re] of Object.entries(want)){
     assert.match(translate(KEYS.Delete.tip,lang),re,lang);
     assert.doesNotMatch(translate('hkMoreShelf',lang),/Delete: remove|Delete 移除|Delete で外す|Delete 제거/,lang);
@@ -310,4 +310,48 @@ test('合并备份：书签取并集，区段书签补缺，冲突的区段书�
   assert.deepEqual(get('d').end,{name:'5',f:.8});
   assert.deepEqual(get('e').end,{name:'9',f:.5},'位置无法换算（页不存在）时照常保留');
   assert.equal(out.length,5);
+});
+test('媒体按扩展名识别：视频、音频、图片三类；浏览器播不了的格式单独认出，其余文件不是内容',()=>{
+  for(const n of ['a.mp4','b.M4V','c.webm','d.mkv','e.mov','f.ogv'])assert.equal(kindOf(n),'video',n);
+  for(const n of ['a.mp3','b.FLAC','c.wav','d.ogg','e.oga','f.opus','g.m4a','h.aac','i.weba'])assert.equal(kindOf(n),'audio',n);
+  for(const n of ['a.jpg','b.PNG','c.svg','d.webp'])assert.equal(kindOf(n),'image',n);
+  for(const n of ['a.txt','b.pbf','c.avi','noext','dir.mp4/readme'])assert.equal(isContent(n),false,n);
+  for(const n of ['a.avi','b.WMV','c.flv','d.rmvb','e.ts','f.mpg','g.wma','h.ape','i.ac3','j.dts','k.3gp','l.vob','m.m2ts','n.asf','o.rm','p.mpeg'])assert.equal(unplayable(n),true,n);
+  for(const n of ['a.mp4','b.jpg','c.txt'])assert.equal(unplayable(n),false,n);
+  // 散图的页名可能带区分序号：按文件名（fileOf）判断。
+  assert.equal(pageKind({name:'clip.mp4 (2)',file:'clip.mp4'}),'video');assert.equal(pageKind({name:'v/song.flac',src:'v'}),'audio');assert.equal(pageKind({w:1,h:1}),'image');
+});
+test('媒体排版：视频按帧比例（未知按 16:9），高于视窗封顶到一屏并等比缩窄；音频在正文是固定高度、在缩略图栏是小块',()=>{
+  const pages=[{name:'1.jpg',w:800,h:1200},{name:'2.mp4',w:1920,h:1080},{name:'3.mp4'},{name:'4.webm',w:400,h:1600},{name:'5.mp3'}];
+  const s=offsets(pages,800,true,900),h=s.slice(1).map((x,i)=>Math.round(x-s[i]));
+  assert.deepEqual(h,[1200,450,450,900,AUDIO_H]);
+  assert.equal(Math.round(videoWidth(pages[3],800,true,900)),225,'封顶后宽度按比例缩小');assert.equal(videoWidth(pages[1],800,true,900),800);
+  // 「小图不放大」：视频宽度不超过帧宽，与图片同一规则。
+  const small=offsets([{name:'a.mp4',w:320,h:180}],800,false,900);assert.equal(small[1],180);assert.equal(videoWidth({name:'a.mp4',w:320,h:180},800,false,900),320);
+  // 缩略图栏（nav）不封顶，音频是固定比例的小块。
+  const nav=offsets(pages,100,true,Infinity,true),n=nav.slice(1).map((x,i)=>Math.round(x-nav[i]));assert.deepEqual(n,[150,56,56,400,50]);
+});
+test('媒体时间、快进步长与音量步进',()=>{
+  assert.equal(clock(0),'0:00');assert.equal(clock(65.9),'1:05');assert.equal(clock(3600+62),'1:01:02');assert.equal(clock(NaN),'0:00');
+  assert.deepEqual([0,999,1000,1999,2000,2999,3000,60000].map(seekStep),[2,2,5,5,10,10,30,30]);
+  assert.equal(nudge(1,1),1);assert.equal(nudge(0,-1),0);assert.equal(nudge(.5,1),.55);let v=1;for(let i=0;i<7;i++)v=nudge(v,-1);assert.equal(v,.65);assert.equal(nudge(undefined,-1),.95);
+});
+test('导入只看扩展名：视频、音频与图片一样成书，只有媒体的文件夹也成书；播不了的格式计数并列出扩展名，不读文件',async()=>{
+  const file=name=>({name,kind:'file',getFile(){throw Error('unexpected read');}});
+  const dir=(name,entries)=>({name,kind:'directory',async *values(){yield* entries;}});
+  const odd=skipped(),groups=[];
+  for await(const g of scan(dir('Root',[file('1.jpg'),file('2.mp4'),file('a.avi'),file('notes.txt'),dir('Songs',[file('x.flac'),file('y.WMA'),file('z.ape')]),dir('Empty',[file('b.rmvb')])]),'',odd))groups.push(g);
+  assert.deepEqual(groups.map(g=>[g.path,g.pages.map(p=>p.name)]),[['Root',['1.jpg','2.mp4']],['Root/Songs',['x.flac']]]);
+  assert.equal(odd.n,4);assert.deepEqual([...odd.exts].sort(),['ape','avi','rmvb','wma']);
+  // 不传计数器时照常扫描（恢复时的扫描不提示）。
+  const plain=[];for await(const g of scan(dir('Root',[file('a.avi'),file('1.mp3')])))plain.push(g);assert.deepEqual(plain[0].pages.map(p=>p.name),['1.mp3']);
+  const loose=skipped(),hg=[];for await(const g of handleGroups([file('a.webm'),file('b.flv'),file('c.png')],loose))hg.push(g);
+  assert.deepEqual(hg[0].pages.map(p=>p.name),['a.webm','c.png']);assert.equal(loose.n,1);
+  // 回退模式：.avi 的 type 是 video/*，也按扩展名判为不支持；扩展名认不出的图片（type 为 image/*）照旧收下。
+  const files=[new File(['x'],'a.avi',{type:'video/x-msvideo'}),new File(['x'],'b.mp4',{type:'video/mp4'}),new File(['x'],'c.heif',{type:'image/heif'}),new File(['x'],'d.txt',{type:'text/plain'})];
+  const fodd=skipped();assert.deepEqual(fileGroups(files,fodd)[0].pages.map(p=>p.name),['b.mp4','c.heif']);assert.equal(fodd.n,1);
+  // 刷新只列目录：媒体文件与图片一样算内容，不支持的文件不算，也不读。
+  const d=(entries)=>({queryPermission:async()=>'granted',async *values(){yield* entries;}});
+  assert.deepEqual(await listDir(d([file('1.mp3'),file('2.avi'),file('3.webm')])),['1.mp3','3.webm']);
+  assert.equal(await listDir(d([file('2.avi')])),'gone');
 });

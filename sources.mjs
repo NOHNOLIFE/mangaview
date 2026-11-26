@@ -1,6 +1,6 @@
-import {isImage,natural,fileOf,nameOrder,compareDirs} from './model.mjs';
+import {isContent,unplayable,extOf,natural,fileOf,nameOrder,compareDirs} from './model.mjs';
 
-// 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含图片的文件夹。
+// 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含内容（图片、视频或音频）的文件夹。
 // 单文件夹书只有一个 key 为 '' 的源；合并作品（导入为单个作品）有多个源，key 为相对所选文件夹的路径，页名为“key/文件名”。
 // 部分源暂时找不到时，它们的页移到 book.parked（不显示、记录保留），找回后再移回。
 // 散图图集（全应用只有一本）没有源，文件句柄记在每页上；页另记 file（文件名）和 path（来自文件夹时的相对目录），允许同名图片共存（见 addLoose）。
@@ -62,52 +62,58 @@ export async function readMissingTimes(book,active){
 function pageFor(file){const p={name:file.name,lastModified:file.lastModified};live.set(p,file);return p;}
 const ordered=pages=>pages.sort(nameOrder());
 const loosePage=(path,file,extra)=>path?{name:path+'/'+file,path,file,...extra}:{name:file,...extra};
+// 导入时浏览器播不了的媒体文件（按扩展名）不建记录，只计数，导入结果里提示：odd 为 skipped() 返回的计数器，省略则不计。
+// 只看文件名：非内容文件和不支持的文件除了列目录本身不产生任何读盘。
+export const skipped=()=>({n:0,exts:new Set()});
+const skip=(odd,name)=>{if(odd&&unplayable(name)){odd.n++;odd.exts.add(extOf(name));}};
 // path：从所选根目录起的相对路径，用于区分同名文件夹和恢复过期书（浏览器拿不到磁盘绝对路径）。
-export async function* scan(dir,base=''){
+export async function* scan(dir,base='',odd=null){
   const path=base?base+'/'+dir.name:dir.name;
   const pages=[],children=[];
   for await(const h of dir.values()){
-    if(h.kind==='directory')children.push(h);else if(isImage(h.name))pages.push({name:h.name});
+    if(h.kind==='directory')children.push(h);else if(isContent(h.name))pages.push({name:h.name});else skip(odd,h.name);
   }
   if(pages.length)yield {title:dir.name,dir,path,pages:ordered(pages)};
-  for(const child of children)yield* scan(child,path);
+  for(const child of children)yield* scan(child,path,odd);
 }
-// 刷新用：只列目录，返回图片文件名；找不到、句柄卡住或没有图片时为 'gone'，没有权限为 'denied'。
+// 刷新用：只列目录，返回内容文件名；找不到、句柄卡住或没有内容时为 'gone'，没有权限为 'denied'。不支持的文件不提示、不读取。
 export async function listDir(dir,ask){
   try{
     let state=dir.queryPermission?await timed(dir,()=>dir.queryPermission({mode:'read'})):'granted';
     if(state==='prompt'&&ask)state=await dir.requestPermission({mode:'read'}).catch(()=>'prompt');
     if(state!=='granted')return 'denied';
     const names=[],it=dir.values();
-    for(;;){const r=await timed(dir,()=>it.next());if(r.done)break;if(r.value.kind==='file'&&isImage(r.value.name))names.push(r.value.name);}
+    for(;;){const r=await timed(dir,()=>it.next());if(r.done)break;if(r.value.kind==='file'&&isContent(r.value.name))names.push(r.value.name);}
     return names.length?names:'gone';
   }catch(e){if(['NotFoundError','TimeoutError'].includes(e.name))return 'gone';if(['NotAllowedError','SecurityError'].includes(e.name))return 'denied';throw e;}
 }
-export function fileGroups(files){
+// 扩展名认不出的图片（type 为 image/*）照旧收下；媒体只认扩展名（不支持的格式也有 video/* 之类的 type）。
+const accepted=f=>isContent(f.name)||!unplayable(f.name)&&f.type.startsWith('image/');
+export function fileGroups(files,odd=null){
   const groups=new Map();
   for(const f of files){
-    if(!isImage(f.name) && !f.type.startsWith('image/'))continue;
+    if(!accepted(f)){skip(odd,f.name);continue;}
     const path=f.webkitRelativePath?.split('/').slice(0,-1).join('/')||'';
     if(!groups.has(path))groups.set(path,[]);groups.get(path).push(pageFor(f));
   }
   return Array.from(groups,([path,pages])=>({title:path.split('/').pop()||null,...path&&{path},pages:ordered(pages)}));
 }
-export async function* handleGroups(handles){
+export async function* handleGroups(handles,odd=null){
   const loose=[];
-  for(const h of handles){if(h.kind==='directory')yield* scan(h);else if(isImage(h.name))loose.push({name:h.name,handle:h});}
+  for(const h of handles){if(h.kind==='directory')yield* scan(h,'',odd);else if(isContent(h.name))loose.push({name:h.name,handle:h});else skip(odd,h.name);}
   if(loose.length)yield {title:null,pages:ordered(loose)};
 }
-// 拖到「添加到散图图集」：所有图片（包括文件夹里的，递归）合成一组散图（title 为 null，归入散图图集）。
+// 拖到「添加到散图图集」：所有图片、视频、音频（包括文件夹里的，递归）合成一组散图（title 为 null，归入散图图集）。
 // 来自文件夹的图记下相对目录（如“卷1”），页名为“卷1/001.jpg”，按名称排序时按文件夹聚在一起。
-export async function looseImages(handles){
+export async function looseImages(handles,odd=null){
   const pages=[];
-  async function walk(dir,base){for await(const h of dir.values()){if(h.kind==='directory')await walk(h,base+'/'+h.name);else if(isImage(h.name))pages.push(loosePage(base,h.name,{handle:h}));}}
-  for(const h of handles){if(h.kind==='directory')await walk(h,h.name);else if(isImage(h.name))pages.push({name:h.name,handle:h});}
+  async function walk(dir,base){for await(const h of dir.values()){if(h.kind==='directory')await walk(h,base+'/'+h.name);else if(isContent(h.name))pages.push(loosePage(base,h.name,{handle:h}));else skip(odd,h.name);}}
+  for(const h of handles){if(h.kind==='directory')await walk(h,h.name);else if(isContent(h.name))pages.push({name:h.name,handle:h});else skip(odd,h.name);}
   return pages.length?[{title:null,pages:ordered(pages)}]:[];
 }
 // 同上，用于不支持文件句柄的浏览器（只有本次会话的 File）。记下大小，供去重时比较。
-export function looseFiles(files){
-  const pages=fileGroups(files).flatMap(g=>g.pages.map(p=>{if(g.path)Object.assign(p,loosePage(g.path,p.name));p.size=live.get(p).size;return p;}));
+export function looseFiles(files,odd=null){
+  const pages=fileGroups(files,odd).flatMap(g=>g.pages.map(p=>{if(g.path)Object.assign(p,loosePage(g.path,p.name));p.size=live.get(p).size;return p;}));
   return pages.length?[{title:null,pages:ordered(pages)}]:[];
 }
 // 加入散图图集。同一个文件只保留一份：都有句柄时用 isSameEntry 判断（只比较同名、且相对目录一个是另一个末尾几段的页，

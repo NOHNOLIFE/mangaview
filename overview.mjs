@@ -1,7 +1,7 @@
 import {extend} from './lang.mjs';
 import {imageJob,release} from './view.mjs';
 import {pageKey} from './thumbs.mjs';
-import {shownName} from './model.mjs';
+import {shownName,pageKind} from './model.mjs';
 import {sourceOf} from './sources.mjs';
 import {norm} from './match.mjs';
 // 全屏总览：
@@ -163,6 +163,8 @@ export function install(ctx){
         node.setAttribute('aria-selected',String(i===sel));badge(node,i);inSpan(node,i);place(node,i);grid.append(node);nodes.set(i,node);
       }
       // 已在队列里的只更新优先级（imageJob 对同一个槽位不会重复读取）；缓存命中时立即显示。
+      // 视频、音频：固定样式的占位（media.mjs），不读文件。
+      if(pageKind(page)!=='image'){if(!node.firstChild.firstChild)node.firstChild.append(ctx.mediaTile(page));return;}
       imageJob(node.firstChild,()=>view.hooks.file(b,page),visible?1:3,true,(w,h)=>{if(page.w!==w||page.h!==h){page.w=w;page.h=h;dirty=true;schedule();}},
         ()=>node.classList.add('failed'),pageKey(b,page));
     });

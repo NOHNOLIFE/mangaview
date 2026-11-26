@@ -28,7 +28,8 @@ Handles huge libraries, works offline, and never uploads your files.
 
 ## Features
 
-- **Open anything local**: pick or drag in folders and loose images. Every folder that directly contains images becomes a book.
+- **Open anything local**: pick or drag in folders and loose images. Every folder that directly contains images, videos or audio becomes a book.
+- **Video and audio**: videos and audio the browser can play sit in the same strip as images, with their own controls, one volume for the whole app, and autoplay.
 - **Import as one book**: a series stored as several folders (one per volume, say) can be joined into a single book and read straight through.
 - **Built for long strips**: each book is one continuous vertical strip with no snapping at image borders, so tall webtoon pages read naturally.
 - **Fast with big libraries**: only visible pages are created and decoded, behind a small read queue. Thousands of images on a spinning hard drive stay responsive.
@@ -38,7 +39,7 @@ Handles huge libraries, works offline, and never uploads your files.
 - **Tags**: add your own tags to any book, with suggestions from the tags you already use. Each tag gets its own colour, and you can filter by clicking a tag or typing `#tag` in the search box.
 - **Bookmarks**: press and hold `F` to bookmark the current spot, or `Shift+F` to mark the end of a section. Bookmarks are listed as small pictures of the page, because nobody remembers file names, and thumbnails show which pages have them.
 - **Sorting**: by file name or modification time (either direction), or shuffle. Set a default or override it per book.
-- **Picks up where you left off** in every book, and refreshes folders to pick up added or removed images.
+- **Picks up where you left off** in every book, and refreshes folders to pick up added or removed files.
 - **Nothing is lost when files move**: books whose folder can't be found go to *Missing* with their covers, tags and bookmarks intact, and can be reconnected later.
 - **Backup**: export all app data to one file and import it on another computer.
 - **Installable and offline**: install it as an app. After the first load it runs without a network connection.
@@ -48,13 +49,13 @@ Handles huge libraries, works offline, and never uploads your files.
 
 1. Open **https://nohnolife.github.io/mangaview/** in the latest desktop **Chrome** or **Edge**.
 2. *(Optional)* Install it: click the install icon at the right end of the address bar, or open the browser menu and choose *Install MangaView*. It opens in its own window, can be pinned to the taskbar and works offline.
-3. Add a folder or drop images into the window.
+3. Add a folder or drop images, videos or audio into the window.
 
 New versions arrive automatically. There is nothing to download, unzip or set up.
 
 ## How to use
 
-Use **Add folder** or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Dropping only image files adds them to the loose images. When the drop includes folders, the overlay shows **Import as one book** and **Add to Loose images** side by side at the bottom; drop on **Add to Loose images** to add every image, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
+Use **Add folder** or pick images with **Add to Loose images** on the welcome screen, or drop them anywhere in the window. Dropping only files (images, videos or audio, no folders) adds them to the loose images. When the drop includes folders, the overlay shows **Import as one book** and **Add to Loose images** side by side at the bottom; drop on **Add to Loose images** to add every image, video and audio file, including those inside folders, to the loose images instead of making a book per folder. Move the mouse to the top edge of the window (or press **T**) to open the toolbar.
 
 ### Mouse
 
@@ -63,6 +64,7 @@ Use **Add folder** or pick images with **Add to Loose images** on the welcome sc
 | Wheel / left-drag | Scroll |
 | Middle click | Browser auto-scroll (where your OS and browser support it) |
 | Click the left / right half | Back / forward one screen |
+| Click a video / audio (outside its controls) | Play / pause (doesn't turn the screen) |
 | Move to the top window edge | Open the toolbar |
 | Move to the bottom window edge | Open the action bar: previous book, back to top, jump to end, next book |
 | Move to the left window edge | Pop out the shelf bookmarks (when not pinned) |
@@ -77,12 +79,15 @@ The full-screen bookmark and thumbnail views switch between a regular grid (the 
 
 | Keys | Result |
 | --- | --- |
-| `Space` / `S` / `↓` | Scroll down (hold to keep scrolling) |
-| `Shift+Space` / `W` / `↑` | Scroll up (hold to keep scrolling) |
+| `S` / `↓` | Scroll down (hold to keep scrolling) |
+| `W` / `↑` | Scroll up (hold to keep scrolling) |
+| `Space` | Play / pause the current media (no longer scrolls, nor does `Shift+Space`) |
 | `Shift+S` / `Shift+↓` | Next book (one per press; holding doesn't repeat) |
 | `Shift+W` / `Shift+↑` | Previous book |
-| `D` / `→` | Forward one screen |
-| `A` / `←` | Back one screen |
+| `D` / `→` | Tap: forward one screen. Hold: fast-forward the current media |
+| `A` / `←` | Tap: back one screen. Hold: rewind the current media |
+| `Q` / `;` | Volume down 5% (hold to keep going) |
+| `E` / `'` | Volume up 5% (hold to keep going) |
 | `F` / `Enter` | Tap: next bookmark. Hold: add a bookmark |
 | `Shift+F` / `Shift+Enter` | Tap: previous bookmark. Hold: add a section bookmark |
 | `Home` / `End` | Start / end of the book. Press again to change books |
@@ -104,9 +109,9 @@ The keyboard button in the toolbar shows these controls inside the app as a pict
 
 Rest the mouse at the top edge and the toolbar appears, centred over the page: a row of icons (hover one to see its name) that wraps onto more lines in a narrow window, with the book title and progress just below. You can also press **T**, or press Tab to focus the menu button in the top-left corner and then Enter.
 
-Rest the mouse at the bottom edge for the action bar. Its buttons are always the same: **Previous book**, **Back to top**, the current position (images read / total), **Jump to end** and **Next book**; at the start or end the matching button is greyed out. Changing books lives here only; the toolbar has no previous / next buttons. While shelf filters are active, previous / next book only move through the filtered results, and the buttons carry a small dot to show it.
+Rest the mouse at the bottom edge for the action bar. Its buttons are always the same: **Previous book**, **Back to top**, the current position (current page / total), **Jump to end** and **Next book**; at the start or end the matching button is greyed out. Changing books lives here only; the toolbar has no previous / next buttons. While shelf filters are active, previous / next book only move through the filtered results, and the buttons carry a small dot to show it.
 
-Both fade out when the mouse leaves, and each edge pop-out can be turned off in **Settings → Toolbar**; **T** still works. Clicking the page only turns it (left half back, right half forward). On a touch screen, tap the top of the page to show or hide the toolbar.
+Both fade out when the mouse leaves, and each edge pop-out can be turned off in **Settings → Toolbar**; **T** still works. Clicking the page only turns it (left half back, right half forward); clicking a video or audio plays or pauses it. On a touch screen, tap the top of the page to show or hide the toolbar.
 
 ### Shelf, library and tags
 
@@ -127,7 +132,7 @@ When the shelf opens, the book you're reading is selected and scrolled into view
 
 **Sorting books**: the sort menu sorts by date added (descending, newest first, by default), folder time or name, ascending or descending (ascending: oldest first / A→Z). Shelf, library and all share this setting, and previous / next book and the shelf bookmarks follow the same order. Browsers can't read a folder's own modification time, so *folder time* is the newest modification time of the images inside; it is worked out in the background only when you pick that sort (file info only, no image reading), and books not done yet go last.
 
-The **Batch actions** menu copies the listed titles, has **Move all to shelf / library** for everything the current filters show, and **Clear shelf / library**, which deletes the records of every book in that list (filters don't apply) after asking for confirmation. Image files are never deleted.
+The **Batch actions** menu copies the listed titles, has **Move all to shelf / library** for everything the current filters show, and **Clear shelf / library**, which deletes the records of every book in that list (filters don't apply) after asking for confirmation. The original files are never deleted.
 
 The pencil button on a cover edits the title. Only the displayed name changes, not the folder, and searching for the folder name still finds the book; leave it empty to restore the original. When editing tags, existing tags are suggested in a pop-up below the box as you type (`↑` `↓` to choose, then `←` `→` too, Enter to add, `Esc` closes the suggestions first), and an empty box lists your recent and most-used tags. Tag colours are picked automatically from the tag name, so the same tag always has the same colour.
 
@@ -145,6 +150,20 @@ When a series is split across several folders (one per volume, for example), you
 ### Loose images
 
 There is a single **Loose images** album: images picked with **Add to Loose images**, images dropped on their own, and everything dropped on the **Add to Loose images** area all go there. Different images with the same name can live side by side, and adding the same file again doesn't duplicate it. If some of its images can't be found, the album stays readable and those images show as unreadable; use **Locate originals** (or **Restore** on its cover when the whole album is missing) and pick the folder that holds them, at any depth, to find them again by relative path and file name.
+
+### Video and audio
+
+Videos (mp4, m4v, webm, mkv, mov, ogv) and audio (mp3, flac, wav, ogg, oga, opus, m4a, aac, weba) that the browser can play natively are recognised by extension, just like images, and sit as pages in the same vertical strip; sorting (file name, modification time, shuffle) treats them all alike. A folder with only videos or audio is a book too, and videos or audio dropped on their own join the loose images.
+
+- **Unsupported formats**: media files the browser can't play (avi, wmv, flv, rmvb, ts, mpg, wma, ape and so on) are not imported; the import result says how many and lists their extensions. Refreshing doesn't repeat the note. A file with a supported extension that still won't play (some HEVC mkv files, for example) shows **The browser can't play this file** with **Retry** on its page, without affecting other pages. That result is saved with the file's size and modification time and not tried again while the file is unchanged, only after **Retry** or when the file changes.
+- **Layout**: a video follows the same width rule as images (**Fit to width**), with its height from the frame ratio. If it would be taller than the reading area, it shrinks to exactly one screen, centred, so the whole frame is visible (while you resize the window, it is re-laid out about 0.2 s after you stop; until then the picture shrinks inside its old space). The frame size is read the first time a video is shown and saved; until then it takes a 16:9 placeholder, and the real size never pushes the current view away. Audio is a fixed-height bar with a type icon, the file name and the controls, centred with a maximum width.
+- **Controls**: play / pause, a seek bar you can click or drag, current time / duration, mute and a volume slider, plus fullscreen for videos (the whole player, picture and controls, goes fullscreen, and keyboard shortcuts keep working). Controls are icons with tooltips; when space runs short, secondary controls such as the volume slider move into a **More** pop-up. Video controls float over the bottom of the picture and fade out when the mouse leaves, or after a few seconds of stillness while playing; audio controls are always shown. Clicking the picture plays or pauses (it doesn't turn the screen); dragging still scrolls.
+- **Current media**: shortcuts act on the media playing in this window or, if none is, on the one whose middle is in view and closest to the centre of the screen (paused ones count). Only one media plays per window.
+- **Autoplay** (**Settings → Reading**, on by default): once scrolling has stopped for about 0.3 s and nothing is playing, the media nearest the centre starts; scrolling quickly past doesn't trigger it. Playing media pause as soon as their middle leaves the view, and media you paused yourself don't start again until they have left the view and come back. After the app opens or you switch books, autoplay waits for a key press, click or wheel turn first, so nothing starts making sound on its own.
+- **Volume**: one volume and mute setting for the whole app, shared by every video and audio file, remembered and synced across windows. `Q` / `;` turn it down and `E` / `'` up by 5% (hold to keep going), with a brief volume indicator.
+- **Seeking**: hold `D` / `→` to fast-forward or `A` / `←` to rewind the current media (paused ones too). It jumps about every 0.25 s, in steps that grow the longer you hold (2 s, 5 s, 10 s, then 30 s), showing the total offset and target time, and stops when you let go. A tap still turns the screen.
+- **Disk use**: importing and refreshing only look at file names and never open media files. Only media in view are handed to the browser, which reads them on demand (never into memory as a whole), and they are released when they leave the view; neighbouring media are not preloaded.
+- In the thumbnail strip and full-screen thumbnails, videos and audio show as fixed tiles with a type icon, the file name and the duration. On the shelf, a book whose first page is a video or audio file shows a cover with a type icon for now.
 
 ### Bookmarks
 
@@ -183,7 +202,7 @@ In **Sort**, choose **This folder / book** to set an order for the current book 
 
 ### Refreshing folders
 
-MangaView checks your folders for added or removed images in three cases (the first can be turned off in **Settings**):
+MangaView checks your folders for added or removed files in three cases (the first can be turned off in **Settings**):
 
 - each time the app opens or the page is reloaded, it checks the current book first, then works through every other folder it still has access to, one at a time in the background while the browser is idle, so reading isn't slowed down; with several windows open, only one of them checks the other folders, once;
 - when you switch back to the window, it checks the current book;
@@ -207,7 +226,7 @@ You can open several MangaView windows at once (browser tabs or windows of the i
 
 - Changes to books, bookmarks, tags, covers, titles and which list a book is in show up in the other windows within a second, updating only what changed. Different changes to the same book from different windows are all kept (for example, a bookmark added in each).
 - When one window deletes a book, other windows reading it say so and move on to the next book; the record is not written back.
-- Settings (everything in the settings panel, the language, the default sort) apply to all windows at once. Layout (pinned thumbnail strip or shelf bookmarks, widths, list styles) is separate for each window; the last change is used the next time you open the app.
+- Settings (everything in the settings panel, the language, the default sort, volume and mute) apply to all windows at once. Layout (pinned thumbnail strip or shelf bookmarks, widths, list styles) is separate for each window; the last change is used the next time you open the app.
 - Each window has its own current book and reading position; for the same book, the position saved last wins.
 - Background disk work, such as checking every folder at startup and making covers, runs in one window only, so the other windows don't read the drive again. If that window closes, or goes to the background while another window is in front, another window takes over.
 - After **Restore default settings**, importing a backup or clearing all data, the other windows reload automatically.
@@ -215,7 +234,7 @@ You can open several MangaView windows at once (browser tabs or windows of the i
 
 ### Your data
 
-Images are read on your device and never uploaded or copied. The browser stores a book index, read-only file handles, sort settings, reading positions, tags, bookmarks, search presets and small compressed thumbnails (covers and bookmarks, never the original images). Clearing site data erases all of this.
+Images, videos and audio are read on your device and never uploaded or copied. The browser stores a book index, read-only file handles, sort settings, reading positions, tags, bookmarks, search presets and small compressed thumbnails (covers and bookmarks, never the original files). Clearing site data erases all of this.
 
 **Settings → Data** shows how much storage is used, and can export everything to one JSON file and import it again, merging with or replacing the current data. The file contains no images and no folder access, so after importing on another computer the books appear under *Missing*: use **Restore from folder…** to reconnect them. Backups use format 2: older backups can still be imported, but older versions of the app can't import new ones. When storage gets close to the browser's quota, MangaView suggests deleting records of books you no longer need.
 
@@ -261,10 +280,11 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `sections.mjs` | Pairing rules for section bookmarks |
 | `cover.mjs` | Custom covers |
 | `help.mjs`, `help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
+| `media.mjs`, `media.css` | Video and audio: player and controls, current media, autoplay, shared volume, media keys |
 | `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
 | `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), session cache of page thumbnails |
 | `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
-| `model.mjs` | Sorting and layout math |
+| `model.mjs` | Page types, sorting and layout math |
 | `sources.mjs` | Folder scanning and file access, books and their source folders (volumes) |
 | `store.mjs` | IndexedDB storage |
 | `merge.mjs` | Field-by-field / entry-by-entry merging when several windows save the same book |
@@ -278,7 +298,7 @@ Tests need Node 22.12+:
 
 ```sh
 node --test tests/core.test.mjs
-# End-to-end tests in headless Chrome or Edge (each uses a throwaway profile and generated images):
+# End-to-end tests in headless Chrome or Edge (each uses a throwaway profile and generated images; videos and audio are generated in the test page by tests/media-fixtures.mjs):
 node tests/browser.mjs "<path to chrome.exe or msedge.exe>"
 node tests/shelf.browser.mjs "<path>"
 node tests/shelfui.browser.mjs "<path>"
@@ -293,6 +313,7 @@ node tests/help.browser.mjs "<path>"
 node tests/queue.browser.mjs "<path>"
 node tests/windows.browser.mjs "<path>"
 node tests/sections.browser.mjs "<path>"
+node tests/media.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:
@@ -301,7 +322,8 @@ Things the automated tests can't cover:
 - importing thousands of images from a real hard drive (not an SSD) and switching books while scrolling;
 - middle-click auto-scroll across tall images on Windows;
 - the real window frame of the installed app;
-- handing background disk work over as real windows move between the foreground, the background and minimized.
+- handing background disk work over as real windows move between the foreground, the background and minimized;
+- a large video library on a real hard drive (disk use when opening and seeking), how videos look while dragging a real window edge, and real video fullscreen.
 
 ### Releasing
 

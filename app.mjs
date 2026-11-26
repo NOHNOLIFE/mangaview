@@ -4,7 +4,7 @@ import {library,thumbs,update,isFrozen} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget} from './thumbs.mjs';
 import {snap,merge,changes,adopt,refresh} from './merge.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {timed,isStuck,isDead,probe,source,scan,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
+import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -16,6 +16,7 @@ import {install as focusMode} from './focus.mjs';
 import {install as helpPanel} from './help.mjs';
 import {install as windows} from './windows.mjs';
 import {install as coverPicker} from './cover.mjs';
+import {install as mediaPlayer} from './media.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -261,13 +262,17 @@ async function relinkAll(book,links){
 }
 // 书架页正显示「书库」时导入到书库，其他情况导入到书架。书架页开着时不切换正在读的书，只提示导入结果。
 const importPlace=()=>shelf.open&&ctx.shelfView?.()==='library'?'library':'shelf';
-function imported(list,place){
-  if(!list.length){notice('noImages');return;}
+// odd：导入时跳过的、浏览器播不了的媒体文件（sources.mjs skipped），在导入结果里说明数量和扩展名；刷新不提示。
+const oddText=odd=>odd?.n?fmt('unsupportedN',{n:odd.n,exts:[...odd.exts].sort().map(x=>'.'+x).join(' ')}):'';
+function imported(list,place,odd){
+  const bad=oddText(odd);
+  if(!list.length){notice(null,[t('noImages'),bad].filter(Boolean).join(' · '),bad?8000:undefined);return;}
   if($('notice').textContent===t('scanning'))$('notice').textContent='';
-  if(shelf.open&&current)notice(null,fmt(place==='library'?'addedLibraryN':'addedShelfN',{n:list.length}));
+  if(shelf.open&&current)notice(null,[fmt(place==='library'?'addedLibraryN':'addedShelfN',{n:list.length}),bad].filter(Boolean).join(' · '),bad?8000:undefined);
+  else if(bad)notice(null,bad,8000);
   ctx.redrawShelf();emit('books');
 }
-async function add(groups,place=importPlace()){
+async function add(groups,place=importPlace(),odd=null){
   const list=[],quiet=shelf.open&&!!current,later=new Map();
   notice('scanning');
   for await(const group of groups){
@@ -276,19 +281,19 @@ async function add(groups,place=importPlace()){
     if(list.length===1&&!quiet&&current!==book)select(book);
   }
   for(const [b,links] of later)if(books.has(b.id))await relinkAll(b,links);
-  imported(list,place);
+  imported(list,place,odd);
   return list;
 }
 // 导入为单个作品：所选的一个或多个文件夹（含其下所有带图片的子文件夹）合成一本书，每个文件夹是一个源。
 // 同一组所选文件夹（或同一组源）再次导入时更新已有的那本；只有一个带图片的文件夹时按普通导入处理。散图仍单独导入。
 // 作品名用所选（拖入）的根文件夹名，多个时取按文件名顺序的第一个。只有一个带图片的文件夹且它在根文件夹之下时，
 // 书仍以它为源（识别、恢复照旧），根文件夹名作为显示名（name），搜索原文件夹名仍能找到；书名已编辑过的不覆盖。
-async function addMerged(roots,groups,place=importPlace()){
+async function addMerged(roots,groups,place=importPlace(),odd=null){
   const folders=[],loose=[];
   notice('scanning');
   for await(const g of groups){(g.path?folders:loose).push(g);if(folders.length%50===0&&folders.length)notice(null,fmt('scanningN',{n:folders.length}),120000);}
   if(folders.length<2){
-    const list=await add(folders.concat(loose),place),root=folders[0]?.path?.split('/')[0],book=folders.length?list[0]:null;
+    const list=await add(folders.concat(loose),place,odd),root=folders[0]?.path?.split('/')[0],book=folders.length?list[0]:null;
     if(book&&root&&root!==folders[0].title&&!book.name){book.name=root;await persist(book);ctx.redrawShelf();toolsState();emit('books');}
     return;
   }
@@ -315,7 +320,7 @@ async function addMerged(roots,groups,place=importPlace()){
   for(const g of loose)list.push(await addGroup(g,place));
   if(!(shelf.open&&current)&&current!==book)select(book);
   imported(list,place);
-  notice(null,fmt('mergedDone',{name:clipEnd(title(book)),n:book.sources.length}));
+  notice(null,[fmt('mergedDone',{name:clipEnd(title(book)),n:book.sources.length}),oddText(odd)].filter(Boolean).join(' · '),odd?.n?8000:undefined);
 }
 // 只比较目录句柄；记录里的源没有句柄（备份导入后尚未接回，或回退模式导入）时按相对路径比较。
 async function findMerged(roots,folders){
@@ -351,14 +356,14 @@ async function rebuild(book,order){
 let pendingInput=null,pendingMerge=false;
 function input(kind,book,merge=false){pendingInput=book;pendingMerge=merge;const el=$(kind+'Input');el.value='';el.click();}
 for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
-  const groups=fileGroups(e.target.files),book=pendingInput,merge=pendingMerge;pendingInput=null;pendingMerge=false;
+  const odd=skipped(),groups=fileGroups(e.target.files,odd),book=pendingInput,merge=pendingMerge;pendingInput=null;pendingMerge=false;
   if(book&&isLoose(book)){const [g]=looseFiles(e.target.files);await rebound(book,g?reconnect(book,g):0);}
   else if(book){let count=0;
     for(const g of groups){const s=isMerged(book)?book.sources.find(s=>s.title===g.title):book.sources[0];
       if(isMerged(book)?s:!book.title||g.title===book.title||groups.length===1)count+=reconnect(book,g,s);}
     await rebound(book,count);}
-  else if(merge)await addMerged(null,groups);
-  else await add(groups);
+  else if(merge)await addMerged(null,groups,undefined,odd);
+  else await add(groups,undefined,odd);
 });
 async function rebound(book,count){if(!count){notice('noImages');return;}settle(book);await arrange(book);}
 // 散图图集定位原文件 / 恢复：在所选文件夹里（递归）按“相对目录 + 文件名”找回各页，见 sources.mjs reconnect。返回找回的页数。
@@ -367,22 +372,23 @@ async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
     if(book&&isLoose(book))await relocate(book,dir);
     else if(book){const pages=[];for await(const h of dir.values())if(h.kind==='file')pages.push({name:h.name});await rebound(book,reconnect(book,{dir,pages}));}
-    else await add(scan(dir));
-  }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('imageTypes'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg']}}]});
-    await add(handleGroups(handles));
+    else{const odd=skipped();await add(scan(dir,'',odd),undefined,odd);}
+  }else if(kind==='file'&&window.showOpenFilePicker){const handles=await showOpenFilePicker({multiple:true,types:[{description:t('imageTypes'),accept:{'image/*':['.jpg','.jpeg','.png','.webp','.gif','.avif','.bmp','.svg'],
+      'video/*':['.mp4','.m4v','.webm','.mkv','.mov','.ogv'],'audio/*':['.mp3','.flac','.wav','.ogg','.oga','.opus','.m4a','.aac','.weba']}}]});
+    const odd=skipped();await add(handleGroups(handles,odd),undefined,odd);
   }else input(kind,book);
 }
 // 不依赖拖拽的「导入为单个作品」：选一个文件夹，其下所有带图片的文件夹合成一本。
 async function pickMerged(){
   if(!window.showDirectoryPicker)return input('folder',null,true);
-  const dir=await showDirectoryPicker({mode:'read'});await addMerged([dir],scan(dir));
+  const dir=await showDirectoryPicker({mode:'read'}),odd=skipped();await addMerged([dir],scan(dir,'',odd),undefined,odd);
 }
 // 拖入覆盖层：放在顶层（popover），书架等对话框打开时也看得见。上方是默认区域（按文件夹建书），下方左右并排「导入为单个作品」和「添加到散图图集」两块区域。
 // 散图区域：拖入内容里的所有图片（包括文件夹里的，递归）都作为散图加入散图图集，不按文件夹建书。
 // 只拖入图片文件（没有文件夹）时，整个覆盖层就是「添加到散图图集」。拖动途中读不到文件内容，只能看 items 的 kind / type：
-// 图片文件的 type 是 image/*，文件夹的 type 为空；判断不出时按含文件夹处理。
+// 图片、视频、音频文件的 type 是 image/* 等，文件夹的 type 为空；判断不出时按含文件夹处理。
 let dragDepth=0,onlyImages=false;const dropOverlay=$('dropOverlay'),zones=[...dropOverlay.querySelectorAll('.zone')];
-const imagesOnly=dt=>{const items=[...dt?.items||[]];return items.length>0&&items.every(x=>x.kind==='file'&&x.type.startsWith('image/'));};
+const imagesOnly=dt=>{const items=[...dt?.items||[]];return items.length>0&&items.every(x=>x.kind==='file'&&/^(image|video|audio)\//.test(x.type));};
 const zoneAt=e=>{if(dropOverlay.hidden)return null;if(onlyImages)return 'loose';for(const z of zones){const r=z.getBoundingClientRect();if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)return z.dataset.zone;}return null;};
 function overlay(show,dt){
   if(show){onlyImages=imagesOnly(dt);dropOverlay.classList.toggle('images',onlyImages);dropOverlay.querySelector('.box use').setAttribute('href',onlyImages?'#i-image-plus':'#i-upload');
@@ -398,12 +404,13 @@ window.addEventListener('drop',e=>{
   dragDepth=0;overlay(false);
   if(!e.dataTransfer.types.includes('Files'))return;e.preventDefault();
   const items=[...e.dataTransfer.items].filter(x=>x.kind==='file');
+  const odd=skipped();
   if(items.length&&items[0].getAsFileSystemHandle){const handles=items.map(x=>x.getAsFileSystemHandle());safe(async()=>{
     const list=(await Promise.all(handles)).filter(Boolean);
-    if(zone==='merge')await addMerged(list.filter(h=>h.kind==='directory'),handleGroups(list),place);
-    else if(zone==='loose'){notice('scanning');await add(await looseImages(list),place);}
-    else await add(handleGroups(list),place);})();}
-  else{const files=e.dataTransfer.files;safe(()=>zone==='merge'?addMerged(null,fileGroups(files),place):add(zone==='loose'?looseFiles(files):fileGroups(files),place))();}
+    if(zone==='merge')await addMerged(list.filter(h=>h.kind==='directory'),handleGroups(list,odd),place,odd);
+    else if(zone==='loose'){notice('scanning');await add(await looseImages(list,odd),place,odd);}
+    else await add(handleGroups(list,odd),place,odd);})();}
+  else{const files=e.dataTransfer.files;safe(()=>zone==='merge'?addMerged(null,fileGroups(files,odd),place,odd):add(zone==='loose'?looseFiles(files,odd):fileGroups(files,odd),place,odd))();}
 });
 
 async function copy(value){await navigator.clipboard.writeText(value);notice('copied');}
@@ -598,16 +605,17 @@ grip.onpointermove=e=>{if(resizing)setWidth(innerWidth-e.clientX);};grip.onlostp
 grip.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();e.stopPropagation();put('width',setWidth($('panel').offsetWidth+(e.key==='ArrowLeft'?16:-16)));}};
 
 function screenStep(d){main.scrollTop+=d*Math.max(1,main.clientHeight-64);}
+// 带 data-nodrag 的区域（播放器的壳、可选的文件名等）不参与拖动和点击翻屏；click 收到按下时的目标（指针捕获后 pointerup 的目标是容器本身）。
 function drag(el,click){let start=null;
-  el.addEventListener('pointerdown',e=>{if(e.button!==0||e.offsetX>=el.clientWidth&&e.target===el)return;start={y:e.clientY,x:e.clientX,top:el.scrollTop,moved:false};el.setPointerCapture(e.pointerId);});
+  el.addEventListener('pointerdown',e=>{if(e.button!==0||e.offsetX>=el.clientWidth&&e.target===el||e.target.closest?.('[data-nodrag]'))return;start={y:e.clientY,x:e.clientX,top:el.scrollTop,moved:false,target:e.target};el.setPointerCapture(e.pointerId);});
   el.addEventListener('pointermove',e=>{if(!start)return;const dy=e.clientY-start.y;if(Math.abs(dy)>4||Math.abs(e.clientX-start.x)>4)start.moved=true;if(start.moved)el.scrollTop=start.top-dy;});
-  el.addEventListener('pointerup',e=>{if(e.button!==0||!start)return;const moved=start.moved;start=null;if(!moved)click(e);});el.onlostpointercapture=()=>{start=null;};
+  el.addEventListener('pointerup',e=>{if(e.button!==0||!start)return;const {moved,target}=start;start=null;if(!moved)click(e,target);});el.onlostpointercapture=()=>{start=null;};
 }
-// 点击正文：左半屏前一屏、右半屏后一屏；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的操作栏里（toolbar.mjs）。
+// 点击正文：左半屏前一屏、右半屏后一屏；点在视频、音频上是播放 / 暂停（media.mjs）；触屏点正文顶部的窄条开关工具栏（触屏没有鼠标悬停）。上 / 下一本、回到书首 / 滚到书尾在底缘弹出的操作栏里（toolbar.mjs）。
 const atStart=()=>main.scrollTop<1, atEnd=()=>main.scrollHeight-main.scrollTop-main.clientHeight<=1;
 function toStart(){if(atStart())step(-1);else main.scrollTop=0;}
 function toEnd(){if(atEnd())step(1);else main.scrollTop=main.scrollHeight;}
-drag(main,e=>{const r=main.getBoundingClientRect();if(e.pointerType!=='mouse'&&e.clientY-r.top<=40){showBar(!showing(bar));return;}screenStep(e.clientX-r.left<main.clientWidth/2?-1:1);});
+drag(main,(e,target)=>{const r=main.getBoundingClientRect();if(e.pointerType!=='mouse'&&e.clientY-r.top<=40){showBar(!showing(bar));return;}if(ctx.media?.tap(target))return;screenStep(e.clientX-r.left<main.clientWidth/2?-1:1);});
 drag(nav,e=>view.fromPreview(e.clientY-nav.getBoundingClientRect().top));
 let hold=null,frame;function stop(){hold=null;cancelAnimationFrame(frame);}
 // 长按翻页键（A / D / ← / →）：按满 HOLD_LONG 算长按，松开时不翻屏，交给 ctx.pageHold（{start(d),stop()}，留给媒体快进 / 快退；未接入时长按无功能）。
@@ -633,8 +641,8 @@ window.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   // Shift+W / Shift+↑ 上一作品、Shift+S / Shift+↓ 下一作品：按下切换一次，按住不连续触发。
   if(e.shiftKey&&['w','arrowup','s','arrowdown'].includes(k)){e.preventDefault();if(!e.repeat)step(['w','arrowup'].includes(k)?-1:1);return;}
-  // 空格 / S / ↓ 向下、Shift+空格 / W / ↑ 向上：按住持续滚动。
-  if([' ','s','arrowdown','w','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k===' '?(e.shiftKey?-1:1):['w','arrowup'].includes(k)?-1:1);return;}
+  // S / ↓ 向下、W / ↑ 向上：按住持续滚动。空格（含 Shift）是播放 / 暂停当前媒体（media.mjs 的按键），不再滚动。
+  if(['s','arrowdown','w','arrowup'].includes(k)){e.preventDefault();startHold(e.code,['w','arrowup'].includes(k)?-1:1);return;}
   // D / → 、A / ←：短按（松开时）翻一屏；长按见 HOLD_LONG。
   if(['d','arrowright','a','arrowleft'].includes(k)){e.preventDefault();if(e.repeat||pageHold)return;
     const p=pageHold={code:e.code,d:['a','arrowleft'].includes(k)?-1:1,done:false};
@@ -699,7 +707,7 @@ try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 windows(ctx);shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);coverPicker(ctx);
-toolPanel(ctx);
+toolPanel(ctx);mediaPlayer(ctx);
 
 await probeAll([...books.values()]);probed=true;
 select(books.get(get('last'))||books.values().next().value);
