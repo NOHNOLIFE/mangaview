@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-shelfui-
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -38,11 +38,11 @@ try{
     for(let i=1;i<=80;i++){const d=await root.getDirectoryHandle('B'+String(i).padStart(2,'0'),{create:true});
       for(let j=0;j<1+(i-1)%5;j++){const w=await (await d.getFileHandle(j+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="'+(400+(i%3)*90)+'"><rect width="100%" height="100%" fill="hsl('+i*37+',50%,40%)"/></svg>');await w.close();}}
     window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
-  const records=()=>js(`import('./store.mjs').then(({library})=>library('getAll'))`);
+  const records=()=>js(`import('./src/core/store.mjs').then(({library})=>library('getAll'))`);
   const longWait=async check=>{for(let i=0;i<60;i++){if(await check().catch(()=>false))return;await delay(500);}throw Error('Timed out: '+check);};
   await longWait(async()=>{const r=await records();return r.length===80&&r.every(b=>b.fp?.thumb);});
   // 书签与标签直接写入记录后重新载入；当前书设为 B30（没有书签、没有标签）。
-  await js(`(async()=>{const {library}=await import('./store.mjs');const all=await library('getAll'),by=n=>all.find(b=>b.title===n);
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const all=await library('getAll'),by=n=>all.find(b=>b.title===n);
     for(const n of ['B10','B35','B60']){const b=by(n);b.bookmarks=[{id:'m'+n,name:b.pages[0].name,f:.5,at:Date.now()}];}
     by('B35').bookmarks.push({id:'m2',name:by('B35').pages[0].name,f:.8,at:Date.now()});
     by('B10').tags=['xtag'];by('B35').tags=['xtag','other'];by('B60').tags=['xother'];
@@ -214,7 +214,7 @@ try{
   // 11. 旧数据或损坏的偏好值不报错、不白屏。
   await cdp('Emulation.clearDeviceMetricsOverride');
   await js(`localStorage.setItem('mv2:shelfFilter','{"q":5,"tags":"x","min":"-3","max":"abc","preset":"nope"}');localStorage.setItem('mv2:shelfPresets','{"a":1}');localStorage.setItem('mv2:shelfLayout','"weird"');localStorage.setItem('mv2:recentTags','7');`);
-  await js(`import('./store.mjs').then(async({library})=>{const all=await library('getAll');all[0].tags='bad';all[0].bookmarks=null;await library('put',all[0]);})`);
+  await js(`import('./src/core/store.mjs').then(async({library})=>{const all=await library('getAll');all[0].tags='bad';all[0].bookmarks=null;await library('put',all[0]);})`);
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='B35'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));await wait(async()=>(await names()).length>5);
   assert.equal(await js('layoutBtn.dataset.mode+"|"+query.value+"|"+filterBadge.textContent'),'grid||');

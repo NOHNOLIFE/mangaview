@@ -13,7 +13,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-pbf-'));
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -54,8 +54,8 @@ try{
       const b=new Uint8Array(2+s.length*2);b[0]=0xFF;b[1]=0xFE;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);b[2+i*2]=c&255;b[3+i*2]=c>>8;}return new Blob([b]);};
     window.folder=()=>navigator.storage.getDirectory().then(r=>r.getDirectoryHandle('Pbf',{create:true}));`;
   await js(helpers);
-  const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Pbf'))`);
-  const thumbKeys=()=>js(`import('./store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`);
+  const record=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Pbf'))`);
+  const thumbKeys=()=>js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`);
   const marks=async()=>(await record()).bookmarks.map(b=>[b.name,b.t,b.label??null,b.from??null]);
   const HEX='89504E470D0A1A0A0000000D4948445200000010'.repeat(8);
 

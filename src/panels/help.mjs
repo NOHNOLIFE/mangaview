@@ -2,7 +2,7 @@
 // 键位图只画用得到的局部键盘：有功能的键高亮，键帽上只写键名；其余键是暗淡的占位，只为保持真实的相对位置。
 // 功能说明只在提示框里：悬停、键盘聚焦或点按一个功能键 / 阅读区边缘时显示（与它的 aria-label 相同）；占位键 aria-hidden。
 // 说明只写功能名，不写“打开 / 关闭”“单击”等常规动作；*…* 包住的“长按”和文案里的“Shift”用各自的强调色显示。
-import {extend} from './lang.mjs';
+import {extend} from '../core/lang.mjs';
 extend({
   hkLeft:['Left hand','左手','左手','왼손'],hkRight:['Right hand','右手','右手','오른손'],hkMouse:['Mouse','鼠标','マウス','마우스'],
   hkHold:['Hold','长按','長押し','길게'],

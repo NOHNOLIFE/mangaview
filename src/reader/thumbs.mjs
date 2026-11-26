@@ -1,4 +1,4 @@
-import {thumbs} from './store.mjs';
+import {thumbs} from '../core/store.mjs';
 // 缩略图只存压缩后的 WebP（默认宽 320px），不复制原图：书架瀑布流、过期书和书签都不必再读原图。
 // 用 <img> 解码而不是 createImageBitmap，后者在 Chrome 中不支持 SVG Blob。
 export async function makeThumb(blob,{width=320,crop=null}={}){

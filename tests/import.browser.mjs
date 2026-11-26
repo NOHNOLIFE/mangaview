@@ -12,7 +12,7 @@ const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanif
 let updated=false;
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   let data=await readFile(new URL('../'+path,import.meta.url));
   if(updated&&path==='sw.js')data=data.toString().replace(/(cacheName\s*=\s*prefix\s*\+\s*)'[^']+'/,"$1'browser-test-update'");
   if(updated&&path==='index.html')data=data.toString().replace('</head>','<meta name="test-build" content="new"></head>');
@@ -43,7 +43,7 @@ try{
     for(let i=1;i<=n;i++){const w=await (await d.getFileHandle(i+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="'+(400+i)+'"><rect width="100%" height="100%" fill="'+color+'"/></svg>');await w.close();}};
     window.dirOf=async path=>{let d=await navigator.storage.getDirectory();for(const part of path.split('/'))d=await d.getDirectoryHandle(part);return d;};
     window.rm=async path=>{const parts=path.split('/'),name=parts.pop();const d=parts.length?await dirOf(parts.join('/')):await navigator.storage.getDirectory();await d.removeEntry(name,{recursive:true});};
-    window.records=()=>import('./store.mjs').then(({library})=>library('getAll'));
+    window.records=()=>import('./src/core/store.mjs').then(({library})=>library('getAll'));
     window.byTitle=async t=>(await records()).find(b=>b.title===t);
     window.merged=async()=>(await records()).find(b=>b.title==='s'&&b.sources?.some(s=>s.key));`;
   await js(helpers);
@@ -66,7 +66,7 @@ try{
   await wait(()=>js(`notice.textContent.includes('已添加 1 本到书架')`));
   assert.equal(await js('bookTitle.textContent'),'s');
   // 3. 同一组文件夹再次导入为单个作品时更新原书；新加的一卷按顺序插入，书签按页名保留。
-  await js(`(async()=>{const {library}=await import('./store.mjs');const b=await merged();b.bookmarks=[{id:'m1',name:'Vol 2/1.svg',f:.5,at:1}];await library('put',b);})()`);
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const b=await merged();b.bookmarks=[{id:'m1',name:'Vol 2/1.svg',f:.5,at:1}];await library('put',b);})()`);
   await reload();await wait(()=>js('bookTitle.textContent==="s"'));await open();
   await js(`mk('s','Vol 3',1,'yellow')`);await pick('s','merge');
   await wait(async()=>(await js('merged()')).sources.length===4);
@@ -177,7 +177,7 @@ try{
   await js('shelf.close()');await js(`drag('dragenter',10,10)`);assert.equal(await js('dropText.textContent'),'松开即可添加到书架');await js(`drag('dragleave',10,10)`);
   assert.ok(await js('dropOverlay.hidden'));
   // 8. 旧版记录（单个 dir / title / path）和损坏的记录：载入时归一化，不报错、不白屏。
-  await js(`(async()=>{const {library}=await import('./store.mjs');
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');
     await library('put',{id:'legacy',title:'Vol 1',dir:await dirOf('m2/Vol 1'),path:'old/Vol 1',pages:[{name:'1.svg',w:300,h:401},{name:'2.svg'},{name:'3.svg'}],sortOverride:null,place:'shelf',tags:['old'],bookmarks:[{id:'b',name:'2.svg',f:0,at:1}],added:1});
     await library('put',{id:'broken',title:'Broken',pages:'oops',sources:'bad',parked:5,roots:7,added:2});
     localStorage.setItem('mv2:last',JSON.stringify('legacy'));})()`);
@@ -252,21 +252,21 @@ try{
   assert.deepEqual((await fb())[0].sources.map(s=>s.key),['X','Y']);
   await js(`(async()=>{await mk('t','P',2,'red');await mk('t','Q',2,'blue');})()`);await pick('t','merge');
   await wait(async()=>(await js(`byTitle('t')`))?.sources?.every(s=>s.fp?.hash));
-  await js(`(async()=>{const {library}=await import('./store.mjs');const b=await byTitle('t');delete b.roots;const s=b.sources.find(s=>s.key==='Q');delete s.dir;s.fp={name:'1.svg',size:1,hash:'bogus:1'};await library('put',b);})()`);
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const b=await byTitle('t');delete b.roots;const s=b.sources.find(s=>s.key==='Q');delete s.dir;s.fp={name:'1.svg',size:1,hash:'bogus:1'};await library('put',b);})()`);
   await reload();await open();await pick('t','merge');await wait(()=>js(`notice.textContent.includes('已合成一本：t')`));
   assert.equal((await js('records()')).filter(b=>b.title==='t').length,1);
   assert.equal(await js(`byTitle('t').then(b=>b.sources.map(s=>s.key+':'+!!s.dir).join())`),'P:true,Q:true');
   // 14. 没有任何目录句柄的合并作品点「重新授权」：按卷匹配所选文件夹，不默认绑到第一卷。
   await js(`(async()=>{await mk('u','U1',2,'red');await mk('u','U2',3,'blue');})()`);await pick('u','merge');
   await wait(async()=>(await js(`byTitle('u')`))?.sources?.every(s=>s.fp?.hash));
-  await js(`(async()=>{const {library}=await import('./store.mjs');const b=await byTitle('u');delete b.roots;for(const s of b.sources)delete s.dir;await library('put',b);localStorage.setItem('mv2:last',JSON.stringify(b.id));})()`);
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const b=await byTitle('u');delete b.roots;for(const s of b.sources)delete s.dir;await library('put',b);localStorage.setItem('mv2:last',JSON.stringify(b.id));})()`);
   await reload();await wait(()=>js(`bookTitle.textContent==='u'`));
   await js(`(async()=>{const d=await dirOf('u/U2');window.showDirectoryPicker=async()=>d;document.querySelector('[data-act="allow"]').click();})()`);
   await wait(()=>js(`byTitle('u').then(b=>b.sources.map(s=>s.key+':'+!!s.dir).join()==='U1:false,U2:true')`));
   assert.equal((await js(`byTitle('u')`)).sources[1].path,'U2');
   // 15. 旧版的多个散图图集（同名图片曾另建一本）：载入时并成一本（最近打开的那本），书签和播放位置改写到新页名（同一页已有位置的保留原图集的）、书签缩略图随之移动，标签取并集；
   // 过期的散图图集（没有句柄）恢复时不变成文件夹书，而是在所选文件夹里按相对目录 + 文件名逐页找回。
-  await js(`(async()=>{const {library,thumbs}=await import('./store.mjs');await mk('lz','L',2,'orange');await mk('lz/L','sub',1,'teal');
+  await js(`(async()=>{const {library,thumbs}=await import('./src/core/store.mjs');await mk('lz','L',2,'orange');await mk('lz/L','sub',1,'teal');
     for(const b of await library('getAll'))if(!b.title)await library('delete',b.id);
     await library('put',{id:'loose',title:null,pages:[{name:'1.svg'},{name:'2.svg'}],sortOverride:null,place:'shelf',tags:['scraps'],bookmarks:[{id:'lb',name:'2.svg',f:0,at:1}],mediaPos:[{id:'1.svg',t:5}],added:3});
     await library('put',{id:'loose2',title:null,pages:[{name:'2.svg'},{name:'sub/1.svg'}],sortOverride:null,place:'shelf',tags:['more'],bookmarks:[{id:'lb2',name:'2.svg',f:.5,at:2},{id:'lb3',name:'sub/1.svg',f:0,at:3}],mediaPos:[{id:'2.svg',t:7},{id:'sub/1.svg',t:9}],added:4});
@@ -279,7 +279,7 @@ try{
   assert.equal(lz.id,'loose');assert.deepEqual(lz.pages.map(p=>p.name),['1.svg','2.svg','2.svg (2)','sub/1.svg']);
   assert.deepEqual(lz.bookmarks.map(m=>m.id+':'+m.name),['lb:2.svg','lb2:2.svg (2)','lb3:sub/1.svg']);assert.deepEqual(lz.tags,['scraps','more']);
   assert.deepEqual(lz.mediaPos.map(x=>x.id+':'+x.t),['1.svg:5','2.svg (2):7','sub/1.svg:9'],'Play positions move with the pages');
-  assert.ok(await js(`import('./store.mjs').then(async({thumbs})=>!!await thumbs('get','loose:bm:lb2')&&!await thumbs('get','loose2:bm:lb2'))`));
+  assert.ok(await js(`import('./src/core/store.mjs').then(async({thumbs})=>!!await thumbs('get','loose:bm:lb2')&&!await thumbs('get','loose2:bm:lb2'))`));
   assert.equal(await js(`localStorage.getItem('mv2:pos:loose2')`),null);
   await open();await js(`document.querySelector('[data-view="expired"]').click()`);
   await wait(()=>js(`!!document.querySelector('#books .book.expired .pick[aria-label="散图图集"]')`));

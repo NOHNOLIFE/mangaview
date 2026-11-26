@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-windows-
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -44,7 +44,7 @@ async function open(name){
 const booted=p=>wait(()=>p.js('document.querySelector("#empty").hidden===false||document.querySelector("#bookTitle").textContent!=="MangaView"'));
 const raw=(p,body)=>p.js(`new Promise((ok,no)=>{const r=indexedDB.open('mangaview-reader-v2');r.onsuccess=()=>{const db=r.result,tx=db.transaction('books','readwrite'),os=tx.objectStore('books');let out;
   (async()=>{${body}})().then(v=>{out=v;},no);tx.oncomplete=()=>{db.close();ok(out);};tx.onabort=()=>no(tx.error);};r.onerror=()=>no(r.error);})`);
-const records=p=>p.js(`import('./store.mjs').then(({library})=>library('getAll')).then(l=>l.map(b=>({id:b.id,title:b.title,name:b.name??null,place:b.place,tags:b.tags,marks:(b.bookmarks||[]).length,future:b.future??null})))`);
+const records=p=>p.js(`import('./src/core/store.mjs').then(({library})=>library('getAll')).then(l=>l.map(b=>({id:b.id,title:b.title,name:b.name??null,place:b.place,tags:b.tags,marks:(b.bookmarks||[]).length,future:b.future??null})))`);
 const record=async(p,title)=>(await records(p)).find(b=>b.title===title);
 // 在 OPFS 里生成一个文件夹（与默认尺寸 800×1120 相同的图），并让文件夹选择器返回它。
 const folder=(p,name,n,prefix='')=>p.js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('${name}',{create:true});

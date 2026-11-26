@@ -1,5 +1,5 @@
-import {extend} from './lang.mjs';
-import {fits} from './sections.mjs';
+import {extend} from '../core/lang.mjs';
+import {fits} from '../core/sections.mjs';
 // 应用数据导入 / 导出。备份只含书目记录、localStorage 中的 mv2: 键和缩略图；文件句柄无法序列化，导入后需重新关联文件夹。
 extend({
   bakNote:['Backups include book records, tags, bookmarks, reading positions, settings and thumbnails, but not the original files or folder access. After importing on another computer or browser, reconnect each folder.','备份包含书目记录、标签、书签、阅读位置、设置和缩略图，不含原文件和文件夹访问权限。换电脑或换浏览器导入后，需要重新关联文件夹。','バックアップには本の記録・タグ・しおり・読書位置・設定・サムネイルが含まれますが、元のファイル本体とフォルダーへのアクセス権は含まれません。別の PC やブラウザーで読み込んだ後は、フォルダーを再度関連付けてください。','백업에는 책 기록, 태그, 책갈피, 읽기 위치, 설정, 썸네일이 포함되며 원본 파일과 폴더 접근 권한은 포함되지 않습니다. 다른 컴퓨터나 브라우저에서 가져온 뒤에는 폴더를 다시 연결하세요.'],

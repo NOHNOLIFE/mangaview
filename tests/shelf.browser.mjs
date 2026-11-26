@@ -12,7 +12,7 @@ const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanif
 let updated=false;
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   let data=await readFile(new URL('../'+path,import.meta.url));
   if(updated&&path==='sw.js')data=data.toString().replace(/(cacheName\s*=\s*prefix\s*\+\s*)'[^']+'/,"$1'browser-test-update'");
   if(updated&&path==='index.html')data=data.toString().replace('</head>','<meta name="test-build" content="new"></head>');
@@ -40,15 +40,15 @@ try{
   await js(`window.mk=async(root,name,n,color)=>{let d=await navigator.storage.getDirectory();for(const part of root.split('/'))d=await d.getDirectoryHandle(part,{create:true});d=await d.getDirectoryHandle(name,{create:true});
     for(let i=1;i<=n;i++){const w=await (await d.getFileHandle(i+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="'+(400+i)+'"><rect width="100%" height="100%" fill="'+color+'"/></svg>');await w.close();}};
     window.dirOf=async path=>{let d=await navigator.storage.getDirectory();for(const part of path.split('/'))d=await d.getDirectoryHandle(part);return d;};
-    window.records=()=>import('./store.mjs').then(({library})=>library('getAll'));
+    window.records=()=>import('./src/core/store.mjs').then(({library})=>library('getAll'));
     window.byTitle=async t=>(await records()).find(b=>b.title===t);`);
   await js(`(async()=>{await mk('lib','Alpha',3,'red');await mk('lib','Beta',4,'blue');await mk('lib','Gamma',2,'green');
     const root=await dirOf('lib');window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
   await wait(async()=>(await js('records()')).length===3);
   // 封面缩略图在后台生成，只存压缩 WebP 与摘要。
   await wait(()=>js(`records().then(r=>r.every(b=>b.fp?.thumb&&b.fp.cover.hash))`));
-  assert.equal(await js(`import('./store.mjs').then(async({thumbs})=>(await thumbs('getAllKeys')).filter(k=>k.endsWith(':cover')).length)`),3);
-  assert.equal(await js(`import('./store.mjs').then(async({thumbs})=>(await thumbs('getAll'))[0].blob.type)`),'image/webp');
+  assert.equal(await js(`import('./src/core/store.mjs').then(async({thumbs})=>(await thumbs('getAllKeys')).filter(k=>k.endsWith(':cover')).length)`),3);
+  assert.equal(await js(`import('./src/core/store.mjs').then(async({thumbs})=>(await thumbs('getAll'))[0].blob.type)`),'image/webp');
   const open=async()=>{await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));};
   const count=v=>js(`document.querySelector('[data-view="${v}"] .count').textContent`);
   const cards=()=>js(`[...document.querySelectorAll('#books .book .pick')].map(x=>x.getAttribute('aria-label')).sort()`);

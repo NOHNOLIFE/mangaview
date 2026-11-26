@@ -1,8 +1,8 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 全部 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
-import {natural,fileOf,nameOrder,pageKind,kindOf} from './model.mjs';
-import {scan,readMissingTimes,allPages,keyOf,dirOf,isLoose} from './sources.mjs';
-import {norm,coverName,grade,assign,hue,overlap,isMedia as mediaName} from './match.mjs';
-import {extend} from './lang.mjs';
+import {natural,fileOf,nameOrder,pageKind,kindOf} from '../core/model.mjs';
+import {scan,readMissingTimes,allPages,keyOf,dirOf,isLoose} from '../core/sources.mjs';
+import {norm,coverName,grade,assign,hue,overlap,isMedia as mediaName} from '../core/match.mjs';
+import {extend} from '../core/lang.mjs';
 
 extend({
   moreTags:['Show all ({n} more)','展开全部（还有 {n} 个）','すべて表示（あと {n} 個）','모두 보기 ({n}개 더)'],lessTags:['Show less','收起','閉じる','접기'],

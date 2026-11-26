@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-bookmark
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -41,7 +41,7 @@ try{
   const H=await js('reader.clientHeight'),ph=await js('reader.clientWidth*1.4');
   const goto=(n,f)=>js(`reader.scrollTop=${n*ph+f*ph-H/2}`);
   const center=()=>js(`(()=>{const c=(reader.scrollTop+reader.clientHeight/2)/${ph};return [Math.floor(c),+(c-Math.floor(c)).toFixed(3)];})()`);
-  const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.id===JSON.parse(localStorage.getItem('mv2:last'))))`);
+  const record=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.id===JSON.parse(localStorage.getItem('mv2:last'))))`);
   const marks=async()=>(await record()).bookmarks.map(b=>[b.name,+b.f.toFixed(3)]);
   const text=()=>js(`document.getElementById('notice').textContent`);
   const codes={f:['KeyF',70,'f'],F:['KeyF',70,'F'],g:['KeyG',71,'g'],Enter:['Enter',13,'\r'],Escape:['Escape',27,'']};
@@ -65,7 +65,7 @@ try{
   assert.ok(await js('document.querySelector(".hold").classList.contains("done")'),'Completion state is shown');
   await shot('hold-done');
   const book=await record(),thumbKey=book.id+':bm:'+book.bookmarks[0].id;
-  const thumb=await wait(()=>js(`import('./store.mjs').then(async({thumbs})=>{const t=await thumbs('get','${thumbKey}');return t&&[t.blob.type,t.w,t.h];})`));
+  const thumb=await wait(()=>js(`import('./src/core/store.mjs').then(async({thumbs})=>{const t=await thumbs('get','${thumbKey}');return t&&[t.blob.type,t.w,t.h];})`));
   const W=await js('reader.clientWidth');assert.deepEqual(thumb,['image/webp',240,Math.round(240*H/W)],'Thumbnail crops the viewport-shaped area around the centre');
   // 同一张图内、距离小于半屏：拒绝重复添加。中途松开：取消并按短按处理。
   await goto(3,.6);await hold();await wait(async()=>await text()==='There is already a bookmark here');
@@ -73,7 +73,7 @@ try{
   await goto(10,.25);await key('Enter','keyDown');await delay(250);await key('Enter','keyUp');
   await wait(async()=>await text()==='Back to the first bookmark');assert.deepEqual(await center(),[3,.5]);assert.equal((await marks()).length,1);
   await goto(10,.25);await hold('Enter');await goto(20,.75);await hold();
-  await wait(async()=>(await marks()).length===3);await wait(async()=>(await js(`import('./store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`)).filter(k=>k.includes(':bm:')).length===3);
+  await wait(async()=>(await marks()).length===3);await wait(async()=>(await js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`)).filter(k=>k.includes(':bm:')).length===3);
   // 短按依次跳到下一个书签，末尾后回到第一个。
   await js('reader.scrollTop=0');await tap();await wait(async()=>(await center())[0]===3);assert.equal(await text(),'Bookmark 1 / 3');
   await tap();await wait(async()=>(await center())[0]===10);assert.deepEqual(await center(),[10,.25]);assert.equal(await text(),'Bookmark 2 / 3');
@@ -128,7 +128,7 @@ try{
   await wait(()=>js(`getComputedStyle(document.querySelector('.bm-item:nth-child(1) .bm-del')).opacity==='1'`));
   const del=await rect('.bm-item:nth-child(1) .bm-del');await mouse('mouseMoved',del.x,del.y);await mouse('mousePressed',del.x,del.y,'left');await mouse('mouseReleased',del.x,del.y,'left');
   await wait(async()=>(await marks()).length===2);assert.deepEqual(await marks(),[['10.svg',.25],['20.svg',.75]]);
-  assert.equal(await js(`import('./store.mjs').then(({thumbs})=>thumbs('get','${thumbKey}'))`),undefined);
+  assert.equal(await js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('get','${thumbKey}'))`),undefined);
   assert.equal(await js('document.querySelectorAll(".bm-item").length'),2);assert.equal(await js('document.querySelector(".bm-panel").hidden'),false);
   await key('Escape','keyDown');await key('Escape','keyUp');await wait(()=>js('document.querySelector(".bm-panel").hidden'));
 

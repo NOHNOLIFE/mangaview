@@ -13,7 +13,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-mthumbs-
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -44,12 +44,12 @@ try{
   await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});
     window.grabs=0;const d=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'src');
     Object.defineProperty(HTMLMediaElement.prototype,'src',{get(){return d.get.call(this);},set(v){if(!this.closest('.page'))window.grabs++;d.set.call(this,v);},configurable:true});`});
-  const helpers=`window.records=()=>import('./store.mjs').then(({library})=>library('getAll'));
+  const helpers=`window.records=()=>import('./src/core/store.mjs').then(({library})=>library('getAll'));
     window.record=t=>records().then(r=>r.find(b=>b.title===t));
-    window.thumbKeys=()=>import('./store.mjs').then(({thumbs})=>thumbs('getAllKeys'));
-    window.thumbRec=k=>import('./store.mjs').then(({thumbs})=>thumbs('get',k));
-    window.putRec=b=>import('./store.mjs').then(({library})=>library('put',b));
-    window.putThumb=(k,v)=>import('./store.mjs').then(({thumbs})=>thumbs('put',v,k));
+    window.thumbKeys=()=>import('./src/core/store.mjs').then(({thumbs})=>thumbs('getAllKeys'));
+    window.thumbRec=k=>import('./src/core/store.mjs').then(({thumbs})=>thumbs('get',k));
+    window.putRec=b=>import('./src/core/store.mjs').then(({library})=>library('put',b));
+    window.putThumb=(k,v)=>import('./src/core/store.mjs').then(({thumbs})=>thumbs('put',v,k));
     window.light=async blob=>{const img=new Image();img.src=URL.createObjectURL(blob);await img.decode();const c=new OffscreenCanvas(16,16),g=c.getContext('2d');g.drawImage(img,0,0,16,16);const p=g.getImageData(0,0,16,16).data;let s=0;for(let i=0;i<p.length;i+=4)s+=(p[i]+p[i+1]+p[i+2])/3;return s/256;};
     window.solid=(w,h,color)=>{const c=new OffscreenCanvas(w,h),g=c.getContext('2d');g.fillStyle=color;g.fillRect(0,0,w,h);return c.convertToBlob({type:'image/webp'});};
     window.stripFrame=name=>document.querySelector('#preview .page[data-name="'+CSS.escape(name)+'"] .mv-tile>img.mv-frame');

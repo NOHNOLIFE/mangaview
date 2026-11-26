@@ -1,8 +1,8 @@
-import {extend} from './lang.mjs';
-import {at,point,clipEnd,pageKind,clock,shownName} from './model.mjs';
-import {forget} from './thumbs.mjs';
-import {pair} from './sections.mjs';
-import {grabFrames,frameOf,fileStamp} from './thumbs.mjs';
+import {extend} from '../core/lang.mjs';
+import {at,point,clipEnd,pageKind,clock,shownName} from '../core/model.mjs';
+import {forget} from '../reader/thumbs.mjs';
+import {pair} from '../core/sections.mjs';
+import {grabFrames,frameOf,fileStamp} from '../reader/thumbs.mjs';
 // 书签：book.bookmarks=[{id,name,f,at,end?}]，按页名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
 // 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label?,from?,end?}；label 为名称（目前只来自 .pbf 导入）。
 // end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f|t,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，

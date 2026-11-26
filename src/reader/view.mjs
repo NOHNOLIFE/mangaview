@@ -1,4 +1,4 @@
-import {at,point,offsets,shownName,splitTail,pageKind,videoWidth} from './model.mjs';
+import {at,point,offsets,shownName,splitTail,pageKind,videoWidth} from '../core/model.mjs';
 import {pageKey,fileStamp,pageThumb,hasPageThumb,pageStale,pageChecked,keepPageThumb,dropPage} from './thumbs.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。

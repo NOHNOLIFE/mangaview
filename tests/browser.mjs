@@ -12,7 +12,7 @@ const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanif
 let updated=false;
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   let data=await readFile(new URL('../'+path,import.meta.url));
   if(updated&&path==='sw.js')data=data.toString().replace(/(cacheName\s*=\s*prefix\s*\+\s*)'[^']+'/,"$1'browser-test-update'");
   if(updated&&path==='index.html')data=data.toString().replace('</head>','<meta name="test-build" content="new"></head>');
@@ -81,7 +81,7 @@ try{
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:width-2,y:height/2});
   await wait(()=>js('!panel.hidden&&!document.body.classList.contains("docked")'));
   await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:100,y:height/2});await wait(()=>js('panel.hidden'));
-  const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.id===JSON.parse(localStorage.getItem('mv2:last')))).then(b=>({id:b.id,override:b.sortOverride,mode:b.sortMode,pages:b.pages.map(p=>[p.name,p.lastModified])}))`);
+  const record=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.id===JSON.parse(localStorage.getItem('mv2:last')))).then(b=>({id:b.id,override:b.sortOverride,mode:b.sortMode,pages:b.pages.map(p=>[p.name,p.lastModified])}))`);
   const order=async()=>(await record()).pages.map(p=>p[0]);
   async function setSort(mode,scope='folder'){
     await js(`document.querySelector('#bar [data-act="sort"]').click()`);
@@ -154,13 +154,13 @@ try{
   await js(`window.confirm=()=>true;navigator.storage.getDirectory().then(r=>r.removeEntry('other',{recursive:true}))`);
   await js(`document.querySelector('#bar [data-act="refresh"]').click()`);
   await wait(()=>js(`!document.querySelector('#bar [data-act="refresh"]').disabled`));
-  assert.equal(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).length)`),2,'Missing folders keep their records');
+  assert.equal(await js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).length)`),2,'Missing folders keep their records');
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
   await wait(()=>js(`!document.querySelector('[data-view="expired"]').hidden`));
   await js(`document.querySelector('[data-view="expired"]').click()`);
   await wait(()=>js(`document.querySelectorAll('#books .book.expired').length===1`));
   await js(`[...document.querySelectorAll('#bulkActions button')].at(-1).click()`);
-  await wait(()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).length===1)`));await js('shelf.close()');
+  await wait(()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).length===1)`));await js('shelf.close()');
   assert.deepEqual(errors,[]);console.log('PASS: locale, import, virtual strip, floating toolbar geometry, long-image navigation, shelf, offline cold start, shuffle persistence, non-disruptive update, folder refresh');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}

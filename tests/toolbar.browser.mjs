@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-toolbar-
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   let data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -85,7 +85,7 @@ try{
   await key('Escape','Escape');await wait(()=>js('bar.hidden'));await js(`localStorage.removeItem('mv2:edgeTop')`);
 
   // 底缘操作栏：贴近底缘稍停弹出；固定为 上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本，到首尾时不再变成切书按钮；离开后收起。
-  const [prev,toTop,toEnd,next,endbarName]=await js(`import('./lang.mjs').then(m=>['prev','toTop','toEnd','next','endbar'].map(k=>m.translate(k,document.documentElement.lang)))`);
+  const [prev,toTop,toEnd,next,endbarName]=await js(`import('./src/core/lang.mjs').then(m=>['prev','toTop','toEnd','next','endbar'].map(k=>m.translate(k,document.documentElement.lang)))`);
   const labels=()=>js(`[...endbar.querySelectorAll('.eb')].map(b=>[b.dataset.act,b.textContent,b.title,b.disabled])`);
   const press=async act=>{const b=await box(`#endbar [data-act="${act}"]`);await move(b.x,b.y);for(const type of ['mousePressed','mouseReleased'])await cdp('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:b.x,y:b.y});};
   assert.equal(await js('endbar.getAttribute("aria-label")'),endbarName);
@@ -150,7 +150,7 @@ try{
   }
   await js('notice.textContent=""');await js('reader.scrollTop=2000');await down('g');await delay(60);await up('g');await delay(150);
   assert.equal(await js('reader.scrollTop'),2000,'G does nothing');assert.equal(await js('notice.textContent'),'');
-  await down('f');await delay(60);await up('f');await wait(()=>js(`import('./lang.mjs').then(m=>notice.textContent===m.translate('bmNone',document.documentElement.lang))`));assert.equal(await js('reader.scrollTop'),2000,'F no longer turns the page');
+  await down('f');await delay(60);await up('f');await wait(()=>js(`import('./src/core/lang.mjs').then(m=>notice.textContent===m.translate('bmNone',document.documentElement.lang))`));assert.equal(await js('reader.scrollTop'),2000,'F no longer turns the page');
   // 按钮等交互控件里的文字不可选中（避免快速点击时误选文字）；输入框照常可选。
   assert.deepEqual(await js(`['#endbar .eb','#bar .tb','#views [role=tab]','#empty button','.set-switch,#filterToggle'].map(s=>getComputedStyle(document.querySelector(s)).userSelect)`),['none','none','none','none','none']);
   assert.equal(await js(`getComputedStyle(query).userSelect`),'text');

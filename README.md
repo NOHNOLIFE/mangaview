@@ -279,57 +279,45 @@ Opening `index.html` straight from disk does not work, because installing, offli
 
 | Path | Purpose |
 | --- | --- |
-| `index.html`, `style.css` | Markup, icons and styles |
-| `app.mjs` | Core logic: books, importing (including import as one book), sorting, refresh, keyboard, restoring defaults; installs the feature modules |
-| `shelf.mjs`, `shelf.css` | Shelf, library, missing books, filters and presets, tags, restore, storage usage |
-| `match.mjs` | Matching missing books (volume by volume) to folders, tag colours |
-| `toolbar.mjs`, `toolbar.css` | Top toolbar, bottom action bar |
-| `bookmarks.mjs`, `bookmarks.css` | Bookmarks, bookmark panel, shelf bookmark list |
-| `focus.mjs`, `focus.css` | Focus mode |
-| `overview.mjs`, `overview.css` | Full-screen thumbnails and shelf bookmarks (grid / masonry, search) |
-| `sections.mjs` | Pairing rules for section bookmarks |
-| `pbf.mjs` | PotPlayer bookmarks (.pbf): parsing, merging and background reading |
-| `cover.mjs` | Custom covers |
-| `help.mjs`, `help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
-| `media.mjs`, `media.css` | Video and audio: player and controls, current media, autoplay, shared volume, media keys, play order and loop, play position memory, play in a new window |
-| `playlist.mjs` | Rules for play order, loop and playing bookmark sections only; new-window address and size |
-| `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
-| `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), video frames and video thumbnails, session cache of page thumbnails |
-| `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
-| `model.mjs` | Page types, sorting and layout math |
-| `sources.mjs` | Folder scanning and file access, books and their source folders (volumes) |
-| `store.mjs` | IndexedDB storage |
-| `merge.mjs` | Field-by-field / entry-by-entry merging when several windows save the same book |
-| `windows.mjs` | Coordination between windows: change notices, background disk work in one window only, reloading after global operations |
-| `lang.mjs` | Built-in translations |
+| `index.html`, `src/style.css` | Markup, icons and styles |
+| `src/app.mjs` | Core logic: books, importing (including import as one book), sorting, refresh, keyboard, restoring defaults; installs the feature modules |
+| `src/core/lang.mjs` | Built-in translations |
+| `src/core/match.mjs` | Matching missing books (volume by volume) to folders, tag colours |
+| `src/core/merge.mjs` | Field-by-field / entry-by-entry merging when several windows save the same book |
+| `src/core/model.mjs` | Page types, sorting and layout math |
+| `src/core/playlist.mjs` | Rules for play order, loop and playing bookmark sections only; new-window address and size |
+| `src/core/sections.mjs` | Pairing rules for section bookmarks |
+| `src/core/sources.mjs` | Folder scanning and file access, books and their source folders (volumes) |
+| `src/core/store.mjs` | IndexedDB storage |
+| `src/core/windows.mjs` | Coordination between windows: change notices, background disk work in one window only, reloading after global operations |
+| `src/marks/bookmarks.mjs`, `src/marks/bookmarks.css` | Bookmarks, bookmark panel, shelf bookmark list |
+| `src/marks/pbf.mjs` | PotPlayer bookmarks (.pbf): parsing, merging and background reading |
+| `src/media/media.mjs`, `src/media/media.css` | Video and audio: player and controls, current media, autoplay, shared volume, media keys, play order and loop, play position memory, play in a new window |
+| `src/panels/help.mjs`, `src/panels/help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
+| `src/panels/settings.mjs`, `src/panels/backup.mjs`, `src/panels/settings.css` | Settings panel, export and import |
+| `src/reader/focus.mjs`, `src/reader/focus.css` | Focus mode |
+| `src/reader/overview.mjs`, `src/reader/overview.css` | Full-screen thumbnails and shelf bookmarks (grid / masonry, search) |
+| `src/reader/thumbs.mjs` | Compressed thumbnails (covers, bookmarks), video frames and video thumbnails, session cache of page thumbnails |
+| `src/reader/toolbar.mjs`, `src/reader/toolbar.css` | Top toolbar, bottom action bar |
+| `src/reader/view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
+| `src/shelf/cover.mjs` | Custom covers |
+| `src/shelf/shelf.mjs`, `src/shelf/shelf.css` | Shelf, library, missing books, filters and presets, tags, restore, storage usage |
 | `sw.js` | Offline cache |
 | `dist/` | Migration bridge for v1 users |
 | `docs/dev-guidelines.zh-CN.md` | Design requirements and development conventions (Chinese) |
 
-Tests need Node 22.12+:
+Tests need Node 22.12+ and run from `tests/run.mjs`:
 
 ```sh
-node --test tests/core.test.mjs
-# End-to-end tests in headless Chrome or Edge (each uses a throwaway profile and generated images; videos and audio are generated in the test page by tests/media-fixtures.mjs):
-node tests/browser.mjs "<path to chrome.exe or msedge.exe>"
-node tests/shelf.browser.mjs "<path>"
-node tests/shelfui.browser.mjs "<path>"
-node tests/shelfsort.browser.mjs "<path>"
-node tests/import.browser.mjs "<path>"
-node tests/toolbar.browser.mjs "<path>"
-node tests/bookmarks.browser.mjs "<path>"
-node tests/shelfmarks.browser.mjs "<path>"
-node tests/overview.browser.mjs "<path>"
-node tests/settings.browser.mjs "<path>"
-node tests/help.browser.mjs "<path>"
-node tests/queue.browser.mjs "<path>"
-node tests/windows.browser.mjs "<path>"
-node tests/sections.browser.mjs "<path>"
-node tests/media.browser.mjs "<path>"
-node tests/mediathumbs.browser.mjs "<path>"
-node tests/mediamarks.browser.mjs "<path>"
-node tests/pbf.browser.mjs "<path>"
+# Everything: core tests first, then the headless Chrome / Edge end-to-end tests one at a time; a failed one is rerun once on its own, then passes and failures are listed
+node tests/run.mjs "<path to chrome.exe or msedge.exe>"
+# Only the end-to-end tests whose file name contains one of the given names (core tests still run first)
+node tests/run.mjs "<path>" shelf media
+# Core tests only (pure logic, tests/core/*.test.mjs)
+node tests/run.mjs
 ```
+
+The end-to-end tests (`tests/browser.mjs`, `tests/*.browser.mjs`) each use a throwaway browser profile and generated images; videos and audio are generated in the test page by `tests/media-fixtures.mjs`.
 
 Things the automated tests can't cover:
 

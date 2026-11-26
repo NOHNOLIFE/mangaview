@@ -1,6 +1,6 @@
 // 工具：顶部工具栏（鼠标贴近顶缘稍作停留即弹出，离开后由 app.mjs 的 pointerleave 收起；窄窗口自动换行）
 // 与底部操作栏（贴近底缘弹出：上一本 / 回到书首 / 位置 / 滚到书尾 / 下一本）。
-import {extend} from './lang.mjs';
+import {extend} from '../core/lang.mjs';
 extend({
   tbEdgeTop:['Show tools at the top edge','鼠标移到顶缘时弹出工具栏','上端でツールを表示','위쪽 가장자리에서 도구 표시'],
   tbEdgeBottom:['Show the action bar at the bottom edge','鼠标移到底缘时弹出操作栏','下端で操作バーを表示','아래쪽 가장자리에서 작업 표시줄 표시'],

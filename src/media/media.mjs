@@ -12,12 +12,12 @@
 //   只在暂停、离开视窗、切书、关闭窗口时保存，播放中至多每 POS_EVERY 毫秒保存一次；播到结尾（剩余不足 5 秒）清除。
 // - 新窗口播放（10.2）：壳上的按钮、快捷键 Z、/ 打开一个新的 MangaView 窗口（地址带上书、页名和时间点，playlist.mjs popoutUrl），
 //   本窗口的该媒体暂停；新窗口启动时（app.mjs）经 ctx.media.resume 定位到该媒体并从该处播放，浏览器拦截出声时提示并停在该处等待点击。
-import {extend} from './lang.mjs';
-import {shownName,pageKind,clock,seekStep,nudge} from './model.mjs';
-import {fileStamp} from './thumbs.mjs';
-import {midName,limits} from './view.mjs';
-import {addIcons} from './settings.mjs';
-import {orderOf,ORDERS,following,sectionStart,sectionStep,popoutUrl,popoutSize} from './playlist.mjs';
+import {extend} from '../core/lang.mjs';
+import {shownName,pageKind,clock,seekStep,nudge} from '../core/model.mjs';
+import {fileStamp} from '../reader/thumbs.mjs';
+import {midName,limits} from '../reader/view.mjs';
+import {addIcons} from '../panels/settings.mjs';
+import {orderOf,ORDERS,following,sectionStart,sectionStep,popoutUrl,popoutSize} from '../core/playlist.mjs';
 
 extend({
   mvPlay:['Play','播放','再生','재생'],mvPause:['Pause','暂停','一時停止','일시 정지'],mvSeek:['Playback position','播放进度','再生位置','재생 위치'],

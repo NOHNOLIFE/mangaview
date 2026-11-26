@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-names-')
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -81,7 +81,7 @@ try{
   assert.deepEqual(c,{title:LONG,lines:2,cut:true,same:true});await shot('names-shelf');
   // 通知：书名按字符截短（末尾省略），通知保持简短。
   await js(`(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('M '+${JSON.stringify(LONG)});window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="merge"]').click();})()`);
-  const {clipEnd}=await import('../model.mjs');
+  const {clipEnd}=await import('../src/core/model.mjs');
   await wait(()=>js(`notice.textContent.includes(${JSON.stringify(clipEnd('M '+LONG))})`));
   assert.ok(await js(`notice.getBoundingClientRect().height<=parseFloat(getComputedStyle(notice).lineHeight||'20')*2+24||notice.getBoundingClientRect().height<=64`),'Notice stays within two lines');
   assert.deepEqual(errors,[]);console.log('PASS: long names: middle-ellipsized file names with intact endings, one-line toolbar title with tooltip (hoverable, selectable) and stable buttons, overview title, two-line shelf card titles with tooltips and stable card size, clipped names in notices');

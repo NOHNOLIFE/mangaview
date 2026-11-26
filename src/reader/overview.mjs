@@ -1,9 +1,9 @@
-import {extend} from './lang.mjs';
+import {extend} from '../core/lang.mjs';
 import {imageJob,release} from './view.mjs';
 import {pageKey} from './thumbs.mjs';
-import {shownName,pageKind} from './model.mjs';
-import {sourceOf} from './sources.mjs';
-import {norm} from './match.mjs';
+import {shownName,pageKind} from '../core/model.mjs';
+import {sourceOf} from '../core/sources.mjs';
+import {norm} from '../core/match.mjs';
 // 全屏总览：
 // · 全屏缩略图：缩略图栏顶部的按钮，或快捷键 V / ]。整本书的页面排成规整网格（默认）或瀑布流，只为可见范围创建元素；
 //   缩略图与缩略图栏共用会话内存缓存（thumbs.mjs），再次打开、切书后回来都不必重读原图。

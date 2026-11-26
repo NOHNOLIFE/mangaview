@@ -1,4 +1,4 @@
-import {extend} from './lang.mjs';
+import {extend} from '../core/lang.mjs';
 // 设置面板：打开时按 group 分节渲染 ctx.settings。条目字段见 app.mjs，另支持可选字段：
 // hint(说明文案 key)；button 可加 action(按钮文字 key，缺省用 label)、icon、danger；type:'custom' 时 render(ctx)→Node 自绘整行。
 extend({

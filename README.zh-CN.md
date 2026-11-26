@@ -279,57 +279,45 @@ MangaView 会在三种情况下检查文件夹里文件的增删（第一种可�
 
 | 路径 | 用途 |
 | --- | --- |
-| `index.html`、`style.css` | 页面结构、图标与样式 |
-| `app.mjs` | 核心逻辑：书目、导入（含导入为单个作品）、排序、刷新、键盘、还原默认设置；安装各功能模块 |
-| `shelf.mjs`、`shelf.css` | 书架、书库、过期书籍、筛选与预设、标签、恢复、存储占用 |
-| `match.mjs` | 过期书（按卷）与文件夹的匹配、标签配色 |
-| `toolbar.mjs`、`toolbar.css` | 顶部工具栏、底部操作栏 |
-| `bookmarks.mjs`、`bookmarks.css` | 书签、书签面板、书架书签列表 |
-| `focus.mjs`、`focus.css` | 专注模式 |
-| `overview.mjs`、`overview.css` | 全屏缩略图、全屏书架书签（网格 / 瀑布流、搜索） |
-| `sections.mjs` | 区段书签的配对规则 |
-| `pbf.mjs` | PotPlayer 书签（.pbf）的解析、合并与后台读取 |
-| `cover.mjs` | 自定义封面 |
-| `help.mjs`、`help.css` | 键鼠操作图示（左手、右手、鼠标三种用法的键位图） |
-| `media.mjs`、`media.css` | 视频、音频：播放器与控件、当前媒体、自动播放、统一音量、媒体按键、播放顺序与循环、播放位置记忆、新窗口播放 |
-| `playlist.mjs` | 播放顺序与循环、只播放书签区段的规则，新窗口播放的地址与窗口大小 |
-| `settings.mjs`、`backup.mjs`、`settings.css` | 设置面板、导出与导入 |
-| `thumbs.mjs` | 压缩缩略图（封面、书签）、视频截帧与视频缩略图、页面缩略图的会话缓存 |
-| `view.mjs` | 虚拟化正文、缩略图栏、图片加载队列 |
-| `model.mjs` | 页的类型识别、排序与布局计算 |
-| `sources.mjs` | 目录扫描与文件访问、书与源文件夹（多卷） |
-| `store.mjs` | IndexedDB 存储 |
-| `merge.mjs` | 多个窗口保存同一本书时按字段 / 按条目合并 |
-| `windows.mjs` | 多个窗口之间的协调：改动通知、后台读盘任务只在一个窗口进行、全局操作后重新载入 |
-| `lang.mjs` | 内置翻译 |
+| `index.html`、`src/style.css` | 页面结构、图标与样式 |
+| `src/app.mjs` | 核心逻辑：书目、导入（含导入为单个作品）、排序、刷新、键盘、还原默认设置；安装各功能模块 |
+| `src/core/lang.mjs` | 内置翻译 |
+| `src/core/match.mjs` | 过期书（按卷）与文件夹的匹配、标签配色 |
+| `src/core/merge.mjs` | 多个窗口保存同一本书时按字段 / 按条目合并 |
+| `src/core/model.mjs` | 页的类型识别、排序与布局计算 |
+| `src/core/playlist.mjs` | 播放顺序与循环、只播放书签区段的规则，新窗口播放的地址与窗口大小 |
+| `src/core/sections.mjs` | 区段书签的配对规则 |
+| `src/core/sources.mjs` | 目录扫描与文件访问、书与源文件夹（多卷） |
+| `src/core/store.mjs` | IndexedDB 存储 |
+| `src/core/windows.mjs` | 多个窗口之间的协调：改动通知、后台读盘任务只在一个窗口进行、全局操作后重新载入 |
+| `src/marks/bookmarks.mjs`、`src/marks/bookmarks.css` | 书签、书签面板、书架书签列表 |
+| `src/marks/pbf.mjs` | PotPlayer 书签（.pbf）的解析、合并与后台读取 |
+| `src/media/media.mjs`、`src/media/media.css` | 视频、音频：播放器与控件、当前媒体、自动播放、统一音量、媒体按键、播放顺序与循环、播放位置记忆、新窗口播放 |
+| `src/panels/help.mjs`、`src/panels/help.css` | 键鼠操作图示（左手、右手、鼠标三种用法的键位图） |
+| `src/panels/settings.mjs`、`src/panels/backup.mjs`、`src/panels/settings.css` | 设置面板、导出与导入 |
+| `src/reader/focus.mjs`、`src/reader/focus.css` | 专注模式 |
+| `src/reader/overview.mjs`、`src/reader/overview.css` | 全屏缩略图、全屏书架书签（网格 / 瀑布流、搜索） |
+| `src/reader/thumbs.mjs` | 压缩缩略图（封面、书签）、视频截帧与视频缩略图、页面缩略图的会话缓存 |
+| `src/reader/toolbar.mjs`、`src/reader/toolbar.css` | 顶部工具栏、底部操作栏 |
+| `src/reader/view.mjs` | 虚拟化正文、缩略图栏、图片加载队列 |
+| `src/shelf/cover.mjs` | 自定义封面 |
+| `src/shelf/shelf.mjs`、`src/shelf/shelf.css` | 书架、书库、过期书籍、筛选与预设、标签、恢复、存储占用 |
 | `sw.js` | 离线缓存 |
 | `dist/` | 供 v1 用户迁移的过渡文件 |
 | `docs/dev-guidelines.zh-CN.md` | 设计要求与开发约定 |
 
-测试需要 Node 22.12+：
+测试需要 Node 22.12+，统一从 `tests/run.mjs` 运行：
 
 ```sh
-node --test tests/core.test.mjs
-# 无头 Chrome / Edge 端到端测试（每个都使用临时配置和自动生成的测试图片；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成）：
-node tests/browser.mjs "<chrome.exe 或 msedge.exe 的路径>"
-node tests/shelf.browser.mjs "<路径>"
-node tests/shelfui.browser.mjs "<路径>"
-node tests/shelfsort.browser.mjs "<路径>"
-node tests/import.browser.mjs "<路径>"
-node tests/toolbar.browser.mjs "<路径>"
-node tests/bookmarks.browser.mjs "<路径>"
-node tests/shelfmarks.browser.mjs "<路径>"
-node tests/overview.browser.mjs "<路径>"
-node tests/settings.browser.mjs "<路径>"
-node tests/help.browser.mjs "<路径>"
-node tests/queue.browser.mjs "<路径>"
-node tests/windows.browser.mjs "<路径>"
-node tests/sections.browser.mjs "<路径>"
-node tests/media.browser.mjs "<路径>"
-node tests/mediathumbs.browser.mjs "<路径>"
-node tests/mediamarks.browser.mjs "<路径>"
-node tests/pbf.browser.mjs "<路径>"
+# 全部测试：先跑核心测试，再逐个串行跑无头 Chrome / Edge 端到端测试，失败的自动单独重跑一次，最后列出通过 / 失败清单
+node tests/run.mjs "<chrome.exe 或 msedge.exe 的路径>"
+# 只跑文件名包含给定名称的端到端测试（核心测试照常先跑）
+node tests/run.mjs "<路径>" shelf media
+# 只跑核心测试（纯逻辑，tests/core/*.test.mjs）
+node tests/run.mjs
 ```
+
+端到端测试（`tests/browser.mjs`、`tests/*.browser.mjs`）各自使用临时浏览器配置和自动生成的测试图片；视频、音频由 `tests/media-fixtures.mjs` 在测试页里现场生成。
 
 以下几项自动化测试覆盖不到，需要人工验收：
 

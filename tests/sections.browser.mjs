@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-sections
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -43,7 +43,7 @@ try{
   const H=await js('reader.clientHeight'),W=await js('reader.clientWidth'),ph=W*1.4;
   const goto=(n,f)=>js(`reader.scrollTop=${n*ph+f*ph-H/2}`);
   const center=()=>js(`(()=>{const c=(reader.scrollTop+reader.clientHeight/2)/${ph};return [Math.floor(c),+(c-Math.floor(c)).toFixed(3)];})()`);
-  const store=`import('./store.mjs')`;
+  const store=`import('./src/core/store.mjs')`;
   const record=(title='Sections')=>js(`${store}.then(async({library})=>(await library('getAll')).find(b=>b.title===${JSON.stringify(title)}))`);
   const thumbKeys=()=>js(`${store}.then(({thumbs})=>thumbs('getAllKeys'))`);
   const marks=async()=>(await record()).bookmarks.map(b=>[b.name,+b.f.toFixed(3),...b.end?[[b.end.name,+b.end.f.toFixed(3)]]:[]]);

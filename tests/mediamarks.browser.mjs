@@ -13,7 +13,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-mediamar
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -53,8 +53,8 @@ try{
       reader.scrollTop=want;await frame();}return false;};`;
   await js(helpers);
 
-  const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Media'))`);
-  const thumbKeys=()=>js(`import('./store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`);
+  const record=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Media'))`);
+  const thumbKeys=()=>js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`);
   const text=()=>js(`document.getElementById('notice').textContent`);
   const said=async msg=>{let seen='';await wait(async()=>(seen=await text())===msg,'notice '+msg+' (saw: '+JSON.stringify({get v(){return seen;}})+')').catch(async e=>{const st=await js(`JSON.stringify({ae:document.activeElement?.className,ring:document.querySelector('.hold')?.textContent})`).catch(x=>String(x));throw Error(e.message+' / last notice: '+seen+' / errors: '+JSON.stringify(errors)+' / '+st);});await js('notice.textContent=""');};
   const codes={f:['KeyF',70,'f'],F:['KeyF',70,'F'],c:['KeyC',67,'c'],Escape:['Escape',27,'']};
@@ -111,7 +111,7 @@ try{
   const pos=await wait(async()=>(await record()).mediaPos?.find(x=>x.id==='03 long.wav')?.t,'position saved');
   assert.ok(pos>=7&&pos<8,'Saved on pause: '+pos);
   // 另放一个没有缩略图的视频书签（测试懒生成），重新载入。
-  await js(`import('./store.mjs').then(async({library})=>{const b=(await library('getAll')).find(b=>b.title==='Media');b.bookmarks.push({id:'lazy',name:'04 clip.webm',t:.8,at:1});await library('put',b);})`);
+  await js(`import('./src/core/store.mjs').then(async({library})=>{const b=(await library('getAll')).find(b=>b.title==='Media');b.bookmarks.push({id:'lazy',name:'04 clip.webm',t:.8,at:1});await library('put',b);})`);
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Media'`),'reloaded');await js(MEDIA_FIXTURES);await js(helpers);await js('reader.focus()');
   await toPageReady('03 long.wav');await wait(async()=>Math.abs(await now('03 long.wav')-pos)<.05,'resumed from the saved position');
   await playAt('03 long.wav',16.5);await delay(150);await js(`el('03 long.wav').pause()`);
@@ -131,7 +131,7 @@ try{
   // 视频书签：在播放器里添加时直接截当前画面作缩略图。
   await toPageReady('02 clip.webm');await at('02 clip.webm',1);await hold();await said('Bookmark added');
   const rec=await record(),vid=rec.bookmarks.find(b=>b.name==='02 clip.webm');
-  const th=await wait(()=>js(`import('./store.mjs').then(({thumbs})=>thumbs('get','${rec.id}:bm:${vid.id}')).then(r=>r&&[r.w,r.h,r.blob.type])`),'video bookmark thumbnail');
+  const th=await wait(()=>js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('get','${rec.id}:bm:${vid.id}')).then(r=>r&&[r.w,r.h,r.blob.type])`),'video bookmark thumbnail');
   assert.deepEqual(th,[240,135,'image/webp']);
 
   // ---- 4.4：区段书签在同一文件内按时间配对；进度条上成对标记，悬停高亮区段。
@@ -227,8 +227,8 @@ try{
     await mvMedia.write(dir,'02 bad.mp4',new Blob([new Uint8Array(4096).fill(7)]));
     window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
   await wait(()=>js(`bookTitle.textContent==='Broken'`),'Broken imported');
-  const broken=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Broken'))`);
-  await js(`import('./store.mjs').then(async({library})=>{const b=(await library('getAll')).find(b=>b.title==='Broken');b.bookmarks=[{id:'bad',name:'02 bad.mp4',t:.5,at:1}];await library('put',b);})`);
+  const broken=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Broken'))`);
+  await js(`import('./src/core/store.mjs').then(async({library})=>{const b=(await library('getAll')).find(b=>b.title==='Broken');b.bookmarks=[{id:'bad',name:'02 bad.mp4',t:.5,at:1}];await library('put',b);})`);
   const grabs=()=>js('srcLog.filter(x=>x==null).length'); // 正文以外给视频挂源（截帧）的次数；该视频不在视窗里，正文的播放器不碰它
   const panelOpen=async()=>{await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Broken'`),'reloaded');await js(MEDIA_FIXTURES);await js(helpers);await js('reader.scrollTop=0');await delay(200);
     await cdp('Input.dispatchMouseEvent',{type:'mousePressed',x:300,y:300,button:'right',clickCount:1});await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',x:300,y:300,button:'right',clickCount:1});

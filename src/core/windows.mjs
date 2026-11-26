@@ -1,6 +1,6 @@
 import {extend} from './lang.mjs';
 import {on as onStore,freeze,isFrozen} from './store.mjs';
-import {forget} from './thumbs.mjs';
+import {forget} from '../reader/thumbs.mjs';
 // 多个窗口（包括同一本书）同时打开时的协调。各窗口各自持有内存中的书目，通过 BroadcastChannel 互相通知：
 // - 书目、缩略图的写入（store.mjs 的写入通知）合并成批转告其他窗口；收到的窗口按书重读，只更新受影响的项（app.mjs 的 pull）。
 // - 偏好经 localStorage 的 storage 事件同步（app.mjs，设置类 / 布局类的登记见那里的 prefs）。

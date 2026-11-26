@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-queue-')
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   let data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -54,14 +54,14 @@ try{
   assert.equal(await shown('h'),false);
   await go('a');await wait(()=>shown('a'));
   // 读取超时按失败处理：显示「无法显示」和「暂时无法读取」提示，让出名额；离开再回来会重新读取。
-  await js("import('./view.mjs').then(m=>{m.limits.read=300;})");
+  await js("import('./src/reader/view.mjs').then(m=>{m.limits.read=300;})");
   await go('h');await wait(()=>js(`document.querySelector('#reader [data-name="h0.svg"]')?.classList.contains('failed')`));
   await wait(()=>js('!access.hidden'));
   await go('a');await wait(()=>shown('a'));
   await js('window.hang=false');await go('h');await wait(()=>shown('h'));
   // 已保存的文件夹句柄整体卡死：读图限时失败并提示；刷新时限时，记为找不到（过期）；重新拖入同一个文件夹（新句柄）接回原记录，书签保留、不产生重复条目。
   const rec=title=>js(`new Promise(r=>{const q=indexedDB.open('mangaview-reader-v2');q.onsuccess=()=>{const g=q.result.transaction('books').objectStore('books').getAll();g.onsuccess=()=>r(g.result.filter(b=>b.title==='${title}').map(b=>({id:b.id,marks:(b.bookmarks||[]).length,missing:!!b.sources?.[0]?.missing})));};})`);
-  await js("Promise.all([import('./sources.mjs'),import('./view.mjs')]).then(([s,v])=>{s.limits.first=500;s.limits.next=300;v.limits.read=5000;})");
+  await js("Promise.all([import('./src/core/sources.mjs'),import('./src/reader/view.mjs')]).then(([s,v])=>{s.limits.first=500;s.limits.next=300;v.limits.read=5000;})");
   await add('Kept','k','#bar [data-act="folder"]');await wait(()=>shown('k'));
   await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'f',code:'KeyF',windowsVirtualKeyCode:70});await delay(800);await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'f',code:'KeyF',windowsVirtualKeyCode:70});
   await wait(async()=>(await rec('Kept'))[0]?.marks===1);const kept=(await rec('Kept'))[0];
@@ -76,7 +76,7 @@ try{
   assert.deepEqual(await rec('Kept'),[{id:kept.id,marks:1,missing:false}],'Re-adding the folder reconnects the original record');
   await go('k');await wait(()=>shown('k'));
   // 启动和刷新前并行探测：卡住的句柄不必各等一遍较长的首次时限。
-  const probed=await js(`(async()=>{const s=await import('./sources.mjs');s.limits.first=20000;s.limits.probe=300;const hs=[];const root=await navigator.storage.getDirectory();for(const n of ['Fine','Stuck'])hs.push(await root.getDirectoryHandle(n));window.bad=new WeakSet(hs);const t=performance.now();await s.probe(hs);return {ms:performance.now()-t,stuck:hs.every(s.isStuck)};})()`);
+  const probed=await js(`(async()=>{const s=await import('./src/core/sources.mjs');s.limits.first=20000;s.limits.probe=300;const hs=[];const root=await navigator.storage.getDirectory();for(const n of ['Fine','Stuck'])hs.push(await root.getDirectoryHandle(n));window.bad=new WeakSet(hs);const t=performance.now();await s.probe(hs);return {ms:performance.now()-t,stuck:hs.every(s.isStuck)};})()`);
   assert.ok(probed.stuck&&probed.ms<2000,'Stuck handles are found in parallel: '+JSON.stringify(probed));
   // 浏览器更新后旧句柄整体作废：启动时几秒内判定（不逐个等硬盘超时），提示条说明是浏览器更新所致并直接给出恢复入口；
   // 选一次上级文件夹，单文件夹书和散图图集一起接回原记录，书签保留；文件夹里没有对应记录的内容不会被加成新书。

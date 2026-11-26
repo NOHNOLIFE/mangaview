@@ -12,7 +12,7 @@ const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanif
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
   if(path==='blank'){res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><title>blank</title>');return;} // 不运行应用的同源空白页
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -34,7 +34,7 @@ try{
   await cdp('Runtime.enable');await cdp('Page.enable');
   await cdp('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(navigator,'languages',{value:['en-US']});`});
   const go=async(url,ready='!!document.getElementById("settings")')=>{await cdp('Page.navigate',{url});await wait(()=>js(`location.href===${JSON.stringify(url)}&&document.readyState==='complete'&&${ready}`));};
-  const store=`import('./store.mjs')`;
+  const store=`import('./src/core/store.mjs')`;
   // 设置面板由工具栏的 data-act="settings" 按钮打开；这里临时放一个同样的按钮。
   const openSettings=async()=>{await js(`(()=>{const b=document.createElement('button');b.dataset.act='settings';document.body.append(b);b.click();b.remove();})()`);return wait(()=>js('settings.open'));};
   const headings=()=>js(`[settings.querySelector('h2').textContent,...[...settings.querySelectorAll('h3')].map(h=>h.textContent)]`);

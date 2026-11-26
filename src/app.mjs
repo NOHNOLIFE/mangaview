@@ -1,25 +1,25 @@
-import {detect,translate,languageList} from './lang.mjs';
-import {byTime,sortedPages,folderSort,needsSort,sortMode,natural,clipEnd} from './model.mjs';
-import {library,thumbs,update,isFrozen} from './store.mjs';
-import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget,installFrames} from './thumbs.mjs';
-import {snap,merge,changes,adopt,refresh} from './merge.mjs';
+import {detect,translate,languageList} from './core/lang.mjs';
+import {byTime,sortedPages,folderSort,needsSort,sortMode,natural,clipEnd} from './core/model.mjs';
+import {library,thumbs,update,isFrozen} from './core/store.mjs';
+import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget,installFrames} from './reader/thumbs.mjs';
+import {snap,merge,changes,adopt,refresh} from './core/merge.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {popoutTarget} from './playlist.mjs';
-import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages,mediaSizes} from './sources.mjs';
-import {install as shelfUI} from './shelf.mjs';
-import {Reader,imageJob,release} from './view.mjs';
-import {install as toolPanel} from './toolbar.mjs';
-import {install as overview} from './overview.mjs';
-import {install as settingsPanel} from './settings.mjs';
-import {install as backup} from './backup.mjs';
-import {install as bookmarks} from './bookmarks.mjs';
-import {install as focusMode} from './focus.mjs';
-import {install as helpPanel} from './help.mjs';
-import {install as windows} from './windows.mjs';
-import {install as coverPicker} from './cover.mjs';
-import {install as mediaPlayer} from './media.mjs';
-import {install as pbfImport} from './pbf.mjs';
-import {pairFrom} from './sources.mjs';
+import {popoutTarget} from './core/playlist.mjs';
+import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages,mediaSizes} from './core/sources.mjs';
+import {install as shelfUI} from './shelf/shelf.mjs';
+import {Reader,imageJob,release} from './reader/view.mjs';
+import {install as toolPanel} from './reader/toolbar.mjs';
+import {install as overview} from './reader/overview.mjs';
+import {install as settingsPanel} from './panels/settings.mjs';
+import {install as backup} from './panels/backup.mjs';
+import {install as bookmarks} from './marks/bookmarks.mjs';
+import {install as focusMode} from './reader/focus.mjs';
+import {install as helpPanel} from './panels/help.mjs';
+import {install as windows} from './core/windows.mjs';
+import {install as coverPicker} from './shelf/cover.mjs';
+import {install as mediaPlayer} from './media/media.mjs';
+import {install as pbfImport} from './marks/pbf.mjs';
+import {pairFrom} from './core/sources.mjs';
 
 const $=id=>document.getElementById(id), main=$('reader'), nav=$('preview'), shelf=$('shelf');
 // 设置面板可固定界面语言；未设置时跟随浏览器。
@@ -717,8 +717,18 @@ const popped=popoutTarget(location.search);ctx.popout=!!popped;if(popped)history
 try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==null;books.set(b.id,normalize(b));bases.set(b,base);if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
-windows(ctx);shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);coverPicker(ctx);
-toolPanel(ctx);mediaPlayer(ctx);installFrames(ctx);
+windows(ctx);
+shelfUI(ctx);
+settingsPanel(ctx);
+backup(ctx);
+bookmarks(ctx);
+focusMode(ctx);
+overview(ctx);
+helpPanel(ctx);
+coverPicker(ctx);
+toolPanel(ctx);
+mediaPlayer(ctx);
+installFrames(ctx);
 pbfImport(ctx);
 
 await probeAll([...books.values()]);probed=true;

@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-shelfsor
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -58,7 +58,7 @@ try{
   await sortBy('nameDesc');assert.equal(await order(),'Book C,Book B,Book A');
   await sortBy('nameAsc');assert.equal(await order(),'Book A,Book B,Book C');
   await sortBy('folderNew');await wait(async()=>await order()==='Book B,Book A,Book C');
-  assert.ok(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).every(b=>Number.isFinite(b.folderTime)))`),'Folder times are stored');
+  assert.ok(await js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).every(b=>Number.isFinite(b.folderTime)))`),'Folder times are stored');
   await sortBy('folderOld');assert.equal(await order(),'Book C,Book A,Book B');
   // 设置持久保存；上一本 / 下一本按同一顺序（当前是最后添加的 Book C，folderOld 下它排第一）。
   await js('shelf.close()');await js('reader.focus()');
@@ -74,14 +74,14 @@ try{
   assert.equal(await js('renameInput.value'),'Book A');assert.equal(await js('renameHint.textContent'),'Original name: Book A. Leave empty to restore it.');
   await js(`renameInput.value='  Zeta  ';renameForm.requestSubmit()`);await wait(()=>js('!renameBook.open'));
   await wait(async()=>await order()==='Book B,Book C,Zeta');
-  const rec=await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.name==='Zeta'))`);assert.equal(rec.title,'Book A');
+  const rec=await js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.name==='Zeta'))`);assert.equal(rec.title,'Book A');
   await js(`query.value='book a';query.dispatchEvent(new Event('input',{bubbles:true}))`);assert.equal(await order(),'Zeta','Search still matches the folder name');
   await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
   await js(`${card('Book B')}.querySelector('.pick').click()`);await wait(()=>js('!shelf.open'));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
   await js(`${card('Zeta')}.querySelector('.actions button').click()`);await wait(()=>js('renameBook.open'));
   await js(`renameInput.value='';renameForm.requestSubmit()`);await wait(async()=>await order()==='Book A,Book B,Book C');
-  assert.equal(await js(`import('./store.mjs').then(async({library})=>'name' in (await library('getAll')).find(b=>b.title==='Book A'))`),false);
+  assert.equal(await js(`import('./src/core/store.mjs').then(async({library})=>'name' in (await library('getAll')).find(b=>b.title==='Book A'))`),false);
   await shot('shelf-sort');
   // Shift+S / Shift+↓ 下一本、Shift+W / Shift+↑ 上一本（按书架排序：名称正序 A、B、C）：按下切换一次，按住（自动重复）不连续切换。
   await js('shelf.close()');await wait(()=>js(`bookTitle.textContent==='Book B'`));await js('reader.focus()');

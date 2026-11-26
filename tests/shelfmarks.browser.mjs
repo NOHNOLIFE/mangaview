@@ -11,7 +11,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-shelfmar
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -54,7 +54,7 @@ try{
   async function key(name,type,shift){const [code,vk,t]=codes[name];await cdp('Input.dispatchKeyEvent',{type,key:name,code,windowsVirtualKeyCode:vk,...(shift?{modifiers:8}:{}),...(type==='keyDown'?{text:t}:{})});}
   const tap=async(shift=false)=>{const k=shift?'F':'f';await key(k,'keyDown',shift);await delay(40);await key(k,'keyUp',shift);};
   const hold=async()=>{await key('f','keyDown');await delay(700);await key('f','keyUp');};
-  const count=()=>js('JSON.parse(localStorage.getItem("mv2:last"))').then(id=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).reduce((n,b)=>n+b.bookmarks.length,0))`));
+  const count=()=>js('JSON.parse(localStorage.getItem("mv2:last"))').then(id=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).reduce((n,b)=>n+b.bookmarks.length,0))`));
   const mouse=(type,x,y,button='none')=>cdp('Input.dispatchMouseEvent',{type,x,y,button,clickCount:button==='none'?0:1});
   const click=async(x,y)=>{await mouse('mouseMoved',x,y);await mouse('mousePressed',x,y,'left');await mouse('mouseReleased',x,y,'left');};
   const box=sel=>js(`(()=>{const r=document.querySelector('${sel}').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};})()`);
@@ -142,8 +142,8 @@ try{
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   // 列表定位：书签多到列表需要滚动时，切书后列表滚到当前书里离阅读位置最近的书签（淡色描边 .active）；阅读滚动时标记跟随（节流），但不滚动列表；
   // 鼠标在列表上时不抢滚动位置；切到没有书签的书时列表不动。
-  const original=await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).map(b=>[b.id,b.bookmarks]))`);
-  await js(`(async()=>{const {library}=await import('./store.mjs');for(const b of await library('getAll')){
+  const original=await js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).map(b=>[b.id,b.bookmarks]))`);
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');for(const b of await library('getAll')){
     b.bookmarks=[...b.bookmarks,...Array.from({length:20},(_,k)=>({id:b.title+k,name:(k>>1)+'.svg',f:k%2?.75:.25,at:k+10}))];await library('put',b);}})()`);
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&document.querySelectorAll('#shelfmarks .bm-item').length===42`));
   const smList='document.querySelector("#shelfmarks .sm-list")';
@@ -165,7 +165,7 @@ try{
   // 没有书签的书：列表不动。
   top=await listTop();await book('Gamma',false);await delay(300);assert.equal(await listTop(),top,'Book without bookmarks leaves the list alone');
   assert.equal(await js(`document.querySelectorAll('#shelfmarks .bm-item.active').length`),0);
-  await js(`(async()=>{const {library}=await import('./store.mjs');const all=await library('getAll'),keep=new Map(${JSON.stringify(original)});
+  await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const all=await library('getAll'),keep=new Map(${JSON.stringify(original)});
     for(const b of all){if(b.title==='Gamma')await library('delete',b.id);else{b.bookmarks=keep.get(b.id);await library('put',b);}}
     localStorage.setItem('mv2:last',JSON.stringify(all.find(b=>b.title==='Alpha').id));})()`);
   await cdp('Page.reload');await wait(()=>js(`bookTitle.textContent==='Alpha'&&document.querySelectorAll('#shelfmarks .bm-item').length===2`));
@@ -177,7 +177,7 @@ try{
   await js('reader.focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'c',code:'KeyC',windowsVirtualKeyCode:67,text:'c'});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC',windowsVirtualKeyCode:67});
   await wait(()=>js(`notice.textContent.startsWith('No bookmarks in the current shelf filter results')`));assert.equal(await js('shelfOverview.open'),false);
   await filterBy('');await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
-  const total=()=>js('import("./store.mjs").then(async({library})=>(await library("getAll")).length)');
+  const total=()=>js('import("./src/core/store.mjs").then(async({library})=>(await library("getAll")).length)');
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);await wait(()=>js('shelf.open'));
   await js(`document.querySelector('#views [data-view="shelf"][aria-selected="false"]')?.click()`); // 再点已激活的页签会关闭书架
   const clear=`[...bulkActions.querySelectorAll('button')].find(b=>b.textContent.startsWith('Clear shelf'))`;
@@ -204,11 +204,11 @@ try{
     DataTransferItem.prototype.getAsFileSystemHandle=function(){return Promise.resolve(q.shift()??null);};
     const drag=(type,x,y)=>{const dt=new DataTransfer();for(let i=0;i<2;i++)dt.items.add(new File([],'dir'+i));window.dispatchEvent(new DragEvent(type,{dataTransfer:dt,clientX:x,clientY:y,bubbles:true,cancelable:true}));};
     drag('dragenter',10,10);const z=dropLoose.getBoundingClientRect();drag('drop',z.left+z.width/2,z.top+z.height/2);})()`);
-  await wait(()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title)?.pages.map(p=>p.name).join()==='P/0.svg,P/0.svg (2),P/1.svg,P/1.svg (2),P/2.svg,P/2.svg (2)')`));
+  await wait(()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title)?.pages.map(p=>p.name).join()==='P/0.svg,P/0.svg (2),P/1.svg,P/1.svg (2),P/2.svg,P/2.svg (2)')`));
   await wait(()=>js(`bookTitle.textContent==='Loose images'&&document.querySelector('#reader [data-name="P/0.svg (2)"] img')?.naturalHeight===1120`));
   await js('reader.focus()');await js(`document.querySelector('${btn}').click()`);await wait(()=>js('!document.getElementById("shelfmarks").hidden'));await laid(6);
   await goto(1,.5);await hold();await wait(async()=>await count()===1);await goto(3,.5);await hold();await wait(async()=>await count()===2);
-  assert.deepEqual(await js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>[m.name,Math.round(m.f*100)/100]))`),[['P/0.svg (2)',.5],['P/1.svg (2)',.5]]);
+  assert.deepEqual(await js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>!b.title).bookmarks.map(m=>[m.name,Math.round(m.f*100)/100]))`),[['P/0.svg (2)',.5],['P/1.svg (2)',.5]]);
   await wait(()=>js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   const looseMarked=()=>js(`[...document.querySelectorAll('#shelfmarks .sm-book.current .bm-item.active')].map(a=>a.getAttribute('aria-label')).join()`);
   await wait(async()=>await looseMarked()==='Loose images · Page 4');

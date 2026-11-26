@@ -1,5 +1,5 @@
-import {extend} from './lang.mjs';
-import {pbfFile,hasPbf} from './sources.mjs';
+import {extend} from '../core/lang.mjs';
+import {pbfFile,hasPbf} from '../core/sources.mjs';
 // PotPlayer 书签（.pbf）导入（docs/requirements-media.zh-CN.md 第 11 节）。
 // - 配对只看文件名（model.mjs pairPbf），在导入、刷新列目录时顺带完成（sources.mjs），记在页上（page.pbf）；.pbf 本身不是页。
 // - 内容在后台空闲时串行读取：随现有的文件夹检查进行（ctx.pbf.check，app.mjs 的导入与 sync），不新增检查时机；当前书优先，

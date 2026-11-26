@@ -13,7 +13,7 @@ const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-media-')
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
@@ -68,7 +68,7 @@ try{
   // 3.1 / 3.2：浏览器播不了的媒体文件不建记录，导入结果里说明数量并列出扩展名；非内容文件不提示。
   const note=await wait(()=>js(`notice.textContent.includes('unsupported')&&notice.textContent`),'unsupported notice');
   assert.match(note,/^2 media files in unsupported formats were not imported \(\.avi \.wma\)$/,note);
-  const record=()=>js(`import('./store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Mixed'))`);
+  const record=()=>js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Mixed'))`);
   assert.deepEqual((await record()).pages.map(p=>p.name),['01.svg','02 clip.webm','03 tall.webm','04 song.wav','05 broken.mp4','06.svg'],'Images and media sort together by file name');
   assert.equal(await js(`bookMeta.textContent`),'1 / 6 · 0%');
 

@@ -9,13 +9,13 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {MEDIA_FIXTURES} from './media-fixtures.mjs';
-import {popoutSize} from '../playlist.mjs';
+import {popoutSize} from '../src/core/playlist.mjs';
 const binary=process.argv[2];if(!binary)throw Error('Usage: node tests/newwindow.browser.mjs <chrome-or-edge-executable>');
 const profile=await mkdtemp(join(process.env.MV_TEST_TEMP||tmpdir(),'mv-newwindow-'));
 const mime={mjs:'text/javascript',js:'text/javascript',html:'text/html',webmanifest:'application/manifest+json',png:'image/png',css:'text/css'};
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
-  if(!/^(?:icons\/)?[\w.-]+$/.test(path))throw Error();
+  if(!/^(?:[\w-]+\/)*[\w.-]+$/.test(path))throw Error();
   const data=await readFile(new URL('../'+path,import.meta.url));
   res.writeHead(200,{'Content-Type':mime[path.split('.').pop()],'Cache-Control':'no-cache'});res.end(data);
 }catch{res.writeHead(404);res.end();}});
