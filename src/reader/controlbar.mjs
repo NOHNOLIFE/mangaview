@@ -42,6 +42,8 @@ extend({
   cbMute: ['Mute', '静音', 'ミュート', '음소거'],
   cbUnmute: ['Unmute', '取消静音', 'ミュート解除', '음소거 해제'],
   cbMore: ['More', '更多', 'その他', '더 보기'],
+  cbLoopBook: ['Loop: the whole book', '循环：整本', 'ループ：本全体', '반복: 책 전체'],
+  cbLoopList: ['Loop: the whole reading list', '循环：整个阅读列表', 'ループ：読書リスト全体', '반복: 읽기 목록 전체'],
 });
 // 弹出层的尺寸（与 controlbar.css 一致）：按钮 36px，内边距 6px + 边框 1px。
 const BTN = 36,
@@ -304,6 +306,9 @@ export function install(ctx) {
     play.disabled = off.has('play');
     for (const b of modes.children) b.setAttribute('aria-checked', String(b.dataset.mode === tr.mode));
     for (const id of ['scrollRate', 'order', 'loop', 'playRate', 'volume']) btns[id].disabled = off.has(id);
+    // 循环在漫画、混合模式下是整本循环（跨书开启时是整个阅读列表），提示里写明。
+    loop.label = tr.mode === 'media' ? 'mvLoop' : tr.crossBook ? 'cbLoopList' : 'cbLoopBook';
+    setLabel(loop, t(loop.label));
     for (const d of dials) d.sync();
     bar.dataset.mode = tr.mode;
     syncMedia();

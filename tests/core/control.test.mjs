@@ -1,7 +1,17 @@
 // 总控栏的纯逻辑（src/core/control.mjs）：模式归一化、速率的范围 / 档位 / 显示、各模式下的禁用规则。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MODES, modeOf, RATES, rateOf, stepRate, rateText, disabledControls, RIGHT } from '../../src/core/control.mjs';
+import {
+  MODES,
+  modeOf,
+  RATES,
+  rateOf,
+  stepRate,
+  rateText,
+  disabledControls,
+  RIGHT,
+  MEDIA_ONLY,
+} from '../../src/core/control.mjs';
 
 test('模式：三种，默认（及读到坏值时）为混合', () => {
   assert.deepEqual(MODES, ['comic', 'mixed', 'media']);
@@ -52,12 +62,17 @@ test('速率的显示：整十分位一位小数，否则两位', () => {
   assert.equal(rateText(1.3), '1.3×');
 });
 
-test('禁用规则：漫画模式右区全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区全部，影音模式下大播放键也禁用', () => {
+test('禁用规则：漫画模式右区除循环外全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区除循环外全部，影音模式下大播放键也禁用', () => {
   const off = (mode, hasMedia) => [...disabledControls({ mode, hasMedia })].sort();
-  assert.deepEqual(off('comic', true), [...RIGHT].sort());
+  assert.deepEqual(MEDIA_ONLY, ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
+  assert.deepEqual(off('comic', true), [...MEDIA_ONLY].sort());
   assert.deepEqual(off('mixed', true), ['order']);
   assert.deepEqual(off('media', true), ['scrollRate']);
-  assert.deepEqual(off('mixed', false), [...RIGHT].sort());
-  assert.deepEqual(off('media', false), [...RIGHT, 'play', 'scrollRate'].sort());
-  assert.deepEqual(off('comic', false), [...RIGHT].sort());
+  assert.deepEqual(off('mixed', false), [...MEDIA_ONLY].sort());
+  assert.deepEqual(off('media', false), [...MEDIA_ONLY, 'play', 'scrollRate'].sort());
+  assert.deepEqual(off('comic', false), [...MEDIA_ONLY].sort());
+  // 循环（右区）任何模式、有无媒体都可用
+  for (const mode of ['comic', 'mixed', 'media'])
+    for (const hasMedia of [true, false]) assert.ok(!disabledControls({ mode, hasMedia }).has('loop'), mode);
+  assert.ok(RIGHT.includes('loop'));
 });

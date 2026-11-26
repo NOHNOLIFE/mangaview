@@ -511,9 +511,172 @@ try {
     const r = await turn();
     assert.equal(r.now, r.plain, 'Autoplay off: a plain screen turn');
   }
+
+  // ---- 8.4 单文件模式 × 运行：不连续滚动，按页推进。漫画模式按间隔换页（1.0× = 5 秒，间隔 = 5 秒 ÷ 滚动速率；4× 为 1.25 秒），
+  // 混合模式图片按间隔、媒体播完再换页，影音模式只在媒体之间切换；只播区段时只经过区段内的页；手动翻页、暂停后都从当前页重新计时；
+  // 运行中切换单文件模式不停止。
+  await js(`import('./src/reader/single.mjs').then(m=>{window.S1=m;})`);
+  await js(
+    `window.trackPages=()=>{window.seenPages=[];window.trackOn=true;const f=()=>{const i=S1.index();if(seenPages.at(-1)!==i)seenPages.push(i);if(trackOn)requestAnimationFrame(f);};f();}`,
+  );
+  const pg = () => js('S1.index()');
+  const onSlot = () =>
+    js(
+      'session().then(s=>{const i=s.view.position().i;return Math.abs(s.view.panes[0].starts[i]-reader.scrollTop)<1;})',
+    );
+  const goPage = async (i) => {
+    await js(`S1.go(${i})`);
+    await wait(async () => (await pg()) === i && (await onSlot()), 'page ' + i);
+  };
+  await storage('scrollRate', 4);
+  await open('Strip');
+  await mode('comic');
+  await storage('singleFile', true);
+  await wait(() => js(`reader.classList.contains('single-file')`), 'single file on');
+  await goPage(0);
+  {
+    await space();
+    await wait(running, 'single file: runs');
+    const t0 = Date.now(),
+      s = await js('sample(700)');
+    assert.ok(
+      s.every((x) => x[1] === s[0][1]),
+      'Single file: no continuous scrolling',
+    );
+    await wait(async () => (await pg()) === 1, 'next page after the interval');
+    const dt = Date.now() - t0;
+    assert.ok(dt > 900 && dt < 2600, '4×: about 1.25 s a page: ' + dt);
+    assert.ok(await onSlot(), 'Lands on a whole page');
+    // 手动翻页不打断运行，从新的一页重新计时。
+    await wait(async () => (await pg()) === 2, 'page 2');
+    await delay(800);
+    await key('d', 'KeyD', 68);
+    await wait(async () => (await pg()) === 3, 'turned by hand');
+    const t1 = Date.now();
+    assert.equal(await running(), true, 'Turning by hand keeps the run going');
+    await wait(async () => (await pg()) === 4, 'moves on after a manual turn');
+    assert.ok(Date.now() - t1 > 900, 'The interval restarts on the new page: ' + (Date.now() - t1));
+    // 暂停：停在这一页；继续：从这一页重新计时。
+    await space();
+    await wait(async () => !(await running()), 'paused');
+    const p = await pg();
+    await delay(1600);
+    assert.equal(await pg(), p, 'Paused: stays on the page');
+    await space();
+    const t2 = Date.now();
+    await wait(async () => (await pg()) === p + 1, 'resumes');
+    assert.ok(Date.now() - t2 > 900, 'Resuming restarts the interval: ' + (Date.now() - t2));
+    // 书末：停在最后一页。
+    await wait(async () => !(await running()), 'single file: stops at the end of the book');
+    assert.equal(await pg(), 7);
+    // 循环：回到第一页继续。
+    await storage('playLoop', true);
+    await space();
+    await wait(async () => (await running()) && (await pg()) === 0, 'single file: loop back to the first page');
+    await stopped();
+    await storage('playLoop', false);
+    // 跨书：到书末进入阅读列表的下一本，从它的第一页接着按页推进。
+    await storage('crossBook', true);
+    const list = await js('listTitles()');
+    await open(list.at(-2));
+    const n = await js('session().then(s=>s.current.pages.length)');
+    await goPage(n - 1);
+    await space();
+    await wait(
+      async () => (await js('bookTitle.textContent')) === list.at(-1) && (await pg()) === 0,
+      'single file: the next book from its first page',
+    );
+    assert.equal(await running(), true, 'Keeps running in the next book');
+    await stopped();
+    await storage('crossBook', false);
+  }
+  // 漫画模式下媒体页只按间隔翻过，不播放。
+  await open('Mix');
+  await goPage(0);
+  await js('trackPages()');
+  await space();
+  await wait(async () => (await pg()) === 2, 'comic: passes the audio page');
+  assert.equal(await js(`!el('02 a.wav')||el('02 a.wav').currentTime===0`), true, 'Comic: the audio does not play');
+  await stopped();
+  // 混合模式：图片按间隔，媒体页停下播放、播完再换页；到书末停止。
+  await mode('mixed');
+  await goPage(0);
+  await js('trackPages()');
+  await space();
+  await wait(async () => (await pg()) === 1 && (await playing()).join() === '02 a.wav', 'mixed: plays the audio page');
+  await delay(1500);
+  assert.equal(await pg(), 1, 'Stays on the media page while it plays');
+  await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
+  await wait(async () => (await pg()) === 2, 'next page after the audio ends');
+  await wait(async () => (await pg()) === 3 && (await playing()).join() === '04 v.webm', 'mixed: plays the video page');
+  await wait(async () => !(await running()), 'mixed: stops at the end');
+  assert.deepEqual(await js('trackOn=false,seenPages'), [0, 1, 2, 3, 4], 'Every page in order');
+  // 只播区段：只经过图片区段内的页（第 1–3 页的区段盖住音频，第 5 页的区段），没有区段的视频页不经过。
+  await js(
+    `(async()=>{const s=await session(),b=s.current;b.bookmarks=[{id:'s1',name:'01.svg',f:0.5,at:1,end:{name:'03.svg',f:0.3,at:2}},{id:'s2',name:'05.svg',f:0.2,at:3,end:{name:'05.svg',f:0.8,at:4}}];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
+  );
+  await storage('sectionsOnly', true);
+  await goPage(0);
+  await js('trackPages()');
+  await space();
+  await wait(async () => (await playing()).join() === '02 a.wav', 'sections: the covered audio plays');
+  await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
+  await wait(async () => !(await running()), 'sections: ends after the last section');
+  assert.deepEqual(await js('trackOn=false,seenPages'), [0, 1, 2, 4], 'Only pages inside sections');
+  assert.equal(
+    await js(`!el('04 v.webm')||el('04 v.webm').currentTime===0`),
+    true,
+    'The video without a section is skipped',
+  );
+  await storage('sectionsOnly', false);
+  await js(
+    `(async()=>{const s=await session(),b=s.current;b.bookmarks=[];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
+  );
+  // 影音模式：只在媒体之间切换，切到下一个媒体所在的页。
+  await mode('media');
+  await goPage(0);
+  await js('trackPages()');
+  await space();
+  await wait(async () => (await pg()) === 1 && (await playing()).join() === '02 a.wav', 'media: the first media page');
+  await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
+  await wait(async () => (await pg()) === 3 && (await playing()).join() === '04 v.webm', 'media: the next media page');
+  assert.ok(await onSlot(), 'On the whole page');
+  await js(`el('04 v.webm').currentTime=el('04 v.webm').duration-0.2`);
+  await wait(async () => !(await running()), 'media: stops after the last media');
+  assert.deepEqual(await js('trackOn=false,seenPages'), [0, 1, 3], 'Only media pages');
+  await mode('comic');
+  // 运行中进入、退出单文件模式不停止运行：进入后按页推进，退出后接着连续滚动。
+  await open('Strip');
+  await storage('singleFile', false);
+  await wait(() => js(`!reader.classList.contains('single-file')`), 'single file off');
+  await storage('scrollRate', 1);
+  await js('reader.scrollTop=0');
+  await space();
+  await wait(async () => (await top()) > 5, 'strip runs');
+  await js(`${B('single')}.click()`);
+  await wait(() => js(`reader.classList.contains('single-file')`), 'single file on while running');
+  await storage('scrollRate', 4);
+  await delay(300);
+  assert.equal(await running(), true, 'Entering single file mode keeps the run going');
+  {
+    const p = await pg(),
+      s = await js('sample(500)');
+    assert.ok(s.every((x) => x[1] === s[0][1]) && (await onSlot()), 'Now page by page');
+    await wait(async () => (await pg()) === p + 1, 'turns pages while running');
+  }
+  await js(`${B('single')}.click()`);
+  await wait(() => js(`!reader.classList.contains('single-file')`), 'single file off while running');
+  {
+    await storage('scrollRate', 1);
+    const t3 = await top();
+    assert.equal(await running(), true, 'Leaving single file mode keeps the run going');
+    await wait(async () => (await top()) > t3 + 5, 'scrolls again');
+  }
+  await stopped();
+  await mode('mixed');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: comic mode scrolls at 10% of the view per second at 1.0× (low speed keeps moving in whole pixels), pause / resume in place, wheel / turning / holding W / resizing keep the run going, end of book stops, loop wraps, cross-book moves to the next book (stops after the last, loop wraps to the first), switching books keeps running, Space in a book of images, mixed mode stops and plays media at the centre and moves on, pause resumes the same media, a media scrolled away lets the run continue, own play button, sections only (jump between image sections, covered media play, others skipped, no sections: hint), media mode across books, autoplay only for videos and not in comic mode, screen turns land on a video',
+    'PASS: comic mode scrolls at 10% of the view per second at 1.0× (low speed keeps moving in whole pixels), pause / resume in place, wheel / turning / holding W / resizing keep the run going, end of book stops, loop wraps, cross-book moves to the next book (stops after the last, loop wraps to the first), switching books keeps running, Space in a book of images, mixed mode stops and plays media at the centre and moves on, pause resumes the same media, a media scrolled away lets the run continue, own play button, sections only (jump between image sections, covered media play, others skipped, no sections: hint), media mode across books, autoplay only for videos and not in comic mode, screen turns land on a video, single file mode runs page by page (interval, manual turns, pause, end, loop, across books, comic / mixed / media, sections only, toggling while running)',
   );
 } finally {
   if (ws?.readyState === 1) {

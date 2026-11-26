@@ -148,6 +148,8 @@ try {
     await mvMedia.write(dir,'06.svg',svg(600,900,'purple'));
     for(const n of ['x.avi','y.wma','notes.txt'])await mvMedia.write(dir,n,new Blob(['x']));
     const songs=await root.getDirectoryHandle('Songs',{create:true});await mvMedia.write(songs,'only.wav',mvMedia.wav({seconds:2}));
+    const long=await root.getDirectoryHandle('Long',{create:true});await mvMedia.write(long,'00.svg',svg(600,900,'#355'));
+    await mvMedia.write(long,'01 long.webm',await mvMedia.webm({seconds:6,width:320,height:180}));await mvMedia.write(long,'02.svg',svg(600,900,'#553'));
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Mixed'`));
   // 3.1 / 3.2：浏览器播不了的媒体文件不建记录，导入结果里说明数量并列出扩展名；非内容文件不提示。
@@ -408,7 +410,7 @@ try {
   );
   await js(`el('02 clip.webm').pause()`);
 
-  // 3.6 自动播放（requirements-2.4 8.1）：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停。
+  // 3.6 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
   await cdp('Page.navigate', { url: origin });
@@ -427,6 +429,27 @@ try {
   await wait(() => js(`!el('04 song.wav').paused`));
   await js(`reader.scrollTop+=reader.clientHeight*.7`);
   await wait(() => js(`!node('04 song.wav')||el('04 song.wav').paused`), 'leaving the view pauses');
+  // 手动暂停后，在视窗内小幅滚动不会重新开始（自动播放只对视频生效，用一段较长的视频，播不完）。
+  await js(
+    `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
+  );
+  await wait(() => js(`bookTitle.textContent==='Long'`), 'long video book');
+  assert.ok(await js(`toPage('01 long.webm')`));
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: 5 });
+  await wait(() => js(`!!el('01 long.webm')&&!el('01 long.webm').paused`), 'the long video autoplays');
+  await js(`node('01 long.webm').querySelector('.mv-play').click()`);
+  await wait(() => js(`el('01 long.webm').paused`), 'paused by its own play button');
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: -20 });
+  await delay(900);
+  assert.equal(
+    await js(`el('01 long.webm').paused`),
+    true,
+    'A media paused by the user is not restarted while it stays in view',
+  );
+  await js(
+    `import('./src/reader/session.mjs').then(async s=>{const {books}=await import('./src/core/books.mjs');s.select([...books.values()].find(b=>b.title==='Mixed'));})`,
+  );
+  await wait(() => js(`bookTitle.textContent==='Mixed'`), 'back to Mixed');
   // 一个窗口同时只有一个媒体在播放；关掉「自动播放」后滚动不再自动开始。
   assert.ok(await js(`toPage('03 tall.webm')`));
   await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: 5 });

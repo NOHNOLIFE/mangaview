@@ -27,12 +27,14 @@ export function rateText(x) {
   const n = Math.round(x * 100) / 100;
   return (Math.abs(n * 10 - Math.round(n * 10)) < 1e-9 ? n.toFixed(1) : n.toFixed(2)) + '×';
 }
-// 与当前模式无关的控件变暗并禁用（不隐藏、不移动）：漫画模式下右区全部；影音模式下滚动速率；混合模式下播放顺序；
-// 书里没有媒体时右区全部，影音模式下大播放键也禁用。返回禁用的控件 id 集合（id 与 controlbar.mjs 的 data-id 一致）。
+// 与当前模式无关的控件变暗并禁用（不隐藏、不移动）：漫画模式下右区除循环外全部；影音模式下滚动速率；混合模式下播放顺序；
+// 书里没有媒体时右区除循环外全部，影音模式下大播放键也禁用。循环对三种模式都有意义（漫画、混合模式下是整本循环），始终可用。
+// 返回禁用的控件 id 集合（id 与 controlbar.mjs 的 data-id 一致）。RIGHT 是右区的全部控件，MEDIA_ONLY 是其中只对媒体有意义的。
 export const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'loop', 'playRate', 'volume', 'popout'];
+export const MEDIA_ONLY = RIGHT.filter((id) => id !== 'loop');
 export function disabledControls({ mode, hasMedia }) {
   const off = new Set();
-  if (mode === 'comic' || !hasMedia) for (const id of RIGHT) off.add(id);
+  if (mode === 'comic' || !hasMedia) for (const id of MEDIA_ONLY) off.add(id);
   if (mode === 'media') off.add('scrollRate');
   if (mode === 'mixed') off.add('order');
   if (mode === 'media' && !hasMedia) off.add('play');

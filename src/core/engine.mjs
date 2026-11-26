@@ -1,5 +1,5 @@
 // 总控运行引擎（docs/requirements-2.4.zh-CN.md 第 8 节）的纯逻辑，不碰界面和存储（reader/engine.mjs、reader/autoscroll.mjs、media/ 调用，tests/core/engine.test.mjs 覆盖）：
-// 滚动速率换算成每帧位移、自动运行的下一步（滚动 / 停下播放 / 跳到下一个区段 / 到书末）、只播区段时的图片区段、跨书时的下一本、翻屏时对齐视频。
+// 滚动速率换算成每帧位移、自动运行的下一步（滚动 / 停下播放 / 跳到下一个区段 / 到书末）、单文件模式下按页推进、只播区段时的图片区段、跨书时的下一本、翻屏时对齐视频。
 // 坐标都是正文内容里的像素；「中线」指视窗中线（scrollTop + 视窗高度 / 2），停靠点、区段都用中线坐标表示。
 
 // ---- 滚动速率：1.0× = 每秒滚过视窗高度的 10%。按帧间实际时间推进，帧间隔超过 MAX_DT 按 MAX_DT 算（卡顿、从后台回来时不跳一大段）。
@@ -45,6 +45,30 @@ export function next({ c, d = 0, lo = 0, hi = Infinity, stops = [], skip = new S
   if (s && s.at <= c + d + EPS) return { type: 'play', i: s.i, to: s.at };
   if (c >= hi - 0.5) return { type: 'end' };
   return { type: 'scroll', to: Math.min(hi, c + d) };
+}
+
+// ---- 单文件模式（8.4）：运行时按页推进，不连续滚动。
+// 漫画模式按间隔换到下一页（1.0× = PAGE_MS 一张，间隔 = PAGE_MS ÷ 滚动速率），媒体页也只按间隔翻过；
+// 混合模式图片按间隔，媒体页停下播放、播完再换页；只播区段时只经过图片区段内的页（及规则下应播的媒体）。
+export const PAGE_MS = 5000;
+export const pageInterval = (rate) => PAGE_MS / (rate > 0 ? rate : 1);
+// 第 j 页是否落在图片区段 s 之内（区段 [a, b] 与该页 [j, j+1) 有重叠；终点正好在页首的不算这一页）。
+const inSpan = (s, j) => {
+  const a = s.a.i + s.a.f,
+    b = s.b.i + s.b.f;
+  return a < j + 1 && (b > j || (b === a && s.a.i === j));
+};
+// 每一页在运行中的处理：'play' 停下播放（stops 里的页：混合模式下应播的媒体），'show' 按间隔显示，null 不经过（只播区段时区段之外的页）。
+// n：页数；stops：应播媒体的页序号集合；spans：只播区段时的图片区段 [{a:{i,f}, b:{i,f}}]（imageSpans 的结果），null 为不限。
+export function pagePlan({ n, stops = new Set(), spans = null }) {
+  return Array.from({ length: n }, (_, j) =>
+    stops.has(j) ? 'play' : !spans || spans.some((s) => inSpan(s, j)) ? 'show' : null,
+  );
+}
+// 第 i 页之后下一个要经过的页：{type:'play'|'show', i}；没有了（书末，或最后一个区段之后）为 {type:'end'}。
+export function pageAfter(plan, i) {
+  for (let j = Math.max(-1, i) + 1; j < plan.length; j++) if (plan[j]) return { type: plan[j], i: j };
+  return { type: 'end' };
 }
 
 // ---- 只播区段：书签列表（marks/list.mjs 的 list 结果）里生效的图片区段 [{a:{i,f}, b:{i,f}}]，按起点排序。

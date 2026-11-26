@@ -178,7 +178,9 @@ try {
   const pressed = (id) => js(`${B(id)}.getAttribute('aria-pressed')`);
   const disabled = (ids) =>
     js(`${JSON.stringify(ids)}.filter(id=>document.querySelector('#controlbar [data-id="'+id+'"]').disabled)`);
-  const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'loop', 'playRate', 'volume', 'popout'];
+  const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'loop', 'playRate', 'volume', 'popout'],
+    MEDIA_ONLY = RIGHT.filter((id) => id !== 'loop'); // 循环任何模式、有无媒体都可用
+  const label = (id) => js(`${B(id)}.title`);
   // 栏里每个可见控件与页码的位置和尺寸（不含弹出层里的；右区第二行的文件名随当前媒体变化，靠右对齐，不推动别的元素）。
   const rects = () =>
     js(
@@ -226,15 +228,21 @@ try {
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(
     await disabled([...RIGHT, 'scrollRate', 'sections', 'play', 'single']),
-    RIGHT,
-    'Comic: the right zone',
+    MEDIA_ONLY,
+    'Comic: the right zone except loop',
   );
+  assert.equal(await label('loop'), 'Loop: the whole book', 'Comic: loop is the whole book');
   assert.equal(await rects(), base, 'Comic mode moves nothing');
   await js(`${B('mode-media')}.click()`);
   assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play']), ['scrollRate'], 'Media: scroll speed');
+  assert.equal(await label('loop'), 'Loop');
   assert.equal(await rects(), base, 'Media mode moves nothing');
   await js(`${B('mode-mixed')}.click()`);
   assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play']), ['order'], 'Mixed: play order');
+  assert.equal(await label('loop'), 'Loop: the whole book', 'Mixed: loop is the whole book');
+  await js(`${B('crossBook')}.click()`);
+  assert.equal(await label('loop'), 'Loop: the whole reading list', 'Mixed, across books: the whole reading list');
+  await js(`${B('crossBook')}.click()`);
   assert.equal(await rects(), base);
   for (const [v, shown] of [
     [0.25, '0.25×'],
@@ -596,14 +604,21 @@ try {
   await wide();
   await closeBar().catch(() => {});
 
-  // ---- 只有图片的书：右区全部禁用，影音模式下大播放键也禁用、空格没有效果；混合模式下空格开始滚动（requirements-2.4 10）。
+  // ---- 只有图片的书：右区除循环外全部禁用，影音模式下大播放键也禁用、空格没有效果；混合模式下空格开始滚动。循环仍可切换（整本循环）。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),pics=await root.getDirectoryHandle('Pics');window.showDirectoryPicker=async()=>pics;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(() => js(`bookTitle.textContent==='Pics'`), 'image book');
   await js('reader.focus();reader.scrollTop=300');
   await openBar();
-  assert.deepEqual(await disabled([...RIGHT, 'play']), RIGHT, 'No media: the right zone is disabled');
+  assert.deepEqual(await disabled([...RIGHT, 'play']), MEDIA_ONLY, 'No media: the right zone except loop is disabled');
+  await js(`${B('mode-comic')}.click()`);
+  assert.deepEqual(await disabled(['loop']), [], 'Comic mode without media: loop still works');
+  await js(`${B('loop')}.click()`);
+  assert.equal(await pressed('loop'), 'true', 'Loop turns on in a book of images');
+  await js(`${B('loop')}.click()`);
+  assert.equal(await pressed('loop'), 'false');
+  await js(`${B('mode-mixed')}.click()`);
   await js(`${B('mode-media')}.click()`);
   assert.deepEqual(await disabled(['play']), ['play'], 'No media in media mode: the big play button too');
   await js('reader.focus()');

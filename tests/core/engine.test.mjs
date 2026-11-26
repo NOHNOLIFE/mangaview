@@ -12,6 +12,10 @@ import {
   hasSections,
   nextBook,
   turnTo,
+  PAGE_MS,
+  pageInterval,
+  pagePlan,
+  pageAfter,
 } from '../../src/core/engine.mjs';
 
 test('scroll speed: 1.0× scrolls 10% of the view per second, by real frame time', () => {
@@ -170,4 +174,44 @@ test('turning a screen lands on a video that comes into range', () => {
   // 夹在可滚动范围内
   assert.equal(turnTo({ ...base, top: 9000, d: 1, max: 9500, videos: [{ mid: 9900 }] }), 9500);
   assert.equal(turnTo({ ...base, top: 500, d: -1, videos: [{ mid: 100 }] }), 0);
+});
+
+test('single file mode: one page every 5 s at 1.0×, interval = 5 s ÷ scroll speed', () => {
+  assert.equal(PAGE_MS, 5000);
+  assert.equal(pageInterval(1), 5000);
+  assert.equal(pageInterval(2), 2500);
+  assert.equal(pageInterval(0.25), 20000);
+  assert.equal(pageInterval(4), 1250);
+  assert.equal(pageInterval(0), 5000);
+});
+
+test('single file mode: comic passes every page (media too), mixed stops at media to play them', () => {
+  // 漫画模式：没有停靠的媒体，每页都按间隔显示
+  const comic = pagePlan({ n: 4 });
+  assert.deepEqual(comic, ['show', 'show', 'show', 'show']);
+  assert.deepEqual(pageAfter(comic, 0), { type: 'show', i: 1 });
+  assert.deepEqual(pageAfter(comic, 3), { type: 'end' });
+  // 混合模式：第 1、3 页是应播的媒体
+  const mixed = pagePlan({ n: 5, stops: new Set([1, 3]) });
+  assert.deepEqual(mixed, ['show', 'play', 'show', 'play', 'show']);
+  assert.deepEqual(pageAfter(mixed, 0), { type: 'play', i: 1 });
+  assert.deepEqual(pageAfter(mixed, 1), { type: 'show', i: 2 });
+  assert.deepEqual(pageAfter(mixed, 4), { type: 'end' });
+  // 从书首之前开始（-1）：第一页
+  assert.deepEqual(pageAfter(mixed, -1), { type: 'show', i: 0 });
+  assert.deepEqual(pageAfter(pagePlan({ n: 0 }), -1), { type: 'end' });
+});
+
+test('single file mode with sections only: only pages inside image sections, plus the media that should play', () => {
+  const span = (ai, af, bi, bf) => ({ a: { i: ai, f: af }, b: { i: bi, f: bf } });
+  // 区段 1.5–3.2 覆盖第 1、2、3 页；区段 6.0–7.0 只覆盖第 6 页（终点正好在第 7 页页首）
+  const spans = [span(1, 0.5, 3, 0.2), span(6, 0, 7, 0)];
+  const plan = pagePlan({ n: 9, spans, stops: new Set([5]) });
+  assert.deepEqual(plan, [null, 'show', 'show', 'show', null, 'play', 'show', null, null]);
+  assert.deepEqual(pageAfter(plan, 0), { type: 'show', i: 1 });
+  assert.deepEqual(pageAfter(plan, 3), { type: 'play', i: 5 });
+  assert.deepEqual(pageAfter(plan, 5), { type: 'show', i: 6 });
+  assert.deepEqual(pageAfter(plan, 6), { type: 'end' });
+  // 起点和终点在同一页的区段（同一处）也经过那一页
+  assert.deepEqual(pagePlan({ n: 3, spans: [span(1, 0.4, 1, 0.4)] }), [null, 'show', null]);
 });

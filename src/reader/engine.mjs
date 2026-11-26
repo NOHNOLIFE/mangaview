@@ -9,12 +9,20 @@
 // - 用户手动滚动、翻屏、拖动不停止运行：停 QUIET 毫秒不推进（不与滚轮的平滑滚动、拖动、惯性叠加），再从新位置接着走；
 //   正文重排（图片加载后的锚定、缩放、窗口调整）只换坐标，不停顿。窗口在后台时没有动画帧，滚动随之暂停，回到前台从原处继续（媒体照常播放）。
 //   用户切到别的书照常运行；切到没有内容的书（只播区段时没有区段的书）即停止。
+// - 单文件模式（8.4，ctx.single）：不连续滚动，按页推进（规则在 core/engine.mjs 的 pagePlan / pageAfter）：漫画模式每页停留
+//   pageInterval（1.0× = 5 秒，间隔 = 5 秒 ÷ 滚动速率）后换到下一页，媒体页也只按间隔翻过；混合模式图片按间隔，媒体页停下播放、播完再换页；
+//   只播区段时只经过图片区段内的页（及应播的媒体）。手动翻页不打断运行，从新的一页重新计时；暂停后继续从当前页重新计时；
+//   停留时间按动画帧累计，窗口在后台时随之暂停。书末、循环、跨书与长条相同。运行中进入或退出单文件模式不停止，下一帧按新的方式接着走。
 import {
   EPS,
   scrollSpeed,
   travel,
   next,
   stopsOf,
+  MAX_DT,
+  pageInterval,
+  pagePlan,
+  pageAfter,
   imageSpans,
   covered,
   hasSections,
@@ -38,7 +46,10 @@ export function install(ctx) {
     jumped = false, // 上一帧之后被别人挪过位置
     playing = null, // 混合模式下停下来播放的 {i, page, since}
     own = null, // 自己（跨书）切到的书：它的 'select' 不算用户切书
-    idle = 0; // 连续几次到了尽头却没有任何进展（回到开头、换书之后马上又到尽头），防止空转
+    idle = 0, // 连续几次到了尽头却没有任何进展（回到开头、换书之后马上又到尽头），防止空转
+    flat = null, // 上一帧是否在单文件模式（null：刚开始，下一帧重新判断）
+    cur = null, // 单文件模式下正在停留计时的页序号（null：下一帧把所在的页当作自己换到的页）
+    elapsed = 0; // 在这一页已停留的时间（毫秒）
   const skip = new Set(); // 已播过或播不了、不再停靠的媒体页序号；离开视窗中线后清掉
 
   // 当前书的书签列表与各媒体的区段（只播区段用），书签变化、切书时重取。
@@ -53,6 +64,19 @@ export function install(ctx) {
   ctx.on('synced', () => (cache = null));
   const sectioned = (book) => hasSections(ctx.marks?.list(book) ?? []);
 
+  // 只播区段时的图片区段（页内位置，null 为不限）与混合模式下应停下播放的媒体页序号。
+  function plays(book) {
+    const only = ctx.transport.sectionsOnly && hasSections(items(book)),
+      raw = only ? imageSpans(items(book)) : null,
+      ranges = only ? marks(book).ranges : null,
+      stops = [];
+    if (mode === 'mixed')
+      book.pages.forEach((pg, i) => {
+        if (!M()?.playable(pg) || (only && !ranges.get(pg.name)?.length && !covered(raw, i))) return;
+        stops.push(i);
+      });
+    return { raw, stops };
+  }
   // 这一帧的几何（中线坐标）：中线范围 lo..hi、媒体停靠点、只播区段时的图片区段。版面还没排好时为 null。
   function geometry(book) {
     const starts = ctx.view.panes[0].starts,
@@ -60,15 +84,8 @@ export function install(ctx) {
     if (!H || starts.length !== book.pages.length + 1) return null;
     const lo = H / 2,
       hi = Math.max(lo, main.scrollHeight - H / 2),
-      only = ctx.transport.sectionsOnly && hasSections(items(book)),
-      raw = only ? imageSpans(items(book)) : null,
-      ranges = only ? marks(book).ranges : null,
-      pages = [];
-    if (mode === 'mixed')
-      book.pages.forEach((pg, i) => {
-        if (!M()?.playable(pg) || (only && !ranges.get(pg.name)?.length && !covered(raw, i))) return;
-        pages.push({ i, top: starts[i], bottom: starts[i + 1] });
-      });
+      { raw, stops } = plays(book),
+      pages = stops.map((i) => ({ i, top: starts[i], bottom: starts[i + 1] }));
     const spans = raw && raw.map((s) => ({ a: point(starts, s.a), b: point(starts, s.b) }));
     return { H, lo, hi, spans, stops: stopsOf(pages, lo, hi) };
   }
@@ -79,6 +96,17 @@ export function install(ctx) {
     prev = now;
     const book = ctx.current;
     if (!book) return finish();
+    const single = !!ctx.single?.active;
+    if (single !== flat) {
+      // 进入 / 退出单文件模式（或刚开始）：从所在的位置按新的方式接着走
+      flat = single;
+      cur = null;
+      elapsed = 0;
+      glide.reset();
+      jumped = true;
+      quiet = 0;
+    }
+    if (single) return paged(dt, book);
     const { y, moved } = glide.here();
     if (moved) {
       jumped = true;
@@ -118,6 +146,52 @@ export function install(ctx) {
     if (s !== 'away') skip.add(playing.i);
     playing = null;
   }
+  // ---- 单文件模式：按页推进。
+  function paged(dt, book) {
+    const i = ctx.single.index();
+    if (i < 0) return; // 版面还没排好
+    if (playing && i === playing.i) return watchPage(book);
+    playing = null; // 翻到了别的页：正在播放的媒体随之离开视窗（autoplay.mjs 暂停它），从新的一页重新计时
+    if (cur !== i) return arrive(book, i, cur == null);
+    elapsed += Math.min(MAX_DT, Math.max(0, dt));
+    if (elapsed >= pageInterval(ctx.transport.scrollRate)) advance(book);
+  }
+  // 停在第 i 页：应播的媒体开始播放，其余从零计时。auto：不是用户翻过来的（开始运行、回到书首、换书、切换显示方式），
+  // 此时区段之外的页直接换到下一个要经过的页，刚在长条里播过的媒体不再重播。
+  function arrive(book, i, auto) {
+    cur = i;
+    elapsed = 0;
+    const kind = pagePlan({ n: book.pages.length, ...planOf(book) })[i];
+    if (kind === 'play' && !(auto && skip.has(i))) return playPage(book, i);
+    if (!kind && auto) advance(book);
+  }
+  function advance(book) {
+    const r = pageAfter(pagePlan({ n: book.pages.length, ...planOf(book) }), cur);
+    if (r.type === 'end') return ended(book);
+    idle = 0;
+    ctx.single.go(r.i);
+    cur = r.i;
+    elapsed = 0;
+    if (r.type === 'play') playPage(book, r.i);
+  }
+  const planOf = (book) => {
+    const { raw, stops } = plays(book);
+    return { spans: raw, stops: new Set(stops) };
+  };
+  function playPage(book, i) {
+    playing = { i, page: book.pages[i], since: performance.now() };
+    M().play(playing.page);
+  }
+  // 停下播放时：播完或播不了就换到下一页；在这一页被别处暂停即停止运行（与长条相同）。
+  function watchPage(book) {
+    const s = M()?.state(playing.page) ?? 'away';
+    if (s === 'playing' || (s === 'wait' && performance.now() - playing.since < WAIT)) return;
+    if (s === 'paused') return finish();
+    skip.add(playing.i);
+    cur = playing.i;
+    playing = null;
+    advance(book);
+  }
   // 到了尽头（书末，或只播区段时最后一个区段之后）。
   function ended(book) {
     const loop = !!ctx.media?.loop,
@@ -143,6 +217,7 @@ export function install(ctx) {
     stopFling();
     glide.set(0);
     jumped = false;
+    cur = null;
   }
 
   function begin(name) {
@@ -156,6 +231,8 @@ export function install(ctx) {
     idle = 0;
     jumped = true; // 停着的时候可能被挪过：前面播过的媒体可以再播
     playing = null;
+    flat = null; // 单文件模式下从当前页重新计时
+    cur = null;
     glide.reset();
     if (name === 'mixed') {
       const page = M()?.first();
@@ -192,6 +269,7 @@ export function install(ctx) {
     }
     own = null;
     playing = null;
+    cur = null;
     skip.clear();
     glide.reset();
     if (!book?.pages.length || (ctx.transport.sectionsOnly && !sectioned(book))) finish();
