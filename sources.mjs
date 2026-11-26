@@ -1,4 +1,4 @@
-import {isContent,unplayable,extOf,natural,fileOf,nameOrder,compareDirs,kindOf} from './model.mjs';
+import {isContent,unplayable,extOf,natural,fileOf,nameOrder,compareDirs,kindOf,isPbf,pairPbf} from './model.mjs';
 
 // 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含内容（图片、视频或音频）的文件夹。
 // 单文件夹书只有一个 key 为 '' 的源；合并作品（导入为单个作品）有多个源，key 为相对所选文件夹的路径，页名为“key/文件名”。
@@ -60,6 +60,27 @@ export async function readMissingTimes(book,active){
   }
 }
 function pageFor(file){const p={name:file.name,lastModified:file.lastModified};live.set(p,file);return p;}
+// PotPlayer 书签（.pbf，pbf.mjs）：列目录时顺带看到，按文件名与同一目录（散图为同一批拖入）的媒体页配对（model.mjs pairPbf），不为此多读盘。
+// 配上的记在页上：文件夹里的页为 page.pbf.file（文件名，经源文件夹读取），散图为 page.pbf.handle；文件选择器回退只在本次会话持有 File（pbfLive）。
+// page.pbf 另记读过时的 size、mtime 和已处理过的条目 done（pbf.mjs），配对消失时只去掉文件名 / 句柄，done 保留。
+const pbfLive=new WeakMap();
+function bindPbf(p,key,value){if(value==null){if(p.pbf?.[key]==null)return;const {[key]:_,...rest}=p.pbf;if(Object.keys(rest).length)p.pbf=rest;else delete p.pbf;}else if(p.pbf?.[key]!==value)p.pbf={...p.pbf,[key]:value};}
+// pages：同一目录（或同一批）的页；pbfs：.pbf 的文件名或句柄 / File；put(页, 配上的 .pbf)。
+function attachPbf(pages,pbfs,put){
+  if(!pbfs.length)return;const byName=new Map(pbfs.map(x=>[typeof x==='string'?x:x.name,x])),map=pairPbf(pages.map(fileOf),[...byName.keys()]);
+  for(const p of pages){const f=map.get(fileOf(p));if(f)put(p,byName.get(f));}
+}
+// 按某个源的最新目录内容（Map(媒体文件名 → .pbf 文件名)）更新它各页的配对。
+export function pairSource(book,s,map){for(const p of allPages(book))if(keyOf(p)===s.key)bindPbf(p,'file',map.get(fileOf(p))??null);}
+// 读 .pbf 用的 File（只取元数据，内容由调用方按需读取）；没有配对时为 null。经源文件夹或句柄读取的都限时（timed）。
+export async function pbfFile(book,page){
+  const f=pbfLive.get(page);if(f)return f;
+  const h=page.pbf?.handle;if(h?.getFile)return timed(h,()=>h.getFile());
+  const name=page.pbf?.file,dir=name&&sourceOf(book,page)?.dir;if(!dir)return null;
+  const fh=await timed(dir,()=>dir.getFileHandle(name));return timed(dir,()=>fh.getFile());
+}
+export const pairFrom=(book,s,pages)=>pairSource(book,s,new Map(pages.filter(p=>typeof p.pbf?.file==='string').map(p=>[fileOf(p),p.pbf.file])));
+export const hasPbf=page=>pbfLive.has(page)||!!page.pbf?.handle?.getFile||typeof page.pbf?.file==='string';
 const ordered=pages=>pages.sort(nameOrder());
 const loosePage=(path,file,extra)=>path?{name:path+'/'+file,path,file,...extra}:{name:file,...extra};
 // 导入时浏览器播不了的媒体文件（按扩展名）不建记录，只计数，导入结果里提示：odd 为 skipped() 返回的计数器，省略则不计。
@@ -69,46 +90,53 @@ const skip=(odd,name)=>{if(odd&&unplayable(name)){odd.n++;odd.exts.add(extOf(nam
 // path：从所选根目录起的相对路径，用于区分同名文件夹和恢复过期书（浏览器拿不到磁盘绝对路径）。
 export async function* scan(dir,base='',odd=null){
   const path=base?base+'/'+dir.name:dir.name;
-  const pages=[],children=[];
+  const pages=[],children=[],pbfs=[];
   for await(const h of dir.values()){
-    if(h.kind==='directory')children.push(h);else if(isContent(h.name))pages.push({name:h.name});else skip(odd,h.name);
+    if(h.kind==='directory')children.push(h);else if(isContent(h.name))pages.push({name:h.name});else if(isPbf(h.name))pbfs.push(h.name);else skip(odd,h.name);
   }
+  attachPbf(pages,pbfs,(p,f)=>{p.pbf={file:f};});
   if(pages.length)yield {title:dir.name,dir,path,pages:ordered(pages)};
   for(const child of children)yield* scan(child,path,odd);
 }
-// 刷新用：只列目录，返回内容文件名；找不到、句柄卡住或没有内容时为 'gone'，没有权限为 'denied'。不支持的文件不提示、不读取。
+// 刷新用：只列目录，返回内容文件名（另带 .pbf 文件名：names.pbf，见 applyNames）；找不到、句柄卡住或没有内容时为 'gone'，没有权限为 'denied'。不支持的文件不提示、不读取。
 export async function listDir(dir,ask){
   try{
     let state=dir.queryPermission?await timed(dir,()=>dir.queryPermission({mode:'read'})):'granted';
     if(state==='prompt'&&ask)state=await dir.requestPermission({mode:'read'}).catch(()=>'prompt');
     if(state!=='granted')return 'denied';
-    const names=[],it=dir.values();
-    for(;;){const r=await timed(dir,()=>it.next());if(r.done)break;if(r.value.kind==='file'&&isContent(r.value.name))names.push(r.value.name);}
-    return names.length?names:'gone';
+    const names=[],pbf=[],it=dir.values();
+    for(;;){const r=await timed(dir,()=>it.next());if(r.done)break;if(r.value.kind==='file'){if(isContent(r.value.name))names.push(r.value.name);else if(isPbf(r.value.name))pbf.push(r.value.name);}}
+    Object.defineProperty(names,'pbf',{value:pbf});return names.length?names:'gone';
   }catch(e){if(['NotFoundError','TimeoutError'].includes(e.name))return 'gone';if(['NotAllowedError','SecurityError'].includes(e.name))return 'denied';throw e;}
 }
 // 扩展名认不出的图片（type 为 image/*）照旧收下；媒体只认扩展名（不支持的格式也有 video/* 之类的 type）。
 const accepted=f=>isContent(f.name)||!unplayable(f.name)&&f.type.startsWith('image/');
 export function fileGroups(files,odd=null){
-  const groups=new Map();
+  const groups=new Map(),pbfs=new Map(),dirOfFile=f=>f.webkitRelativePath?.split('/').slice(0,-1).join('/')||'';
   for(const f of files){
+    if(isPbf(f.name)){const path=dirOfFile(f);if(!pbfs.has(path))pbfs.set(path,[]);pbfs.get(path).push(f);continue;}
     if(!accepted(f)){skip(odd,f.name);continue;}
-    const path=f.webkitRelativePath?.split('/').slice(0,-1).join('/')||'';
+    const path=dirOfFile(f);
     if(!groups.has(path))groups.set(path,[]);groups.get(path).push(pageFor(f));
   }
+  for(const [path,list] of groups)attachPbf(list,pbfs.get(path)??[],(p,f)=>pbfLive.set(p,f));
   return Array.from(groups,([path,pages])=>({title:path.split('/').pop()||null,...path&&{path},pages:ordered(pages)}));
 }
 export async function* handleGroups(handles,odd=null){
-  const loose=[];
-  for(const h of handles){if(h.kind==='directory')yield* scan(h,'',odd);else if(isContent(h.name))loose.push({name:h.name,handle:h});else skip(odd,h.name);}
+  const loose=[],pbfs=handles.filter(h=>h.kind!=='directory'&&isPbf(h.name));
+  for(const h of handles){if(h.kind==='directory')yield* scan(h,'',odd);else if(isContent(h.name))loose.push({name:h.name,handle:h});else if(!isPbf(h.name))skip(odd,h.name);}
+  attachPbf(loose,pbfs,(p,h)=>bindPbf(p,'handle',h));
   if(loose.length)yield {title:null,pages:ordered(loose)};
 }
 // 拖到「添加到散图图集」：所有图片、视频、音频（包括文件夹里的，递归）合成一组散图（title 为 null，归入散图图集）。
 // 来自文件夹的图记下相对目录（如“卷1”），页名为“卷1/001.jpg”，按名称排序时按文件夹聚在一起。
 export async function looseImages(handles,odd=null){
   const pages=[];
-  async function walk(dir,base){for await(const h of dir.values()){if(h.kind==='directory')await walk(h,base+'/'+h.name);else if(isContent(h.name))pages.push(loosePage(base,h.name,{handle:h}));else skip(odd,h.name);}}
-  for(const h of handles){if(h.kind==='directory')await walk(h,h.name);else if(isContent(h.name))pages.push({name:h.name,handle:h});else skip(odd,h.name);}
+  const pair=(list,pbfs)=>{attachPbf(list,pbfs,(p,h)=>bindPbf(p,'handle',h));pages.push(...list);};
+  async function walk(dir,base){const list=[],pbfs=[];for await(const h of dir.values()){if(h.kind==='directory')await walk(h,base+'/'+h.name);else if(isContent(h.name))list.push(loosePage(base,h.name,{handle:h}));else if(isPbf(h.name))pbfs.push(h);else skip(odd,h.name);}pair(list,pbfs);}
+  const top=[],pbfs=[];
+  for(const h of handles){if(h.kind==='directory')await walk(h,h.name);else if(isContent(h.name))top.push({name:h.name,handle:h});else if(isPbf(h.name))pbfs.push(h);else skip(odd,h.name);}
+  pair(top,pbfs);
   return pages.length?[{title:null,pages:ordered(pages)}]:[];
 }
 // 同上，用于不支持文件句柄的浏览器（只有本次会话的 File）。记下大小，供去重时比较。
@@ -136,7 +164,7 @@ export async function addLoose(book,pages){
       mine??=await meta(p);const theirs=await meta(q);
       if(Number.isFinite(mine.lastModified)&&mine.lastModified===theirs.lastModified&&(mine.size==null||theirs.size==null||mine.size===theirs.size)){same=q;break;}
     }
-    if(same){if(p.handle)same.handle=p.handle;if(live.has(p))live.set(same,live.get(p));out.set(old,same.name);continue;}
+    if(same){if(p.handle)same.handle=p.handle;if(live.has(p))live.set(same,live.get(p));if(p.pbf?.handle)bindPbf(same,'handle',p.pbf.handle);if(pbfLive.has(p))pbfLive.set(same,pbfLive.get(p));out.set(old,same.name);continue;}
     const base=(p.path?p.path+'/':'')+file;let name=base;for(let n=2;names.has(name);n++)name=base+' ('+n+')';
     if(name!==file)p.file=file;p.name=name;index(p);book.pages.push(p);out.set(old,name);
   }
@@ -159,13 +187,14 @@ export function mergeKeys(groups){
   });
 }
 // 按某个源的最新文件列表更新页表：保留仍存在的页（尺寸等），追加新图，去掉已不存在的图。
-// reset：重新关联文件夹时清掉旧的修改时间，按需重新读取。
-export function applyNames(book,s,names,reset=false){
+// reset：重新关联文件夹时清掉旧的修改时间，按需重新读取。pbf：目录里的 .pbf 文件名（listDir 的结果带着），给出时重新配对。
+export function applyNames(book,s,names,reset=false,pbf=names.pbf){
   const now=new Set(names),old=new Set(),total=allPages(book).length;
   const keep=p=>{if(keyOf(p)!==s.key)return true;const f=fileOf(p);if(!now.has(f)||old.has(f))return false;old.add(f);if(reset)delete p.lastModified;return true;};
   book.pages=book.pages.filter(keep);if(book.parked)book.parked=book.parked.filter(keep);
   const fresh=[...now].filter(n=>!old.has(n)).sort(natural).map(n=>makePage(s.key,n));
   book.pages.push(...fresh);
+  if(pbf)pairSource(book,s,pairPbf(names,pbf));
   return {added:fresh.length,removed:total+fresh.length-allPages(book).length};
 }
 // 源是否暂时不可用：刷新时找不到、句柄卡住，或者既没有目录句柄、也没有本次会话的文件（如从备份导入）。
@@ -208,6 +237,7 @@ export function reconnect(book,group,s=book.sources?.[0]){
   for(const [p,fresh] of pairs){
     if(live.has(fresh))live.set(p,live.get(fresh));else live.delete(p);
     if(fresh.handle)p.handle=fresh.handle;else delete p.handle;
+    if(pbfLive.has(fresh))pbfLive.set(p,pbfLive.get(fresh));if(fresh.pbf?.handle)bindPbf(p,'handle',fresh.pbf.handle);
     p.lastModified=fresh.lastModified;
   }
   if(pairs.length && group.dir && s){s.dir=group.dir;delete s.missing;}

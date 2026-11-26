@@ -7,6 +7,16 @@ export const extOf=name=>{const m=/\.([^./\\]+)$/.exec(name??'');return m?m[1].t
 export const kindOf=name=>typeof name!=='string'?'image':KINDS.get(extOf(name))??(isImage(name)?'image':null);
 export const isContent=name=>kindOf(name)!==null;
 export const unplayable=name=>UNPLAYABLE.has(extOf(name));
+// PotPlayer 书签（.pbf，见 pbf.mjs）本身不是页：与同一目录（散图为同一批拖入）里主文件名相同的视频、音频配对（X.flac ↔ X.pbf），也接受 X.flac.pbf。
+// 只看文件名、不读盘；同一主文件名对应多个媒体文件时不猜测、跳过；X.flac.pbf 与 X.pbf 都在时用前者。返回 Map(媒体文件名 → .pbf 文件名)。
+export const isPbf=name=>typeof name==='string'&&/\.pbf$/i.test(name);
+export function pairPbf(names,pbfs){
+  const low=s=>s.toLowerCase(),media=names.filter(n=>['video','audio'].includes(kindOf(n))),exact=new Map(media.map(n=>[low(n),n])),stems=new Map(),out=new Map(),rest=[];
+  for(const n of media){const s=low(n.slice(0,n.length-extOf(n).length-1));if(!stems.has(s))stems.set(s,[]);stems.get(s).push(n);}
+  for(const p of pbfs){const base=low(p.slice(0,-4)),m=exact.get(base);if(m)out.set(m,p);else rest.push([base,p]);}
+  for(const [base,p] of rest){const list=stems.get(base);if(list?.length===1&&!out.has(list[0]))out.set(list[0],p);}
+  return out;
+}
 const collator = new Intl.Collator('en',{numeric:true,sensitivity:'base'});
 export const natural = (a,b) => collator.compare(a,b) || (a>b?1:a<b?-1:0);
 export function shuffled(list) {

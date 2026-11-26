@@ -454,7 +454,8 @@ export function install(ctx){
   // 生效的区段覆盖的页：[{id,a,b}]（a 起点页，b 区段书签所在页），全屏缩略图悬停 / 聚焦时标出范围。
   const spans=book=>list(book).filter(x=>x.live).map(x=>({id:x.bm.id,a:x.i,b:x.e}));
   // ranges(book,page)：一个媒体内生效的区段（秒）；paint / mediaBadge / where：书签缩略图、类型角标、位置说明（全屏书架书签、设置封面共用）。
-  ctx.marks={list,pages:pageMarks,sig,badge,spans,thumbKey:key,endKey,isMedia,mediaRanges,ranges:(book,page)=>mediaRanges(book).get(page.name)??[],paint,mediaBadge,where};
+  // changed(book)：书签在别处（如 .pbf 导入，pbf.mjs）增改后，更新面板、书架书签列表和其他界面。
+  ctx.marks={list,pages:pageMarks,sig,badge,spans,thumbKey:key,endKey,isMedia,mediaRanges,ranges:(book,page)=>mediaRanges(book).get(page.name)??[],paint,mediaBadge,where,changed};
 
   // ---- 播放器上的书签（media.mjs 的 ctx.player）：壳上的「添加书签」「添加区段书签」按钮；进度条上按时间位置画出该文件全部书签的标记。
   // 普通书签是圆点，起点与区段书签是一对方括号；悬停或聚焦一对中的任意一个，两者之间的区段高亮，提示两端的时间与名称；点击跳到该标记的时间。
