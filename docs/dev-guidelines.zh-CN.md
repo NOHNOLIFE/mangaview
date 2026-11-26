@@ -120,7 +120,7 @@
   - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）。
   - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、工具栏（`toolbar`）、专注模式（`focus`）、全屏缩略图（`overview`）。
   - `src/shelf/`：书架（`shelf`）、自定义封面（`cover`）。
-  - `src/marks/`：书签（`bookmarks`）、PotPlayer 书签（`pbf`）。
+  - `src/marks/`：书签入口与装配（`bookmarks`）、书签列表的纯逻辑（`list`：排序、区段是否生效、配对坐标、每页标记汇总）、数据操作与跳转（`actions`）、名称与位置文案（`names`）、列表项绘制（`tile`）、书签缩略图（`snap`）、书签面板（`panel`）、书架书签栏（`dock`）、缩略图上的标记（`pagemarks`）、PotPlayer 书签（`pbf`）；播放器进度条上的书签标记在 `src/media/marks.mjs`，全屏书架书签在 `src/reader/overview-marks.mjs`。
   - `src/media/`：视频、音频播放器（`media`）。
   - `src/panels/`：设置（`settings`）、导出与导入（`backup`）、键鼠操作图示（`help`）。
 - 新模块放进职责对应的目录；出现新的领域时新建目录，不往根目录或 `app.mjs` 里堆。模块之间用相对路径 import。
