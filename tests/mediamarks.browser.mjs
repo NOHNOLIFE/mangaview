@@ -233,7 +233,7 @@ try {
   await toPageReady('03 long.wav');
   assert.deepEqual(
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
-    ['bookmark', 'loop', 'order', 'popout', 'section', 'sections'],
+    ['bookmark', 'loop', 'order', 'popout', 'section', 'sections', 'subs'],
   );
   const orderState = () =>
     js(

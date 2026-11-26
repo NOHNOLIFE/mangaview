@@ -43,6 +43,40 @@ export function pairPbf(names, pbfs) {
   }
   return out;
 }
+// 外挂字幕（.srt .vtt .ass .ssa .lrc，解析见 subtitles.mjs）本身不是页：与同一目录（散图为同一批拖入或图集里的同一相对目录）里的媒体配对，
+// 字幕的文件名以媒体的主文件名开头再接 "."（片名.srt、片名.zh.srt、片名.chs.ass，不区分大小写）。只看文件名、不读盘。
+// 几个媒体的主文件名都能接上时只配最长的那个（ep1.part2.srt 配 ep1.part2.mp4 而不是 ep1.mp4）；主文件名相同的几个媒体共用。
+// 返回 Map(媒体文件名 → [字幕文件名，按文件名顺序])。
+export const isSub = (name) => typeof name === 'string' && /\.(srt|vtt|ass|ssa|lrc)$/i.test(name);
+const stemOf = (name) => name.slice(0, name.length - extOf(name).length - 1).toLowerCase();
+export function pairSubs(names, subs) {
+  const stems = new Map(),
+    out = new Map();
+  for (const n of names)
+    if (['video', 'audio'].includes(kindOf(n))) {
+      const s = stemOf(n);
+      if (!stems.has(s)) stems.set(s, []);
+      stems.get(s).push(n);
+    }
+  for (const sub of subs) {
+    const low = sub.toLowerCase();
+    let best = null;
+    for (let i = low.indexOf('.'); i > 0; i = low.indexOf('.', i + 1))
+      if (stems.has(low.slice(0, i))) best = low.slice(0, i);
+    for (const m of best == null ? [] : stems.get(best)) {
+      if (!out.has(m)) out.set(m, []);
+      out.get(m).push(sub);
+    }
+  }
+  for (const list of out.values()) list.sort(natural);
+  return out;
+}
+// 默认的字幕：与媒体完全同名（只差扩展名）的优先，其次按文件名顺序第一个。
+export function defaultSub(media, subs) {
+  const list = [...subs].sort(natural),
+    s = stemOf(media);
+  return list.find((x) => stemOf(x) === s) ?? list[0] ?? null;
+}
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b) || (a > b ? 1 : a < b ? -1 : 0);
 export function shuffled(list) {

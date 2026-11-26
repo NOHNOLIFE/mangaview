@@ -1,7 +1,7 @@
 // 导入：把扫描到的文件夹建成书或并入引用它的书（add），导入为单个作品（addMerged），导入结果的提示。
 // 选择入口见 pick.mjs、拖放见 drop.mjs；把源接到文件夹上的做法见 relink.mjs。
 import { natural, clipEnd } from '../core/model.mjs';
-import { mergeKeys, isLoose } from '../core/sources.mjs';
+import { mergeKeys, isLoose, addLooseSubs } from '../core/sources.mjs';
 import { t, fmt, title } from '../core/locale.mjs';
 import { emit } from '../core/events.mjs';
 import { books, persist } from '../core/books.mjs';
@@ -25,6 +25,13 @@ async function refsTo(dir, title) {
 // later：合并作品中的卷先记下，整批导入完后每本书只排序保存一次（一次导入很多卷时不反复写整本书的记录）。
 async function addGroup(group, place = 'shelf', later = null) {
   let book;
+  // 只有字幕（之后单独加入散图图集的）：与图集里已有的媒体配对，不新建图集；一个也没配上时不算添加。
+  if (!group.title && !group.pages.length) {
+    book = [...books.values()].find(isLoose);
+    if (!book || !addLooseSubs(book, group.subs)) return null;
+    await persist(book);
+    return book;
+  }
   const vol = (b, s) => {
     if (!later) return relink(b, group, s);
     if (!later.has(b)) later.set(b, []);
@@ -92,6 +99,7 @@ export async function add(groups, place = importPlace(), odd = null) {
   notice('scanning');
   for await (const group of groups) {
     const book = await addGroup(group, place, later);
+    if (!book) continue;
     if (!list.includes(book)) list.push(book);
     if (list.length === 1 && !quiet && current !== book) select(book);
   }
@@ -171,7 +179,10 @@ export async function addMerged(roots, groups, place = importPlace(), odd = null
     await persist(book);
   }
   const list = [book];
-  for (const g of loose) list.push(await addGroup(g, place));
+  for (const g of loose) {
+    const b = await addGroup(g, place);
+    if (b) list.push(b);
+  }
   if (!(shelf.open && current) && current !== book) select(book);
   imported(list, place);
   notice(

@@ -320,7 +320,7 @@ test('按源更新页表：保留尺寸，追加新图，去掉消失的图；�
     ],
     pages: [{ ...makePage('a', '1.jpg'), w: 5 }, makePage('a', '2.jpg'), makePage('b', '1.jpg')],
   };
-  assert.deepEqual(applyNames(book, book.sources[0], ['1.jpg', '3.jpg']), { added: 1, removed: 1 });
+  assert.deepEqual(applyNames(book, book.sources[0], ['1.jpg', '3.jpg']), { added: 1, removed: 1, subs: false });
   assert.deepEqual(
     book.pages.map((p) => p.name),
     ['a/1.jpg', 'b/1.jpg', 'a/3.jpg'],
