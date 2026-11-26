@@ -206,3 +206,12 @@ label.match .why{grid-column:2/-1}
 .cp-item:not(:disabled):hover,.cp-item:focus-visible{background:linear-gradient(160deg,#25272d,#16171b);box-shadow:0 0 0 2px var(--accent),0 6px 16px rgba(0,0,0,.4);outline:none}
 .cp-item.current{box-shadow:0 0 0 2px var(--ok)}
 .cp-foot{display:flex;justify-content:flex-end;padding:10px 18px 16px;border-top:1px solid var(--line)}
+/* 类型筛选（图片 / 视频 / 音频）：与「包含书签」同一套开关按钮，紧挨着排在同一行 */
+.kind-filter{display:inline-flex;gap:4px}
+/* 类型角标：含视频 / 音频的书在封面右上角常显；选中时让位给操作按钮 */
+.book .kind-flag{position:absolute;z-index:1;right:8px;top:8px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border-radius:999px;background:rgba(10,10,12,.72);backdrop-filter:blur(8px);color:#fff;transition:opacity .15s}
+.book .kind-flag .i{width:13px;height:13px}
+.book.active .kind-flag{opacity:0}
+/* 只有音频的书：用作品名生成的文字封面（长名称换行，超出末尾省略） */
+.text-cover{position:absolute;inset:0;display:grid;place-items:center;padding:16px 14px 44px;background:linear-gradient(160deg,#2b2d35,#15161a)}
+.text-cover>span{display:-webkit-box;max-width:100%;overflow:hidden;color:rgba(255,255,255,.88);font-size:17px;font-weight:700;line-height:1.35;text-align:center;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:6}

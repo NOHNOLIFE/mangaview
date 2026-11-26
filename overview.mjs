@@ -12,7 +12,8 @@ import {norm} from './match.mjs';
 // 面板里 WASD / 方向键按网格行列（瀑布流按列）移动选中；鼠标移到哪格就选中哪格，悬停与键盘共用同一个选中样式（缩小 + 描边，不遮挡相邻格）。
 // 空格 / Enter 或点击跳过去并关闭。
 // 标题行的搜索框：输入即过滤，键盘选择只在结果内移动；打开时焦点仍在列表上，/ 或 Ctrl+F 聚焦搜索框，搜索框内 Esc 先清空并回到列表。
-// 搜索词只在本次打开期间有效，关闭即清空，不影响上一本 / 下一本和书签跳转。
+// 搜索框旁的「图片 / 视频 / 音频」开关按页（书签所在页）的类型过滤，可多选，全不选等于不限；没有结果时的一键清除连同类型一起清除。
+// 搜索词和类型只在本次打开期间有效，关闭即清空，不影响上一本 / 下一本和书签跳转。
 // 标题行的书架按钮（或 B）在上层打开书架，全屏界面留在下面：书架里切书时全屏缩略图跟着换成新书，关闭书架后回到全屏界面（全屏书签按书架的最新状态重排）。
 extend({
   ovOpen:['Full-screen thumbnails (V)','全屏缩略图（V）','全画面サムネイル（V）','전체 화면 미리보기 (V)'],
@@ -35,6 +36,8 @@ document.querySelector('svg.sprite')?.insertAdjacentHTML('beforeend','<symbol id
 const GAP=6,MIN_COL=150,TALL=1.6,MAX_RATIO=3;
 const ACTS={arrowleft:'left',a:'left',arrowright:'right',d:'right',arrowup:'up',w:'up',arrowdown:'down',s:'down',pageup:'pageUp',pagedown:'pageDown',home:'home',end:'end',' ':'choose',enter:'choose'};
 const plain=e=>!e.ctrlKey&&!e.metaKey&&!e.altKey;
+// 类型开关：图标（photo 由 shelf.mjs 登记，film / music 由 media.mjs 登记）与文案 key。
+const KINDS=[['image','photo'],['video','film'],['audio','music']],KIND_LABEL={image:'kindImage',video:'kindVideo',audio:'kindAudio'};
 export function install(ctx){
   const {t,fmt,make,main,view}=ctx;
   ctx.dropKey('overview');ctx.dropKey('smOverview'); // 旧版“鼠标移入上角打开”的两个开关已移除
@@ -52,18 +55,26 @@ export function install(ctx){
     const scroller=make('div','ov-scroll'),body=make('div',bodyClass);scroller.tabIndex=-1;scroller.setAttribute('role','listbox');
     // 搜索框；没有结果时在列表区显示「没有匹配的项」和一键清除（与“本来就没有”区分）。
     const find=make('label','ov-find'),q=make('input'),none=make('div','ov-none'),noneText=make('span'),clear=make('button','link-btn');
+    // 搜索框旁的类型开关（图片 / 视频 / 音频）：可多选，全不选等于不限；与搜索词一样只在本次打开期间有效。切换后焦点回到列表。
+    const kinds=new Set(),kindBox=make('div','ov-kinds');kindBox.setAttribute('role','group');
+    const kindBtns=KINDS.map(([k,name])=>{const b=ctx.iconButton(name,'',()=>{if(kinds.has(k))kinds.delete(k);else kinds.add(k);syncKinds();hooks.filter();scroller.focus({preventScroll:true});},'ov-kind');b.dataset.kind=k;return b;});
+    kindBox.append(...kindBtns);
+    function syncKinds(){for(const b of kindBtns){const k=b.dataset.kind,label=t(KIND_LABEL[k]);b.setAttribute('aria-pressed',String(kinds.has(k)));b.title=label;b.setAttribute('aria-label',label);}}
+    syncKinds();
     q.type='search';q.autocomplete='off';q.spellcheck=false;find.append(ctx.icon('search'),q);
     clear.type='button';none.hidden=true;none.append(noneText,clear);
-    clear.onclick=()=>{q.value='';hooks.filter();scroller.focus({preventScroll:true});};
+    clear.onclick=()=>{q.value='';kinds.clear();syncKinds();hooks.filter();scroller.focus({preventScroll:true});};
     q.addEventListener('input',()=>hooks.filter());
-    scroller.append(body,none);head.append(name,pos,hint,find,shelfBtn,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
+    scroller.append(body,none);head.append(name,pos,hint,find,kindBox,shelfBtn,lay,shut);dialog.append(head,scroller);document.body.append(dialog);
     let closing=0;
     const s={dialog,name,pos,scroller,body,lay,relayout:()=>hooks.relayout(),
-      query:()=>q.value,none(on){none.hidden=!on;},
+      query:()=>q.value,kinds:()=>kinds,filtered:()=>!!q.value.trim()||kinds.size>0,none(on){none.hidden=!on;clear.textContent=t(kinds.size?'clearFilters':'ovClear');},
       is:e=>plain(e)&&keys.includes(e.key.toLowerCase()),
       open(quiet=false){
-        if(dialog.open||document.querySelector('dialog[open]')||!hooks.setup(quiet))return false;
-        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();q.placeholder=t(hooks.find);q.setAttribute('aria-label',q.placeholder);noneText.textContent=t('ovNoMatch');clear.textContent=t('ovClear');for(const [b,k] of [[shut,'close'],[shelfBtn,'ovShelf']]){b.title=t(k);b.setAttribute('aria-label',t(k));}
+        if(dialog.open||document.querySelector('dialog[open]'))return false;
+        q.value='';kinds.clear();syncKinds(); // 搜索词和类型只在一次打开期间有效（关闭后立即重新打开时 close 事件可能还没到）
+        if(!hooks.setup(quiet))return false;
+        hint.textContent=fmt('ovHint',{key:keys[0].toUpperCase()});syncLayout();q.placeholder=t(hooks.find);q.setAttribute('aria-label',q.placeholder);noneText.textContent=t('ovNoMatch');clear.textContent=t('ovClear');syncKinds();for(const [b,k] of [[shut,'close'],[shelfBtn,'ovShelf']]){b.title=t(k);b.setAttribute('aria-label',t(k));}
         clearTimeout(closing);closing=0;dialog.classList.remove('closing');
         dialog.showModal();scroller.focus({preventScroll:true});hooks.show();return true;
       },
@@ -99,7 +110,7 @@ export function install(ctx){
       const node=e.target.closest('.ov-item');if(node)hooks.hover(node);
     });
     dialog.addEventListener('cancel',e=>{e.preventDefault();s.close();});
-    dialog.addEventListener('close',()=>{if(dialog.open)return; /* close 事件异步派发：期间已重新打开就不清理 */clearTimeout(closing);closing=0;dialog.classList.remove('closing');px=py=null;q.value='';none.hidden=true;hooks.cleanup();main.focus({preventScroll:true});});
+    dialog.addEventListener('close',()=>{if(dialog.open)return; /* close 事件异步派发：期间已重新打开就不清理 */clearTimeout(closing);closing=0;dialog.classList.remove('closing');px=py=null;q.value='';kinds.clear();syncKinds();none.hidden=true;hooks.cleanup();main.focus({preventScroll:true});});
     sheets.push(s);ctx.keys.push({down(e){if(!s.is(e))return false;e.preventDefault();if(!e.repeat)s.open();return true;}});
     return s;
   }
@@ -123,7 +134,7 @@ export function install(ctx){
     choose(){if(items[sel])choose(sel);},
     // 搜索词变化：保留仍在结果里的选中项，否则选中第一个结果；清空后回到当前页。
     filter(){
-      if(!book)return;const all=!thumbs.query().trim();layout();thumbs.none(!shown.length);
+      if(!book)return;const all=!thumbs.filtered();layout();thumbs.none(!shown.length);
       const to=all?here:items[sel]?sel:shown[0];
       if(items[to]){if(all){const it=items[to];sc.scrollTop=it.y+it.h/2-sc.clientHeight/2;select(to,false);}else{if(to!==sel)sc.scrollTop=0;select(to);}}
       paint();
@@ -136,10 +147,10 @@ export function install(ctx){
   const sc=thumbs.scroller,grid=thumbs.body;
   function cellRatio(b){const r=b.pages.filter(p=>p.w&&p.h).map(p=>p.h/p.w).sort((x,y)=>x-y);return Math.min(1.6,Math.max(.7,r.length?r[r.length>>1]:1.4));}
   function layout(){
-    const pages=book?.pages||[],W=sc.clientWidth,m=masonry(),words=terms(thumbs.query());n=Math.max(2,Math.floor((W-GAP)/(MIN_COL+GAP)));
+    const pages=book?.pages||[],W=sc.clientWidth,m=masonry(),words=terms(thumbs.query()),ks=thumbs.kinds();n=Math.max(2,Math.floor((W-GAP)/(MIN_COL+GAP)));
     const w=(W-GAP*(n+1))/n,gh=Math.round(w*ratio),heights=Array(n).fill(GAP);cols=Array.from({length:n},()=>[]);shown=[];
     items=pages.map((p,i)=>{
-      if(words.length&&!words.every(x=>hayOf(i).includes(x)))return null;
+      if(ks.size&&!ks.has(pageKind(p))||words.length&&!words.every(x=>hayOf(i).includes(x)))return null;
       const k=shown.length;shown.push(i);
       let c=k%n;if(m){c=0;for(let j=1;j<n;j++)if(heights[j]<heights[c]-.5)c=j;}
       const pr=(p.h||1120)/(p.w||800),h=m?Math.round(w*Math.min(MAX_RATIO,pr)):gh;
@@ -163,8 +174,9 @@ export function install(ctx){
         node.setAttribute('aria-selected',String(i===sel));badge(node,i);inSpan(node,i);place(node,i);grid.append(node);nodes.set(i,node);
       }
       // 已在队列里的只更新优先级（imageJob 对同一个槽位不会重复读取）；缓存命中时立即显示。
-      // 视频、音频：固定样式的占位（media.mjs），不读文件。
-      if(pageKind(page)!=='image'){if(!node.firstChild.firstChild)node.firstChild.append(ctx.mediaTile(page));return;}
+      // 视频、音频：固定样式的占位（media.mjs）；视频叠上真实画面（ctx.frames，持久化，只为可见项生成），音频不读文件。
+      const kind=pageKind(page);
+      if(kind!=='image'){if(!node.firstChild.firstChild)node.firstChild.append(ctx.mediaTile(page));if(kind==='video')ctx.frames?.show(node.firstChild,b,page,visible);return;}
       imageJob(node.firstChild,()=>view.hooks.file(b,page),visible?1:3,true,(w,h)=>{if(page.w!==w||page.h!==h){page.w=w;page.h=h;dirty=true;schedule();}},
         ()=>node.classList.add('failed'),pageKey(b,page));
     });
@@ -223,7 +235,7 @@ export function install(ctx){
     show(){markLayout();mark(msel);mfollow=true;marks[msel]?.node.scrollIntoView({block:'center'});},
     // 搜索词变化：保留仍在结果里的选中项，否则选中第一个结果；清空后回到当前位置附近的书签。
     filter(){
-      const all=!shelfSheet.query().trim();build(all?sm().start():marks[msel]?.x.bm.id);markLayout();mark(msel);mfollow=true;
+      const all=!shelfSheet.filtered();build(all?sm().start():marks[msel]?.x.bm.id);markLayout();mark(msel);mfollow=true;
       marks[msel]?.node.scrollIntoView({block:all?'center':'nearest'});
     },
     move(act){
@@ -242,8 +254,10 @@ export function install(ctx){
   }
   // 按当前搜索词重建列表，start 为要选中的书签 id。带区段书签的书签左下角叠一张区段书签小图（与书签列表相同），点它跳到区段书签。
   function build(start){
-    const words=norm(shelfSheet.query()).split(' ').filter(Boolean),body=shelfSheet.body;marks=[];
-    const list=words.length?groups.map(({book,items})=>({book,items:items.filter(x=>{const h=hayMark(book,x);return words.every(w=>h.includes(w));})})).filter(g=>g.items.length):groups;
+    const words=norm(shelfSheet.query()).split(' ').filter(Boolean),ks=shelfSheet.kinds(),body=shelfSheet.body;marks=[];
+    // 类型按书签所在页的类型（媒体书签即所在的视频 / 音频）。
+    const keep=(book,x)=>(!ks.size||ks.has(pageKind(book.pages[x.i]??{name:''})))&&(!words.length||(h=>words.every(w=>h.includes(w)))(hayMark(book,x)));
+    const list=words.length||ks.size?groups.map(({book,items})=>({book,items:items.filter(x=>keep(book,x))})).filter(g=>g.items.length):groups;
     body.replaceChildren(...list.map(({book,items})=>{
       const sec=make('section','ov-sec'+(book===ctx.current?' current':'')),head=make('div','ov-sec-head'),grid=make('div','ov-sec-grid');
       head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,grid);

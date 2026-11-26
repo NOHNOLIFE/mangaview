@@ -8,7 +8,7 @@
 .overview>.ov-head{display:flex;align-items:center;gap:14px;padding:calc(var(--top) + 8px) 10px 8px 18px;border-bottom:1px solid var(--line)}
 .ov-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .ov-pos{flex:none;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-.ov-hint{flex:none;max-width:max(0px,min(40%,100% - 22rem));margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
+.ov-hint{flex:none;max-width:max(0px,min(40%,100% - 32rem - clamp(7.5rem,20vw,15rem)));margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
 /* 名称长短不改变说明文字和按钮的尺寸与位置：只有书名（和全屏书签里带书名的位置）收缩并末尾省略。 */
 .ov-head>.icon-btn{flex:none}
 #shelfOverview .ov-pos{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -71,3 +71,6 @@
 .ov-mark.sel .bm-sub,.ov-mark:hover .bm-sub{box-shadow:0 0 0 2px var(--accent),0 3px 10px rgba(0,0,0,.5)}
 /* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */
 @media (max-width:560px){.overview>.ov-head{flex-wrap:wrap;row-gap:6px;column-gap:8px}.overview .ov-hint{display:none}.overview .ov-title{flex:0 1 auto;max-width:45%}.overview .ov-pos{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}.ov-find{order:1;flex:1 1 100%;width:auto}}
+/* 搜索框旁的类型开关（图片 / 视频 / 音频）：始终占位，按下时高亮（.icon-btn[aria-pressed]）；说明文字的宽度上限已为它们留出位置（.ov-hint） */
+.ov-kinds{display:flex;flex:none;gap:2px}
+@media (max-width:560px){.overview .ov-find{flex:1 1 60%}.ov-kinds{order:1}}

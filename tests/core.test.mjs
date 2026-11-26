@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {detect,translate} from '../lang.mjs';
 import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort,fileOf,shownName,compareDirs,clipEnd,splitTail,kindOf,pageKind,isContent,unplayable,videoWidth,AUDIO_H,clock,seekStep,nudge} from '../model.mjs';
-import {grade,assign,coverName,hue,norm} from '../match.mjs';
+import {grade,assign,coverName,hue,norm,mediaOverlap} from '../match.mjs';
 import {KEYS,ZONES,ROWS,MOUSE,MORE,pieces,plain} from '../help.mjs';
 import {snap,merge,changes,adopt,refresh,print} from '../merge.mjs';
 import {pair,ranges,fits} from '../sections.mjs';
 import {mergeMarks} from '../backup.mjs';
-import {skipped,handleGroups,fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive} from '../sources.mjs';
+import {skipped,handleGroups,fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive,mediaSizes} from '../sources.mjs';
 
 test('语言按偏好顺序匹配地区变体，否则显示英文',()=>{
   for(const [list,want] of [[['fr-CA','zh-Hant-TW','en'],'zh'],[['ko-KR'],'ko'],[['ja-JP'],'ja'],[['en-US','zh'],'en'],[['fr','de'],'en'],[[],'en']])assert.equal(detect(list),want);
@@ -94,6 +94,42 @@ test('过期书匹配：同名同封面自动恢复，改名或换封面需确�
   assert.equal(hue('热血'),hue(' 热血 '));assert.equal(norm('ＡＢ  c'),'ab c');
 });
 
+test('媒体的恢复与识别：不做全文件哈希，按文件名 + 精确大小比较；改名或首个文件对不上时按重合度列出确认，同名不同大小不自动匹配',()=>{
+  const vids=['01.mp4','02.mp4','03.mkv','04.mp3'],sizes=new Map(vids.map((n,i)=>[n,1000+i]));
+  const book=(title,hash,size=i=>1000+i)=>({title,pages:vids.map((name,i)=>({name,size:size(i)})),fp:hash&&{cover:{hash}}});
+  const cand=(title,hash,s=sizes)=>({title,hash,names:vids,sizes:s});
+  assert.equal(mediaOverlap(book('A').pages,sizes),1);
+  assert.equal(mediaOverlap(book('A').pages,new Map([...sizes,['02.mp4',5]])),.6,'同名不同大小不算重合');
+  assert.equal(mediaOverlap([{name:'1.jpg',size:1}],sizes),null,'只比较媒体文件');
+  assert.equal(mediaOverlap([{name:'01.mp4'}],sizes),null,'记录里还不知道大小的不比较');
+  assert.equal(mediaOverlap(book('A').pages,undefined),null);
+  // 名称与首个文件的指纹都一致：自动接回（不变）。
+  assert.equal(grade(book('A','h'),cand('A','h')).level,2);
+  // 文件夹改名、首个文件也对不上：媒体的文件名 + 大小几乎全对上时列出来由用户确认；对不上的仍不匹配。
+  assert.equal(grade(book('A','h'),cand('B','x')).level,1);
+  assert.equal(grade(book('A','h'),cand('B','x',new Map([['01.mp4',1]]))).level,0);
+  assert.equal(grade(book('A','h'),cand('B','x',null)).level,0,'没有读到大小时照旧不匹配');
+  assert.equal(grade(book('A','h',i=>i?1000+i:1),cand('B','x')).level,1,'首个文件变了、其余都对上（4 个里 3 个，0.6）也列出来确认');
+  assert.equal(grade(book('A','h',i=>i>1?1000+i:i),cand('B','x')).level,0,'只对上一半不列出');
+  // 名称相同、没有指纹可比：文件名全重合但有媒体大小不同，不自动接回。
+  assert.equal(grade(book('A',null),cand('A',null)).level,2);
+  assert.equal(grade(book('A',null,i=>i===1?7:1000+i),cand('A',null)).level,1);
+  // 重合度高的排在前面。
+  assert.ok(grade(book('A','h'),cand('B','x')).score>grade(book('A','h'),cand('B','x',new Map([['01.mp4',1000]]))).score);
+});
+test('散图图集里的媒体按相对目录 + 文件名定位，并要求大小一致；大小只读文件元数据',async()=>{
+  let reads=0;const fh=(name,size)=>({kind:'file',name,async getFile(){reads++;return {name,size,lastModified:1};}});
+  const dir=(name,entries)=>({name,kind:'directory',async *values(){yield* entries;}});
+  const book={sources:[],pages:[{name:'A/clip.mp4',path:'A',file:'clip.mp4',size:500},{name:'A/song.mp3',path:'A',file:'song.mp3',size:70},{name:'A/1.jpg',path:'A',file:'1.jpg'},{name:'A/new.mp4',path:'A',file:'new.mp4'}]};
+  const clip=fh('clip.mp4',500),song=fh('song.mp3',71),pic=fh('1.jpg',9),fresh=fh('new.mp4',3),other=fh('other.mp4',1);
+  const [g]=await looseImages([dir('A',[clip,song,pic,fresh,other])]);
+  assert.equal(reads,0,'列目录时不读文件');
+  await mediaSizes(book,g);
+  assert.equal(reads,2,'只为记录里已知大小的同名媒体读取元数据');
+  assert.equal(reconnect(book,g),3);
+  assert.equal(book.pages[0].handle,clip);assert.equal(book.pages[1].handle,undefined,'同名不同大小不接回');
+  assert.equal(book.pages[2].handle,pic);assert.equal(book.pages[3].handle,fresh,'还不知道大小的照旧按相对目录 + 文件名');
+});
 test('合并作品：按卷再按文件名排序，各卷不交错；页名在整本书内唯一',()=>{
   const pages=[makePage('Vol 10','1.jpg'),makePage('Vol 2','10.jpg'),makePage('Vol 2','2.jpg'),makePage('Vol 1','1.jpg')];
   const book={sources:['Vol 1','Vol 2','Vol 10'].map(key=>({key,path:'S/'+key})),pages},dir=dirOf(book);

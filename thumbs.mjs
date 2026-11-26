@@ -43,3 +43,129 @@ export function keepPageThumb(key,blob,w,h,stamp){
 export function dropPage(key){const e=pages.get(key);if(!e)return;pages.delete(key);pageBytes-=e.blob.size;if(e.url)setTimeout(URL.revokeObjectURL,10000,e.url);}
 export function forgetPages(prefix){for(const k of [...pages.keys()])if(k.startsWith(prefix))dropPage(k);}
 export const pageCacheSize=()=>({count:pages.size,bytes:pageBytes});
+
+// ---- 视频画面：缩略图栏、全屏缩略图和书架封面里的视频显示真实画面（不再是类型图标占位）。
+// 浏览器无法枚举关键帧，按时间点取帧，不保证恰好是关键帧。读取元数据、定位都有上限（FRAME_MS），超时按失败处理。
+export const FRAME_MS=20000;
+const DARK=16; // 画面的平均亮度（0–255）低于它算「接近纯黑」
+function until(el,type,ms=FRAME_MS){return new Promise((ok,no)=>{
+  let timer=0;const off=()=>{clearTimeout(timer);el.removeEventListener(type,done);el.removeEventListener('error',fail);};
+  const done=()=>{off();ok();},fail=()=>{off();no(new DOMException('','EncodingError'));};
+  timer=setTimeout(()=>{off();no(new DOMException('','TimeoutError'));},ms);
+  el.addEventListener(type,done);el.addEventListener('error',fail);
+});}
+// 只读元数据和定位处附近的数据（对象 URL，浏览器按需读取，不整体读进内存）；没有画面的（纯音频）按播不了处理。
+async function openVideo(file){
+  const el=document.createElement('video'),url=URL.createObjectURL(file);
+  el.muted=true;el.preload='auto';el.playsInline=true;el.disableRemotePlayback=true;
+  const close=()=>{el.removeAttribute('src');el.load();URL.revokeObjectURL(url);};
+  try{const meta=until(el,'loadedmetadata');el.src=url;await meta;if(!el.videoWidth||!el.videoHeight)throw new DOMException('','EncodingError');}
+  catch(e){close();throw e;}
+  return {el,duration:Number.isFinite(el.duration)&&el.duration>0?el.duration:null,close};
+}
+async function grab(v,seconds,width){
+  const {el,duration:d}=v,s=Math.max(0,Math.min(Number.isFinite(seconds)?seconds:0,d?Math.max(0,d-.05):Infinity));
+  const seek=until(el,'seeked');el.currentTime=s;await seek;
+  if(el.readyState<2)await until(el,'canplay');
+  const iw=el.videoWidth,ih=el.videoHeight,scale=Math.min(1,width/iw),w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
+  const canvas=new OffscreenCanvas(w,h);canvas.getContext('2d').drawImage(el,0,0,w,h);
+  const probe=new OffscreenCanvas(16,16),g=probe.getContext('2d',{willReadFrequently:true});g.drawImage(canvas,0,0,16,16);
+  const px=g.getImageData(0,0,16,16).data;let sum=0;for(let i=0;i<px.length;i+=4)sum+=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
+  return {blob:await canvas.convertToBlob({type:'image/webp',quality:.82}),w,h,iw,ih,at:s,dark:sum/(px.length/4)<DARK};
+}
+// 取 seconds 秒处的一帧，缩到宽 ≤ width 的 WebP：{blob,w,h,iw,ih,at,dark}。
+export async function grabFrame(file,seconds,{width=320}={}){const v=await openVideo(file);try{return await grab(v,seconds,width);}finally{v.close();}}
+// 没有书签时的默认画面：片长约 10% 处，接近纯黑再试 30%、50%，至多三次；都接近纯黑时用第一张。时长未知时取开头。
+export const POSTER=[.1,.3,.5];
+export async function posterFrame(file,{width=320}={}){
+  const v=await openVideo(file);
+  try{let first=null;for(const f of v.duration?POSTER:[0]){const shot=await grab(v,(v.duration??0)*f,width);if(!shot.dark)return shot;first??=shot;}return first;}
+  finally{v.close();}
+}
+// 用哪个画面：该视频时间最早的媒体书签（{name,t}，t 为秒），没有时为 null。来源标记（src）变了就重新生成。
+export function firstMark(book,page){let m=null;for(const x of book.bookmarks||[])if(x&&x.name===page.name&&Number.isFinite(x.t)&&(!m||x.t<m.t||x.t===m.t&&x.at<m.at))m=x;return m;}
+export const frameSrc=(book,page)=>{const m=firstMark(book,page);return m?'bm:'+m.id+'@'+m.t:'auto';};
+export const frameKey=(book,page)=>book.id+':vt:'+page.name;
+
+// 视频页的缩略图（缩略图栏、全屏缩略图）与封面共用一份（ctx.frames）：
+// - 优先用该视频时间最早的书签的缩略图（书签模块生成，键为 ctx.marks.thumbKey）；书签还没有缩略图时按书签时间自己截一张；没有书签时用 posterFrame。
+// - 生成的小图持久化在 thumbs（键 frameKey），记下生成时文件的大小 + 修改时间（stamp）和来源（src）；文件没变、来源没变就直接用。
+//   本次会话第一次显示（以及窗口重新获得焦点后）只读文件信息（不读内容）校验一次。
+// - 播不了、没有画面的记下当时的大小 + 修改时间（page.vfail；播放器已记为播不了的 page.bad 同样对待），文件没变就不再尝试；
+//   读不到（找不到、超时）不记录，只在本次会话内不再重试。
+// - 只为可见项生成；串行，在空闲、没有正在播放的媒体、正文没有在读图时进行。
+export function installFrames(ctx){
+  const checked=new Set(),missed=new Set(),slots=new Set(),queue=new Set();let pumping=false,chain=Promise.resolve();
+  addEventListener('focus',()=>{checked.clear();});
+  const markKey=(book,m)=>ctx.marks?.thumbKey?.(book,m)??book.id+':bm:'+m.id;
+  const one=fn=>{const run=chain.then(fn);chain=run.catch(()=>{});return run;}; // 同一时间只解码一个视频
+  const idle=()=>new Promise(r=>window.requestIdleCallback?requestIdleCallback(()=>r(),{timeout:2000}):setTimeout(r,100));
+  const playing=()=>(ctx.player?.list?.()??[]).some(p=>p.state==='ready'&&!p.el.paused);
+  async function calm(){for(;;){await idle();if(!playing()&&!ctx.view.busy?.())return;await new Promise(r=>setTimeout(r,800));}}
+  function save(book){if(!ctx.books.has(book.id))return;if(book===ctx.current)ctx.view.hooks.measured();else ctx.safe(ctx.persist)(book);}
+  const timed=p=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new DOMException('','TimeoutError')),FRAME_MS);})]).finally(()=>clearTimeout(t));};
+  // 取得（必要时生成）画面：返回所用缩略图的键，没有画面为 null。
+  async function produce(book,page){
+    const src=frameSrc(book,page),m=firstMark(book,page),key=frameKey(book,page);
+    if(m&&await thumbs('get',markKey(book,m)))return markKey(book,m);
+    if(missed.has(key+'|'+src))return null;
+    let file;try{file=await timed(Promise.resolve().then(()=>ctx.source(book,page)));}catch{missed.add(key+'|'+src);return null;}
+    const stamp=fileStamp(file),rec=await thumbs('get',key);checked.add(key);
+    if(rec?.blob&&rec.src===src&&rec.stamp===stamp)return key;
+    if(page.vfail===stamp||page.bad===stamp){if(page.vfail!==stamp){page.vfail=stamp;save(book);}return null;}
+    await calm();if(!ctx.books.has(book.id))return null;
+    try{
+      const shot=m?await grabFrame(file,m.t):await posterFrame(file);
+      await thumbs('put',{blob:shot.blob,w:shot.w,h:shot.h,stamp,src},key);forget(key);
+      if(page.vfail){delete page.vfail;save(book);}
+      return key;
+    }catch(e){
+      if(e?.name==='TimeoutError'){missed.add(key+'|'+src);return null;}
+      page.vfail=stamp;save(book);return null;
+    }
+  }
+  // 封面用：{blob,w,h,src}，没有画面为 null。
+  async function get(book,page){
+    const key=await one(()=>produce(book,page));if(!key)return null;
+    const rec=await thumbs('get',key);return rec?.blob?{blob:rec.blob,w:rec.w,h:rec.h,src:frameSrc(book,page)}:null;
+  }
+  function put(slot,th){
+    const tile=slot.querySelector('.mv-tile');if(!tile)return;
+    let img=tile.querySelector(':scope>img.mv-frame');
+    if(!img){img=new Image();img.className='mv-frame';img.alt='';img.draggable=false;img.decoding='async';tile.prepend(img);}
+    if(img.src!==th.url)img.src=th.url;tile.classList.add('framed');
+  }
+  async function pump(){
+    if(pumping)return;pumping=true;
+    try{for(;;){
+      for(const s of queue)if(!s.slot.isConnected||s.slot._vf!==s)queue.delete(s);
+      const s=[...queue].find(s=>s.visible);if(!s)break;queue.delete(s);
+      const key=await one(async()=>{if(!s.slot.isConnected||s.slot._vf!==s)return undefined;return produce(s.book,s.page);});
+      if(key===undefined||s.slot._vf!==s)continue;
+      const th=key&&await getThumb(key).catch(()=>null);
+      if(s.slot._vf!==s)continue;
+      if(th){put(s.slot,th);s.state='shown';}else s.state='none';
+    }}finally{pumping=false;}
+  }
+  // slot：含 .mv-tile 占位的元素；visible：与视窗相交。每次重画都可以调用，来源没变时不做任何事。
+  function show(slot,book,page,visible){
+    const src=frameSrc(book,page);let s=slot._vf;
+    if(s&&s.book===book&&s.page===page&&s.src===src&&(s.state!=='shown'||slot.querySelector('.mv-tile.framed'))){s.visible=visible;if(visible&&s.state==='wait'){queue.add(s);pump();}return;}
+    s=slot._vf={slot,book,page,src,visible,state:'load'};slots.add(slot);
+    slot.querySelector('.mv-tile>img.mv-frame')?.remove();slot.querySelector('.mv-tile')?.classList.remove('framed');
+    (async()=>{
+      const m=firstMark(book,page),key=frameKey(book,page);
+      let th=m?await getThumb(markKey(book,m)):null,fresh=!!th;
+      if(!th){const rec=await thumbs('get',key);if(rec?.blob&&rec.src===src){th=await getThumb(key);fresh=checked.has(key);}}
+      if(slot._vf!==s)return;
+      if(th)put(slot,th);
+      if(fresh||!th&&page.vfail&&checked.has(key)){s.state=th?'shown':'none';return;}
+      s.state='wait';if(s.visible){queue.add(s);pump();}
+    })().catch(e=>console.warn(e));
+  }
+  // 书签变化、别的窗口换了缩略图：重新确定受影响的格子。
+  function again(test){for(const slot of [...slots]){if(!slot.isConnected){slots.delete(slot);continue;}const s=slot._vf;if(s&&test(s)){slot._vf=null;show(slot,s.book,s.page,s.visible);}}}
+  ctx.on('marks',book=>again(s=>s.book===book));
+  ctx.on('thumbs',keys=>again(s=>keys.some(k=>k===frameKey(s.book,s.page)||k.startsWith(s.book.id+':bm:'))));
+  ctx.frames={show,get,src:frameSrc};ctx.view.hooks.frame=show;
+}
