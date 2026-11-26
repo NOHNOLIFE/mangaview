@@ -101,7 +101,7 @@ try {
   await wait(() => js('document.querySelector("#empty")?.hidden===false'));
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Toolbar book',{create:true});
     for(let i=0;i<12;i++){const out=await (await dir.getFileHandle(i+'.svg',{create:true})).createWritable();await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>');await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() =>
     js(`bookTitle.textContent==='Toolbar book'&&!!document.querySelector('#reader [data-name="0.svg"] img')`),
   );

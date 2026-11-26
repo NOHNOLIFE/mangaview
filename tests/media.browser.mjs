@@ -148,7 +148,7 @@ try {
     await mvMedia.write(dir,'06.svg',svg(600,900,'purple'));
     for(const n of ['x.avi','y.wma','notes.txt'])await mvMedia.write(dir,n,new Blob(['x']));
     const songs=await root.getDirectoryHandle('Songs',{create:true});await mvMedia.write(songs,'only.wav',mvMedia.wav({seconds:2}));
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Mixed'`));
   // 3.1 / 3.2：浏览器播不了的媒体文件不建记录，导入结果里说明数量并列出扩展名；非内容文件不提示。
   const note = await wait(
@@ -475,7 +475,7 @@ try {
 
   // 只有视频或音频的文件夹也成书；全书只有音频时，书架封面是用作品名生成的文字封面。
   await js(
-    `(async()=>{const songs=await (await navigator.storage.getDirectory()).getDirectoryHandle('Songs');window.showDirectoryPicker=async()=>songs;document.querySelector('#bar [data-act="folder"]').click();})()`,
+    `(async()=>{const songs=await (await navigator.storage.getDirectory()).getDirectoryHandle('Songs');window.showDirectoryPicker=async()=>songs;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(() => js(`bookTitle.textContent==='Songs'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);

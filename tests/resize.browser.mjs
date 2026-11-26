@@ -104,7 +104,7 @@ try {
   await js(`(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long',{create:true});
     for(let i=0;i<60;i++){const w=500+(i*137)%700,h=400+(i*251)%1600,out=await (await dir.getFileHandle(String(i).padStart(2,'0')+'.svg',{create:true})).createWritable();
       await out.write('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'"><rect width="100%" height="100%" fill="hsl('+i*37+',50%,40%)"/></svg>');await out.close();}
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Long'`));
   // 视窗中心所在的页、该页在视窗里的上沿，以及中心处的相对位置。
   await js(`window.probe=()=>{const r=reader.getBoundingClientRect(),cy=r.top+reader.clientHeight/2;

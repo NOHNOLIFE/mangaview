@@ -223,7 +223,7 @@ try {
     await mvMedia.write(dir,'04 clip.webm',await mvMedia.webm({seconds:1.5,width:320,height:180}));
     await mvMedia.write(dir,'05.svg',svg(600,900,'purple'));
     await mvMedia.write(dir,'06 tail.wav',mvMedia.wav({seconds:10}));
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Media'`), 'book opened');
   await js('reader.focus()');
   // 添加书签的步骤里不让自动播放插手（3.6 由 media.browser.mjs 覆盖）；跳转书签时再打开。
@@ -595,7 +595,7 @@ try {
   await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Broken',{create:true});
     await mvMedia.write(dir,'01.svg',new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>'],{type:'image/svg+xml'}));
     await mvMedia.write(dir,'02 bad.mp4',new Blob([new Uint8Array(4096).fill(7)]));
-    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>dir;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Broken'`), 'Broken imported');
   const broken = () =>
     js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Broken'))`);

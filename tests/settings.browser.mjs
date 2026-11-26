@@ -133,7 +133,7 @@ try {
   await js(`(async()=>{const root=await (await navigator.storage.getDirectory()).getDirectoryHandle('lib',{create:true});
     for(const [name,n] of [['Alpha',3],['Beta',2]]){const d=await root.getDirectoryHandle(name,{create:true});
       for(let i=0;i<n;i++){const w=await (await d.getFileHandle(i+'.svg',{create:true})).createWritable();await w.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90"><rect width="100%" height="100%" fill="teal"/></svg>');await w.close();}}
-    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();})()`);
+    window.showDirectoryPicker=async()=>root;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`${store}.then(async m=>(await m.library('getAll')).length===2)`));
   // 在不运行应用的同源页面里补标签、书签、缩略图和阅读位置，避免应用把内存中的旧记录写回。
   await go(origin + 'blank', 'true');

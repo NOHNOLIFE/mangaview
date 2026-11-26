@@ -27,7 +27,7 @@ const strings = {
     'ドロップして個別の画像に追加',
     '놓으면 낱장 이미지에 추가됩니다',
   ],
-  dropMerge: ['Import as one book', '导入为单个作品', '1 冊として読み込む', '한 권으로 가져오기'],
+  dropMerge: ['Add as one book', '添加为单个作品', '1 冊として追加', '한 권으로 추가'],
   dropLoose: ['Add to Loose images', '添加到散图图集', '個別の画像に追加', '낱장 이미지에 추가'],
   dropLooseHint: [
     'Drop here to add every image, video and audio file, including those inside folders, as loose images',
@@ -40,12 +40,6 @@ const strings = {
     '拖到这里，把所有文件夹合成一本书',
     'ここにドロップすると全フォルダーを 1 冊にまとめます',
     '여기에 놓으면 모든 폴더를 한 권으로 합칩니다',
-  ],
-  importMerged: [
-    'Import a folder as one book (subfolders become volumes)',
-    '导入为单个作品（选一个文件夹，其下各子文件夹合成一本）',
-    '1 冊として読み込む（フォルダー内のサブフォルダーをまとめて 1 冊に）',
-    '한 권으로 가져오기 (폴더 안의 하위 폴더를 한 권으로 합침)',
   ],
   mergedDone: [
     'Imported as one book: {name} ({n} folders)',
@@ -78,7 +72,7 @@ const strings = {
     'MangaView가 업그레이드되어 이 주소로 이동했습니다. 주소창에서 새 버전을 설치하고 이전 앱을 삭제하세요.',
   ],
   emptyShelf: ['Your shelf is empty', '书架还是空的', '本棚は空です', '책장이 비어 있습니다'],
-  folder: ['Add folder', '添加文件夹', 'フォルダーを追加', '폴더 추가'],
+  folder: ['Add', '添加', '追加', '추가'],
   files: ['Add to Loose images', '添加到散图图集', '個別の画像に追加', '낱장 이미지에 추가'],
   imageTypes: ['Images, videos and audio', '图片、视频和音频', '画像・動画・音声', '이미지, 동영상, 오디오'],
   reading: ['Reading area', '阅读区', '閲覧エリア', '읽기 영역'],

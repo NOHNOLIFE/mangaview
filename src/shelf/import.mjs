@@ -1,5 +1,5 @@
-// 导入：把扫描到的文件夹建成书或并入引用它的书（add），导入为单个作品（addMerged），导入结果的提示。
-// 选择入口见 pick.mjs、拖放见 drop.mjs；把源接到文件夹上的做法见 relink.mjs。
+// 导入：把扫描到的文件夹建成书或并入引用它的书（add），添加为单个作品（addMerged），导入结果的提示。
+// 选择入口见 pick.mjs、添加对话框见 add.mjs、拖放见 drop.mjs；把源接到文件夹上的做法见 relink.mjs。
 import { natural, clipEnd } from '../core/model.mjs';
 import { mergeKeys, isLoose } from '../core/sources.mjs';
 import { t, fmt, title } from '../core/locale.mjs';
@@ -99,7 +99,7 @@ export async function add(groups, place = importPlace(), odd = null) {
   imported(list, place, odd);
   return list;
 }
-// 导入为单个作品：所选的一个或多个文件夹（含其下所有带图片的子文件夹）合成一本书，每个文件夹是一个源。
+// 添加为单个作品：所选的一个或多个文件夹（含其下所有带图片的子文件夹）合成一本书，每个文件夹是一个源。
 // 同一组所选文件夹（或同一组源）再次导入时更新已有的那本；只有一个带图片的文件夹时按普通导入处理。散图仍单独导入。
 // 作品名用所选（拖入）的根文件夹名，多个时取按文件名顺序的第一个。只有一个带图片的文件夹且它在根文件夹之下时，
 // 书仍以它为源（识别、恢复照旧），根文件夹名作为显示名（name），搜索原文件夹名仍能找到；书名已编辑过的不覆盖。

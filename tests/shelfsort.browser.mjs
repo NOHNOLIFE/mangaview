@@ -109,7 +109,7 @@ try {
   }
   for (const [i, n] of ['Book A', 'Book B', 'Book C'].entries()) {
     await js(
-      `(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('${n}');window.showDirectoryPicker=async()=>dir;document.querySelector('${i ? '#bar' : '#empty'} [data-act="folder"]').click();})()`,
+      `(async()=>{const dir=await (await navigator.storage.getDirectory()).getDirectoryHandle('${n}');window.showDirectoryPicker=async()=>dir;document.querySelector('${i ? '#bar' : '#empty'} [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
     );
     await wait(() => js(`bookTitle.textContent==='${n}'`));
     await delay(30);
@@ -186,7 +186,9 @@ try {
   await sortBy('nameAsc');
   const card = (n) =>
     `[...document.querySelectorAll('#books .book')].find(b=>b.querySelector('.name').textContent==='${n}')`;
-  await js(`${card('Book A')}.querySelector('.actions button').click()`);
+  await js(
+    `${card('Book A')}.querySelector('.actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Edit title').click()`,
+  );
   await wait(() => js('renameBook.open'));
   assert.equal(await js('renameInput.value'), 'Book A');
   assert.equal(await js('renameHint.textContent'), 'Original name: Book A. Leave empty to restore it.');
@@ -204,7 +206,9 @@ try {
   await wait(() => js('!shelf.open'));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
   await wait(() => js('shelf.open'));
-  await js(`${card('Zeta')}.querySelector('.actions button').click()`);
+  await js(
+    `${card('Zeta')}.querySelector('.actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Edit title').click()`,
+  );
   await wait(() => js('renameBook.open'));
   await js(`renameInput.value='';renameForm.requestSubmit()`);
   await wait(async () => (await order()) === 'Book A,Book B,Book C');

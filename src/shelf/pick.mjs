@@ -1,10 +1,9 @@
-// 文件 / 文件夹选择入口：系统选择框（showDirectoryPicker / showOpenFilePicker）与不支持时回退的 <input>，
-// 「导入为单个作品」的文件夹选择，给单本书重新指定文件夹、散图图集定位原文件（relocate）。
+// 文件 / 文件夹选择入口：系统选择框（showDirectoryPicker / showOpenFilePicker）与不支持时回退的 <input>。
+// choose 给添加对话框（add.mjs）选文件夹或文件，只返回待添加项（句柄或本次会话的 File），不扫描；
+// pick 给单本书重新指定文件夹，relocate 给散图图集定位原文件。
 import {
-  scan,
   skipped,
   fileGroups,
-  handleGroups,
   looseImages,
   looseFiles,
   reconnect,
@@ -16,27 +15,34 @@ import {
 import { t } from '../core/locale.mjs';
 import { $, notice, safe } from '../ui/dom.mjs';
 import { arrange } from '../reader/sort.mjs';
-import { add, addMerged } from './import.mjs';
-let pendingInput = null,
-  pendingMerge = false;
-function input(kind, book, merge = false) {
-  pendingInput = book;
-  pendingMerge = merge;
+import { add } from './import.mjs';
+import { PICK_TYPES, ACCEPT, fromHandle, fromFiles } from './addlist.mjs';
+// 回退的 <input>：pendingInput 为要重新指定文件夹的书，或接收所选 File 的函数（添加对话框）。
+let pendingInput = null;
+function input(kind, target) {
+  if (typeof pendingInput === 'function') pendingInput([]); // 上一次选择没有结果（取消）
+  pendingInput = target;
   const el = $(kind + 'Input');
   el.value = '';
   el.click();
 }
 export function install() {
-  for (const kind of ['folder', 'file'])
-    $(kind + 'Input').onchange = safe(async (e) => {
-      const odd = skipped(),
-        groups = fileGroups(e.target.files, odd),
-        book = pendingInput,
-        merge = pendingMerge;
+  $('fileInput').accept = ACCEPT;
+  for (const kind of ['folder', 'file']) {
+    $(kind + 'Input').addEventListener('cancel', () => {
+      const target = pendingInput;
       pendingInput = null;
-      pendingMerge = false;
+      if (typeof target === 'function') target([]);
+    });
+    $(kind + 'Input').onchange = safe(async (e) => {
+      const files = [...e.target.files],
+        book = pendingInput;
+      pendingInput = null;
+      if (typeof book === 'function') return book(files);
+      const odd = skipped(),
+        groups = fileGroups(files, odd);
       if (book && isLoose(book)) {
-        const [g] = looseFiles(e.target.files);
+        const [g] = looseFiles(files);
         await rebound(book, g ? reconnect(book, g) : 0);
       } else if (book) {
         let count = 0;
@@ -46,9 +52,9 @@ export function install() {
             count += reconnect(book, g, s);
         }
         await rebound(book, count);
-      } else if (merge) await addMerged(null, groups, undefined, odd);
-      else await add(groups, undefined, odd);
+      } else await add(groups, undefined, odd);
     });
+  }
 }
 async function rebound(book, count) {
   if (!count) {
@@ -66,41 +72,30 @@ export async function relocate(book, dir, quiet) {
   if (n || !quiet) await rebound(book, n);
   return n;
 }
-export async function pick(kind, book = null) {
+// 给已有的书重新指定文件夹（重新授权、定位原文件）。
+export async function pick(kind, book) {
   if (kind === 'folder' && window.showDirectoryPicker) {
     const dir = await showDirectoryPicker({ mode: 'read' });
-    if (book && isLoose(book)) await relocate(book, dir);
-    else if (book) {
+    if (isLoose(book)) await relocate(book, dir);
+    else {
       const pages = [];
       for await (const h of dir.values()) if (h.kind === 'file') pages.push({ name: h.name });
       await rebound(book, reconnect(book, { dir, pages }));
-    } else {
-      const odd = skipped();
-      await add(scan(dir, '', odd), undefined, odd);
     }
-  } else if (kind === 'file' && window.showOpenFilePicker) {
-    const handles = await showOpenFilePicker({
-      multiple: true,
-      types: [
-        {
-          description: t('imageTypes'),
-          accept: {
-            'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.bmp', '.svg'],
-            'video/*': ['.mp4', '.m4v', '.webm', '.mkv', '.mov', '.ogv'],
-            'audio/*': ['.mp3', '.flac', '.wav', '.ogg', '.oga', '.opus', '.m4a', '.aac', '.weba'],
-            'application/x-potplayer-bookmark': ['.pbf'],
-          },
-        },
-      ],
-    });
-    const odd = skipped();
-    await add(handleGroups(handles, odd), undefined, odd);
   } else input(kind, book);
 }
-// 不依赖拖拽的「导入为单个作品」：选一个文件夹，其下所有带图片的文件夹合成一本。
-export async function pickMerged() {
-  if (!window.showDirectoryPicker) return input('folder', null, true);
-  const dir = await showDirectoryPicker({ mode: 'read' }),
-    odd = skipped();
-  await addMerged([dir], scan(dir, '', odd), undefined, odd);
+// 添加对话框的选择：kind 为 'folder'（一个文件夹）或 'file'（可多选）。返回待添加项（addlist.mjs），取消时为空数组。
+export async function choose(kind) {
+  try {
+    if (kind === 'folder' && window.showDirectoryPicker)
+      return [fromHandle(await showDirectoryPicker({ mode: 'read' }))];
+    if (kind === 'file' && window.showOpenFilePicker)
+      return (
+        await showOpenFilePicker({ multiple: true, types: [{ description: t('imageTypes'), accept: PICK_TYPES }] })
+      ).map(fromHandle);
+  } catch (e) {
+    if (e.name === 'AbortError') return [];
+    throw e;
+  }
+  return fromFiles(await new Promise((r) => input(kind, r)));
 }

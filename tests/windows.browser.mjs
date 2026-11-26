@@ -147,7 +147,7 @@ const folder = (p, name, n, prefix = '') =>
   window.showDirectoryPicker=async()=>dir;})()`);
 const act = (p, name) =>
   p.js(
-    `(()=>{const b=document.createElement('button');b.dataset.act='${name}';document.body.append(b);b.click();b.remove();})()`,
+    `(async()=>{const b=document.createElement('button');b.dataset.act='${name}';document.body.append(b);b.click();b.remove();if('${name}'==='folder'){await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();}})()`,
   );
 const title = (p) => p.js('document.querySelector("#bookTitle").textContent');
 const notice = (p) => p.js('document.getElementById("notice").textContent');
@@ -223,7 +223,7 @@ try {
   await act(A, 'shelf');
   await wait(() => A.js('shelf.open&&document.querySelectorAll("#books .book").length===3'));
   await A.js(
-    `document.querySelector('#books .book[data-id="${alphaId}"] use[href="#i-pencil"]').closest('button').click()`,
+    `document.querySelector('#books .book[data-id="${alphaId}"] .more').click();cardMenu.querySelector('use[href="#i-pencil"]').closest('button').click()`,
   );
   await wait(() => A.js('renameBook.open'));
   await A.js(`renameInput.value='Alpha renamed';renameForm.requestSubmit()`);

@@ -6,13 +6,14 @@ import { current, unavailablePage, step, reloadView, view } from './session.mjs'
 import { toolsState, staleCount } from './shell.mjs';
 import { togglePinned } from './panel.mjs';
 import { sortOptions, sortScope, showSortChoices } from './sort.mjs';
-import { pick, pickMerged } from '../shelf/pick.mjs';
+import { pick } from '../shelf/pick.mjs';
+import { openAdd } from '../shelf/add.mjs';
 import { refreshAll } from '../shelf/refresh.mjs';
 import { clearAll } from '../shelf/remove.mjs';
 let ctx;
 export const actions = {
-  folder: () => pick('folder'),
-  files: () => pick('file'),
+  folder: () => openAdd('add'),
+  files: () => openAdd('loose'),
   shelf: () => {
     shelf.showModal();
     ctx.drawShelf();
@@ -55,7 +56,6 @@ export const actions = {
   // 散图图集也选文件夹：按相对目录 + 文件名找回各页。
   locate: () =>
     current && (window.showDirectoryPicker && ctx.restoreOne ? ctx.restoreOne(current) : pick('folder', current)),
-  merge: pickMerged,
 };
 export function install(c) {
   ctx = c;
