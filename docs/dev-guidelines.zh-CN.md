@@ -76,6 +76,7 @@
 
 - **鼠标与键盘一致**：鼠标悬停和键盘焦点是同一个"选中"状态，显示相同的内容和样式。
 - **不靠悬停触发动作**：悬停只做提示和高亮，跳转、切换、打开全屏等动作一律要点击或按键。
+- **拖动滚动统一**：所有可滚动区域（横向、纵向）都支持鼠标按住拖动滚动和松手后的惯性，由 `src/ui/dragscroll.mjs` 在 document 上统一委托提供，新界面无需另接；拖动后不触发点击，按钮、列表项上也能拖，输入框、滑杆、进度条、调宽手柄、可选文字等自动排除。程序性跳转先调用它的 `stop()` 停住惯性。
 - **边缘呼出**：四条边的触发距离是同一个值（`src/app.mjs` 的 `EDGE`），配合短暂停留延迟防误触；改动只改这一处。
 - **默认不打扰**：侧栏默认关闭，浮动界面在鼠标移开后收起，不常驻悬浮图标。
 - **打开界面时落在当前内容上**：打开书架聚焦当前书并滚到它，打开全屏缩略图选中当前页，而不是落在搜索框或列表开头。
@@ -117,9 +118,9 @@
 
 - 根目录只放必须在根的文件：`index.html`、`sw.js`（Service Worker 的作用域取决于它所在的目录，必须在根）、`app.webmanifest`、`icons/`、`local_run.bat`、README、`docs/`、`tests/`、`dist/`（v1 迁移桥）。源码全部放在 `src/` 下，按领域分目录，样式表与同名模块放在同一目录：
   - `src/app.mjs`、`src/style.css`：启动装配（建立 `ctx`、按顺序安装各模块、启动流程，不放功能代码）与全局样式。
-  - `src/ui/`：通用界面小工具：`dom`（取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）、`icons`（往 sprite 登记图标的 `addIcons`）。
-  - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）、偏好登记与跨窗口同步（`prefs`）、当前语言与文案函数（`locale`）、事件表（`events`）、书目与保存（`books`）、旧记录归一化（`normalize`）、过期与句柄状态（`status`）。
-  - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、当前书与阅读位置（`session`）、书名进度与提示条等外壳状态及切换语言（`shell`）、右侧缩略图栏的开合与调宽（`panel`）、页面排序（`sort`）、按钮动作表（`actions`）、顶部工具栏（`toolbar`）、底部操作栏（`endbar`）、拖动滚动（`drag`）、正文点击翻屏（`tap`）、按键与长按滚动（`keys`）、专注模式（`focus`）、全屏总览（`overview` 入口、`overview-sheet` 面板外壳与搜索、`overview-pages` 全屏缩略图、`overview-marks` 全屏书架书签）。
+  - `src/ui/`：通用界面小工具：`dom`（取元素、建元素与图标按钮、浮层淡出、提示条、长按进度环）、`icons`（往 sprite 登记图标的 `addIcons`）、`dragscroll`（全应用的鼠标拖动滚动与惯性、容器上不含拖动的点按 `tap`）。
+  - `src/core/`：不含界面的数据与逻辑：语言（`lang`）、页模型与排序（`model`）、存储（`store`）、多窗口合并（`merge`）、目录扫描与文件访问（`sources`）、过期书匹配（`match`）、区段书签配对（`sections`）、播放顺序（`playlist`）、多窗口协调（`windows`）、偏好登记与跨窗口同步（`prefs`）、当前语言与文案函数（`locale`）、事件表（`events`）、书目与保存（`books`）、旧记录归一化（`normalize`）、过期与句柄状态（`status`）、拖动惯性的速度估算与衰减（`fling`）。
+  - `src/reader/`：阅读区：正文与缩略图栏（`view`）、缩略图缓存与视频截帧（`thumbs`）、当前书与阅读位置（`session`）、书名进度与提示条等外壳状态及切换语言（`shell`）、右侧缩略图栏的开合与调宽（`panel`）、页面排序（`sort`）、按钮动作表（`actions`）、顶部工具栏（`toolbar`）、底部操作栏（`endbar`）、正文与缩略图栏的点按（`tap`）、按键与长按滚动（`keys`）、专注模式（`focus`）、全屏总览（`overview` 入口、`overview-sheet` 面板外壳与搜索、`overview-pages` 全屏缩略图、`overview-marks` 全屏书架书签）。
   - `src/shelf/`：书架。`shelf` 是唯一入口（装配子模块、重画、列表页签、布局切换），子模块：排序（`sort`）、封面与识别指纹的后台生成（`covercache`）、筛选状态（`filter`，纯逻辑在 `criteria`）、列表布局与焦点（`layout`）、卡片（`card`）、卡片操作按钮（`actions`）、批量操作（`bulk`）、筛选界面（`filterbar`）、搜索预设（`presets`）、存储空间（`storage`）、书名（`rename`）、标签（`tags`）、恢复流程与对话框（`restore`，配对规则在 `pairing`）、共用小工具（`util`）；自定义封面（`cover`）；添加与导入：选择框入口（`pick`）、拖放（`drop`）、导入（`import`）、接回与重建（`relink`）、刷新与检查（`refresh`）、删除（`remove`）。子模块之间经 `shelf` 建立的共享对象 `S` 互相调用。
   - `src/marks/`：书签入口与装配（`bookmarks`）、书签列表的纯逻辑（`list`：排序、区段是否生效、配对坐标、每页标记汇总）、数据操作与跳转（`actions`）、名称与位置文案（`names`）、列表项绘制（`tile`）、书签缩略图（`snap`）、书签面板（`panel`）、书架书签栏（`dock`）、缩略图上的标记（`pagemarks`）、PotPlayer 书签（`pbf`）；播放器进度条上的书签标记在 `src/media/marks.mjs`，全屏书架书签在 `src/reader/overview-marks.mjs`。
   - `src/media/`：视频、音频播放器。`media` 是唯一入口（建立子模块共享的 `S`、按顺序装配子模块，对外提供 `ctx.media`、`ctx.player` 和正文的 `ctx.view.hooks.media`），子模块：统一音量（`volume`）、播放顺序与循环 / 播完后的切换 / 待接手的播放请求（`order`）、只播放书签区段（`sections`）、播放位置记忆（`position`）、提示浮层（`hud`）、缩略图里的占位（`tile`）、壳的 DOM 与状态显示（`shell`，样式在 `shell.css`）、播放器状态：挂源、失败、播放 / 暂停 / 定位（`player`）、当前媒体与自动播放（`autoplay`）、新窗口播放（`popout`）、媒体按键（`keys`）、壳上列表级按钮的登记（`buttons`）；进度条上的书签标记（`marks`，由书签模块安装）。书签标记、占位、提示浮层的样式在 `media.css`。
@@ -142,7 +143,7 @@
 
 ## 9. 容易踩的坑
 
-- 正文里带 `data-nodrag` 的区域（播放器的壳、可选中的文件名等）不参与拖动滚动和点击翻屏；播放器壳上的新按钮登记到 `ctx.player.add`，进度条上的标记经 `ctx.player.decorate` 画在 `.mv-marks` 层里，不另起一套。
+- 带 `data-nodrag` 的元素不参与拖动滚动（全应用），在正文里也不触发点击翻屏；按钮、列表项本身应当可以拖动，输入框、滑杆、进度条、分隔条、可选文字、原生可拖放的元素已自动排除，不必再标。需要自己处理按住拖动的元素在 `pointerdown` 里 `preventDefault` 或标 `data-nodrag`。播放器壳上的新按钮登记到 `ctx.player.add`，进度条上的标记经 `ctx.player.decorate` 画在 `.mv-marks` 层里，不另起一套。
 - 模块之间通过 `ctx` 上的函数取数据（如 `ctx.readingList`、`ctx.matchFilter`、`ctx.atEdge`），不要各自复制一份逻辑或常量，否则会各改各的、逐渐不一致。
 - 更具体的 CSS 选择器会悄悄盖掉控件自己的尺寸（如"行内按钮"的规则命中了开关）；给通用规则加排除条件，控件自身写明确尺寸。
 - 预留宽度不要用隐藏的占位子元素（会进入 `textContent`，影响读屏和测试），用 `::after{content:attr(...)}` 之类的方式。

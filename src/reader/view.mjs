@@ -9,6 +9,7 @@ import {
   keepPageThumb,
   dropPage,
 } from './thumbs.mjs';
+import { stop as stopFling } from '../ui/dragscroll.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
 // 小图（缩略图栏、全屏缩略图）走 thumbs.mjs 的会话内存缓存：命中即显示、不读原图；正文解码后也顺手生成小图，
@@ -316,6 +317,7 @@ export class Reader {
     this.book = book;
     this.browsing = false;
     this.held = null;
+    stopFling();
     this.main.scrollTop = 0;
     this.preview.scrollTop = 0;
     this.cap = this.main.clientHeight || Infinity;
@@ -353,7 +355,7 @@ export class Reader {
       p.strip.style.height = p.starts.at(-1) + 'px';
     }
     const i = anchor ? this.book?.pages.findIndex((p) => p.name === anchor.name) : -1;
-    if (i >= 0) this.jump({ i, f: anchor.f });
+    if (i >= 0) this.place({ i, f: anchor.f });
     else this.main.scrollTop = 0;
     if (end && i >= 0) main.scrollTop = main.scrollHeight;
     this.correctedTop = this.main.scrollTop;
@@ -372,7 +374,13 @@ export class Reader {
       max = this.main.scrollHeight - this.main.clientHeight;
     return { i, n, ratio: max > 0 ? Math.min(1, Math.max(0, this.main.scrollTop / max)) : 1 };
   }
+  // 跳到页内位置（书签、媒体、缩略图栏）：先停住拖动后的惯性。
   jump(pos) {
+    stopFling();
+    this.place(pos);
+  }
+  // 只定位、不打断惯性：补齐尺寸后的重排保持锚点也走这里，惯性在新位置上继续。
+  place(pos) {
     this.main.scrollTop = point(this.panes[0].starts, pos) - this.main.clientHeight / 2;
   }
   fromPreview(y) {

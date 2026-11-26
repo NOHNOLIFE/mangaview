@@ -127,6 +127,15 @@ textarea {
   -webkit-user-select: text;
   user-select: text;
 }
+/* 拖动滚动中（src/ui/dragscroll.mjs）：不选中文字，按下的按钮不保持按压缩放。 */
+.dragscroll,
+.dragscroll * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+.dragscroll button:active {
+  transform: none;
+}
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
