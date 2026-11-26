@@ -14,9 +14,15 @@ export function install(ctx, S) {
     return b?.pages.length && s.length === b.pages.length + 1 ? s : null;
   }
   // 屏幕中心所在的图与图内位置（view.anchor() 在书首返回 null，这里不能用）。
+  // 单文件模式下取 view.anchor()（该页在长条里的位置，h 为长条里的高度），退出单文件模式后书签仍指向同一处。
   function here() {
     const s = starts();
     if (!s) return null;
+    if (view.single) {
+      const a = view.anchor(),
+        i = a ? ctx.current.pages.findIndex((p) => p.name === a.name) : -1;
+      return i < 0 ? null : { i, f: a.f, name: a.name, h: view.stripH(ctx.current.pages[i]) };
+    }
     const { i, f } = at(s, main.scrollTop + main.clientHeight / 2);
     return { i, f, name: ctx.current.pages[i].name, h: s[i + 1] - s[i] };
   }
@@ -46,9 +52,11 @@ export function install(ctx, S) {
     const s = starts();
     if (!s) return null;
     const y = main.scrollTop + main.clientHeight / 2,
-      m = mediaNow();
+      m = mediaNow(),
+      page = at(s, y).i;
     return (x) => {
       if (m && x.i === m.i && isMedia(x.bm)) return x.bm.t > m.t + 0.5 ? 1 : x.bm.t < m.t - 0.5 ? -1 : 0;
+      if (view.single) return Math.sign(x.i - page); // 单文件模式：同一页的书签都算"就在这里"
       const py = point(s, { i: x.i, f: isMedia(x.bm) ? 0.5 : x.bm.f });
       return py > y + 2 ? 1 : py < y - 2 ? -1 : 0;
     };

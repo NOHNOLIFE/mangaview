@@ -257,6 +257,10 @@ export class Reader {
     resize.observe(main);
     resize.observe(preview);
     this.cap = Infinity;
+    // 单文件模式（single.mjs）：每页的槽高 = 视窗高度，图片按窗口完整显示，视频、音频面板在槽内居中。
+    // keep：最近一次按页内位置跳转（书签、缩略图、进入单文件模式时的阅读位置）的 {name, f}，仍在该页时 anchor() 原样返回，退出后回到同一处。
+    this.single = false;
+    this.keep = null;
     main.style.setProperty('--vh', main.clientHeight + 'px');
   }
   // 视频的高度封顶值（阅读视窗高度）：窗口尺寸停止变化约 200ms 后才重新计算，拖动过程中占位高度不变；
@@ -317,6 +321,7 @@ export class Reader {
     this.book = book;
     this.browsing = false;
     this.held = null;
+    this.keep = null;
     stopFling();
     this.main.scrollTop = 0;
     this.preview.scrollTop = 0;
@@ -324,6 +329,7 @@ export class Reader {
     this.layout(anchor || null);
   }
   anchor(h = this.main.clientHeight) {
+    if (this.single) return this.singleAnchor(h);
     if (
       !this.book?.pages.length ||
       this.panes[0].starts.length !== this.book.pages.length + 1 ||
@@ -333,18 +339,67 @@ export class Reader {
     const { i, f } = at(this.panes[0].starts, this.main.scrollTop + h / 2);
     return { name: this.book.pages[i].name, f };
   }
-  layout(anchor = this.held ? this.held.anchor : this.anchor()) {
+  // 单文件模式下的阅读位置：视窗中心所在的页（书首也不返回 null）；f 取 keep（仍在那一页时），否则取该页在长条里"上沿对齐视窗顶部、
+  // 不高于视窗的页居中"的位置。保存的位置、书签因此在退出单文件模式后、或在长条模式下打开时同样有效。
+  singleAnchor(h) {
+    const pages = this.book?.pages,
+      starts = this.panes[0].starts;
+    if (!pages?.length || starts.length !== pages.length + 1) return null;
+    const page = pages[at(starts, this.main.scrollTop + h / 2).i];
+    if (this.keep?.name === page.name) return this.keep;
+    return { name: page.name, f: this.stripF(page) };
+  }
+  stripF(page) {
+    const H = this.main.clientHeight,
+      h = this.stripH(page);
+    return h > H ? H / 2 / h : 0.5;
+  }
+  // 该页在长条里的显示高度（与 layout 的长条排版同一规则）。
+  stripH(page) {
+    return offsets([page], Math.max(1, this.main.clientWidth), this.fit, this.cap)[1];
+  }
+  // 进入 / 退出单文件模式：停在同一页。进入时取视窗中心所在的页（含页内位置，退出时没翻页就回到原处）；退出时回到该页在长条里的位置。
+  setSingle(on) {
+    on = !!on;
+    if (this.single === on) return;
+    const pages = this.book?.pages,
+      starts = this.panes[0].starts;
+    let anchor = null;
+    if (pages?.length && starts.length === pages.length + 1) {
+      if (on) {
+        const { i, f } = at(starts, this.main.scrollTop + this.main.clientHeight / 2);
+        anchor = { name: pages[i].name, f };
+      } else anchor = this.anchor();
+    }
+    stopFling();
+    this.held = null;
+    clearTimeout(this.heldTimer);
+    this.single = on;
+    this.keep = null;
+    this.main.classList.toggle('single-file', on);
+    this.layout(anchor, false);
+    this.paint(); // 同一帧内按新版面重画：页的位置与滚动位置一致（当前媒体按页的位置判定）
+  }
+  // stick：已滚到书尾时重排后仍停在书尾（单文件模式下不需要：每页的位置是确定的；进出单文件模式时也不用，要停在同一页）。
+  layout(anchor = this.held ? this.held.anchor : this.anchor(), stick = !this.single) {
     const nav = this.panes[1],
       H = this.preview.clientHeight,
       main = this.main;
     // 已滚到书尾时，补齐图片尺寸后仍停在书尾，“再按一次切书”才可靠。
-    const end = this.held
-      ? this.held.end
-      : main.scrollTop >= 1 && main.scrollHeight - main.scrollTop - main.clientHeight <= 1;
+    const end =
+      stick &&
+      (this.held ? this.held.end : main.scrollTop >= 1 && main.scrollHeight - main.scrollTop - main.clientHeight <= 1);
     if (!H) this.browsing = false;
     // 读者正在独立浏览缩略图时，补齐图片尺寸不能把导航拉回正文。
     const navPos = this.browsing && nav.starts.length > 1 ? at(nav.starts, this.preview.scrollTop + H / 2) : null;
+    main.classList.toggle('natural-size', this.single && !this.fit);
     for (const [k, p] of this.panes.entries()) {
+      if (!k && this.single) {
+        const vh = Math.max(1, main.clientHeight);
+        p.starts = Array.from({ length: (this.book?.pages.length || 0) + 1 }, (_, i) => i * vh);
+        p.strip.style.height = p.starts.at(-1) + 'px';
+        continue;
+      }
       p.starts = offsets(
         this.book?.pages || [],
         Math.max(1, p.el.clientWidth),
@@ -380,7 +435,14 @@ export class Reader {
     this.place(pos);
   }
   // 只定位、不打断惯性：补齐尺寸后的重排保持锚点也走这里，惯性在新位置上继续。
+  // 单文件模式下页内位置 f 只决定落在哪一页（停在该页的上沿），带 f 的位置记为 keep，退出单文件模式时回到它。
   place(pos) {
+    if (this.single) {
+      const page = this.book?.pages[pos.i];
+      if (page && pos.f != null) this.keep = { name: page.name, f: pos.f };
+      this.main.scrollTop = this.panes[0].starts[pos.i] ?? 0;
+      return;
+    }
     this.main.scrollTop = point(this.panes[0].starts, pos) - this.main.clientHeight / 2;
   }
   fromPreview(y) {
@@ -417,8 +479,9 @@ export class Reader {
         if (slots.size) this.clear(p);
         continue;
       }
+      // 单文件模式下停在整页上时，下一页的上沿正好在视窗下缘：不算可见（不为它挂媒体源）。
       const first = at(starts, top).i,
-        last = at(starts, top + H).i;
+        last = at(starts, top + H - (!k && this.single ? 1 : 0)).i;
       const lo = Math.max(0, first - 1),
         hi = Math.min(this.book.pages.length - 1, last + 1);
       for (const [i, node] of slots)
@@ -446,12 +509,12 @@ export class Reader {
         // visible：与视窗相交；只有它们持有媒体源，相邻页不预加载。
         if (kind !== 'image') {
           node.style.maxWidth =
-            !k && kind === 'video' ? videoWidth(page, el.clientWidth, this.fit, this.cap) + 'px' : '';
+            !k && kind === 'video' && !this.single ? videoWidth(page, el.clientWidth, this.fit, this.cap) + 'px' : '';
           this.hooks.media?.(node, this.book, page, kind, k, i >= first && i <= last);
           if (k && kind === 'video') this.hooks.frame?.(node, this.book, page, i >= first && i <= last); // 缩略图栏里的视频叠上真实画面（thumbs.mjs installFrames）
           continue;
         }
-        if (!k && !this.fit && page.w) node.style.maxWidth = page.w + 'px';
+        if (!k && !this.fit && page.w && !this.single) node.style.maxWidth = page.w + 'px';
         else node.style.maxWidth = '';
         const ahead = this.up ? i < first : i > last;
         const priority = (k ? 8 : 0) + (ahead ? 2 : i < first || i > last ? 4 : 0);

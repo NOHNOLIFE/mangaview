@@ -1,0 +1,15 @@
+/* 单文件模式（single.mjs，布局在 view.mjs）：每页占满一屏。图片按窗口完整显示（contain、居中），
+   关闭「适应宽度」时不放大（scale-down，小图按原尺寸居中）；已显示的图片四周露出阅读区底色，不画占位底色。
+   视频画面在槽内按窗口完整显示（shell.css 原有的 contain）；音频卡片的尺寸见 shell.css。 */
+#reader.single-file .page:has(> img, > canvas) {
+  background: transparent;
+}
+/* 槽的高度与图片比例无关：图片铺满槽（不按自身比例撑开网格行），画面由 object-fit 决定。 */
+#reader.single-file .page > img,
+#reader.single-file .page > canvas {
+  position: absolute;
+  inset: 0;
+}
+#reader.single-file.natural-size .page > img {
+  object-fit: scale-down;
+}

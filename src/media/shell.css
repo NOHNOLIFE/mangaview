@@ -260,6 +260,10 @@
   padding: 8px 12px;
   background: transparent;
 }
+/* 单文件模式（reader/single.css）：音频页占满一屏，卡片保持长条里的高度（AUDIO_H 减去上下内边距），在槽内居中。 */
+#reader.single-file .page.media.audio .mv-card {
+  height: 154px;
+}
 .mv-card {
   display: grid;
   grid-template-rows: 22px auto 40px;

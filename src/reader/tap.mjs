@@ -4,8 +4,11 @@ import { main, nav, showing } from '../ui/dom.mjs';
 import { stop, tap } from '../ui/dragscroll.mjs';
 import { step, view } from './session.mjs';
 import { bar, showBar } from './toolbar.mjs';
+import { flip } from './single.mjs';
 let ctx;
+// 单文件模式下翻屏即翻页（上一个 / 下一个文件，single.mjs）。
 export function screenStep(d) {
+  if (view.single) return void flip(d);
   stop();
   main.scrollTop += d * Math.max(1, main.clientHeight - 64);
 }
