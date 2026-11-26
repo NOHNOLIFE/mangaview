@@ -10,6 +10,16 @@
 .bm-item{position:relative;min-width:0;cursor:pointer}
 .bm-thumb{position:relative;display:block;aspect-ratio:var(--bm-ar,.75);overflow:hidden;border-radius:8px;background:linear-gradient(160deg,#25272d,#16171b);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);transition:box-shadow .12s,transform .12s var(--ease)}
 .bm-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+/* 媒体书签：还没有画面的视频、音频是占位小块（类型图标 + 名称；区段书签的小图里是图标 + 时间），时间点在类型角标（.bm-type）里。 */
+.bm-ph{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:4px;padding:6px;overflow:hidden;background:#16171b;color:var(--muted);font-size:11px;line-height:1.25;text-align:center}
+.bm-ph .i{width:26px;height:26px;color:var(--faint)}
+.bm-ph-name{display:-webkit-box;max-width:100%;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-all}
+.bm-ph b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+.bm-sub .bm-ph{gap:1px;padding:2px;font-size:10px}
+.bm-sub .bm-ph .i{width:14px;height:14px}
+.bm-thumb .bm-type{z-index:1;pointer-events:none}
+.cp-item.bm-media{position:relative}
+.ov-mark .bm-type{z-index:1;top:3px;bottom:auto;pointer-events:none} /* 全屏书架书签：右下角是页码 */
 .bm-thumb.empty::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.12);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center/32% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center/32% no-repeat}
 /* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮。 */
 .bm-item.active .bm-thumb,.bm-item:not(.gone):hover .bm-thumb{box-shadow:0 0 0 2px var(--accent),0 6px 16px rgba(0,0,0,.4)}

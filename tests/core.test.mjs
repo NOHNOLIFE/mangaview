@@ -7,6 +7,7 @@ import {grade,assign,coverName,hue,norm} from '../match.mjs';
 import {KEYS,ZONES,ROWS,MOUSE,MORE,pieces,plain} from '../help.mjs';
 import {snap,merge,changes,adopt,refresh,print} from '../merge.mjs';
 import {pair,ranges,fits} from '../sections.mjs';
+import {ORDERS,orderOf,following,sectionStart,sectionStep} from '../playlist.mjs';
 import {mergeMarks} from '../backup.mjs';
 import {skipped,handleGroups,fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive} from '../sources.mjs';
 
@@ -354,4 +355,50 @@ test('导入只看扩展名：视频、音频与图片一样成书，只有媒�
   const d=(entries)=>({queryPermission:async()=>'granted',async *values(){yield* entries;}});
   assert.deepEqual(await listDir(d([file('1.mp3'),file('2.avi'),file('3.webm')])),['1.mp3','3.webm']);
   assert.equal(await listDir(d([file('2.avi')])),'gone');
+});
+
+test('播放顺序与循环：一个媒体播完之后播哪个',()=>{
+  assert.deepEqual(ORDERS,['list','shuffle','single']);assert.equal(orderOf('bogus'),'list');assert.equal(orderOf('single'),'single');
+  const list=[1,3,4,7];
+  // 单集：循环关停下，循环开重复当前媒体。
+  assert.equal(following({order:'single',loop:false,list,cur:3}).next,null);
+  assert.equal(following({order:'single',loop:true,list,cur:3}).next,3);
+  // 列表：按页序播放下一个（图片、无法播放的不在 list 里）；最后一个播完停下，循环开回到第一个。
+  assert.equal(following({order:'list',list,cur:3}).next,4);
+  assert.equal(following({order:'list',list,cur:5}).next,7,'A media not in the list (e.g. without sections) continues with the next one in page order');
+  assert.equal(following({order:'list',list,cur:7}).next,null);
+  assert.equal(following({order:'list',loop:true,list,cur:7}).next,1);
+  assert.equal(following({order:'list',loop:true,list:[4],cur:4}).next,4,'A single media loops onto itself');
+  assert.equal(following({order:'list',list:[],cur:2}).next,null);
+  // 随机：不重复，全部播过一遍后停下；循环开则重新洗牌继续，刚播完的不紧接着重复。
+  let played=new Set(),cur=1,seen=[cur];const rnd=()=>0.6;
+  for(;;){const r=following({order:'shuffle',list,cur,played,random:rnd});if(r.next==null)break;seen.push(r.next);played=r.played;cur=r.next;}
+  assert.deepEqual([...seen].sort((a,b)=>a-b),list,'Each media once per round');assert.equal(seen.length,4);
+  const again=following({order:'shuffle',loop:true,list,cur,played});
+  assert.ok(again.next!=null&&again.next!==cur,'Looping starts a new round without repeating the last one');assert.deepEqual([...again.played].sort(),[cur,again.next].sort());
+  assert.equal(following({order:'shuffle',loop:true,list:[4],cur:4,played:new Set([4])}).next,4);
+  assert.equal(following({order:'shuffle',loop:false,list:[4],cur:4}).next,null);
+});
+
+test('只播放书签区段：从哪里开始、何时跳到下一个区段',()=>{
+  const rs=[{a:5,b:9},{a:12,b:14}];
+  assert.equal(sectionStart(rs,0),5,'From the first section after the current time');
+  assert.equal(sectionStart(rs,6),6,'Inside a section: keep going');
+  assert.equal(sectionStart(rs,10),12);
+  assert.equal(sectionStart(rs,20),5,'Past the last section: back to the first');
+  assert.equal(sectionStart([],3),3,'No sections: unchanged');
+  assert.deepEqual(sectionStep(rs,6,null),{k:0},'Entering a section starts following it');
+  assert.deepEqual(sectionStep(rs,8.5,0),{k:0});
+  assert.deepEqual(sectionStep(rs,9,0),{k:1,seek:12},'At the end of a section jump to the next one');
+  assert.deepEqual(sectionStep(rs,14,1),{k:null,done:true},'The last section ends the media');
+  assert.deepEqual(sectionStep(rs,10,null),{k:null},'Dragged outside the sections: play on normally');
+  assert.deepEqual(sectionStep(rs,12.5,null),{k:1},'Reaching a later section resumes section jumps');
+});
+
+test('合并备份：媒体的区段书签只与同一文件的区段比较冲突',()=>{
+  const pages=[{name:'1.jpg'},{name:'a.webm'},{name:'b.webm'},{name:'2.jpg'}];
+  const mine=[{id:'i1',name:'1.jpg',f:.2,end:{name:'2.jpg',f:.5}},{id:'a1',name:'a.webm',t:10,end:{name:'a.webm',t:20}}];
+  const incoming=[{id:'a2',name:'a.webm',t:15,end:{name:'a.webm',t:30}},{id:'b1',name:'b.webm',t:15,end:{name:'b.webm',t:30}},{id:'a3',name:'a.webm',t:25,end:{name:'a.webm',t:28}}];
+  const out=mergeMarks(pages,structuredClone(mine),incoming);
+  assert.deepEqual(out.map(m=>[m.id,!!m.end]),[['i1',true],['a1',true],['a2',false],['b1',true],['a3',true]],'Crossing a section of the same file is dropped; other files and the image section spanning them do not matter');
 });
