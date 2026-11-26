@@ -87,7 +87,7 @@ export function install(ctx){
   // items：每页的位置 {x,y,w,h,c(列),r(列内序号),tall}；cols：每列的页序号。网格与瀑布流共用这套数据，导航也就一致。
   let book=null,items=[],cols=[],n=2,ratio=1.4,sel=0,here=-1,frame=0,dirty=false,follow=false;const nodes=new Map();
   const thumbs=sheet('overview',['v',']'],'ov-grid',{
-    setup(){const b=ctx.current;if(!b?.pages.length)return false;book=b;thumbs.name.textContent=ctx.title(b);here=view.position()?.i??0;sel=here;ratio=cellRatio(b);return true;},
+    setup(){const b=ctx.current;if(!b?.pages.length)return false;book=b;thumbs.name.textContent=thumbs.name.title=ctx.title(b);here=view.position()?.i??0;sel=here;ratio=cellRatio(b);return true;},
     show(){follow=false;layout();const it=items[sel];sc.scrollTop=it?it.y+it.h/2-sc.clientHeight/2:0;select(sel,false);paint();},
     move(act){
       if(!items[sel])return;
@@ -171,7 +171,7 @@ export function install(ctx){
       marks=[];const start=prefer??sm().start();prefer=null;
       shelfSheet.body.replaceChildren(...groups.map(({book,items})=>{
         const sec=make('section','ov-sec'+(book===ctx.current?' current':'')),head=make('div','ov-sec-head'),list=make('div','ov-sec-grid');
-        head.append(make('strong','',ctx.title(book)),make('span','',String(items.length)));sec.append(head,list);
+        const name=make('strong','',ctx.title(book));name.title=ctx.title(book);head.append(name,make('span','',String(items.length)));sec.append(head,list);
         for(const x of items){
           const node=make('div','ov-item ov-mark'),img=make('img');img.alt='';img.draggable=false;node.dataset.k=marks.length;node.setAttribute('role','option');
           node.setAttribute('aria-label',ctx.title(book)+' · '+fmt('bmPage',{n:x.i+1}));
@@ -201,7 +201,7 @@ export function install(ctx){
     if(!marks.length)return;i=Math.max(0,Math.min(marks.length-1,i));
     marks[msel]?.node.classList.remove('sel');marks[msel]?.node.setAttribute('aria-selected','false');msel=i;const m=marks[i];
     m.node.classList.add('sel');m.node.setAttribute('aria-selected','true');
-    shelfSheet.pos.textContent=fmt('bmN',{n:i+1,m:marks.length})+' · '+ctx.title(m.book);
+    shelfSheet.pos.textContent=shelfSheet.pos.title=fmt('bmN',{n:i+1,m:marks.length})+' · '+ctx.title(m.book);
   }
   function markLayout(){
     const m=masonry(),body=shelfSheet.body,gap=4,def=1/Number(sm()?.ratio()||.75);body.classList.toggle('masonry',m);

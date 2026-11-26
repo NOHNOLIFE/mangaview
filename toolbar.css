@@ -23,10 +23,10 @@
 #bar .shelf-btn{margin-right:2px;background:var(--accent);color:var(--accent-ink);box-shadow:0 6px 18px rgba(255,110,80,.25)}
 #bar .shelf-btn:not(:disabled):hover{background:var(--accent-hi);color:var(--accent-ink)}
 #bar .shelf-btn .i{width:22px;height:22px}
-/* 书名行：工具栏展开时显示在工具栏下方、阅读区居中，单行省略，不接收鼠标。 */
+/* 书名行：工具栏展开时显示在工具栏下方、阅读区居中，单行省略；只有书名接收鼠标（悬停看完整书名、可选中复制），其余部分不接收。 */
 #toolbar>#barTitle{position:relative;order:1;display:none;align-items:baseline;gap:10px;max-width:min(640px,100%);padding:7px 16px 9px;overflow:hidden;border:1px solid var(--line2);border-radius:12px;background:rgba(16,17,20,.92);backdrop-filter:blur(22px) saturate(1.5);box-shadow:var(--shadow);line-height:1.3;pointer-events:none;animation:title-in .22s var(--ease)}
 #toolbar.open>#barTitle{display:flex}
-#bookTitle{min-width:0;overflow:hidden;font-size:14.5px;font-weight:650;white-space:nowrap;text-overflow:ellipsis}
+#bookTitle{min-width:0;overflow:hidden;font-size:14.5px;font-weight:650;white-space:nowrap;text-overflow:ellipsis;pointer-events:auto;user-select:text}
 #bookMeta{flex:none;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 #bookMeta:empty{display:none}
 .bar-progress{position:absolute;left:0;right:0;bottom:0;height:3px;overflow:hidden;background:rgba(255,255,255,.08)}

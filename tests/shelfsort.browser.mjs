@@ -83,21 +83,30 @@ try{
   await js(`renameInput.value='';renameForm.requestSubmit()`);await wait(async()=>await order()==='Book A,Book B,Book C');
   assert.equal(await js(`import('./store.mjs').then(async({library})=>'name' in (await library('getAll')).find(b=>b.title==='Book A'))`),false);
   await shot('shelf-sort');
-  // 长按 → / D 切到下一本、← / A 切到上一本（按书架排序：名称正序 A、B、C），按住时显示进度环；短按只翻一屏。
+  // Shift+S / Shift+↓ 下一本、Shift+W / Shift+↑ 上一本（按书架排序：名称正序 A、B、C）：按下切换一次，按住（自动重复）不连续切换。
   await js('shelf.close()');await wait(()=>js(`bookTitle.textContent==='Book B'`));await js('reader.focus()');
-  const arrows={ArrowRight:39,ArrowLeft:37,d:68,a:65};
-  const down=k=>cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length>1?k:'Key'+k.toUpperCase(),windowsVirtualKeyCode:arrows[k],...(k.length===1?{text:k}:{})});
-  const up=k=>cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length>1?k:'Key'+k.toUpperCase(),windowsVirtualKeyCode:arrows[k]});
-  await down('ArrowRight');await delay(300);assert.equal(await js('!document.querySelector(".hold").hidden&&document.querySelector(".hold .hold-text").textContent'),'Keep holding for the next book');
-  await delay(400);await up('ArrowRight');await wait(()=>js(`bookTitle.textContent==='Book C'`));
-  assert.ok(await js('document.querySelector(".hold").classList.contains("done")&&document.querySelector(".hold .hold-text").textContent==="Book C"'),'Ring shows the new book');
-  await down('ArrowLeft');await delay(700);await up('ArrowLeft');await wait(()=>js(`bookTitle.textContent==='Book B'`));
-  await down('d');await delay(700);await up('d');await wait(()=>js(`bookTitle.textContent==='Book C'`));
-  await down('a');await delay(700);await up('a');await wait(()=>js(`bookTitle.textContent==='Book B'`));
+  const keys={ArrowRight:39,ArrowLeft:37,ArrowUp:38,ArrowDown:40,d:68,a:65,s:83,w:87};
+  const code=k=>k.length>1?k:'Key'+k.toUpperCase();
+  const down=(k,shift=false,repeat=false)=>cdp('Input.dispatchKeyEvent',{type:'keyDown',key:k.length===1&&shift?k.toUpperCase():k,code:code(k),windowsVirtualKeyCode:keys[k],modifiers:shift?8:0,autoRepeat:repeat,...(k.length===1?{text:shift?k.toUpperCase():k}:{})});
+  const up=(k,shift=false)=>cdp('Input.dispatchKeyEvent',{type:'keyUp',key:k.length===1&&shift?k.toUpperCase():k,code:code(k),windowsVirtualKeyCode:keys[k],modifiers:shift?8:0});
+  const shiftPress=async k=>{await down(k,true);for(let i=0;i<4;i++){await delay(40);await down(k,true,true);}await up(k,true);await delay(150);};
+  const is=async n=>{await wait(()=>js(`bookTitle.textContent==='${n}'`));await delay(200);assert.equal(await js('bookTitle.textContent'),n,'One book per press');};
+  await js('reader.scrollTop=0');
+  await shiftPress('s');await is('Book C');
+  await shiftPress('w');await is('Book B');
+  await shiftPress('ArrowDown');await is('Book C');
+  await shiftPress('ArrowUp');await is('Book B');
+  await shiftPress('ArrowUp');await is('Book A');assert.equal(await js('reader.scrollTop'),0,'Shift+W / ↑ does not scroll');
+  await shiftPress('s');await is('Book B');
+  // 长按 A / D / ← / → 不再切书，也不翻屏（长按暂无功能）；短按只翻一屏。
+  for(const k of ['ArrowRight','ArrowLeft','d','a']){
+    await js('reader.scrollTop=200');await down(k);await delay(700);await up(k);await delay(150);
+    assert.equal(await js('bookTitle.textContent'),'Book B',k+' hold does not change books');assert.equal(await js('reader.scrollTop'),200,k+' hold does not turn the page');
+  }
   await js('reader.scrollTop=0');await down('d');await delay(60);await up('d');await wait(()=>js('reader.scrollTop>0'));
   assert.equal(await js('reader.scrollTop'),await js('Math.max(1,reader.clientHeight-64)'),'Tap turns one screen');assert.equal(await js('bookTitle.textContent'),'Book B');
-  await delay(100);assert.equal(await js('document.querySelector(".hold").hidden'),true,'No ring after a tap');
-  assert.deepEqual(errors,[]);console.log('PASS: B shortcut, shelf sort (added / folder time / name, both directions), persistence, prev/next order, rename and restore, hold arrow keys / A / D to change books');
+  await delay(100);assert.equal(await js('document.querySelector(".hold").hidden'),true,'No ring for page keys');
+  assert.deepEqual(errors,[]);console.log('PASS: B shortcut, shelf sort (added / folder time / name, both directions), persistence, prev/next order, rename and restore, Shift+W / S / ↑ / ↓ change books once per press, holding A / D / arrows does not change books');
 }finally{
   if(ws?.readyState===1){ws.send(JSON.stringify({id:++id,method:'Browser.close'}));ws.close();}
   server.close();for(let i=0;i<30&&chrome.exitCode===null;i++)await delay(100);if(chrome.exitCode===null)chrome.kill();

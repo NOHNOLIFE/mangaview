@@ -8,7 +8,10 @@
 .overview>.ov-head{display:flex;align-items:center;gap:14px;padding:calc(var(--top) + 8px) 10px 8px 18px;border-bottom:1px solid var(--line)}
 .ov-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .ov-pos{flex:none;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-.ov-hint{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
+.ov-hint{flex:none;max-width:max(0px,min(40%,100% - 22rem));margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
+/* 名称长短不改变说明文字和按钮的尺寸与位置：只有书名（和全屏书签里带书名的位置）收缩并末尾省略。 */
+.ov-head>.icon-btn{flex:none}
+#shelfOverview .ov-pos{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .ov-scroll{position:relative;flex:1;overflow-x:hidden;overflow-y:scroll;overscroll-behavior:contain;outline:none;scrollbar-width:auto;scrollbar-color:auto}
 .ov-scroll::-webkit-scrollbar{width:20px}
 .ov-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.035)}

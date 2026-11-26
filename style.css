@@ -65,6 +65,7 @@ body.docked{--dock:min(var(--panel),55vw)}
 #preview .page::before{content:'';position:absolute;inset:auto 0 0;height:1px;background:rgba(0,0,0,.7);z-index:1}
 #preview .page:empty::after{font-size:13px;color:rgba(255,255,255,.14)}
 #preview .page.failed{font-size:10px;padding:4px}
+.mid-name{display:flex;justify-content:center;max-width:100%;min-width:0;white-space:nowrap}.mid-name>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 
 /* 欢迎页 */
 #empty{position:fixed;inset:0;left:var(--dockL);display:grid;place-items:center;padding:56px 24px 32px;overflow:auto;

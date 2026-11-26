@@ -79,8 +79,10 @@ The full-screen bookmark and thumbnail views switch between a regular grid (the 
 | --- | --- |
 | `Space` / `S` / `↓` | Scroll down (hold to keep scrolling) |
 | `Shift+Space` / `W` / `↑` | Scroll up (hold to keep scrolling) |
-| `D` / `→` | Tap: forward one screen. Hold: next book (a ring fills while you hold) |
-| `A` / `←` | Tap: back one screen. Hold: previous book |
+| `Shift+S` / `Shift+↓` | Next book (one per press; holding doesn't repeat) |
+| `Shift+W` / `Shift+↑` | Previous book |
+| `D` / `→` | Forward one screen |
+| `A` / `←` | Back one screen |
 | `F` / `Enter` | Tap: next bookmark. Hold: add a bookmark |
 | `Shift+F` / `Shift+Enter` | Previous bookmark |
 | `Home` / `End` | Start / end of the book. Press again to change books |
@@ -135,7 +137,8 @@ When a series is split across several folders (one per volume, for example), you
 
 - Importing the same set of folders again updates that book instead of adding a second copy: new volumes are added, volumes that are gone are removed, and bookmarks and progress are kept.
 - The same folder can be a book of its own and a volume in one or more joined books at the same time; refreshing or re-importing it updates all of them.
-- If only one folder contains images, it is imported as a normal book. Loose images go to **Loose images**.
+- The book is named after the folder you picked or dropped; with several folders, after the first one in file name order.
+- If only one folder contains images, it is imported as a normal book (recognised and restored by that folder), but named after the folder you picked, and searching for its own folder name still finds it. A title you have edited is kept when you import again. Loose images go to **Loose images**.
 
 ### Loose images
 

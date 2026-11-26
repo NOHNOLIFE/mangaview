@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {detect,translate} from '../lang.mjs';
-import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort,fileOf,shownName,compareDirs} from '../model.mjs';
+import {natural,shuffled,offsets,at,point,sortedPages,sortMode,folderSort,needsSort,fileOf,shownName,compareDirs,clipEnd,splitTail} from '../model.mjs';
 import {grade,assign,coverName,hue,norm} from '../match.mjs';
 import {KEYS,ZONES,ROWS,MOUSE,MORE,pieces,plain} from '../help.mjs';
 import {fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive} from '../sources.mjs';
@@ -212,4 +212,13 @@ test('键鼠操作图示：功能键都在显示的键盘局部内，文案四�
     assert.match(translate(KEYS.Delete.tip,lang),re,lang);
     assert.doesNotMatch(translate('hkMoreShelf',lang),/Delete: remove|Delete 移除|Delete で外す|Delete 제거/,lang);
   }
+});
+test('长名称：作品名末尾省略，文件名拆成可省略的开头和保留的结尾（扩展名及其前 8 个字符）',()=>{
+  assert.equal(clipEnd('短名'),'短名');assert.equal(clipEnd('a'.repeat(40)),'a'.repeat(40));
+  assert.equal(clipEnd('a'.repeat(41)),'a'.repeat(39)+'…');assert.equal([...clipEnd('漫'.repeat(100))].length,40);
+  assert.equal(clipEnd('😀'.repeat(50),10),'😀'.repeat(9)+'…','按字符截断，不拆开代理对');
+  assert.deepEqual(splitTail('Very long series name - Episode 012.mp4'),['Very long series name - Epi','sode 012.mp4']);
+  assert.deepEqual(splitTail('no extension here at all'),['no extension her','e at all']);
+  assert.deepEqual(splitTail('short.jpg'),['short.jpg','']);assert.deepEqual(splitTail('第一卷第十二话很长很长的名字.webp',4),['第一卷第十二话很长很','长的名字.webp']);
+  for(const s of ['Very long series name - Episode 012.mp4','x','第一卷.png'])assert.equal(splitTail(s).join(''),s);
 });

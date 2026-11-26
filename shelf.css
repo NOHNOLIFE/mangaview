@@ -115,7 +115,7 @@ button.tag[aria-pressed=true]{border-color:transparent;background:hsl(var(--h) 7
 .veil{position:absolute;inset:auto 0 0;display:grid;gap:5px;padding:36px 12px 12px;background:linear-gradient(180deg,transparent,rgba(6,6,8,.82) 38%,rgba(6,6,8,.94));opacity:0;transform:translateY(6px);transition:opacity .18s,transform .25s var(--ease);pointer-events:none}
 .book.active .veil,.cover:not(.ready)+.veil{opacity:1;transform:none}
 .cover:not(.ready)+.veil{background:none}
-.veil .name{display:-webkit-box;overflow:hidden;color:#fff;font-size:13.5px;font-weight:650;line-height:1.35;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.veil .name{display:-webkit-box;overflow:hidden;color:#fff;font-size:13.5px;font-weight:650;line-height:1.35;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:2}
 .veil .meta{display:flex;justify-content:space-between;gap:6px;color:rgba(255,255,255,.72);font-size:12px;font-variant-numeric:tabular-nums}
 .veil .fresh{color:rgba(255,255,255,.5)}
 .veil .info{display:flex;align-items:center;gap:10px}

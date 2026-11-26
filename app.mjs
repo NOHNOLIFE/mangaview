@@ -1,5 +1,5 @@
 import {detect,translate,languageList} from './lang.mjs';
-import {byTime,sortedPages,folderSort,needsSort,sortMode,natural} from './model.mjs';
+import {byTime,sortedPages,folderSort,needsSort,sortMode,natural,clipEnd} from './model.mjs';
 import {library,thumbs} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages} from './thumbs.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
@@ -36,7 +36,7 @@ function iconButton(name,label,action,className=''){
   el.append(icon(name));el.onclick=safe(action);return el;
 }
 localize();
-// 长按进度环（长按 F / Enter 添加书签、长按翻页键切书共用）：show 开始填充，done 显示完成后自动消失。
+// 长按进度环（长按 F / Enter 添加书签）：show 开始填充，done 显示完成后自动消失。
 const ring=(()=>{
   const el=make('div','hold'),dial=make('span','hold-dial'),text=make('span','hold-text'),glyph=icon('bookmark');let timer=0;
   dial.innerHTML='<svg class="hold-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg>';
@@ -210,14 +210,21 @@ async function add(groups,place=importPlace()){
   }
   for(const [b,links] of later)if(books.has(b.id))await relinkAll(b,links);
   imported(list,place);
+  return list;
 }
 // 导入为单个作品：所选的一个或多个文件夹（含其下所有带图片的子文件夹）合成一本书，每个文件夹是一个源。
 // 同一组所选文件夹（或同一组源）再次导入时更新已有的那本；只有一个带图片的文件夹时按普通导入处理。散图仍单独导入。
+// 作品名用所选（拖入）的根文件夹名，多个时取按文件名顺序的第一个。只有一个带图片的文件夹且它在根文件夹之下时，
+// 书仍以它为源（识别、恢复照旧），根文件夹名作为显示名（name），搜索原文件夹名仍能找到；书名已编辑过的不覆盖。
 async function addMerged(roots,groups,place=importPlace()){
   const folders=[],loose=[];
   notice('scanning');
   for await(const g of groups){(g.path?folders:loose).push(g);if(folders.length%50===0&&folders.length)notice(null,fmt('scanningN',{n:folders.length}),120000);}
-  if(folders.length<2)return add(folders.concat(loose),place);
+  if(folders.length<2){
+    const list=await add(folders.concat(loose),place),root=folders[0]?.path?.split('/')[0],book=folders.length?list[0]:null;
+    if(book&&root&&root!==folders[0].title&&!book.name){book.name=root;await persist(book);ctx.redrawShelf();toolsState();emit('books');}
+    return;
+  }
   const order=mergeKeys(folders);
   // 先按普通导入的规则更新引用这些文件夹的书、接回缺失的卷（单文件夹书与合并作品可以共用一个源）；每本书只排序保存一次。
   const links=new Map(),push=(b,cand,source)=>{if(!links.has(b))links.set(b,[]);links.get(b).push({cand,source});};
@@ -241,7 +248,7 @@ async function addMerged(roots,groups,place=importPlace()){
   for(const g of loose)list.push(await addGroup(g,place));
   if(!(shelf.open&&current)&&current!==book)select(book);
   imported(list,place);
-  notice(null,fmt('mergedDone',{name:title(book),n:book.sources.length}));
+  notice(null,fmt('mergedDone',{name:clipEnd(title(book)),n:book.sources.length}));
 }
 // 只比较目录句柄；记录里的源没有句柄（备份导入后尚未接回，或回退模式导入）时按相对路径比较。
 async function findMerged(roots,folders){
@@ -530,8 +537,9 @@ function toEnd(){if(atEnd())step(1);else main.scrollTop=main.scrollHeight;}
 drag(main,e=>{const r=main.getBoundingClientRect();if(e.pointerType!=='mouse'&&e.clientY-r.top<=40){showBar(!showing(bar));return;}screenStep(e.clientX-r.left<main.clientWidth/2?-1:1);});
 drag(nav,e=>view.fromPreview(e.clientY-nav.getBoundingClientRect().top));
 let hold=null,frame;function stop(){hold=null;cancelAnimationFrame(frame);}
-const HOLD_SHOW=150,HOLD_FIRE=550;let pageHold=null; // 长按翻页键切书
-function cancelPage(){const p=pageHold;if(!p)return;clearTimeout(p.show);clearTimeout(p.fire);if(!p.done)ring.hide();pageHold=null;}
+// 长按翻页键（A / D / ← / →）：按满 HOLD_LONG 算长按，松开时不翻屏，交给 ctx.pageHold（{start(d),stop()}，留给媒体快进 / 快退；未接入时长按无功能）。
+const HOLD_LONG=550;let pageHold=null;
+function cancelPage(){const p=pageHold;if(!p)return;clearTimeout(p.fire);if(p.done)ctx.pageHold?.stop?.();pageHold=null;}
 function startHold(code,d){if(hold===code)return;stop();hold=code;let prev=performance.now(),carry=0;function tick(now){carry+=Math.min(60,now-prev)*.65*d;const delta=Math.trunc(carry);carry-=delta;main.scrollTop+=delta;prev=now;frame=requestAnimationFrame(tick);}frame=requestAnimationFrame(tick);}
 window.addEventListener('keydown',e=>{
   if(e.isComposing||e.target.closest('input,textarea,[contenteditable="true"]'))return;
@@ -549,13 +557,15 @@ window.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='t'){e.preventDefault();if(!e.repeat){showBar(!showing(bar));(showing(bar)?bar.querySelector('button'):main).focus();}return;}
   if(!current||e.target.closest('button')&&[' ','Enter'].includes(e.key))return;
   for(const h of ctx.keys)if(h.down?.(e))return; // 功能模块的按键（书签 F / Enter、全屏总览 C / V 等）
+  const k=e.key.toLowerCase();
+  // Shift+W / Shift+↑ 上一作品、Shift+S / Shift+↓ 下一作品：按下切换一次，按住不连续触发。
+  if(e.shiftKey&&['w','arrowup','s','arrowdown'].includes(k)){e.preventDefault();if(!e.repeat)step(['w','arrowup'].includes(k)?-1:1);return;}
   // 空格 / S / ↓ 向下、Shift+空格 / W / ↑ 向上：按住持续滚动。
-  const k=e.key.toLowerCase();if([' ','s','arrowdown','w','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k===' '?(e.shiftKey?-1:1):['w','arrowup'].includes(k)?-1:1);return;}
-  // D / → 、A / ←：短按（松开时）翻一屏；长按 150ms 显示进度环，满 550ms 切到下一本 / 上一本。
+  if([' ','s','arrowdown','w','arrowup'].includes(k)){e.preventDefault();startHold(e.code,k===' '?(e.shiftKey?-1:1):['w','arrowup'].includes(k)?-1:1);return;}
+  // D / → 、A / ←：短按（松开时）翻一屏；长按见 HOLD_LONG。
   if(['d','arrowright','a','arrowleft'].includes(k)){e.preventDefault();if(e.repeat||pageHold)return;
     const p=pageHold={code:e.code,d:['a','arrowleft'].includes(k)?-1:1,done:false};
-    p.show=setTimeout(()=>ring.show(p.d>0?'skip-forward':'skip-back',t(p.d>0?'holdNext':'holdPrev')),HOLD_SHOW);
-    p.fire=setTimeout(()=>{p.done=true;const before=current;step(p.d);if(current&&current!==before)ring.done(p.d>0?'skip-forward':'skip-back',title(current));else ring.hide();},HOLD_FIRE);
+    p.fire=setTimeout(()=>{p.done=true;ctx.pageHold?.start?.(p.d);},HOLD_LONG);
     return;}
   if(!['home','end','pageup','pagedown','delete'].includes(k))return;e.preventDefault();if(e.repeat)return;
   if(k==='home')toStart();else if(k==='end')toEnd();
@@ -604,6 +614,7 @@ const ctx={books,get current(){return current;},get lang(){return lang;},select,
   actions,keys:[],settings:[],on(type,fn){(listeners[type]??=[]).push(fn);},emit,setLang,library,thumbs,getThumb,saveThumb,makeThumb,dropThumbs,
   orderBooks:list=>list.sort((a,b)=>natural(title(a),title(b))),matchFilter:()=>true,atEdge,ring,fade,showing,toStart,toEnd,atStart,atEnd,drawShelf(){},redrawShelf(){if(shelf.open)ctx.drawShelf();},updateProgress,toolsState,showBar:open=>showBar(open),
   expired,readingList,relink,relinkAll,rebuild,mergeKeys,relocate,looseLost,lostSources,isDown:down,discard,remove,copy,normalize,isLive,refreshAll,prefs,resetPrefs};
+ctx.pageHold=null; // 长按翻页键的接入点（见 HOLD_LONG），媒体快进 / 快退接在这里
 // 设置条目：{id,group,label(文案 key),type:'toggle'|'choice'|'button',options:[{value,label|text}],get(),set(v),run()}
 ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
