@@ -7,6 +7,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
   // 网格：书签缩略图都按同一比例显示（CSS grid）；瀑布流：按缩略图自身比例在每组里逐列排布（markLayout）。
   // 按书分组并显示书名，当前书高亮。上下按画面位置找最近的一格。
   let marks = [],
+    count = 0,
     msel = 0,
     mframe = 0,
     mfollow = false,
@@ -78,25 +79,23 @@ export function install(ctx, { sheet, sheets, masonry }) {
       marks = [];
     },
   });
-  // 匹配作品名（含原文件夹名）、书签所在文件和区段书签所在文件的文件名、书签名称（label，来自 .pbf 导入）；作品名命中即显示该作品的全部书签。
+  // 匹配作品名（含原文件夹名）、书签所在文件和区段终点所在文件的文件名、书签名称；作品名命中即显示该作品的全部书签。
   function hayMark(book, x) {
     const file = (i) => (i >= 0 && book.pages[i] ? shownName(book.pages[i]) : '');
     return norm(
-      [
-        ctx.title(book),
-        book.title ?? '',
-        file(x.i),
-        x.bm.end ? file(x.e) : '',
-        typeof x.bm.label === 'string' ? x.bm.label : '',
-      ].join(' '),
+      [ctx.title(book), book.title ?? '', file(x.i), x.bm.end ? file(x.e) : '', ctx.marks?.name(book, x.bm) ?? ''].join(
+        ' ',
+      ),
     );
   }
-  // 按当前搜索词重建列表，start 为要选中的书签 id。带区段书签的书签左下角叠一张区段书签小图（与书签列表相同），点它跳到区段书签。
+  // 按当前搜索词重建列表，start 为要选中的书签 id。区段书签的起点和终点是前后紧挨的两项（与书签列表相同），键盘导航把终点当作独立的一项，
+  // 选中其中一项时两项一起高亮（.mate），点终点跳到终点。位置文字只数书签（终点显示它起点的序号）。
   function build(start) {
     const words = norm(shelfSheet.query()).split(' ').filter(Boolean),
       ks = shelfSheet.kinds(),
       body = shelfSheet.body;
     marks = [];
+    count = 0;
     // 类型按书签所在页的类型（媒体书签即所在的视频 / 音频）。
     const keep = (book, x) =>
       (!ks.size || ks.has(pageKind(book.pages[x.i] ?? { name: '' }))) &&
@@ -115,72 +114,75 @@ export function install(ctx, { sheet, sheets, masonry }) {
         head.append(make('strong', '', ctx.title(book)), make('span', '', String(items.length)));
         sec.append(head, grid);
         for (const x of items) {
-          const node = make('div', 'ov-item ov-mark'),
-            img = make('img');
-          img.alt = '';
-          img.draggable = false;
-          node.dataset.k = marks.length;
-          node.setAttribute('role', 'option');
-          node.setAttribute(
-            'aria-label',
-            ctx.title(book) +
-              ' · ' +
-              (ctx.marks?.where(book, x) ?? fmt('bmPage', { n: x.i + 1 })) +
-              (x.bm.end ? ' · ' + t('secStart') : ''),
-          );
-          img.onload = () => {
-            node.dataset.r = Math.min(2.5, Math.max(0.4, img.naturalHeight / img.naturalWidth));
-            if (masonry()) markSchedule();
-          };
-          node.append(img, make('span', 'ov-n', String(x.i + 1)));
-          // 媒体书签：视频为书签时间点的画面（懒生成）、音频为占位小块，带类型角标和时间点（bookmarks.mjs）。
-          if (ctx.marks?.isMedia(x.bm)) {
-            ctx.marks.paint(node, img, book, x);
-            node.append(ctx.marks.mediaBadge(book, x));
-          } else
-            ctx.getThumb(sm().thumbKey(book, x.bm)).then(
-              (th) => {
-                if (th) img.src = th.url;
-                else img.remove();
-              },
-              () => img.remove(),
-            );
-          if (x.bm.end) {
-            const mk = (kind) => {
-                const el = make('span', 'bm-mk ' + kind);
-                el.append(ctx.icon('bm-' + kind));
-                return el;
-              },
-              sub = make('span', 'bm-sub' + (x.live ? '' : ' off')),
-              simg = make('img');
-            simg.alt = '';
-            simg.draggable = false;
-            sub.append(simg, mk('end'));
-            node.classList.add('paired');
-            node.append(mk('start'), sub);
-            const gone = () => {
-              simg.remove();
-              sub.classList.add('empty');
-            };
-            if (ctx.marks?.isMedia(x.bm.end)) ctx.marks.paint(sub, simg, book, x, true);
-            else
-              ctx.getThumb(sm().endKey(book, x.bm)).then((th) => {
-                if (th) simg.src = th.url;
-                else gone();
-              }, gone);
+          count++;
+          for (const end of x.bm.end ? [false, true] : [false]) {
+            const node = item(book, x, end);
+            node.dataset.k = marks.length;
+            grid.append(node);
+            marks.push({ book, x, node, end, n: count });
           }
-          grid.append(node);
-          marks.push({ book, x, node });
         }
         return sec;
       }),
     );
     msel = Math.max(
       0,
-      marks.findIndex((m) => m.x.bm.id === start),
+      marks.findIndex((m) => m.x.bm.id === start && !m.end),
     );
     shelfSheet.none(!marks.length);
   }
+  function item(book, x, end) {
+    const node = make('div', 'ov-item ov-mark' + (x.bm.end ? (end ? ' sec-end' : ' sec-start') : '')),
+      img = make('img'),
+      i = end ? x.e : x.i;
+    img.alt = '';
+    img.draggable = false;
+    node.dataset.id = x.bm.id;
+    if (end) node.dataset.end = '';
+    if (end && !x.live) node.classList.add('off');
+    node.setAttribute('role', 'option');
+    label(node, book, x, end);
+    img.onload = () => {
+      node.dataset.r = Math.min(2.5, Math.max(0.4, img.naturalHeight / img.naturalWidth));
+      if (masonry()) markSchedule();
+    };
+    node.append(img, make('span', 'ov-n', i >= 0 ? String(i + 1) : ''));
+    // 画面（视频为书签时间点的画面，懒生成；音频为占位，有书的封面时以它作背景）、类型角标、区段标记、名称（bookmarks.mjs）。
+    if (ctx.marks) ctx.marks.face(node, img, book, x, end);
+    // 铅笔按钮：就地重命名（与 F2 相同）。
+    node.append(ctx.iconButton('pencil', t('bmRename'), () => rename(node), 'bm-ren'));
+    return node;
+  }
+  function label(node, book, x, end) {
+    node.setAttribute(
+      'aria-label',
+      ctx.title(book) +
+        ' · ' +
+        (end
+          ? t('secEnd') + ' · ' + (ctx.marks?.where(book, x, true) ?? fmt('bmPage', { n: x.e + 1 }))
+          : (ctx.marks?.where(book, x) ?? fmt('bmPage', { n: x.i + 1 })) + (x.bm.end ? ' · ' + t('secStart') : '')),
+    );
+  }
+  // 重命名选中的书签（F2 或铅笔按钮），改完后同一书签的两项都更新名称；焦点回到列表。
+  function rename(node) {
+    const m = marks[+node.dataset.k];
+    if (!m || !ctx.marks) return;
+    if (+node.dataset.k !== msel) mark(+node.dataset.k);
+    ctx.marks.edit(node, m.book, m.x.bm, () => {
+      for (const o of marks)
+        if (o.x.bm === m.x.bm) {
+          ctx.marks.named(o.node, o.book, o.x.bm);
+          label(o.node, o.book, o.x, o.end);
+        }
+      if (shelfSheet.dialog.open) shelfSheet.scroller.focus({ preventScroll: true });
+    });
+  }
+  shelfSheet.dialog.addEventListener('keydown', (e) => {
+    if (e.key !== 'F2' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || !marks[msel]) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.repeat) rename(marks[msel].node);
+  });
   // 书架关闭后回到下面的全屏界面：全屏书签按书架的最新状态（移动、删除、筛选）重排并保留选中，焦点回到列表。
   ctx.shelf.addEventListener('close', () => {
     if (ctx.shelf.open) return;
@@ -204,8 +206,8 @@ export function install(ctx, { sheet, sheets, masonry }) {
     const m = marks[i];
     m.node.classList.add('sel');
     m.node.setAttribute('aria-selected', 'true');
-    shelfSheet.pos.textContent = shelfSheet.pos.title =
-      fmt('bmN', { n: i + 1, m: marks.length }) + ' · ' + ctx.title(m.book);
+    mate(m.node);
+    shelfSheet.pos.textContent = shelfSheet.pos.title = fmt('bmN', { n: m.n, m: count }) + ' · ' + ctx.title(m.book);
   }
   function markLayout() {
     const m = masonry(),
@@ -279,15 +281,23 @@ export function install(ctx, { sheet, sheets, masonry }) {
       .filter(([r]) => Math.abs(cy(r) - row) < 1)
       .reduce((a, b) => (Math.abs(cx(b[0]) - cx(cur)) < Math.abs(cx(a[0]) - cx(cur)) ? b : a))[1];
   }
-  function pick(i, end = false) {
+  function pick(i) {
     const m = marks[i];
-    if (!m || (end && m.x.e < 0)) return;
+    if (!m || (m.end ? m.x.e : m.x.i) < 0) return;
     shelfSheet.close();
-    sm()[end ? 'goEnd' : 'go'](m.book, m.x);
+    sm()[m.end ? 'goEnd' : 'go'](m.book, m.x);
   }
   shelfSheet.body.addEventListener('click', (e) => {
+    if (e.target.closest('.bm-ren,.bm-edit')) return;
     const node = e.target.closest('.ov-mark');
-    if (node) pick(+node.dataset.k, !!e.target.closest('.bm-sub'));
+    if (node) pick(+node.dataset.k);
   });
+  // 选中区段的起点或终点时，两项一起高亮（悬停即选中，见 overview-sheet.mjs）。
+  const mate = (node) => {
+    for (const o of shelfSheet.body.querySelectorAll('.ov-mark.mate')) o.classList.remove('mate');
+    if (node.classList.contains('sec-start') || node.classList.contains('sec-end'))
+      for (const o of shelfSheet.body.querySelectorAll('.ov-mark[data-id="' + CSS.escape(node.dataset.id) + '"]'))
+        o.classList.add('mate');
+  };
   return shelfSheet;
 }

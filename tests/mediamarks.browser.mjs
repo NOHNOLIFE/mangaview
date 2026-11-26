@@ -323,9 +323,10 @@ try {
     js(
       `[...node('03 long.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>[b.className.replace('mv-mk ',''),Math.round(parseFloat(b.style.left)),b.title])`,
     );
+  // 媒体书签的名称：<文件名>-书签N（文件名不含扩展名）。
   assert.deepEqual(await dots(), [
-    ['mark', 25, '0:05'],
-    ['mark', 60, '0:12'],
+    ['mark', 25, '0:05 · 03 long-Bookmark1'],
+    ['mark', 60, '0:12 · 03 long-Bookmark2'],
   ]);
   await js(`node('03 long.wav').querySelector('.mv-mk').click()`);
   await wait(async () => Math.abs((await now('03 long.wav')) - 5) < 0.05, 'marker click seeks');
@@ -403,13 +404,14 @@ try {
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
   assert.deepEqual(
     await js(
-      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector('.bm-sub .bm-ph')?.textContent??null])`,
+      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector('.bm-name')?.textContent??null])`,
     ),
     [
-      ['Page 2 · 0:01', '0:01', false, null],
-      ['Page 3 · 0:05 · Section start', '0:05', true, '0:10'],
-      ['Page 3 · 0:12', '0:12', true, null],
-      ['Page 4 · 0:00', '0:00', false, null],
+      ['Page 2 · 0:01 · 02 clip-Bookmark1', '0:01', false, '02 clip-Bookmark1'],
+      ['Page 3 · 0:05 · 03 long-Bookmark1 · Section start', '0:05', true, '03 long-Bookmark1'],
+      ['Section bookmark · Page 3 · 0:10', '0:10', true, '03 long-Bookmark1'],
+      ['Page 3 · 0:12 · 03 long-Bookmark2', '0:12', true, '03 long-Bookmark2'],
+      ['Page 4 · 0:00 · 04 clip-Bookmark1', '0:00', false, '04 clip-Bookmark1'],
     ],
   );
   await wait(
@@ -425,12 +427,12 @@ try {
   );
   await shot('mediamarks-panel');
   await tapKey('Escape');
-  // 全屏书架书签里同样带类型角标。
+  // 全屏书架书签里同样带类型角标（区段的终点是单独的一项，角标是终点的时间）。
   await tapKey('c');
   await wait(() => js(`document.getElementById('shelfOverview').open`), 'full-screen bookmarks');
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#shelfOverview .ov-mark .bm-type')].map(e=>e.textContent)`),
-    ['0:01', '0:05', '0:12', '0:00'],
+    ['0:01', '0:05', '0:10', '0:12', '0:00'],
   );
   await tapKey('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)), 'closed');

@@ -97,7 +97,8 @@
   height: 100%;
   object-fit: cover;
 }
-/* 媒体书签：还没有画面的视频、音频是占位小块（类型图标 + 名称；区段书签的小图里是图标 + 时间），时间点在类型角标（.bm-type）里。 */
+/* 媒体书签：还没有画面的视频、音频是占位小块（类型图标），名称叠在下沿（.bm-name），时间点在类型角标（.bm-type）里。
+   音频所在的书有封面时以封面作背景（压暗，bookcover.mjs 的 .has-cover / --cover）。 */
 .bm-ph {
   position: absolute;
   inset: 0;
@@ -118,41 +119,75 @@
   height: 26px;
   color: var(--faint);
 }
-.bm-ph-name {
-  display: -webkit-box;
-  max-width: 100%;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  word-break: break-all;
+.bm-ph.has-cover {
+  background:
+    linear-gradient(rgba(8, 8, 10, 0.5), rgba(8, 8, 10, 0.5)),
+    var(--cover) center / cover no-repeat;
 }
-.bm-ph b {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
+.bm-ph.has-cover .i {
+  color: rgba(255, 255, 255, 0.88);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
-.bm-sub .bm-ph {
-  gap: 1px;
-  padding: 2px;
-  font-size: 10px;
-}
-.bm-sub .bm-ph .i {
-  width: 14px;
-  height: 14px;
-}
-.bm-thumb .bm-type {
+.bm-thumb .bm-type,
+.ov-mark .bm-type,
+.cp-item .bm-type {
   z-index: 1;
   pointer-events: none;
 }
-.cp-item.bm-media {
+.cp-item {
   position: relative;
 }
-.ov-mark .bm-type {
+/* 名称：叠在缩略图下沿，一行，超出省略；底色接近不透明（白底页面上对比度仍远高于 4.5:1）。有名称时类型角标、页码移到它上方。 */
+.bm-name {
+  position: absolute;
   z-index: 1;
-  top: 3px;
-  bottom: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  padding: 0 6px;
+  overflow: hidden;
+  background: rgba(10, 10, 12, 0.88);
+  color: #fff;
+  font-size: 11px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
-} /* 全屏书架书签：右下角是页码 */
+}
+.named > .bm-type,
+.ov-mark.named > .ov-n {
+  bottom: 24px;
+}
+.named > .bm-ph {
+  padding-bottom: 44px; /* 图标居中在名称和类型角标之上，不被盖住 */
+}
+/* 全屏书架书签：页码在左下角，类型角标在右下角，铅笔按钮在右上角。 */
+.ov-mark > .ov-n {
+  right: auto;
+  left: 3px;
+}
+/* 就地重命名（rename.mjs）：输入框盖在名称的位置。 */
+.bm-edit {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: #101114;
+  color: #fff;
+  font-size: 12px;
+  user-select: text;
+}
 .bm-thumb.empty::before {
   content: '';
   position: absolute;
@@ -163,11 +198,20 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E")
     center/32% no-repeat;
 }
-/* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮。 */
+/* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮；区段的两项用区段配色，悬停或聚焦其中一项两项一起高亮（.mate）。 */
+.bm-item {
+  --hl: var(--accent);
+}
+.bm-item.sec-start,
+.bm-item.sec-end {
+  --hl: var(--sec);
+}
 .bm-item.active .bm-thumb,
-.bm-item:not(.gone):hover .bm-thumb {
+.bm-item.mate .bm-thumb,
+.bm-item:not(.gone):hover .bm-thumb,
+.bm-item:focus-within .bm-thumb {
   box-shadow:
-    0 0 0 2px var(--accent),
+    0 0 0 2px var(--hl),
     0 6px 16px rgba(0, 0, 0, 0.4);
 }
 .bm-item.gone {
@@ -177,8 +221,16 @@
   filter: grayscale(1);
   opacity: 0.35;
 }
-.bm-del {
+/* 暂不生效的区段（页序改变使终点排到起点前）：终点变灰，仍可删除。 */
+.bm-item.off .bm-thumb > :is(img, .bm-ph),
+.bm-item.off .bm-thumb.empty {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.bm-del,
+.bm-ren {
   position: absolute;
+  z-index: 2;
   right: 3px;
   top: 3px;
   width: 22px;
@@ -188,15 +240,32 @@
   color: #fff;
   opacity: 0;
 }
+.bm-ren {
+  right: 28px;
+}
+.ov-mark > .bm-ren {
+  right: 3px;
+}
 .bm-del:not(:disabled):hover {
   background: rgba(10, 10, 12, 0.92);
   color: var(--danger);
 }
-.bm-item:hover .bm-del,
-.bm-del:focus-visible {
+.bm-ren:not(:disabled):hover {
+  background: rgba(10, 10, 12, 0.92);
+  color: var(--accent-hi);
+}
+.bm-item:hover > :is(.bm-del, .bm-ren),
+.bm-item:focus-within > :is(.bm-del, .bm-ren),
+.ov-mark.sel > .bm-ren,
+:is(.bm-del, .bm-ren):focus-visible {
   opacity: 1;
 }
-.bm-del .i {
+.bm-item.editing > :is(.bm-del, .bm-ren),
+.ov-mark.editing > .bm-ren {
+  opacity: 0;
+  pointer-events: none;
+}
+:is(.bm-del, .bm-ren) .i {
   width: 14px;
   height: 14px;
 }
@@ -341,7 +410,8 @@ body.shelfmarks {
   color: var(--text);
 }
 
-/* 成对标记（区段书签，bookmarks.mjs 的 i-bm-start / i-bm-end）：书签列表里起点缩略图左上角是起点标记，左下角叠一张较小的区段书签缩略图。 */
+/* 区段书签（bookmarks.mjs 的 i-bm-start / i-bm-end）：列表里起点和终点是前后紧挨、同样大小的两项，左上角各带一个互相呼应的标记，
+   缩略图描一圈区段配色（--sec），与普通书签明显区分。 */
 .bm-mk {
   position: absolute;
   z-index: 1;
@@ -353,7 +423,7 @@ body.shelfmarks {
   height: 20px;
   border-radius: 6px;
   background: rgba(10, 10, 12, 0.82);
-  color: var(--accent);
+  color: var(--sec);
   pointer-events: none;
 }
 .bm-mk .i {
@@ -361,77 +431,28 @@ body.shelfmarks {
   height: 14px;
   stroke-width: 2;
 }
-.bm-sub {
+:is(.bm-item.sec-start, .bm-item.sec-end) .bm-thumb::after,
+.ov-mark:is(.sec-start, .sec-end)::after {
+  content: '';
   position: absolute;
   z-index: 1;
-  left: 4px;
-  bottom: 4px;
-  display: block;
-  width: 46%;
-  aspect-ratio: var(--bm-ar, 0.75);
-  overflow: hidden;
-  border-radius: 6px;
-  background: linear-gradient(160deg, #2c2e35, #1b1c21);
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sec) 70%, transparent);
+  pointer-events: none;
+}
+/* 全屏书架书签：选中区段的一项时两项一起高亮（区段配色）。 */
+.ov-mark:is(.sec-start, .sec-end):is(.sel, .mate) {
   box-shadow:
-    0 0 0 1.5px rgba(10, 10, 12, 0.9),
-    0 3px 10px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-  transition: box-shadow 0.12s;
+    0 0 0 3px var(--sec),
+    0 8px 22px rgba(0, 0, 0, 0.55);
 }
-.bm-sub img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.ov-mark.mate:not(.sel) {
+  z-index: 1;
 }
-.bm-sub .bm-mk {
-  left: 2px;
-  top: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
-}
-.bm-sub .bm-mk .i {
-  width: 12px;
-  height: 12px;
-}
-.bm-sub.off img,
-.bm-sub.off.empty {
+.ov-mark.off > :is(img, .bm-ph) {
   filter: grayscale(1);
   opacity: 0.4;
-}
-/* 悬停一组里的任意一张，两张一起高亮。 */
-.bm-item.paired:not(.gone):hover .bm-sub,
-.bm-item.paired.active .bm-sub {
-  box-shadow:
-    0 0 0 2px var(--accent),
-    0 3px 10px rgba(0, 0, 0, 0.5);
-}
-.bm-item.gone .bm-sub {
-  opacity: 0.5;
-}
-.bm-sub-del {
-  position: absolute;
-  right: 2px;
-  top: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: rgba(10, 10, 12, 0.82);
-  color: #fff;
-  opacity: 0;
-}
-.bm-sub-del:not(:disabled):hover {
-  background: rgba(10, 10, 12, 0.95);
-  color: var(--danger);
-}
-.bm-sub:hover .bm-sub-del,
-.bm-sub-del:focus-visible {
-  opacity: 1;
-}
-.bm-sub-del .i {
-  width: 12px;
-  height: 12px;
 }
 
 /* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，bookmarks.mjs 的 badge）：标记种类的图标，多个书签时带数量。 */
@@ -459,6 +480,9 @@ body.shelfmarks {
   height: 13px;
   stroke-width: 2.1;
 }
+.mk .i.sec {
+  color: var(--sec);
+}
 .mk b {
   padding: 0 1px 0 2px;
   color: #fff;
@@ -479,7 +503,7 @@ body.shelfmarks {
   right: 0;
   z-index: 2;
 }
-/* 页内位置的细标记，贴在缩略图左侧：普通书签一道横线；起点 ┌ 与区段书签 └ 是一对方括号，一头一尾。 */
+/* 页内位置的细标记，贴在缩略图左侧：普通书签一道横线；起点 ┌ 与区段书签 └ 是一对方括号（区段配色），一头一尾。 */
 .pv-mk .tick {
   position: absolute;
   left: 0;
@@ -495,7 +519,7 @@ body.shelfmarks {
   width: 10px;
   height: 9px;
   margin-top: -1.5px;
-  border: 0 solid var(--accent);
+  border: 0 solid var(--sec);
   border-width: 3px 0 0 3px;
   border-radius: 0;
   background: none;
@@ -508,5 +532,5 @@ body.shelfmarks {
 }
 .pv-mk .tick.hot {
   border-color: #fff;
-  filter: drop-shadow(0 0 3px var(--accent));
+  filter: drop-shadow(0 0 3px var(--sec));
 }

@@ -1,17 +1,13 @@
 import { extend } from '../core/lang.mjs';
 import { forget, grabFrame } from '../reader/thumbs.mjs';
 import { pageKind } from '../core/model.mjs';
+import { install as bookCover } from './bookcover.mjs';
 // 自定义封面：书架卡片的「设置封面」列出这本书的全部书签缩略图，点选其一即设为封面；「重置封面」恢复默认封面。对所有书可用。
+// 书的当前封面（音频作背景用）见 bookcover.mjs，在这里一并安装。
 // 自定义封面是一份独立的压缩小图，存在 thumbs 的 `${book.id}:custom`，记录为 book.customCover={bm,r,at}（r：高宽比，瀑布流按它排版；at：设置时间，卡片据此判断要不要换图）。
 // 之后删除该书签、刷新、恢复、重新导入都不改变它；随书目和缩略图进入备份。它不参与识别：恢复用的指纹（book.fp）只来自默认封面。
 extend({
   coverSet: ['Set cover', '设置封面', '表紙を設定', '표지 설정'],
-  coverHint: [
-    'Pick a bookmark to use as the cover',
-    '点选一个书签作为封面',
-    '表紙にするしおりを選んでください',
-    '표지로 사용할 책갈피를 선택하세요',
-  ],
   coverNone: [
     'This book has no bookmarks yet. Add a bookmark first, then pick it here.',
     '这本书还没有书签，请先添加书签再来选择。',
@@ -37,6 +33,7 @@ export function cropFor(page, f) {
 export const customKey = (book) => book.id + ':custom';
 export function install(ctx) {
   const { t, make, notice } = ctx;
+  bookCover(ctx);
   const sprite = document.querySelector('svg.sprite');
   if (sprite && !document.getElementById('i-cover'))
     sprite.insertAdjacentHTML(
@@ -46,7 +43,7 @@ export function install(ctx) {
   const dialog = make('dialog', 'cover-pick'),
     title = make('h2'),
     name = make('span', 'cp-name'),
-    hint = make('p', 'cp-hint'),
+    hint = make('p', 'cp-hint empty'),
     grid = make('div', 'cp-grid'),
     foot = make('div', 'cp-foot'),
     resetBtn = make('button', '');
@@ -76,8 +73,9 @@ export function install(ctx) {
     const items = (ctx.marks?.list(b) ?? []).filter(
       (x) => !(ctx.marks.isMedia(x.bm) && x.i >= 0 && pageKind(b.pages[x.i]) === 'audio'),
     );
-    hint.textContent = t(items.length ? 'coverHint' : 'coverNone');
-    hint.classList.toggle('empty', !items.length);
+    // 有书签时不需要说明（点选即可）；没有书签时提示先添加。
+    hint.textContent = items.length ? '' : t('coverNone');
+    hint.hidden = !!items.length;
     dialog.style.setProperty('--bm-ar', ctx.shelfmarks?.ratio() ?? '.75');
     grid.replaceChildren(
       ...items.map((x) => {
@@ -88,15 +86,7 @@ export function install(ctx) {
         img.draggable = false;
         btn.setAttribute('aria-label', ctx.marks.where(b, x));
         btn.append(img);
-        if (ctx.marks.isMedia(x.bm)) ctx.marks.paint(btn, img, b, x);
-        else
-          ctx.getThumb(ctx.marks.thumbKey(b, x.bm)).then(
-            (th) => {
-              if (th) img.src = th.url;
-              else btn.classList.add('empty');
-            },
-            () => btn.classList.add('empty'),
-          );
+        ctx.marks.face(btn, img, b, x);
         btn.onclick = () => {
           dialog.close();
           ctx.safe(choose)(b, x);
@@ -139,6 +129,7 @@ export function install(ctx) {
     await ctx.persist(b);
     forget(customKey(b));
     await ctx.thumbs('delete', customKey(b));
+    ctx.coverChanged(b.id);
     ctx.refreshCard?.(b);
     notice('coverResetDone');
   }
