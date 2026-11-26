@@ -1,4 +1,4 @@
-// 单文件模式（需求 8.4）：每页占满一屏、按窗口完整显示；进入 / 退出停在同一页；各种翻页方式；书签、缩略图联动；媒体页；窗口调整；位置记忆。
+// 单文件模式：每页占满一屏、按窗口完整显示；进入 / 退出停在同一页；各种翻页方式；书签、缩略图联动；媒体页；窗口调整；位置记忆。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -163,7 +163,7 @@ try {
     window.view=()=>box(reader);
     window.dirOf=name=>navigator.storage.getDirectory().then(r=>r.getDirectoryHandle(name));`;
   await js(helpers);
-  // 添加文件夹：点添加后若出现添加对话框（2.2），点它的默认确认按钮（添加为多个作品）；没有对话框时直接导入。
+  // 添加文件夹：点添加后若出现添加对话框，点它的默认确认按钮（添加为多个作品）；没有对话框时直接导入。
   async function addFolder(name, button) {
     await js(
       `(async()=>{const d=await dirOf(${JSON.stringify(name)});window.showDirectoryPicker=async()=>d;document.querySelector(${JSON.stringify(button)}).click();})()`,

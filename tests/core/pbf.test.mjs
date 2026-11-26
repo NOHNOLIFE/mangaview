@@ -16,7 +16,7 @@ import {
 } from '../../src/core/sources.mjs';
 import { parsePbf, decodePbf, mergePbf, pbfId } from '../../src/marks/pbf.mjs';
 
-// ---- PotPlayer 书签（.pbf，第 11 节）：测试用的 .pbf 现场构造，不读任何真实文件。
+// ---- PotPlayer 书签（.pbf）：测试用的 .pbf 现场构造，不读任何真实文件。
 const BOM = String.fromCharCode(0xfeff),
   HEX = '89504e470d0a1a0a0000000d49484452'.repeat(4);
 const pbfText = (lines) => BOM + '[Bookmark]\r\n' + lines.join('\r\n') + '\r\n';

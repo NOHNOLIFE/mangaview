@@ -1,4 +1,4 @@
-// 媒体书签、区段书签与「只播放书签区段」、播放顺序与循环、播放位置记忆的端到端测试（docs/requirements-media.zh-CN.md 3.7、3.9、第 4 节）。
+// 媒体书签、区段书签与「只播放书签区段」、播放顺序与循环、播放位置记忆的端到端测试。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -227,10 +227,10 @@ try {
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Media'`), 'book opened');
   await js('reader.focus()');
-  // 添加书签的步骤里不让自动播放插手（3.6 由 media.browser.mjs 覆盖）；跳转书签时再打开。
+  // 添加书签的步骤里不让自动播放插手（由 media.browser.mjs 覆盖）；跳转书签时再打开。
   await js(`localStorage.setItem('mv2:autoplay','false')`);
 
-  // ---- 3.7 / 4.5：总控栏上的播放顺序、循环、只播放书签区段按钮（设置类偏好，持久化，跨窗口同步）；面板上只有与该文件有关的按钮。
+  // ---- 总控栏上的播放顺序、循环、只播放书签区段按钮（设置类偏好，持久化，跨窗口同步）；面板上只有与该文件有关的按钮。
   await toPageReady('03 long.wav');
   assert.deepEqual(
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
@@ -276,7 +276,7 @@ try {
   assert.equal(await js(`localStorage.getItem('mv2:sectionsOnly')`), 'true');
   await js(`${bar('sections')}.click()`);
 
-  // ---- 3.9：播放位置记忆。暂停时记入书目记录（book.mediaPos），重新打开从该处继续；剩余不足 5 秒清除。
+  // ---- 播放位置记忆。暂停时记入书目记录（book.mediaPos），重新打开从该处继续；剩余不足 5 秒清除。
   await playAt('03 long.wav', 7);
   await delay(250);
   await js(`el('03 long.wav').pause()`);
@@ -301,7 +301,7 @@ try {
   await js(`el('03 long.wav').pause()`);
   await wait(async () => !(await record()).mediaPos?.some((x) => x.id === '03 long.wav'), 'cleared near the end');
 
-  // ---- 4.1 / 4.2：长按 F 在当前媒体的当前时间加书签；2 秒内已有书签提示已存在；壳上的按钮同样可加。
+  // ---- 长按 F 在当前媒体的当前时间加书签；2 秒内已有书签提示已存在；壳上的按钮同样可加。
   await at('03 long.wav', 5);
   await hold();
   await said('Bookmark added');
@@ -324,7 +324,7 @@ try {
     (await record()).bookmarks.every((b) => b.f === undefined),
     'Media bookmarks store a time, not a position in the page',
   );
-  // 4.3：进度条上按时间位置画出标记点，悬停提示时间，点击跳到该时间。
+  // 进度条上按时间位置画出标记点，悬停提示时间，点击跳到该时间。
   const dots = () =>
     js(
       `[...node('03 long.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>[b.className.replace('mv-mk ',''),Math.round(parseFloat(b.style.left)),b.title])`,
@@ -352,7 +352,7 @@ try {
   );
   assert.deepEqual(th, [240, 135, 'image/webp']);
 
-  // ---- 4.4：区段书签在同一文件内按时间配对；进度条上成对标记，悬停高亮区段。
+  // ---- 区段书签在同一文件内按时间配对；进度条上成对标记，悬停高亮区段。
   await toPageReady('03 long.wav');
   await at('03 long.wav', 9);
   await hold(true);
@@ -443,7 +443,7 @@ try {
   await tapKey('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)), 'closed');
 
-  // ---- 4.2：单击 F 跳转书签对媒体生效：滚到该媒体并定位到书签时间；自动播放开启则从该处播放。
+  // ---- 单击 F 跳转书签对媒体生效：滚到该媒体并定位到书签时间；自动播放开启则从该处播放。
   await js(`localStorage.setItem('mv2:autoplay','true');reader.scrollTop=0`);
   await delay(400);
   await tapKey('f');
@@ -472,7 +472,7 @@ try {
   assert.equal(await paused('03 long.wav'), true, 'Autoplay off: stays paused');
   await js(`localStorage.setItem('mv2:autoplay','false')`); // 下面显式播放，不让自动播放插手
 
-  // ---- 3.7：播放顺序与循环（只在影音模式下生效，requirements-2.4 8：混合模式按页序，播完不按播放顺序切换）。
+  // ---- 播放顺序与循环（只在影音模式下生效：混合模式按页序，播完不按播放顺序切换）。
   await js(`${bar('mode-media')}.click()`);
   const stopAll = () => js(`for(const e of reader.querySelectorAll('video,audio'))e.pause()`);
   const nearEnd = (name) =>
@@ -539,7 +539,7 @@ try {
   );
   await storage('playOrder', 'list');
 
-  // ---- 4.5：只播放书签区段。03 有区段 5–10 和 12–14，06 有区段 2–4，04 没有区段（自动切换时跳过）。
+  // ---- 只播放书签区段。03 有区段 5–10 和 12–14，06 有区段 2–4，04 没有区段（自动切换时跳过）。
   await toPageReady('03 long.wav');
   await at('03 long.wav', 14);
   await hold(true);
@@ -596,7 +596,7 @@ try {
   assert.equal(await js(`localStorage.getItem('mv2:sectionsOnly')`), 'false');
   await shot('mediamarks');
 
-  // ---- 3.2：视频书签的缩略图截不到（文件打不开）时，连同文件的大小和修改时间记入页记录（page.vfail），重新打开后文件没变就不再尝试。
+  // ---- 视频书签的缩略图截不到（文件打不开）时，连同文件的大小和修改时间记入页记录（page.vfail），重新打开后文件没变就不再尝试。
   await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Broken',{create:true});
     await mvMedia.write(dir,'01.svg',new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="teal"/></svg>'],{type:'image/svg+xml'}));
     await mvMedia.write(dir,'02 bad.mp4',new Blob([new Uint8Array(4096).fill(7)]));

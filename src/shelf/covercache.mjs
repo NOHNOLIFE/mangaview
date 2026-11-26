@@ -9,7 +9,7 @@ export function install(ctx, S) {
   // ---- 封面缓存：只存压缩 WebP，过期书也能显示；串行读取，不与阅读抢硬盘。
   let chain = Promise.resolve();
   const queue = (fn) => (chain = chain.then(fn).catch(() => {}));
-  // 恢复与识别用（第 5 节）：含媒体的书记下各媒体文件的精确大小（page.size，只读文件元数据，不读内容）。
+  // 恢复与识别用：含媒体的书记下各媒体文件的精确大小（page.size，只读文件元数据，不读内容）。
   // 后台空闲时逐个读取，不阻塞导入；读不到的本次会话不再重试。
   const isMedia = (p) => pageKind(p) !== 'image',
     tried = new WeakSet();
@@ -91,7 +91,7 @@ export function install(ctx, S) {
       .filter(([s, p]) => p && s.fp?.name !== fileOf(p) && !ctx.isDown(b, s));
   };
   const needsFp = (b) => staleFp(b).length > 0;
-  // 识别用的指纹（book.fp.cover，第 5 节）：首个文件（不论类型）的文件名、精确大小、头部 64KB 摘要。
+  // 识别用的指纹（book.fp.cover）：首个文件（不论类型）的文件名、精确大小、头部 64KB 摘要。
   // 默认封面的画面与它分开（fp.pic 记画面取自哪一页）：按「文件名」顺序第一个有画面的页，图片用图片本身，
   // 视频用它的缩略图（ctx.frames：优先最早的书签画面，否则片长约 10% 处；fp.src 记来源，变了就重做）；播不了的视频（page.vfail / page.bad）跳过。
   // 全书只有音频（没有任何画面）时 fp.text：卡片用作品名生成文字封面，不存图。视频截帧代价高，只为可见的卡片进行，后台检查只补指纹和图片封面。

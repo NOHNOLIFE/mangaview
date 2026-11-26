@@ -1,4 +1,4 @@
-// 总控栏（docs/requirements-2.4.zh-CN.md 第 7 节）与单个文件的播放面板（第 6 节），以及 ctx.transport（第 8 节中本批的部分）：布局与位置稳定、禁用规则、窄窗口、
+// 总控栏与单个文件的播放面板，以及 ctx.transport：布局与位置稳定、禁用规则、窄窗口、
 // 速率 / 音量小面板、偏好的持久化与跨窗口同步、播放速率、空格与运行状态、上一个 / 下一个媒体、面板的状态样式与字幕容器。
 // 独立临时配置 + OPFS 测试数据；音频、视频由 tests/media-fixtures.mjs 现场生成，不使用任何真实文件。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
@@ -151,7 +151,7 @@ try {
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Deck'`), 'book');
   await js('reader.focus()');
-  // 滚动停稳后的自动播放（3.6）由 media.browser.mjs 覆盖，这里关掉，结果才确定。
+  // 滚动停稳后的自动播放由 media.browser.mjs 覆盖，这里关掉，结果才确定。
   await js(`localStorage.setItem('mv2:autoplay','false')`);
   const H = () => js('innerHeight'),
     W = () => js('innerWidth');
@@ -194,7 +194,7 @@ try {
     );
   const text = (id) => js(`${B(id)}.textContent`);
 
-  // ---- 7：布局。三区并排，高度约 84px，中区居中，阅读区底部居中；默认混合模式。
+  // ---- 布局。三区并排，高度约 84px，中区居中，阅读区底部居中；默认混合模式。
   assert.ok(await js(`toPage('03 b.wav')`));
   await wait(() => js(`el('03 b.wav')?.readyState>=1&&el('02 a.wav')?.readyState>=1`), 'audio loaded');
   await openBar();
@@ -223,7 +223,7 @@ try {
   assert.match(await js(`controlbar.querySelector('.cb-pos').textContent`), /^\d+ \/ 6 · \d+%$/);
   await shot('controlbar-800');
 
-  // ---- 7：位置稳定。切换模式、数字位数变化、按钮禁用，所有控件的位置和尺寸不变；与模式无关的控件变暗禁用。
+  // ---- 位置稳定。切换模式、数字位数变化、按钮禁用，所有控件的位置和尺寸不变；与模式无关的控件变暗禁用。
   const base = await rects();
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(
@@ -262,7 +262,7 @@ try {
   assert.equal(await rects(), base, 'Disabled buttons keep their place');
   assert.ok(await js(`toPage('03 b.wav')`));
 
-  // ---- 7：速率、音量的小面板：悬停弹出在按钮上方，经过空隙、移到面板上不收起，移开收起；同一时间只有一个；滚轮直接调整。
+  // ---- 速率、音量的小面板：悬停弹出在按钮上方，经过空隙、移到面板上不收起，移开收起；同一时间只有一个；滚轮直接调整。
   await openBar();
   {
     const [x, y] = await center('#controlbar [data-id="scrollRate"]');
@@ -319,7 +319,7 @@ try {
   await wait(async () => !(await isOpen('playRate')), 'Esc closes');
   await js('reader.focus()');
 
-  // ---- 8.3：播放速率作用于所有媒体（含之后才加载的），变速不变调。
+  // ---- 播放速率作用于所有媒体（含之后才加载的），变速不变调。
   await openBar();
   {
     const [x, y] = await center('#controlbar [data-id="playRate"]');
@@ -382,7 +382,7 @@ try {
   assert.deepEqual(await state(), ['false', '1.0×', 'false', 'false', 'false', '1.0×', 1], 'Back to the defaults');
   await js('reader.focus()');
 
-  // ---- 8：空格 = 大播放键；影音模式下运行状态与实际播放一致（漫画、混合模式的运行见 transport.browser.mjs）。
+  // ---- 空格 = 大播放键；影音模式下运行状态与实际播放一致（漫画、混合模式的运行见 transport.browser.mjs）。
   const running = () => pressed('play');
   await js(`${B('mode-media')}.click()`);
   await key(' ', 'Space', 32);
@@ -434,7 +434,7 @@ try {
   await wait(async () => !(await playing()).length);
   await js(`${B('mode-mixed')}.click()`);
 
-  // ---- 6：单个文件的播放面板。状态一眼可辨：当前媒体外框；播放中播放键与进度条为强调色、卡片提亮并显示音柱。
+  // ---- 单个文件的播放面板。状态一眼可辨：当前媒体外框；播放中播放键与进度条为强调色、卡片提亮并显示音柱。
   assert.ok(await js(`toPage('03 b.wav')`));
   await tap('#reader .page[data-name="03 b.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '03 b.wav');
@@ -520,7 +520,7 @@ try {
     assert.deepEqual(await playing(), []);
   }
 
-  // ---- 7：上一个 / 下一个媒体按播放顺序找，滚到居中；未运行时只定位，运行中接着播放。
+  // ---- 上一个 / 下一个媒体按播放顺序找，滚到居中；未运行时只定位，运行中接着播放。
   await js(`${B('mode-media')}.click()`);
   assert.ok(await js(`toPage('02 a.wav')`));
   await openBar();
@@ -558,7 +558,7 @@ try {
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
 
-  // ---- 8：漫画模式下单个媒体的播放键只播这一个文件，播完即停（不按播放顺序切换）。
+  // ---- 漫画模式下单个媒体的播放键只播这一个文件，播完即停（不按播放顺序切换）。
   await js(`${B('mode-comic')}.click()`);
   assert.ok(await js(`toPage('04 c.wav')`));
   await tap('#reader .page[data-name="04 c.wav"] .mv-play');

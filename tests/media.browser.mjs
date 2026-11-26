@@ -152,7 +152,7 @@ try {
     await mvMedia.write(long,'01 long.webm',await mvMedia.webm({seconds:6,width:320,height:180}));await mvMedia.write(long,'02.svg',svg(600,900,'#553'));
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Mixed'`));
-  // 3.1 / 3.2：浏览器播不了的媒体文件不建记录，导入结果里说明数量并列出扩展名；非内容文件不提示。
+  // 浏览器播不了的媒体文件不建记录，导入结果里说明数量并列出扩展名；非内容文件不提示。
   const note = await wait(
     () => js(`notice.textContent.includes('unsupported')&&notice.textContent`),
     'unsupported notice',
@@ -167,7 +167,7 @@ try {
   );
   assert.equal(await js(`bookMeta.textContent`), '1 / 6 · 0%');
 
-  // 3.3 布局：视频宽度跟随阅读区、高度按帧比例；竖视频高于视窗时等比缩小到正好一屏并居中；尺寸读到后记入书目记录。
+  // 布局：视频宽度跟随阅读区、高度按帧比例；竖视频高于视窗时等比缩小到正好一屏并居中；尺寸读到后记入书目记录。
   assert.ok(await js(`toPage('02 clip.webm')`));
   await wait(() => js(`el('02 clip.webm')?.readyState>=1`), 'clip metadata');
   const clip = await js(
@@ -212,7 +212,7 @@ try {
       t = p.find((x) => x.name === '03 tall.webm');
     return c.w === 320 && c.h === 180 && Math.abs(c.d - 1.5) < 0.1 && t.w === 240 && t.h === 480;
   }, 'frame size and duration saved');
-  // 9.2 封顶值只在窗口尺寸停止变化约 200ms 后才重算：拖动中占位高度不变，画面按当前视窗临时等比缩小；停下后按新高度重排，中心处的内容不动。
+  // 封顶值只在窗口尺寸停止变化约 200ms 后才重算：拖动中占位高度不变，画面按当前视窗临时等比缩小；停下后按新高度重排，中心处的内容不动。
   await cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 700, deviceScaleFactor: 1, mobile: false });
   const during = await js(
     `frame().then(()=>{const n=node('03 tall.webm');return [n.offsetHeight,Math.round(el('03 tall.webm').getBoundingClientRect().height)];})`,
@@ -247,7 +247,7 @@ try {
   assert.deepEqual(bar, { w: 776, h: 170, left: 12, name: '04 song.wav', time: '0:00 / 0:09' });
   await shot('media-audio');
 
-  // 3.4 壳：播放 / 暂停；点击进度条定位；时间显示不推动其他控件。
+  // 壳：播放 / 暂停；点击进度条定位；时间显示不推动其他控件。
   const where = () =>
     js(
       `[...node('04 song.wav').querySelectorAll('.mv-shell>*:not([hidden]):not(.mv-pop)')].map(x=>{const r=x.getBoundingClientRect();return [x.className,Math.round(r.left),Math.round(r.width)];})`,
@@ -267,7 +267,7 @@ try {
   await wait(() => js(`el('04 song.wav').paused`), 'tap pauses');
   assert.equal(await js('reader.scrollTop'), top, 'Clicking media does not turn the screen');
 
-  // 12：空格 = 总控栏的大播放键：播放 / 暂停当前媒体（中线离视窗中心最近的，暂停的也算），不再滚动；Shift+空格同样不滚动。
+  // 空格 = 总控栏的大播放键：播放 / 暂停当前媒体（中线离视窗中心最近的，暂停的也算），不再滚动；Shift+空格同样不滚动。
   await key(' ', 'Space', 32);
   await wait(() => js(`!el('04 song.wav').paused`), 'space plays');
   await key(' ', 'Space', 32);
@@ -278,7 +278,7 @@ try {
   await wait(() => js(`el('04 song.wav').paused`));
   assert.equal(await js('reader.scrollTop'), top, 'Space no longer scrolls');
 
-  // 3.8 / 12：Q / E、; / ' 每次 5%，短暂显示音量提示；全应用一套音量，持久化；静音作用于所有媒体。
+  // Q / E、; / ' 每次 5%，短暂显示音量提示；全应用一套音量，持久化；静音作用于所有媒体。
   await key('q', 'KeyQ', 81);
   await key('q', 'KeyQ', 81);
   await key(';', 'Semicolon', 186);
@@ -311,7 +311,7 @@ try {
   );
   assert.deepEqual(await js(`[el('04 song.wav').volume,el('04 song.wav').muted]`), [0.3, false]);
 
-  // 12：长按 D / A 快进 / 快退当前媒体（暂停中的也可以），期间显示累计偏移与目标时间；松开即停，不翻屏。
+  // 长按 D / A 快进 / 快退当前媒体（暂停中的也可以），期间显示累计偏移与目标时间；松开即停，不翻屏。
   await js(`el('04 song.wav').currentTime=0`);
   top = await js('reader.scrollTop');
   await key('d', 'KeyD', 68, { hold: true });
@@ -333,7 +333,7 @@ try {
   await key('d', 'KeyD', 68);
   await wait(async () => (await js('reader.scrollTop')) > top, 'tap D turns the screen');
 
-  // 3.2：扩展名受支持但播不了：该页显示占位和「重试」，记下文件的大小和修改时间；其他页不受影响。
+  // 扩展名受支持但播不了：该页显示占位和「重试」，记下文件的大小和修改时间；其他页不受影响。
   assert.ok(await js(`toPage('05 broken.mp4')`));
   await wait(() => js(`!node('05 broken.mp4').querySelector('.mv-fail').hidden`), 'unplayable placeholder');
   assert.equal(
@@ -410,7 +410,7 @@ try {
   );
   await js(`el('02 clip.webm').pause()`);
 
-  // 3.6 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
+  // 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
   await cdp('Page.navigate', { url: origin });
@@ -479,7 +479,7 @@ try {
     'Autoplay off: scrolling does not start playback',
   );
 
-  // 3.2 不重复探测：重新打开后，已知播不了且文件没变的不再挂源探测，直接显示占位；点「重试」才重新探测。
+  // 不重复探测：重新打开后，已知播不了且文件没变的不再挂源探测，直接显示占位；点「重试」才重新探测。
   await js(`srcLog.length=0`);
   assert.ok(await js(`toPage('05 broken.mp4')`));
   await wait(() => js(`!node('05 broken.mp4').querySelector('.mv-fail').hidden`), 'placeholder from the saved result');

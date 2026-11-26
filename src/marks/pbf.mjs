@@ -1,7 +1,7 @@
 import { extend } from '../core/lang.mjs';
 import { pbfFile, hasPbf } from '../core/sources.mjs';
 import { nameOf, stem, fileStem, autoName, nextNumber } from './names.mjs';
-// PotPlayer 书签（.pbf）导入（docs/requirements-media.zh-CN.md 第 11 节）。
+// PotPlayer 书签（.pbf）导入。
 // - 配对只看文件名（model.mjs pairPbf），在导入、刷新列目录时顺带完成（sources.mjs），记在页上（page.pbf）；.pbf 本身不是页。
 // - 内容在后台空闲时串行读取：随现有的文件夹检查进行（ctx.pbf.check，shelf/import.mjs 的导入与 shelf/refresh.mjs 的检查），不新增检查时机；当前书优先，
 //   其余的书每一项先 await ctx.disk.turn()（多个窗口时只由一个窗口读盘）。只比较 .pbf 的大小和修改时间，有变化才读内容并合并。

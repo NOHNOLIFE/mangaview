@@ -1,4 +1,4 @@
-// 总控栏（docs/requirements-2.4.zh-CN.md 第 7、8 节）的纯逻辑，不碰界面和存储（reader/transport.mjs、reader/controlbar.mjs 调用，tests/core/control.test.mjs 覆盖）：
+// 总控栏的纯逻辑，不碰界面和存储（reader/transport.mjs、reader/controlbar.mjs 调用，tests/core/control.test.mjs 覆盖）：
 // 模式的归一化、滚动 / 播放速率的范围与档位、速率的显示文字、各模式下哪些控件禁用。
 export const MODES = ['comic', 'mixed', 'media'];
 export const modeOf = (v) => (MODES.includes(v) ? v : 'mixed');

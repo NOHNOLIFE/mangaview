@@ -1,4 +1,4 @@
-// 总控运行引擎（docs/requirements-2.4.zh-CN.md 第 8 节）的纯逻辑，不碰界面和存储（reader/engine.mjs、reader/autoscroll.mjs、media/ 调用，tests/core/engine.test.mjs 覆盖）：
+// 总控运行引擎的纯逻辑，不碰界面和存储（reader/engine.mjs、reader/autoscroll.mjs、media/ 调用，tests/core/engine.test.mjs 覆盖）：
 // 滚动速率换算成每帧位移、自动运行的下一步（滚动 / 停下播放 / 跳到下一个区段 / 到书末）、单文件模式下按页推进、只播区段时的图片区段、跨书时的下一本、翻屏时对齐视频。
 // 坐标都是正文内容里的像素；「中线」指视窗中线（scrollTop + 视窗高度 / 2），停靠点、区段都用中线坐标表示。
 
@@ -47,7 +47,7 @@ export function next({ c, d = 0, lo = 0, hi = Infinity, stops = [], skip = new S
   return { type: 'scroll', to: Math.min(hi, c + d) };
 }
 
-// ---- 单文件模式（8.4）：运行时按页推进，不连续滚动。
+// ---- 单文件模式：运行时按页推进，不连续滚动。
 // 漫画模式按间隔换到下一页（1.0× = PAGE_MS 一张，间隔 = PAGE_MS ÷ 滚动速率），媒体页也只按间隔翻过；
 // 混合模式图片按间隔，媒体页停下播放、播完再换页；只播区段时只经过图片区段内的页（及规则下应播的媒体）。
 export const PAGE_MS = 5000;
@@ -97,7 +97,7 @@ export function nextBook(list, cur, loop, ok = () => true) {
   return null;
 }
 
-// ---- 翻屏（8.1）：从 top 翻 d 屏（step 像素）后，有视频的中线进入视窗（之前不在），这一次就落在该视频居中处（夹在 [0, max]）；
+// ---- 翻屏：从 top 翻 d 屏（step 像素）后，有视频的中线进入视窗（之前不在），这一次就落在该视频居中处（夹在 [0, max]）；
 // 往下翻取最靠前的一个，往上翻取最靠后的一个。videos：[{mid}]，按位置排序。返回新的 scrollTop。
 export function turnTo({ top, d, step, viewH, max, videos = [] }) {
   const to = clamp(top + d * step, 0, max),

@@ -1,4 +1,4 @@
-// 音频播放面板的卡片（docs/requirements-2.4.zh-CN.md 第 5、6 节）：书有封面时以压暗的封面作背景（封面上文字的对比度、封面更换后跟着变）、
+// 音频播放面板的卡片：书有封面时以压暗的封面作背景（封面上文字的对比度、封面更换后跟着变）、
 // 没有封面时为原样式，以及不论有无封面，播放中的卡片都一眼可辨。独立临时配置 + OPFS 测试数据，音频由 tests/media-fixtures.mjs 现场生成。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';

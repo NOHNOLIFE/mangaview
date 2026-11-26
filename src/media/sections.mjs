@@ -1,4 +1,4 @@
-// 只播放书签区段（4.5）：开关状态 S.only（即 ctx.transport.sectionsOnly，偏好由 reader/transport.mjs 登记、跨窗口同步，开关在总控栏）、
+// 只播放书签区段：开关状态 S.only（即 ctx.transport.sectionsOnly，偏好由 reader/transport.mjs 登记、跨窗口同步，开关在总控栏）、
 // 一个媒体内只播放它的区段、全书各媒体的区段（sectionMap）。
 // 区段规则在 playlist.mjs（sectionStart / sectionStep），区段来自 bookmarks.mjs（ctx.marks.ranges / mediaRanges）。
 import { extend } from '../core/lang.mjs';
@@ -30,7 +30,7 @@ export function install(ctx, S) {
     refreshAll();
     if (local && S.only && ctx.current && !sectionMap(ctx.current)) ctx.notice(null, t('mvNoSections'));
   });
-  // ---- 只播放书签区段（4.5）：一个媒体内只播放它的区段（ctx.marks.ranges，秒），区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
+  // ---- 只播放书签区段：一个媒体内只播放它的区段（ctx.marks.ranges，秒），区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
   const rangesOf = (p) => (p.ranges ??= ctx.marks?.ranges?.(p.book, p.page) ?? []);
   function sectionTick(p) {
     if (p.el.paused || p.el.seeking || p.state !== 'ready') return;
@@ -52,8 +52,8 @@ export function install(ctx, S) {
       finished(p);
     }
   }
-  // 只播区段时全书各媒体的区段（页名 → 区段的 Map），另带 covered：整个处在某个图片区段之内的媒体页序号（没有自己的区段也整段播放，
-  // requirements-2.4 8.2）。开关关闭或本书一个区段（图片或媒体）都没有时为 null，不筛选。
+  // 只播区段时全书各媒体的区段（页名 → 区段的 Map），另带 covered：整个处在某个图片区段之内的媒体页序号（没有自己的区段也整段播放）。
+  // 开关关闭或本书一个区段（图片或媒体）都没有时为 null，不筛选。
   const sectionMap = (book) => {
     if (!S.only || !ctx.marks) return null;
     const m = ctx.marks.mediaRanges?.(book) ?? new Map(),

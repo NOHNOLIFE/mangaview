@@ -1,4 +1,4 @@
-// 外挂字幕的端到端测试（docs/requirements-2.4.zh-CN.md 6.1）：匹配、随时间显示、开关、多字幕选择、音频、散图图集、刷新后新增字幕、不重复读文件、备份。
+// 外挂字幕的端到端测试：匹配、随时间显示、开关、多字幕选择、音频、散图图集、刷新后新增字幕、不重复读文件、备份。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 现场生成，字幕在测试页里现场构造（含一份 GBK 编码的），不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';

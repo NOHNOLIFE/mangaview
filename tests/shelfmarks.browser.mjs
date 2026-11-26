@@ -247,7 +247,7 @@ try {
     true,
   );
   assert.equal(await js('document.activeElement===reader'), true, 'Focus returns to the reader');
-  // 跨书（总控栏的开关，requirements-2.4 8.0）关闭时：只在本书的书签之间跳，到头回到本书第一个，不进入别的书。
+  // 跨书（总控栏的开关）关闭时：只在本书的书签之间跳，到头回到本书第一个，不进入别的书。
   await tap();
   await wait(async () => JSON.stringify(await center()) === JSON.stringify(['Alpha', 2, 0.5]));
   assert.equal(await text(), 'Back to the first bookmark');

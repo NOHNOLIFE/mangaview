@@ -257,7 +257,7 @@ export function install(ctx, S) {
       if (!press || e.code !== press.code) return;
       const p = press;
       cancel();
-      // 跨书（总控栏的开关，requirements-2.4 8.0）关闭时只在本书的书签之间跳；开启时书架书签常驻则跨书跳（dock.mjs nextShelf）。
+      // 跨书（总控栏的开关）关闭时只在本书的书签之间跳；开启时书架书签常驻则跨书跳（dock.mjs nextShelf）。
       if (!p.done) (S.pinned() && ctx.transport?.crossBook ? S.nextShelf : next)(p.d);
     },
     blur() {

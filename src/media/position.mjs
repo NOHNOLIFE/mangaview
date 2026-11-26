@@ -1,4 +1,4 @@
-// 播放位置记忆（3.9）：会话内存在 S.times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs）。
+// 播放位置记忆：会话内存在 S.times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs）。
 // 只在暂停、离开视窗、切书、关闭窗口时保存，播放中定时保存（player.mjs 的 play 事件）；播到结尾清除。
 // 播放位置：播放中至多每 POS_EVERY 毫秒记一次；记下后 POS_SAVE 毫秒内合并为一次写入。剩余不足 POS_END 秒视为播完，清除位置。
 export const POS_EVERY = 10000;

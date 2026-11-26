@@ -10,10 +10,10 @@
 // - 当前媒体（ctx.media.current，带强调色外框）：选定的媒体（最近播放、按过自己的播放键或被切到的）正在播放或仍在视窗内时是它；
 //   否则本窗口正在播放的；否则中线在视窗内、离视窗中心最近的；都没有为 null。空格与总控栏操作的就是它。
 // - 总控（ctx.transport）的 'media' 驱动器、单个媒体自己的播放键、上一个 / 下一个媒体、播放速率在 driver.mjs。
-// - 播放顺序与循环（3.7）、只播放书签区段（4.5）的规则在 playlist.mjs；区段来自 bookmarks.mjs（ctx.marks.ranges）。
-// - 播放位置记忆（3.9）：会话内存在 times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs），
+// - 播放顺序与循环、只播放书签区段的规则在 playlist.mjs；区段来自 bookmarks.mjs（ctx.marks.ranges）。
+// - 播放位置记忆：会话内存在 times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs），
 //   只在暂停、离开视窗、切书、关闭窗口时保存，播放中至多每 POS_EVERY 毫秒保存一次；播到结尾（剩余不足 5 秒）清除。
-// - 新窗口播放（10.2）：总控栏的按钮、快捷键 Z、/ 打开一个新的 MangaView 窗口（地址带上书、页名和时间点，playlist.mjs popoutUrl），
+// - 新窗口播放：总控栏的按钮、快捷键 Z、/ 打开一个新的 MangaView 窗口（地址带上书、页名和时间点，playlist.mjs popoutUrl），
 //   本窗口的该媒体暂停；新窗口启动时（app.mjs）经 ctx.media.resume 定位到该媒体并从该处播放，浏览器拦截出声时提示并停在该处等待点击。
 // 本文件是唯一入口：建立子模块共享的 S，按顺序装配子模块，对外提供 ctx.media、ctx.player（含 api）和正文的 ctx.view.hooks.media。
 // 子模块（安装顺序）：volume 统一音量；order 播放顺序与循环、播完后的切换、待接手的播放请求；sections 只播放书签区段；

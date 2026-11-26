@@ -1,4 +1,4 @@
-// 总控的运行引擎（docs/requirements-2.4.zh-CN.md 第 8、8.0–8.3 节）：漫画、混合模式的自动滚动与停下播放、暂停与继续、书末 / 循环 / 跨书、
+// 总控的运行引擎：漫画、混合模式的自动滚动与停下播放、暂停与继续、书末 / 循环 / 跨书、
 // 只播区段、手动操作不打断运行、低速不卡住、未运行时的自动播放规则与翻屏对齐视频、影音模式的跨书。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
@@ -198,7 +198,7 @@ try {
   const [rx, ry] = await center('#reader');
   const wheel = (deltaY) => cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY });
 
-  // ---- 8 / 8.3：漫画模式。按下播放匀速向下滚动：1.0× = 每秒视窗高度的 10%；低速下也在走、不倒退、每帧不跳；运行状态与大播放键一致。
+  // ---- 漫画模式。按下播放匀速向下滚动：1.0× = 每秒视窗高度的 10%；低速下也在走、不倒退、每帧不跳；运行状态与大播放键一致。
   await open('Strip');
   await mode('comic');
   await js('reader.scrollTop=0');
@@ -274,7 +274,7 @@ try {
   await stopped();
   await storage('playLoop', false);
 
-  // ---- 8.0 跨书：开启时到书末进入阅读列表的下一本，从书首继续；最后一本之后停止，循环开则回到第一本。
+  // ---- 跨书：开启时到书末进入阅读列表的下一本，从书首继续；最后一本之后停止，循环开则回到第一本。
   await storage('crossBook', true);
   {
     const list = await js('listTitles()');
@@ -387,7 +387,7 @@ try {
   assert.equal(await running(), true);
   await stopped();
 
-  // ---- 8.2 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段起点；整个处在图片区段之内的媒体整段播放，其余没有区段的媒体跳过。
+  // ---- 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段起点；整个处在图片区段之内的媒体整段播放，其余没有区段的媒体跳过。
   // 区段：01.svg 中部 → 03.svg 30%（盖住 02 a.wav），05.svg 20% → 80%；视频 04 没有区段，也不在图片区段内。
   await js(
     `(async()=>{const s=await session(),b=s.current;b.bookmarks=[{id:'s1',name:'01.svg',f:0.5,at:1,end:{name:'03.svg',f:0.3,at:2}},{id:'s2',name:'05.svg',f:0.2,at:3,end:{name:'05.svg',f:0.8,at:4}}];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
@@ -433,7 +433,7 @@ try {
     `(async()=>{const s=await session(),b=s.current;b.bookmarks=[];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
   );
 
-  // ---- 8.0 影音模式跨书：本书的媒体播完后进入下一本有媒体的书（循环开时最后一本之后回到第一本）。
+  // ---- 影音模式跨书：本书的媒体播完后进入下一本有媒体的书（循环开时最后一本之后回到第一本）。
   await mode('media');
   await storage('crossBook', true);
   await storage('playLoop', true);
@@ -464,7 +464,7 @@ try {
   await stopped();
   await mode('mixed');
 
-  // ---- 8.1 未运行时的自动播放：混合、影音模式下只有视频在滚动停稳时自动播放，音频不会；漫画模式下都不自动播放。
+  // ---- 未运行时的自动播放：混合、影音模式下只有视频在滚动停稳时自动播放，音频不会；漫画模式下都不自动播放。
   await open('Mix');
   await js(`localStorage.setItem('mv2:autoplay','true')`);
   assert.ok(await js(`toPage('02 a.wav')`));
@@ -512,7 +512,7 @@ try {
     assert.equal(r.now, r.plain, 'Autoplay off: a plain screen turn');
   }
 
-  // ---- 8.4 单文件模式 × 运行：不连续滚动，按页推进。漫画模式按间隔换页（1.0× = 5 秒，间隔 = 5 秒 ÷ 滚动速率；4× 为 1.25 秒），
+  // ---- 单文件模式 × 运行：不连续滚动，按页推进。漫画模式按间隔换页（1.0× = 5 秒，间隔 = 5 秒 ÷ 滚动速率；4× 为 1.25 秒），
   // 混合模式图片按间隔、媒体播完再换页，影音模式只在媒体之间切换；只播区段时只经过区段内的页；手动翻页、暂停后都从当前页重新计时；
   // 运行中切换单文件模式不停止。
   await js(`import('./src/reader/single.mjs').then(m=>{window.S1=m;})`);

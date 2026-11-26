@@ -1,4 +1,4 @@
-// PotPlayer 书签（.pbf）导入的端到端测试（docs/requirements-media.zh-CN.md 第 11 节）。
+// PotPlayer 书签（.pbf）导入的端到端测试。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 现场生成，.pbf 在测试页里按格式现场构造（UTF-16LE 带 BOM），不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -157,7 +157,7 @@ try {
   await wait(() => js(`bookTitle.textContent==='Pbf'`), 'book opened');
   await js('reader.focus()');
 
-  // ---- 11.1 / 11.2 / 11.3：导入后在后台读取配对的 .pbf，书签进入普通书签列表，带名称、来源为 .pbf；.pbf 本身不是页。
+  // ---- 导入后在后台读取配对的 .pbf，书签进入普通书签列表，带名称、来源为 .pbf；.pbf 本身不是页。
   const notes = [];
   await js(
     `window.notes=[];new MutationObserver(()=>notes.push(notice.textContent)).observe(notice,{childList:true,characterData:true,subtree:true})`,
@@ -217,7 +217,7 @@ try {
   assert.equal((await js(`document.querySelectorAll('.page').length`)) > 0, true);
   assert.ok(!(await thumbKeys()).some((k) => k.includes(':bm:pbf-')), 'No screenshots at import');
 
-  // ---- 11.5：书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标）；名称叠在缩略图下沿，也在提示和说明里。
+  // ---- 书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标）；名称叠在缩略图下沿，也在提示和说明里。
   await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: 300, y: 300, button: 'right', clickCount: 1 });
   await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 300, y: 300, button: 'right', clickCount: 1 });
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
@@ -277,7 +277,7 @@ try {
     'markers with names',
   );
 
-  // ---- 11.3 / 11.4：PotPlayer 里改了名称、加了条目、删了条目；随切回窗口的检查（现有时机）合并：只增不删、1 秒内去重、名称更新、应用内删过的不加回。
+  // ---- PotPlayer 里改了名称、加了条目、删了条目；随切回窗口的检查（现有时机）合并：只增不删、1 秒内去重、名称更新、应用内删过的不加回。
   await js(`(async()=>{const dir=await folder();
     await mvMedia.write(dir,'01 clip.pbf',pbf([[500,'Opening'],[1500,'Mid * part'],[2200,'Late']]));
     await mvMedia.write(dir,'02 song.wav.pbf',pbf([[2000,'Verse 2'],[2400,'Near verse']]));})()`);

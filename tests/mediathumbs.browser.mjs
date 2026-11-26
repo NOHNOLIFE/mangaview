@@ -1,4 +1,4 @@
-// 视频缩略图与封面（3.10）、类型过滤（2.3）、媒体的恢复与识别（第 5 节）。
+// 视频缩略图与封面、类型过滤、媒体的恢复与识别。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -184,7 +184,7 @@ try {
     await add(n, i === 0);
   const clipsId = (await js(`record('Clips')`)).id;
 
-  // 3.10 只为可见项生成：缩略图栏收起时不截帧（封面的后台检查只补识别指纹，不为不可见的视频截帧）。
+  // 只为可见项生成：缩略图栏收起时不截帧（封面的后台检查只补识别指纹，不为不可见的视频截帧）。
   await delay(2500);
   assert.equal(await js('grabs'), 0, 'No frame grabs while no video thumbnail is visible');
   assert.equal((await js('thumbKeys()')).filter((k) => k.includes(':vt:')).length, 0);
@@ -324,7 +324,7 @@ try {
   await key('Escape', 'Escape', 27);
   await wait(() => js(`!document.querySelector('dialog[open]')`));
 
-  // 3.10 封面：默认封面取文件名顺序第一个有画面的页（视频用它的缩略图，优先最早的书签画面）；识别用的指纹仍是首个文件（不论类型）。
+  // 封面：默认封面取文件名顺序第一个有画面的页（视频用它的缩略图，优先最早的书签画面）；识别用的指纹仍是首个文件（不论类型）。
   // 全书只有音频时用作品名生成文字封面；含视频 / 音频的书在封面上有类型角标。
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
   await wait(() => js('shelf.open'));
@@ -372,7 +372,7 @@ try {
   assert.deepEqual(flags, ['|', '#i-film,#i-music|Videos · Audio', '#i-film|Videos', '#i-music|Audio']);
   await shot('mthumbs-shelf');
 
-  // 2.3 书架的类型筛选：含有任一所选类型的页即匹配；持久化、计入角标与清除筛选、收起面板时显示生效条件、可存入预设、限定上一本 / 下一本。
+  // 书架的类型筛选：含有任一所选类型的页即匹配；持久化、计入角标与清除筛选、收起面板时显示生效条件、可存入预设、限定上一本 / 下一本。
   const shown = () =>
     js(`[...document.querySelectorAll('#books .book .pick')].map(p=>p.getAttribute('aria-label')).sort()`);
   await js('filterToggle.click()');
@@ -430,7 +430,7 @@ try {
   await wait(async () => (await shown()).length === 4, 'cleared');
   assert.equal(await js(`kindFilter.querySelectorAll('[aria-pressed=true]').length`), 0);
 
-  // 第 5 节：含媒体的书在后台记下各媒体文件的精确大小（只读文件元数据）。
+  // 含媒体的书在后台记下各媒体文件的精确大小（只读文件元数据）。
   await wait(async () => {
     const r = await js('records()');
     return r
