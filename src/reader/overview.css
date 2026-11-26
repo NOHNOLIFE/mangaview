@@ -340,26 +340,19 @@
   font-size: 13.5px;
   text-align: center;
 }
-/* 区段范围（选中带起点或区段书签的页时）：覆盖的页叠一层淡色和描边，两端加粗；不改变排布。 */
+/* 区段范围（选中带起点或区段书签的页时）：覆盖的页叠一层淡色和描边（区段配色），两端加粗；不改变排布。 */
 .ov-item.in-sec::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: rgba(255, 122, 89, 0.14);
-  box-shadow: inset 0 0 0 2px rgba(255, 122, 89, 0.7);
+  background: color-mix(in srgb, var(--sec) 14%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sec) 70%, transparent);
   pointer-events: none;
 }
 .ov-item.sec-a::before,
 .ov-item.sec-b::before {
-  box-shadow: inset 0 0 0 3px var(--accent);
-}
-/* 全屏书架书签：选中带区段书签的一格时，区段书签小图一起高亮。 */
-.ov-mark.sel .bm-sub,
-.ov-mark:hover .bm-sub {
-  box-shadow:
-    0 0 0 2px var(--accent),
-    0 3px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 3px var(--sec);
 }
 /* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */
 @media (max-width: 560px) {

@@ -83,11 +83,12 @@ test('.pbf 与同目录主文件名相同的媒体配对，也接受 X.flac.pbf�
   assert.deepEqual([...pairPbf(['X.flac'], ['X.pbf'])], [['X.flac', 'X.pbf']]);
   assert.equal(pairPbf(['a.mp3'], []).size, 0);
 });
-test('合并 .pbf：只增不删，1 秒内去重，名称更新，删过的不加回', () => {
-  const user = { id: 'u', name: 'a.mp4', t: 10.4, at: 1 },
-    other = { id: 'o', name: 'b.mp4', t: 20, at: 1 },
-    sec = { id: 's', name: 'a.mp4', t: 40, at: 1, end: { name: 'a.mp4', t: 50, at: 1 } };
-  const marks = [user, other, sec];
+test('合并 .pbf：只增不删，1 秒内去重，名称跟随 .pbf（手动改过的除外），删过的不加回', () => {
+  const user = { id: 'u', name: 'a.mp4', t: 10.4, at: 1, label: 'a-Bookmark1' },
+    other = { id: 'o', name: 'b.mp4', t: 20, at: 1, label: 'b-Bookmark1' },
+    sec = { id: 's', name: 'a.mp4', t: 40, at: 1, label: 'a-Bookmark2', end: { name: 'a.mp4', t: 50, at: 1 } };
+  const marks = [user, other, sec],
+    naming = { file: 'a', word: 'Bookmark' };
   let r = mergePbf(
     marks,
     'a.mp4',
@@ -100,18 +101,21 @@ test('合并 .pbf：只增不删，1 秒内去重，名称更新，删过的不�
     ],
     [],
     7,
+    naming,
   );
   assert.deepEqual(
     r.added,
     [
-      { id: pbfId('a.mp4', 20000), name: 'a.mp4', t: 20, at: 7, label: 'Chorus', from: 'pbf' },
-      { id: pbfId('a.mp4', 30000), name: 'a.mp4', t: 30, at: 7, from: 'pbf' },
+      { id: pbfId('a.mp4', 20000), name: 'a.mp4', t: 20, at: 7, label: 'a-Chorus', pbfName: 'Chorus', from: 'pbf' },
+      { id: pbfId('a.mp4', 30000), name: 'a.mp4', t: 30, at: 7, label: 'a-Bookmark3', pbfName: '', from: 'pbf' },
     ],
-    'Within 1 s of an existing bookmark (or a section end, or another new one) is the same; other files do not count; no empty label',
+    'Within 1 s of an existing bookmark (or a section end, or another new one) is the same; other files do not count; ' +
+      '<file>-<pbf name>, unnamed ones numbered after the highest number in this file',
   );
-  assert.equal(user.label, 'Intro', 'An unnamed bookmark gets the name');
+  assert.equal(user.label, 'a-Intro', 'An app bookmark that has no .pbf name yet takes it');
+  assert.equal(user.pbfName, 'Intro');
   assert.deepEqual(r.renamed, [user]);
-  assert.equal(other.label, undefined);
+  assert.equal(other.label, 'b-Bookmark1');
   assert.deepEqual(
     r.done.sort((a, b) => a - b),
     [10000, 20000, 20500, 30000, 49500],
@@ -119,7 +123,7 @@ test('合并 .pbf：只增不删，1 秒内去重，名称更新，删过的不�
   assert.equal(pbfId('a.mp4', 20000), pbfId('a.mp4', 20000), 'Ids depend only on the page and the time');
   assert.notEqual(pbfId('a.mp4', 20000), pbfId('b.mp4', 20000));
   // 第二次：PotPlayer 里改了名称、删了一条、加了一条；应用内删掉了 30 秒那条。
-  const chorus = r.added[0],
+  const [chorus] = r.added,
     all = [...marks, chorus];
   r = mergePbf(
     all,
@@ -132,35 +136,73 @@ test('合并 .pbf：只增不删，1 秒内去重，名称更新，删过的不�
     ],
     r.done,
     8,
+    naming,
   );
-  assert.equal(chorus.label, 'Chorus 2', 'Names of imported bookmarks follow the .pbf');
+  assert.equal(chorus.label, 'a-Chorus 2', 'Names of imported bookmarks follow the .pbf');
+  assert.equal(chorus.pbfName, 'Chorus 2');
   assert.deepEqual(r.renamed, [chorus]);
   assert.deepEqual(
     r.added.map((m) => [m.t, m.label]),
-    [[60, 'New * one']],
+    [[60, 'a-New * one']],
     'Deleted in the app: not added back; new entries added',
   );
   assert.equal(all.length, 4, 'Entries removed in PotPlayer stay');
+  // 手动改过名称的不被 .pbf 覆盖（原名照常记下）；.pbf 清空名称的按应用内规则编号。
+  const added = r.added[0];
+  added.label = 'Mine';
+  added.named = true;
   r = mergePbf(
-    [...all, ...r.added],
+    [...all, added],
     'a.mp4',
     [
       { ms: 20000, name: '' },
       { ms: 10000, name: 'Renamed' },
+      { ms: 60000, name: 'New name' },
     ],
     r.done,
+    9,
+    naming,
   );
-  assert.equal(chorus.label, undefined, 'Cleared name of an imported bookmark');
-  assert.equal(user.label, 'Intro', 'A user bookmark keeps its name');
+  assert.equal(chorus.label, 'a-Bookmark3', 'Cleared name of an imported bookmark: numbered');
+  assert.equal(chorus.pbfName, '');
+  assert.equal(user.label, 'a-Intro', 'An app bookmark keeps the name it got');
+  assert.equal(added.label, 'Mine', 'A name changed by the user is kept');
+  assert.equal(added.pbfName, 'New name');
+  assert.deepEqual(new Set(r.renamed), new Set([chorus, added]));
+  // 没有变化时不算改名。
+  r = mergePbf([...all, added], 'a.mp4', [{ ms: 20000, name: '' }], r.done, 10, naming);
+  assert.deepEqual(r.renamed, []);
   assert.deepEqual(mergePbf([], 'a.mp4', [], []), { added: [], renamed: [], done: [] });
   assert.deepEqual(
     mergePbf([user], 'a.mp4', [
       { ms: 11400, name: 'x' },
       { ms: 12400, name: 'y' },
-    ]).added.map((m) => m.t),
-    [11.4, 12.4],
-    'Exactly 1 s apart is a different bookmark',
+    ]).added.map((m) => [m.t, m.label]),
+    [
+      [11.4, 'a-x'],
+      [12.4, 'a-y'],
+    ],
+    'Exactly 1 s apart is a different bookmark; the file name defaults to the page name without its extension',
   );
+});
+test('合并 .pbf：2.3.0 导入的书签只有原名（label），按新规则改名并另存原名', () => {
+  const old = { id: pbfId('dir/Song.flac', 5000), name: 'dir/Song.flac', t: 5, at: 1, label: 'Verse', from: 'pbf' },
+    bare = { id: pbfId('dir/Song.flac', 9000), name: 'dir/Song.flac', t: 9, at: 1, from: 'pbf' };
+  const r = mergePbf(
+    [old, bare],
+    'dir/Song.flac',
+    [
+      { ms: 5000, name: 'Verse' },
+      { ms: 9000, name: '' },
+    ],
+    [5000, 9000],
+    2,
+    { file: 'Song', word: '书签' },
+  );
+  assert.deepEqual(r.added, []);
+  assert.deepEqual([old.label, old.pbfName], ['Song-Verse', 'Verse']);
+  assert.deepEqual([bare.label, bare.pbfName], ['Song-书签1', '']);
+  assert.deepEqual(new Set(r.renamed), new Set([old, bare]));
 });
 test('.pbf 的配对随扫描、刷新、散图一同得出，读取只取配对的那个文件', async () => {
   const file = (name, body = 'x') => ({

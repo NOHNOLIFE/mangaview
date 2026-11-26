@@ -2,6 +2,7 @@ import { extend } from '../core/lang.mjs';
 import { list, isMedia, key, endKey, mediaRanges, pageMarks, sig, spans } from './list.mjs';
 import { install as names } from './names.mjs';
 import { install as tiles } from './tile.mjs';
+import { install as rename } from './rename.mjs';
 import { install as snaps } from './snap.mjs';
 import { install as panel } from './panel.mjs';
 import { install as actions } from './actions.mjs';
@@ -9,9 +10,10 @@ import { install as dock } from './dock.mjs';
 import { install as playerMarks } from '../media/marks.mjs';
 import { install as pageMarkers } from './pagemarks.mjs';
 // 书签：book.bookmarks=[{id,name,f,at,end?}]，按页名定位，重新排序后仍有效。缩略图存在 thumbs store 的 `${book.id}:bm:${id}`。
-// 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label?,from?,end?}；label 为名称（目前只来自 .pbf 导入）。
+// 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label,named?,pbfName?,from?,end?}。
+// 名称（names.mjs）：label 为完整的名称字符串，媒体书签都有，图片书签只在手动改名后有；named：手动改过；pbfName：.pbf 里的原名（pbf.mjs）。
 // end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f|t,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，
-// 不计数、不是 F / Enter 的停靠点、不在列表里单独占一项。配对只在同一坐标系里：图片为「页序 + 页内位置」（可跨页），每个媒体文件各自按时间。
+// 不计数、不是 F / Enter 的停靠点；列表里紧跟在起点后面单独显示一项（tile.mjs）。配对只在同一坐标系里：图片为「页序 + 页内位置」（可跨页），每个媒体文件各自按时间。
 // 本文件是书签功能的入口：文案、图标、按顺序安装各子模块（共享对象 S 上登记彼此要用的函数与状态），登记跨子模块的事件，对外提供 ctx.marks。
 extend({
   bmAdd: ['Add bookmark', '添加书签', 'しおりを追加', '책갈피 추가'],
@@ -109,6 +111,7 @@ export function install(ctx) {
   const S = {}; // 子模块之间共享的函数与状态，各子模块在安装时登记自己的成员（S.last：最近一次跳到的书签，见 actions.mjs）
   names(ctx, S);
   tiles(ctx, S);
+  rename(ctx, S);
   snaps(ctx, S);
   panel(ctx, S);
   actions(ctx, S);
@@ -140,7 +143,8 @@ export function install(ctx) {
   dock(ctx, S);
   playerMarks(ctx, S);
   pageMarkers(ctx, S);
-  // ranges(book,page)：一个媒体内生效的区段（秒）；paint / mediaBadge / where：书签缩略图、类型角标、位置说明（全屏书架书签、设置封面共用）。
+  // ranges(book,page)：一个媒体内生效的区段（秒）；face / named / where / name：书签格子的内容、名称、位置说明、名称文字（全屏书架书签、设置封面共用）。
+  // edit(item,book,bm,after)：就地重命名（rename.mjs）；mates(box,sel)：区段两项的成对高亮。
   // changed(book)：书签在别处（如 .pbf 导入，pbf.mjs）增改后，更新面板、书架书签列表和其他界面。
   ctx.marks = {
     list,
@@ -153,9 +157,13 @@ export function install(ctx) {
     isMedia,
     mediaRanges,
     ranges: (book, page) => mediaRanges(book).get(page.name) ?? [],
-    paint: S.paint,
-    mediaBadge: S.mediaBadge,
+    face: S.face,
+    named: S.named,
+    mates: S.mates,
     where: S.where,
+    name: S.name,
+    ensure: S.ensure,
+    edit: S.edit,
     changed: S.changed,
   };
 }

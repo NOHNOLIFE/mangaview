@@ -13,9 +13,11 @@ export function install(ctx, S) {
   addBtn.type = secBtn.type = 'button';
   panel.append(addBtn, secBtn, head, grid);
   document.body.append(panel);
+  S.mates(grid);
   function render() {
     const book = ctx.current;
     if (!book) return;
+    if (S.editing(grid)) return S.later(render); // 正在就地改名：改完再重画
     panel.setAttribute('aria-label', t('bookmarks'));
     const keys = make('span', 'bm-keys', t('bmHold'));
     keys.append(make('kbd', '', 'F'), '/', make('kbd', '', 'Enter'));
@@ -29,13 +31,14 @@ export function install(ctx, S) {
       grid.replaceChildren(make('p', 'bm-empty', t('bmEmpty')));
       return;
     }
-    grid.replaceChildren(...items.map((x) => S.tile(book, x)));
+    grid.replaceChildren(...items.flatMap((x) => S.tiles(book, x)));
     markPanel();
   }
   // 面板里离阅读视窗最近的书签（与书架书签列表的 .active 相同）；面板开着时随阅读滚动更新。
   function markPanel() {
     const id = ctx.current && S.nearest(ctx.current);
-    for (const el of grid.querySelectorAll('.bm-item')) el.classList.toggle('active', el.dataset.id === id);
+    for (const el of grid.querySelectorAll('.bm-item'))
+      el.classList.toggle('active', el.dataset.id === id && !('end' in el.dataset));
   }
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function open(x, y) {
@@ -71,7 +74,7 @@ export function install(ctx, S) {
   });
   panel.addEventListener('contextmenu', (e) => e.preventDefault());
   panel.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-sub-del')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
     if (e.target.closest('.bm-sec')) {
       ctx.safe(S.addSection)();
       main.focus();
@@ -82,10 +85,9 @@ export function install(ctx, S) {
       main.focus();
       return;
     }
-    const item = e.target.closest('.bm-item'),
-      end = !!e.target.closest('.bm-sub');
-    if (!item || (item.classList.contains('gone') && !end)) return;
-    S.jumpTo(item.dataset.id, end);
+    const item = e.target.closest('.bm-item');
+    if (!item || item.classList.contains('gone')) return;
+    S.jumpTo(item.dataset.id, 'end' in item.dataset);
     close();
     main.focus();
   });
@@ -102,7 +104,7 @@ export function install(ctx, S) {
   window.addEventListener(
     'keydown',
     (e) => {
-      if (!panel.hidden && e.key === 'Escape') {
+      if (!panel.hidden && e.key === 'Escape' && !S.editing(panel)) {
         e.preventDefault();
         e.stopImmediatePropagation();
         close();

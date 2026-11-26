@@ -1080,6 +1080,7 @@ label.match .why {
 .cp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-auto-rows: max-content; /* 书签多、对话框限高时行高不被压缩（格子 overflow:hidden 的最小高度为 0，行被压扁后会互相重叠） */
   gap: 8px;
   min-height: 0;
   padding: 4px 18px 12px;

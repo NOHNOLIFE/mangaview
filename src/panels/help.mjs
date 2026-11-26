@@ -62,6 +62,12 @@ extend({
     'W·S·↑·↓와 함께: 책 전환, F·Enter와 함께: 반대로',
   ],
   hkTipMarks: ['Full-screen bookmarks', '全屏书签', '全画面しおり', '전체 화면 책갈피'],
+  hkTipRename: [
+    'Rename the selected bookmark',
+    '重命名选中的书签',
+    '選択中のしおりの名前を変更',
+    '선택한 책갈피 이름 바꾸기',
+  ],
   hkTipThumbs: ['Full-screen thumbnails', '全屏缩略图', '全画面サムネイル', '전체 화면 미리보기'],
   hkTipShelf: ['Shelf', '书架', '本棚', '책장'],
   hkTipTools: ['Toolbar', '工具栏', 'ツール', '도구'],
@@ -182,6 +188,7 @@ const up = { tip: 'hkTipUp', shift: true },
   popout = { tip: 'hkTipPopout' };
 export const KEYS = {
   Esc: { tip: 'hkTipEsc' },
+  F2: { tip: 'hkTipRename' },
   W: up,
   S: down,
   A: back,

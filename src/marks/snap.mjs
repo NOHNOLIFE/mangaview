@@ -1,8 +1,8 @@
-import { pageKind, clock, shownName } from '../core/model.mjs';
+import { pageKind, clock } from '../core/model.mjs';
 import { forget, grabFrames, frameOf, fileStamp } from '../reader/thumbs.mjs';
 import { isMedia, key, endKey } from './list.mjs';
 // 书签缩略图：添加书签时截取（图片截视口区域、视频截当前画面），列表里绘制缩略图与媒体占位，视频书签画面的懒生成队列。
-// 视频书签的缩略图是书签时间点的画面：在播放器里添加时直接截当前画面，否则在列表里可见时排队截取（懒生成、串行、持久化）；音频没有画面，显示占位。
+// 视频书签的缩略图是书签时间点的画面：在播放器里添加时直接截当前画面，否则在列表里可见时排队截取（懒生成、串行、持久化）；音频没有画面，显示占位（有书的封面时以它作背景）。
 const THUMB_W = 240,
   READ = 20000; // READ：截取书签画面时取文件的时限（毫秒）
 export function install(ctx, S) {
@@ -48,9 +48,9 @@ export function install(ctx, S) {
     if (book === ctx.current && !S.panel.hidden) S.render();
     S.renderDock();
   }
-  // ---- 书签缩略图（书签面板、书架书签、全屏书架书签、设置封面共用）：holder 为缩略图容器，img 为其中的 <img>，end 为区段书签那一张。
+  // ---- 书签缩略图（书签面板、书架书签、全屏书架书签、设置封面共用）：holder 为缩略图容器，img 为其中的 <img>，end 为区段终点那一项。
   // 图片书签：保存的缩略图，没有时显示空白占位。视频书签：书签时间点的画面，还没有时先显示占位，进入可见范围后排队截取；
-  // 音频书签：始终是占位小块。媒体的占位是类型图标 + 名称（没有名称时为文件名），时间点在类型角标里（mediaBadge）；区段书签的小图里是图标 + 时间。
+  // 音频书签：始终是占位，所在的书有封面时以封面作背景（ctx.coverBg，封面换了跟着变）。占位只有类型图标，名称和时间点另叠在格子上（tile.mjs）。
   function paint(holder, img, book, x, end = false) {
     const m = end ? x.bm.end : x.bm,
       k = end ? endKey(book, x.bm) : key(book, x.bm),
@@ -68,15 +68,12 @@ export function install(ctx, S) {
       return;
     }
     const kind = page ? pageKind(page) : 'video',
-      ph = make('span', 'bm-ph ' + kind),
-      name = typeof x.bm.label === 'string' && x.bm.label ? x.bm.label : page ? shownName(page) : '';
-    ph.append(
-      icon(kind === 'audio' ? 'music' : 'film'),
-      end ? make('b', '', clock(m.t)) : make('span', 'bm-ph-name', name),
-    );
+      ph = make('span', 'bm-ph ' + kind);
+    ph.append(icon(kind === 'audio' ? 'music' : 'film'));
     holder.classList.add('bm-media');
     img.hidden = true;
     img.after(ph);
+    if (kind === 'audio') ctx.coverBg?.(ph, book);
     if (kind !== 'video' || !page) return;
     const show = (th) => {
       if (!th || !holder.isConnected) return;
@@ -95,12 +92,16 @@ export function install(ctx, S) {
       () => {},
     );
   }
-  // 类型角标：视频 / 音频的图标 + 时间点，叠在缩略图右下角，不改变排布。
-  function mediaBadge(book, x) {
+  // 类型角标：视频 / 音频的图标 + 时间点（end：区段终点的时间），叠在缩略图一角，不改变排布。
+  function mediaBadge(book, x, end = false) {
     const el = make('span', 'mv-badge bm-type'),
-      page = x.i >= 0 ? book.pages[x.i] : null;
+      i = end ? x.e : x.i,
+      page = i >= 0 ? book.pages[i] : null;
     el.setAttribute('aria-hidden', 'true');
-    el.append(icon(page && pageKind(page) === 'audio' ? 'music' : 'film'), make('span', '', clock(x.bm.t)));
+    el.append(
+      icon(page && pageKind(page) === 'audio' ? 'music' : 'film'),
+      make('span', '', clock((end ? x.bm.end : x.bm).t)),
+    );
     return el;
   }
   // 懒生成：缩略图进入可见范围才排队；串行、空闲时进行，同一个视频的多个书签一次打开截完；截好即保存（别的窗口经 'thumbs' 同步）。

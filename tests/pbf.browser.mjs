@@ -140,7 +140,8 @@ try {
   const record = () =>
     js(`import('./src/core/store.mjs').then(async({library})=>(await library('getAll')).find(b=>b.title==='Pbf'))`);
   const thumbKeys = () => js(`import('./src/core/store.mjs').then(({thumbs})=>thumbs('getAllKeys'))`);
-  const marks = async () => (await record()).bookmarks.map((b) => [b.name, b.t, b.label ?? null, b.from ?? null]);
+  const marks = async () =>
+    (await record()).bookmarks.map((b) => [b.name, b.t, b.label ?? null, b.pbfName ?? null, b.from ?? null]);
   const HEX = '89504E470D0A1A0A0000000D4948445200000010'.repeat(8);
 
   // 一本书：视频配 X.pbf，音频配 X.wav.pbf，另有一个没有媒体的 .pbf 和一张图。
@@ -180,11 +181,12 @@ try {
       (await js(`notice.textContent==='Added 4 bookmarks from PotPlayer'`)),
     'import notice',
   );
+  // 名称为「<文件名>-<pbf 里的名称>」（文件名不含扩展名），没有名称的按应用内规则编号；原名另存为 pbfName。
   assert.deepEqual(await marks(), [
-    ['01 clip.webm', 0.5, 'Intro', 'pbf'],
-    ['01 clip.webm', 1.5, 'Mid * part', 'pbf'],
-    ['02 song.wav', 2, 'Verse', 'pbf'],
-    ['02 song.wav', 6, null, 'pbf'],
+    ['01 clip.webm', 0.5, '01 clip-Intro', 'Intro', 'pbf'],
+    ['01 clip.webm', 1.5, '01 clip-Mid * part', 'Mid * part', 'pbf'],
+    ['02 song.wav', 2, '02 song-Verse', 'Verse', 'pbf'],
+    ['02 song.wav', 6, '02 song-Bookmark1', '', 'pbf'],
   ]);
   let rec = await record();
   assert.deepEqual(
@@ -215,19 +217,19 @@ try {
   assert.equal((await js(`document.querySelectorAll('.page').length`)) > 0, true);
   assert.ok(!(await thumbKeys()).some((k) => k.includes(':bm:pbf-')), 'No screenshots at import');
 
-  // ---- 11.5：书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标 + 名称）；名称在提示和说明里。
+  // ---- 11.5：书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标）；名称叠在缩略图下沿，也在提示和说明里。
   await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: 300, y: 300, button: 'right', clickCount: 1 });
   await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 300, y: 300, button: 'right', clickCount: 1 });
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
   assert.deepEqual(
     await js(
-      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.title,e.querySelector('.bm-ph.audio .bm-ph-name')?.textContent??null])`,
+      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.title,e.querySelector('.bm-name')?.textContent??null,!!e.querySelector('.bm-ph.audio')])`,
     ),
     [
-      ['Page 1 · 0:00 · Intro', 'Intro', null],
-      ['Page 1 · 0:01 · Mid * part', 'Mid * part', null],
-      ['Page 2 · 0:02 · Verse', 'Verse', 'Verse'],
-      ['Page 2 · 0:06', '', '02 song.wav'],
+      ['Page 1 · 0:00 · 01 clip-Intro', '01 clip-Intro', '01 clip-Intro', false],
+      ['Page 1 · 0:01 · 01 clip-Mid * part', '01 clip-Mid * part', '01 clip-Mid * part', false],
+      ['Page 2 · 0:02 · 02 song-Verse', '02 song-Verse', '02 song-Verse', true],
+      ['Page 2 · 0:06 · 02 song-Bookmark1', '02 song-Bookmark1', '02 song-Bookmark1', true],
     ],
   );
   const ids = (await record()).bookmarks.map((b) => b.id),
@@ -249,8 +251,20 @@ try {
   );
   await shot('pbf-panel');
   // 在应用内删除一个来自 .pbf 的书签。
-  await js(`document.querySelector('.bm-panel .bm-item[aria-label="Page 1 · 0:01 · Mid * part"] .bm-del').click()`);
+  await js(
+    `document.querySelector('.bm-panel .bm-item[aria-label="Page 1 · 0:01 · 01 clip-Mid * part"] .bm-del').click()`,
+  );
   await wait(async () => (await record()).bookmarks.length === 3, 'deleted in the app');
+  // 手动改名（铅笔按钮，就地编辑）：之后 .pbf 里改名也不覆盖它。
+  await js(`document.querySelector('.bm-panel .bm-item[aria-label="Page 2 · 0:02 · 02 song-Verse"] .bm-ren').click()`);
+  await wait(
+    () => js(`document.activeElement?.classList.contains('bm-edit')&&document.activeElement.value==='02 song-Verse'`),
+    'editor',
+  );
+  await cdp('Input.insertText', { text: 'My verse' });
+  await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await wait(async () => (await record()).bookmarks.some((b) => b.label === 'My verse' && b.named), 'renamed');
   await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   // 进度条上的标记带名称。
@@ -258,7 +272,7 @@ try {
   await wait(
     () =>
       js(
-        `[...node('02 song.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>b.title).join('|')==='0:02 · Verse|0:06'`,
+        `[...node('02 song.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>b.title).join('|')==='0:02 · My verse|0:06 · 02 song-Bookmark1'`,
       ),
     'markers with names',
   );
@@ -266,7 +280,7 @@ try {
   // ---- 11.3 / 11.4：PotPlayer 里改了名称、加了条目、删了条目；随切回窗口的检查（现有时机）合并：只增不删、1 秒内去重、名称更新、应用内删过的不加回。
   await js(`(async()=>{const dir=await folder();
     await mvMedia.write(dir,'01 clip.pbf',pbf([[500,'Opening'],[1500,'Mid * part'],[2200,'Late']]));
-    await mvMedia.write(dir,'02 song.wav.pbf',pbf([[2000,'Verse'],[2400,'Near verse']]));})()`);
+    await mvMedia.write(dir,'02 song.wav.pbf',pbf([[2000,'Verse 2'],[2400,'Near verse']]));})()`);
   await delay(1600);
   await js(`dispatchEvent(new Event('focus'))`); // 切回窗口的检查有 1.5 秒的间隔
   await wait(async () => (await record()).bookmarks.length === 4, 'merged after the folder check').catch(async (e) => {
@@ -283,10 +297,10 @@ try {
     );
   });
   assert.deepEqual(await marks(), [
-    ['01 clip.webm', 0.5, 'Opening', 'pbf'],
-    ['01 clip.webm', 2.2, 'Late', 'pbf'],
-    ['02 song.wav', 2, 'Verse', 'pbf'],
-    ['02 song.wav', 6, null, 'pbf'],
+    ['01 clip.webm', 0.5, '01 clip-Opening', 'Opening', 'pbf'],
+    ['01 clip.webm', 2.2, '01 clip-Late', 'Late', 'pbf'],
+    ['02 song.wav', 2, 'My verse', 'Verse 2', 'pbf'],
+    ['02 song.wav', 6, '02 song-Bookmark1', '', 'pbf'],
   ]);
   assert.equal(await js('pbfReads.length'), 4, 'Changed files are read again');
   // 没有变化：只取大小和修改时间，不读内容。
@@ -312,7 +326,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: .pbf pairing (X.pbf, X.wav.pbf, unpaired ignored, not pages), UTF-16LE parsing with names containing *, import into the bookmark list with names, lazy video thumbnails and audio placeholders, merge on the existing folder check (add only, 1 s duplicates, renames, deleted ones stay deleted), size/mtime check without re-reading',
+    'PASS: .pbf pairing (X.pbf, X.wav.pbf, unpaired ignored, not pages), UTF-16LE parsing with names containing *, import into the bookmark list with names, lazy video thumbnails and audio placeholders, merge on the existing folder check (add only, 1 s duplicates, <file>-<name> names follow renames unless renamed in the app, deleted ones stay deleted), size/mtime check without re-reading',
   );
 } finally {
   if (ws?.readyState === 1) {

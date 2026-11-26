@@ -1,11 +1,13 @@
 import { extend } from '../core/lang.mjs';
 import { pbfFile, hasPbf } from '../core/sources.mjs';
+import { nameOf, stem, fileStem, autoName, nextNumber } from './names.mjs';
 // PotPlayer 书签（.pbf）导入（docs/requirements-media.zh-CN.md 第 11 节）。
 // - 配对只看文件名（model.mjs pairPbf），在导入、刷新列目录时顺带完成（sources.mjs），记在页上（page.pbf）；.pbf 本身不是页。
 // - 内容在后台空闲时串行读取：随现有的文件夹检查进行（ctx.pbf.check，app.mjs 的导入与 sync），不新增检查时机；当前书优先，
 //   其余的书每一项先 await ctx.disk.turn()（多个窗口时只由一个窗口读盘）。只比较 .pbf 的大小和修改时间，有变化才读内容并合并。
 //   打开一本书时只补读它从未读过的 .pbf。
-// - 合并只增不删（mergePbf）：新条目加入普通书签列表（带名称 label、来源 from:'pbf'），与已有书签相差不到 1 秒的视为同一个，名称变了的更新名称；
+// - 合并只增不删（mergePbf）：新条目加入普通书签列表（名称 label 为「<文件名>-<pbf 里的名称>」、原名 pbfName、来源 from:'pbf'），
+//   与已有书签相差不到 1 秒的视为同一个，.pbf 里改了名称的跟着改（用户手动改过名称的除外）；
 //   已处理过的条目记在 page.pbf.done，在应用内删掉的不会被加回。书签 id 由页名和时间决定，多个窗口同时导入同一个 .pbf 也不会重复。
 // - 导入时不截图：视频书签的缩略图由书签列表懒生成（bookmarks.mjs paint），音频书签用占位样式。
 extend({
@@ -63,11 +65,21 @@ export function pbfId(name, ms) {
   for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
   return 'pbf-' + (h >>> 0).toString(36) + '-' + ms;
 }
-// 把一个 .pbf 的条目合并进书签列表（只增不删）。marks：书的全部书签；name：配对媒体的页名；done：之前处理过的条目（毫秒）。
-// 同一个媒体里与已有书签（含区段书签的终点）相差不到 NEAR 秒的视为同一个，不重复添加；对上的书签来自 .pbf 时名称跟着更新（原地修改），
-// 没有名称的书签补上名称；同一个 .pbf 里几条都对上同一个书签时只按第一条（按 id 对上的优先）。没对上、但以前处理过的条目是在应用内删掉的，不再加回。
+// 把一个 .pbf 的条目合并进书签列表（只增不删）。marks：书的全部书签；name：配对媒体的页名；done：之前处理过的条目（毫秒）；
+// file / word：命名用的 <文件名>（不含路径和扩展名）与「书签」一词（names.mjs）。
+// 同一个媒体里与已有书签（含区段书签的终点）相差不到 NEAR 秒的视为同一个，不重复添加；同一个 .pbf 里几条都对上同一个书签时只按第一条（按 id 对上的优先）。
+// 名称：新书签为「<文件名>-<pbf 里的名称>」，.pbf 没给名称的按应用内规则编号；.pbf 里的原名另存为 pbfName。
+// 对上的书签来自 .pbf 时跟随 .pbf 改名（比较 pbfName；2.3.0 导入的只有 label，即原名），用户手动改过名称的（named）只更新 pbfName；
+// 应用内添加、还没有 .pbf 名称的书签补上名称。没对上、但以前处理过的条目是在应用内删掉的，不再加回。
 // 返回 {added 新书签, renamed 改了名称的书签, done}。
-export function mergePbf(marks, name, entries, done = [], now = Date.now()) {
+export function mergePbf(
+  marks,
+  name,
+  entries,
+  done = [],
+  now = Date.now(),
+  { file = stem(name), word = 'Bookmark' } = {},
+) {
   const was = new Set(done),
     seen = new Set(done),
     added = [],
@@ -76,11 +88,23 @@ export function mergePbf(marks, name, entries, done = [], now = Date.now()) {
     mine = marks.filter((m) => m && m.name === name && Number.isFinite(m.t));
   const ids = new Set(mine.map((m) => m.id)),
     list = [...entries].sort((x, y) => ids.has(pbfId(name, y.ms)) - ids.has(pbfId(name, x.ms)) || x.ms - y.ms);
+  const label = (pbfName, self) =>
+    pbfName
+      ? file + '-' + pbfName
+      : autoName(
+          file,
+          word,
+          nextNumber(
+            [...mine, ...added].filter((m) => m !== self),
+            name,
+            file,
+          ),
+        );
   for (const e of list) {
     const t = e.ms / 1000,
       id = pbfId(name, e.ms),
       all = [...mine, ...added],
-      label = e.name || undefined;
+      pbfName = e.name || '';
     seen.add(e.ms);
     const hit =
       all.find((m) => m.id === id) ??
@@ -88,15 +112,22 @@ export function mergePbf(marks, name, entries, done = [], now = Date.now()) {
     if (hit) {
       if (claimed.has(hit)) continue;
       claimed.add(hit);
-      if (hit.from === 'pbf' ? hit.label !== label : !hit.label && label) {
-        if (label) hit.label = label;
-        else delete hit.label;
+      if (hit.from === 'pbf') {
+        const legacy = typeof hit.pbfName !== 'string',
+          old = legacy ? nameOf(hit) : hit.pbfName;
+        if (!legacy && old === pbfName && nameOf(hit)) continue;
+        hit.pbfName = pbfName;
+        if (!hit.named && (legacy || old !== pbfName || !nameOf(hit))) hit.label = label(pbfName, hit);
+        renamed.add(hit);
+      } else if (!hit.named && typeof hit.pbfName !== 'string' && pbfName) {
+        hit.pbfName = pbfName;
+        hit.label = label(pbfName);
         renamed.add(hit);
       }
       continue;
     }
     if (was.has(e.ms) || mine.some((m) => Number.isFinite(m.end?.t) && Math.abs(m.end.t - t) < NEAR)) continue;
-    const m = { id, name, t, at: now, ...(label && { label }), from: 'pbf' };
+    const m = { id, name, t, at: now, label: label(pbfName), pbfName, from: 'pbf' };
     added.push(m);
     claimed.add(m);
   }
@@ -144,7 +175,11 @@ export function install(ctx) {
         continue;
       } // 读不到（被占用、已删除）下次检查再试；卡住的文件夹整本跳过
       if (!ctx.books.has(book.id)) return;
-      const r = mergePbf(book.bookmarks, page.name, entries, page.pbf?.done);
+      ctx.marks?.ensure?.(book); // 旧书签先补上名称（编号接着它们）
+      const r = mergePbf(book.bookmarks, page.name, entries, page.pbf?.done, Date.now(), {
+        file: fileStem(book, page.name),
+        word: ctx.t('bmWord'),
+      });
       if (r.added.length) {
         book.bookmarks = sorted(book, [...book.bookmarks, ...r.added]);
         added += r.added.length;

@@ -14,7 +14,7 @@ export function install(ctx, S) {
           ? list(book).filter((x) => x.i >= 0 && isMedia(x.bm) && x.bm.name === p.page.name)
           : [];
     const sig =
-      d + '|' + items.map((x) => [x.bm.id, x.bm.t, x.live ? x.bm.end.t : '', x.bm.label ?? ''].join(',')).join(';');
+      d + '|' + items.map((x) => [x.bm.id, x.bm.t, x.live ? x.bm.end.t : '', S.name(book, x.bm)].join(',')).join(';');
     if (p.marks._sig === sig) return;
     p.marks._sig = sig;
     const pct = (s) => Math.min(100, Math.max(0, (s / d) * 100)) + '%',
@@ -33,7 +33,7 @@ export function install(ctx, S) {
       el.style.width = ((b - a) / d) * 100 + '%';
       return el;
     }
-    const name = (x) => (typeof x.bm.label === 'string' && x.bm.label ? ' · ' + x.bm.label : '');
+    const name = (x) => (S.name(book, x.bm) ? ' · ' + S.name(book, x.bm) : '');
     for (const x of items) {
       if (x.live) {
         const tip = t('secStart') + ' ' + clock(x.bm.t) + ' – ' + clock(x.bm.end.t) + name(x),

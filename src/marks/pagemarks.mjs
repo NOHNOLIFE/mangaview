@@ -7,7 +7,12 @@ export function install(ctx, S) {
   function badge(m) {
     const el = make('span', 'mk');
     el.setAttribute('aria-hidden', 'true');
-    for (const k of ['mark', 'start', 'end']) if (m[k]) el.append(icon(k === 'mark' ? 'bookmark' : 'bm-' + k));
+    for (const k of ['mark', 'start', 'end'])
+      if (m[k]) {
+        const i = icon(k === 'mark' ? 'bookmark' : 'bm-' + k);
+        if (k !== 'mark') i.classList.add('sec'); // 区段的标记用区段配色（--sec）
+        el.append(i);
+      }
     if (m.n > 1) el.append(make('b', '', String(m.n)));
     return el;
   }

@@ -21,6 +21,7 @@
   --ok: #7fd8a6;
   --warn: #ffb35c;
   --danger: #ff6672;
+  --sec: #5ab4ff; /* 区段书签（起点与终点）：书签列表、缩略图角标与区段范围、页内刻度、进度条标记统一用它 */
   --shadow: 0 14px 44px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --panel: 190px;

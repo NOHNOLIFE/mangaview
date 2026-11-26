@@ -30,6 +30,7 @@ export function install(ctx, S) {
   dockGrip.setAttribute('aria-orientation', 'vertical');
   dockGrip.tabIndex = 0;
   dock.append(dockHead, dockList, dockGrip);
+  S.mates(dockList);
   document.getElementById('toolbar').before(dock);
   // 书架上（不含书库和过期书）有书签的书，顺序与上一本 / 下一本相同。
   const shelfBooks = () => ctx.readingList({ place: 'shelf' });
@@ -50,6 +51,7 @@ export function install(ctx, S) {
   }
   function renderDock() {
     if (dock.hidden) return;
+    if (S.editing(dockList)) return S.later(renderDock); // 正在就地改名：改完再重画
     const groups = shelfBooks()
       .map((book) => ({ book, items: list(book) }))
       .filter((g) => g.items.length);
@@ -74,7 +76,7 @@ export function install(ctx, S) {
         const section = make('section', 'sm-book');
         section.dataset.book = book.id;
         section.setAttribute('aria-label', ctx.title(book));
-        section.append(...items.map((x) => S.tile(book, x, true)));
+        section.append(...items.flatMap((x) => S.tiles(book, x, true)));
         return section;
       }),
     );
@@ -92,7 +94,7 @@ export function install(ctx, S) {
     const book = ctx.current,
       group = book && dockList.querySelector('.sm-book.current'),
       id = group && S.nearest(book);
-    const item = id ? group.querySelector(`.bm-item[data-id="${CSS.escape(id)}"]`) : null;
+    const item = id ? group.querySelector(`.bm-item[data-id="${CSS.escape(id)}"]:not([data-end])`) : null;
     if (item !== marked) {
       marked?.classList.remove('active');
       item?.classList.add('active');
@@ -184,13 +186,13 @@ export function install(ctx, S) {
     );
   }
   dockList.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-sub-del')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
     const section = e.target.closest('.sm-book'),
       book = section && ctx.books.get(section.dataset.book);
     if (!book) return;
     const item = e.target.closest('.bm-item'),
-      end = !!e.target.closest('.bm-sub');
-    if (!item || (item.classList.contains('gone') && !end)) return;
+      end = !!item && 'end' in item.dataset;
+    if (!item || item.classList.contains('gone')) return;
     const x = list(book).find((x) => x.bm.id === item.dataset.id);
     if (x && (end ? x.e >= 0 : x.i >= 0)) goShelf(book, x, end);
     main.focus();
@@ -264,7 +266,7 @@ export function install(ctx, S) {
     if (!pinned && !resizing) float(false);
   });
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !pinned) float(false);
+    if (e.key === 'Escape' && !pinned && !S.editing(dock)) float(false);
   });
   ctx.on('books', renderDock);
   ctx.shelf.addEventListener('close', renderDock); // 在书架页移动、删除书目后同步
@@ -329,5 +331,5 @@ export function install(ctx, S) {
     get: () => ctx.get('edgeLeft', true),
     set: (v) => ctx.put('edgeLeft', !!v),
   });
-  Object.assign(S, { renderDock, markDock, reveal, nextShelf, pinned: () => pinned });
+  Object.assign(S, { dock, renderDock, markDock, reveal, nextShelf, pinned: () => pinned });
 }

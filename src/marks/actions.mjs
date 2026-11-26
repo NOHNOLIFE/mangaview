@@ -113,7 +113,7 @@ export function install(ctx, S) {
       return false;
     }
     const bm = p.player
-        ? { id: crypto.randomUUID(), name: p.name, t: p.t, at: Date.now() }
+        ? { id: crypto.randomUUID(), name: p.name, t: p.t, at: Date.now(), label: S.fresh(book, p.name) }
         : { id: crypto.randomUUID(), name: p.name, f: p.f, at: Date.now() },
       page = book.pages[p.i];
     book.bookmarks = list({ pages: book.pages, bookmarks: [...book.bookmarks, bm] }).map((x) => x.bm);
