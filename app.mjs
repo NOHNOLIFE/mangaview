@@ -1,10 +1,10 @@
 import {detect,translate,languageList} from './lang.mjs';
 import {byTime,sortedPages,folderSort,needsSort,sortMode,natural,clipEnd} from './model.mjs';
 import {library,thumbs,update,isFrozen} from './store.mjs';
-import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget} from './thumbs.mjs';
+import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget,installFrames} from './thumbs.mjs';
 import {snap,merge,changes,adopt,refresh} from './merge.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
-import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages} from './sources.mjs';
+import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages,mediaSizes} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
 import {install as toolPanel} from './toolbar.mjs';
@@ -367,7 +367,7 @@ for(const kind of ['folder','file'])$(kind+'Input').onchange=safe(async e=>{
 });
 async function rebound(book,count){if(!count){notice('noImages');return;}settle(book);await arrange(book);}
 // 散图图集定位原文件 / 恢复：在所选文件夹里（递归）按“相对目录 + 文件名”找回各页，见 sources.mjs reconnect。返回找回的页数。
-async function relocate(book,dir,quiet){const [g]=await looseImages([dir]);const n=g?reconnect(book,g):0;if(n||!quiet)await rebound(book,n);return n;}
+async function relocate(book,dir,quiet){const [g]=await looseImages([dir]);if(g)await mediaSizes(book,g);const n=g?reconnect(book,g):0;if(n||!quiet)await rebound(book,n);return n;}
 async function pick(kind,book=null){
   if(kind==='folder'&&window.showDirectoryPicker){const dir=await showDirectoryPicker({mode:'read'});
     if(book&&isLoose(book))await relocate(book,dir);
@@ -707,7 +707,7 @@ try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==
 {const albums=[...books.values()].filter(isLoose);if(albums.length>1)try{await joinLoose(albums);}catch(e){console.warn(e);}}
 // features: 在这里安装功能模块，例如 bookmarks(ctx);
 windows(ctx);shelfUI(ctx);settingsPanel(ctx);backup(ctx);bookmarks(ctx);focusMode(ctx);overview(ctx);helpPanel(ctx);coverPicker(ctx);
-toolPanel(ctx);mediaPlayer(ctx);
+toolPanel(ctx);mediaPlayer(ctx);installFrames(ctx);
 
 await probeAll([...books.values()]);probed=true;
 select(books.get(get('last'))||books.values().next().value);

@@ -1,4 +1,4 @@
-import {isContent,unplayable,extOf,natural,fileOf,nameOrder,compareDirs} from './model.mjs';
+import {isContent,unplayable,extOf,natural,fileOf,nameOrder,compareDirs,kindOf} from './model.mjs';
 
 // 书目与源：book.sources=[{key,title,path,dir,fp?,missing?}]，每个源是一个直接包含内容（图片、视频或音频）的文件夹。
 // 单文件夹书只有一个 key 为 '' 的源；合并作品（导入为单个作品）有多个源，key 为相对所选文件夹的路径，页名为“key/文件名”。
@@ -184,14 +184,21 @@ export const isLive=book=>book.pages.some(p=>live.has(p));
 // 散图按“相对目录 + 文件名”重新定位。候选来自用户选的文件夹（looseImages，目录从所选文件夹的名称算起）：
 // 目录相同最优先；其次是选了原文件夹的上级（原目录是候选目录的末尾几段），或选了原文件夹里的子文件夹（反过来）；
 // 没有目录的散图只认所选文件夹里直接放着的图；在子目录里的，要修改时间也相同、或整个所选文件夹里只有这一个同名文件才认。重合越多越优先，同分时优先修改时间相同的；每个文件只配一页，配不上的不动。
+// 媒体文件（视频、音频）记下了大小（page.size）的，还要求大小一致（候选的大小见 mediaSizes）。
+const isMediaName=name=>{const k=kindOf(name);return k==='video'||k==='audio';};
 function looseMatch(pages,cands){
   const byFile=new Map();for(const c of cands){const k=fileOf(c);if(!byFile.has(k))byFile.set(k,[]);byFile.get(k).push(c);}
   const fit=(a='',b='')=>a===b?3:!a?(b.includes('/')?0:1):b.endsWith('/'+a)?2:b&&a.endsWith('/'+b)?1:0,pairs=[];
-  for(const p of pages){const same=byFile.get(fileOf(p))??[];for(const c of same){const time=Number.isFinite(p.lastModified)&&p.lastModified===c.lastModified,s=fit(p.path,c.path)||(!p.path&&(time||same.length===1)?.25:0);if(s)pairs.push({p,c,s:s*2+time});}}
+  for(const p of pages){const same=byFile.get(fileOf(p))??[],sized=Number.isFinite(p.size)&&isMediaName(fileOf(p));for(const c of same){if(sized&&c.size!==p.size)continue;const time=Number.isFinite(p.lastModified)&&p.lastModified===c.lastModified,s=fit(p.path,c.path)||(!p.path&&(time||same.length===1)?.25:0);if(s)pairs.push({p,c,s:s*2+time});}}
   pairs.sort((x,y)=>y.s-x.s);
   const usedP=new Set(),usedC=new Set(),out=[];
   for(const {p,c} of pairs)if(!usedP.has(p)&&!usedC.has(c)){usedP.add(p);usedC.add(c);out.push([p,c]);}
   return out;
+}
+// 散图图集定位前：给与记录里已知大小的媒体页同名的候选补上大小（只读文件元数据，不读内容），looseMatch 据此要求大小一致。
+export async function mediaSizes(book,group){
+  const want=new Set(allPages(book).filter(p=>Number.isFinite(p.size)&&isMediaName(fileOf(p))).map(fileOf));
+  for(const c of group?.pages??[])if(c.size==null&&want.has(fileOf(c))){const f=live.get(c)??(c.handle?await timed(c.handle,()=>c.handle.getFile()).catch(()=>null):null);if(f)c.size=f.size;}
 }
 // s：要重新绑定的源（散图图集为 undefined，按 looseMatch 匹配）。
 export function reconnect(book,group,s=book.sources?.[0]){

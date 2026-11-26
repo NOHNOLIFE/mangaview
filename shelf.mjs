@@ -1,7 +1,7 @@
 // 书架界面：书架（在读列表）/ 书库（大量藏书）/ 全部 / 过期书籍；瀑布流纯封面、筛选与搜索预设、标签、批量移动与恢复。
-import {natural,fileOf,nameOrder,pageKind} from './model.mjs';
+import {natural,fileOf,nameOrder,pageKind,kindOf} from './model.mjs';
 import {scan,readMissingTimes,allPages,keyOf,dirOf,isLoose} from './sources.mjs';
-import {norm,coverName,grade,assign,hue} from './match.mjs';
+import {norm,coverName,grade,assign,hue,overlap,isMedia as mediaName} from './match.mjs';
 import {extend} from './lang.mjs';
 
 extend({
@@ -20,6 +20,7 @@ extend({
   storageHigh:['Browser storage is {p}% full. Delete records of books you no longer need (covers and bookmark thumbnails take most of the space).','浏览器存储空间已用 {p}%，建议删除不再需要的旧书记录（主要占用来自封面和书签缩略图）。','ブラウザーの保存領域が {p}% 使用されています。不要になった本の記録を削除してください（主に表紙としおりのサムネイルが容量を使います）。','브라우저 저장 공간이 {p}% 찼습니다. 더 이상 필요 없는 책 기록을 삭제하세요(표지와 책갈피 썸네일이 대부분을 차지합니다).'],
   layoutGrid:['Grid','普通网格','グリッド','격자'],layoutMasonry:['Masonry','瀑布流','マソンリー','메이슨리'],
   filtersHide:['Hide filters','收起筛选','絞り込みを閉じる','필터 접기'],sortNow:['Sort: {s}','排序：{s}','並べ替え：{s}','정렬: {s}'],presetNow:['Preset: {s}','预设：{s}','プリセット：{s}','프리셋: {s}'],
+  sameMedia:['Media files match by name and size','媒体文件的名称和大小大多相符','メディアファイルの名前とサイズがほぼ一致','미디어 파일 이름과 크기가 대부분 일치'],
   layoutSwitch:['Layout: {now} — click for {next}','布局：{now}（点击切换为{next}）','レイアウト：{now}（クリックで{next}に切替）','레이아웃: {now} (클릭하면 {next}(으)로 전환)']
 });
 const $=id=>document.getElementById(id);
@@ -31,23 +32,30 @@ async function digest(file){
   const buf=await crypto.subtle.digest('SHA-256',await file.slice(0,65536).arrayBuffer());
   return [...new Uint8Array(buf).slice(0,12)].map(x=>x.toString(16).padStart(2,'0')).join('')+':'+file.size;
 }
-// 筛选条件：{q 关键词, min/max 页数（字符串，空为不限）, tags 选中的标签, marked 只看有书签的书}。旧数据或损坏的数据归一化为空条件。
-const EMPTY={q:'',min:'',max:'',tags:[],marked:false};
+// 筛选条件：{q 关键词, min/max 页数（字符串，空为不限）, tags 选中的标签, marked 只看有书签的书, kinds 页的类型（含有任一所选类型的页即匹配，空为不限）}。
+// 旧数据或损坏的数据归一化为空条件。
+const KINDS=['image','video','audio'],KIND_LABEL={image:'kindImage',video:'kindVideo',audio:'kindAudio'};
+const EMPTY={q:'',min:'',max:'',tags:[],marked:false,kinds:[]};
 function clean(f){
   if(!f||typeof f!=='object')f={};
   const num=v=>v!==''&&v!=null&&Number.isFinite(+v)&&+v>=0?String(Math.floor(+v)):'',seen=new Set(),tags=[];
   for(const x of Array.isArray(f.tags)?f.tags:[])if(typeof x==='string'&&x.trim()&&!seen.has(norm(x))){seen.add(norm(x));tags.push(x.trim());}
-  return {q:typeof f.q==='string'?f.q:'',min:num(f.min),max:num(f.max),tags,marked:!!f.marked};
+  const kinds=Array.isArray(f.kinds)?KINDS.filter(k=>f.kinds.includes(k)):[];
+  return {q:typeof f.q==='string'?f.q:'',min:num(f.min),max:num(f.max),tags,marked:!!f.marked,kinds};
 }
-const same=(a,b)=>{const k=f=>JSON.stringify([f.q.trim(),f.min,f.max,f.tags.map(norm).sort(),f.marked]);return k(a)===k(b);};
+const same=(a,b)=>{const k=f=>JSON.stringify([f.q.trim(),f.min,f.max,f.tags.map(norm).sort(),f.marked,f.kinds]);return k(a)===k(b);};
 export function install(ctx){
   const {books,t,fmt,notice,make,icon,iconButton,safe,get,put,shelf}=ctx, holder=$('books');
+  addIcons({photo:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/>'}); // 类型筛选的「图片」；视频、音频沿用 media.mjs 的 film / music
   addIcons({'layout-grid':'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     'layout-masonry':'<rect x="4" y="4" width="7" height="10" rx="1.5"/><rect x="13" y="4" width="7" height="6" rx="1.5"/><rect x="4" y="16" width="7" height="4" rx="1.5"/><rect x="13" y="12" width="7" height="8" rx="1.5"/>',star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>','chevron-down':'<path d="m6 9 6 6 6-6"/>',plus:'<path d="M12 5v14M5 12h14"/>'});
   // 布局、筛选面板展开状态和当前筛选条件随「还原默认设置」重置；预设（shelfPresets）和最近用过的标签（recentTags）是用户数据，保留。
   ctx.prefs.add('shelfLayout');ctx.prefs.add('shelfPanel');ctx.prefs.add('shelfFilter');
   let view=get('shelfView','shelf');if(!['shelf','library','all'].includes(view))view='shelf';
   const tagsOf=b=>Array.isArray(b.tags)?b.tags:[], marksOf=b=>Array.isArray(b.bookmarks)?b.bookmarks.length:0, pagesOf=b=>b.pages?.length??0;
+  // 书中含有的页类型（'image' | 'video' | 'audio'，只按扩展名），按页表缓存：类型筛选和封面上的类型角标用。
+  const kindCache=new WeakMap();
+  const kindsOf=b=>{const pages=b.pages||[];let c=kindCache.get(b);if(!c||c.pages!==pages||c.n!==pages.length){c={pages,n:pages.length,set:new Set(pages.map(pageKind))};kindCache.set(b,c);}return c.set;};
   // ---- 书籍排序：书架、书库、所有书籍共用一个设置，上一本 / 下一本和书架书签列表也按此顺序（ctx.orderBooks）。
   // 文件夹时间：浏览器读不到文件夹本身的修改时间，用其中最新一张图片的修改时间代替；未知的排在最后。
   const SORTS=['addedNew','addedOld','folderNew','folderOld','nameAsc','nameDesc'];
@@ -85,6 +93,29 @@ export function install(ctx){
     }}finally{timing=false;if(changed)refresh();if(retime)setTimeout(sweepTimes,800);}
   }
   setTimeout(sweepTimes,1500);ctx.on('books',()=>setTimeout(sweepTimes,800));
+  // 恢复与识别用（第 5 节）：含媒体的书记下各媒体文件的精确大小（page.size，只读文件元数据，不读内容）。
+  // 后台空闲时逐个读取，不阻塞导入；读不到的本次会话不再重试。
+  const isMedia=p=>pageKind(p)!=='image',tried=new WeakSet();
+  const unsized=b=>!ctx.expired(b)&&b.pages.some(p=>isMedia(p)&&!Number.isFinite(p.size)&&!tried.has(p));
+  const idle=()=>new Promise(r=>window.requestIdleCallback?requestIdleCallback(()=>r(),{timeout:2000}):setTimeout(r,50));
+  let sizing=false,resize=false;
+  async function sweepSizes(){
+    if(sizing){resize=true;return;}sizing=true;resize=false;
+    try{for(const b of [...books.values()]){
+      if(!books.has(b.id)||!unsized(b))continue;
+      await ctx.disk.turn();if(!books.has(b.id)||!unsized(b))continue;
+      await queue(async()=>{
+        let n=0;
+        for(const p of b.pages){
+          if(!isMedia(p)||Number.isFinite(p.size)||tried.has(p))continue;
+          await idle();if(!books.has(b.id))return;tried.add(p);
+          try{p.size=(await ctx.source(b,p)).size;n++;}catch(e){if(e?.name==='TimeoutError'||e?.name==='NotAllowedError')break;}
+        }
+        if(n&&books.has(b.id))await ctx.persist(b);
+      });
+    }}finally{sizing=false;if(resize)setTimeout(sweepSizes,800);}
+  }
+  setTimeout(sweepSizes,4000);ctx.on('books',()=>setTimeout(sweepSizes,1200));
   // 封面页取「文件名」正序（按路径，与当前排序无关）的第一张：单文件夹书即文件名自然顺序的第一张（与 match.mjs coverName 一致），
   // 合并作品即第一个可见卷的第一张。结果按页表缓存，后台检查数千本书时不必每次重新比较全部文件名。
   const firstPage=(b,pages)=>{const order=nameOrder(dirOf(b));return pages.reduce((a,p)=>!a||order(p,a)<0?p:a,null);};
@@ -109,7 +140,7 @@ export function install(ctx){
   let parsed;
   function compile(){
     const qtags=[],words=[];for(const w of F.q.trim().split(/\s+/))if(w.length>1&&w.startsWith('#'))qtags.push(norm(w.slice(1)));else if(w)words.push(norm(w));
-    parsed={words,qtags,min:+F.min||0,max:F.max!==''?+F.max:Infinity,tags:F.tags.map(norm),marked:F.marked};
+    parsed={words,qtags,min:+F.min||0,max:F.max!==''?+F.max:Infinity,tags:F.tags.map(norm),marked:F.marked,kinds:F.kinds};
   }
   compile();
   // 搜索文本按书缓存，书名、路径、标签或合并作品各卷（源文件夹）的名称、路径变化时才重新归一化。
@@ -117,6 +148,7 @@ export function install(ctx){
   function hay(b){const key=[ctx.title(b),b.title??'',b.path??'',...tagsOf(b),...(Array.isArray(b.sources)&&b.sources.length>1?b.sources.flatMap(s=>[s.title??'',s.path??'']):[])].join('\n');let h=hays.get(b);if(h?.key!==key){h={key,text:norm(key.replace(/\n/g,' '))};hays.set(b,h);}return h.text;}
   function matches(b){
     const p=parsed,n=pagesOf(b);if(n<p.min||n>p.max||p.marked&&!marksOf(b))return false;
+    if(p.kinds.length){const mine=kindsOf(b);if(!p.kinds.some(k=>mine.has(k)))return false;}
     if(p.tags.length||p.qtags.length){const mine=tagsOf(b).map(norm);
       for(const k of p.tags)if(!mine.includes(k))return false;
       for(const k of p.qtags)if(!mine.some(x=>x.startsWith(k)))return false;}
@@ -124,8 +156,8 @@ export function install(ctx){
     return true;
   }
   ctx.matchFilter=matches;
-  const filtering=()=>!!(F.q.trim()||F.min||F.max||F.tags.length||F.marked);ctx.filtering=filtering; // 底部操作栏据此标出“只在筛选结果内切书”
-  const extraFilters=()=>F.tags.length+(F.min||F.max?1:0)+(F.marked?1:0);
+  const filtering=()=>!!(F.q.trim()||F.min||F.max||F.tags.length||F.marked||F.kinds.length);ctx.filtering=filtering; // 底部操作栏据此标出“只在筛选结果内切书”
+  const extraFilters=()=>F.tags.length+(F.min||F.max?1:0)+(F.marked?1:0)+(F.kinds.length?1:0);
   function setFilter(next,{preset=presetId,inputs=true}={}){
     F=clean(next);presetId=preset;compile();storeFilter();if(inputs)syncInputs();draw('filter');
   }
@@ -145,7 +177,8 @@ export function install(ctx){
     return el;
   }
   const rangeText=f=>f.min&&f.max?fmt('pagesRange',{a:f.min,b:f.max}):f.min?fmt('pagesFrom',{n:f.min}):f.max?fmt('pagesTo',{n:f.max}):'';
-  const describe=f=>[f.q.trim()&&'“'+f.q.trim()+'”',...f.tags.map(x=>'#'+x),rangeText(f),f.marked&&t('hasBookmarks')].filter(Boolean).join(' · ');
+  const kindText=f=>f.kinds.map(k=>t(KIND_LABEL[k])).join(' / ');
+  const describe=f=>[f.q.trim()&&'“'+f.q.trim()+'”',...f.tags.map(x=>'#'+x),rangeText(f),f.marked&&t('hasBookmarks'),kindText(f)].filter(Boolean).join(' · ');
 
   // ---- 封面缓存：只存压缩 WebP，过期书也能显示；串行读取，不与阅读抢硬盘。
   let chain=Promise.resolve();const queue=fn=>(chain=chain.then(fn).catch(()=>{}));
@@ -154,22 +187,37 @@ export function install(ctx){
   const staleFp=b=>{if(!(b.sources?.length>1))return [];const m=bySource(b);
     return b.sources.map(s=>[s,m.get(s.key)&&firstPage(b,m.get(s.key))]).filter(([s,p])=>p&&s.fp?.name!==fileOf(p)&&!ctx.isDown(b,s));};
   const needsFp=b=>staleFp(b).length>0;
-  const coverFresh=b=>{const p=coverPage(b);return !p||(b.fp?.thumb||b.fp?.media)&&b.fp.cover?.name===p.name;};
-  const fresh=b=>coverFresh(b)&&!needsFp(b);
-  async function ensureCover(b){
-    if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
+  // 识别用的指纹（book.fp.cover，第 5 节）：首个文件（不论类型）的文件名、精确大小、头部 64KB 摘要。
+  // 默认封面的画面与它分开（fp.pic 记画面取自哪一页）：按「文件名」顺序第一个有画面的页，图片用图片本身，
+  // 视频用它的缩略图（ctx.frames：优先最早的书签画面，否则片长约 10% 处；fp.src 记来源，变了就重做）；播不了的视频（page.vfail / page.bad）跳过。
+  // 全书只有音频（没有任何画面）时 fp.text：卡片用作品名生成文字封面，不存图。视频截帧代价高，只为可见的卡片进行，后台检查只补指纹和图片封面。
+  const sorted=new WeakMap();
+  const byFileName=b=>{const pages=b.pages||[];let c=sorted.get(b);if(!c||c.pages!==pages||c.n!==pages.length||c.src!==b.sources){c={pages,n:pages.length,src:b.sources,list:[...pages].sort(nameOrder(dirOf(b)))};sorted.set(b,c);}return c.list;};
+  const picPage=b=>byFileName(b).find(p=>{const k=pageKind(p);return k==='image'||k==='video'&&!p.vfail&&!p.bad;})??null;
+  const picOf=fp=>fp?.pic??(fp?.thumb?fp.cover?.name:undefined); // 旧记录没有 pic：画面就取自指纹页
+  const fpFresh=b=>{const p=coverPage(b);return !p||b.fp?.cover?.name===p.name&&!!b.fp.cover.hash;};
+  const picFresh=b=>{const q=picPage(b);if(!q)return !coverPage(b)||!!b.fp?.text;
+    return !!b.fp?.thumb&&picOf(b.fp)===q.name&&(pageKind(q)!=='video'||b.fp.src===ctx.frames?.src(b,q));};
+  const needs=(b,visible)=>!fpFresh(b)||needsFp(b)||!picFresh(b)&&(visible||pageKind(picPage(b)??{name:''})!=='video');
+  async function ensureCover(b,visible=false){
+    if(!books.has(b.id)||ctx.expired(b)||!needs(b,visible))return;
     await ctx.disk.turn(); // 多个窗口时只由一个窗口生成，其他窗口等书目同步过来后直接显示
-    if(!books.has(b.id)||fresh(b)||ctx.expired(b))return;
-    const page=coverPage(b);
-    if(page&&pageKind(page)!=='image'&&!coverFresh(b)){
-      // 封面页是视频或音频：这一版不截帧，只记下识别用的摘要（头部 64KB），卡片显示带类型图标的占位（media.css .mv-cover）。
-      const file=await ctx.source(b,page),hash=await digest(file);if(!books.has(b.id))return;
-      await ctx.thumbs('delete',b.id+':cover');b.fp={cover:{name:page.name,size:file.size,hash},media:pageKind(page)};delete b.coverRatio;
-    }else if(page&&!coverFresh(b)){
-      const file=await ctx.source(b,page),th=await ctx.makeThumb(file,{width:320});
+    if(!books.has(b.id)||ctx.expired(b)||!needs(b,visible))return;
+    const page=coverPage(b);let file=null;
+    if(page&&!fpFresh(b)){
+      file=await ctx.source(b,page);const hash=await digest(file);if(!books.has(b.id))return;
+      const {media,...old}=b.fp??{};if(old.thumb&&old.pic==null&&old.cover)old.pic=old.cover.name;
+      b.fp={...old,cover:{name:page.name,size:file.size,hash}};
+    }
+    for(let tries=0;tries<3&&!picFresh(b);tries++){
+      const q=picPage(b),kind=q&&pageKind(q);
+      if(!q){await ctx.thumbs('delete',b.id+':cover');b.fp={cover:b.fp?.cover,text:true};delete b.coverRatio;break;}
+      if(kind==='video'&&!visible)break;
+      const th=kind==='image'?await ctx.makeThumb(q===page&&file?file:await ctx.source(b,q),{width:320}):await ctx.frames?.get(b,q);
       if(!books.has(b.id))return; // 生成期间这本书已被删除
+      if(!th)continue; // 播不了的视频已记下（page.vfail），换下一个有画面的页
       await ctx.saveThumb(b.id+':cover',th);
-      b.fp={cover:{name:page.name,size:file.size,hash:await digest(file)},thumb:true};b.coverRatio=th.h/th.w;
+      b.fp={cover:b.fp?.cover,thumb:true,pic:q.name,...kind==='video'&&{src:th.src}};b.coverRatio=th.h/th.w;
     }
     for(const [s,p] of staleFp(b)){
       if(b.fp?.cover?.name===p.name){s.fp={...b.fp.cover,name:fileOf(p)};continue;}
@@ -183,19 +231,25 @@ export function install(ctx){
     if(sweeping){again=true;return;}sweeping=true;
     try{do{again=false;for(const b of [...books.values()]){
       await ctx.disk.turn();
-      if(!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
+      if(needs(b,false)&&!ctx.expired(b))await queue(()=>ensureCover(b));
     }}while(again);}finally{sweeping=false;}
   }
   ctx.on('books',()=>setTimeout(sweep,600));ctx.on('select',b=>{if(b)queue(()=>ensureCover(b));});setTimeout(sweep,2500);
   const coverOf=new WeakMap(); // 封面槽 → 书 id
   // 自定义封面（cover.mjs）优先于默认封面；默认封面照常在后台生成，它的摘要用于识别，与自定义封面无关。
-  const coverKey=b=>b.customCover?b.id+':custom':b.id+':cover',coverSig=b=>b.customCover?'c'+b.customCover.at:b.fp?.cover?.hash??'';
+  // 默认封面的画面过期（如视频最早的书签变了）时签名带 ~：卡片换一个封面槽，进入视窗时重新生成。
+  const coverKey=b=>b.customCover?b.id+':custom':b.id+':cover';
+  const coverSig=b=>b.customCover?'c'+b.customCover.at:[b.fp?.cover?.hash??'',picOf(b.fp)??'',b.fp?.src??'',b.fp?.text?'t'+ctx.title(b):'',ctx.expired(b)||picFresh(b)?'':'~'].join('|');
   const ratioOf=b=>b.customCover?.r||b.coverRatio||1.42;
   const io=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){io.unobserve(e.target);const b=books.get(coverOf.get(e.target));if(b)safe(showCover)(e.target,b);}},{root:holder,rootMargin:'400px 0px'});
+  // 文字封面：作品名（长名称换行，超出行数末尾省略），不存图。
+  function textCover(slot,b){if(slot.querySelector('.text-cover'))return;const s=make('span','text-cover');s.append(make('span','',ctx.title(b)));slot.append(s);slot.classList.add('ready');}
   async function showCover(slot,b){
-    if(!b.customCover&&!fresh(b)&&!ctx.expired(b))await queue(()=>ensureCover(b));
-    if(b.fp?.media&&!b.customCover){if(!slot.querySelector('.mv-cover')){const m=make('span','mv-cover '+b.fp.media);m.append(icon(b.fp.media==='audio'?'music':'film'));slot.append(m);slot.classList.add('ready');}return;}
-    const th=await ctx.getThumb(coverKey(b))??(b.customCover?await ctx.getThumb(b.id+':cover'):null);if(!th||slot.querySelector('img'))return;
+    if(!b.customCover&&!ctx.expired(b)&&needs(b,true))await queue(()=>ensureCover(b,true));
+    if(b.fp?.text&&!b.customCover)return textCover(slot,b);
+    const th=await ctx.getThumb(coverKey(b))??(b.customCover?await ctx.getThumb(b.id+':cover'):null);
+    if(!th){if(b.fp?.media&&!b.customCover)textCover(slot,b);return;} // 旧记录（媒体封面还没有画面、书已过期）
+    if(slot.querySelector('img'))return;
     const img=new Image();img.alt='';img.decoding='async';img.src=th.url;slot.append(img);slot.classList.add('ready');
     if(Math.abs(ratioOf(b)-th.h/th.w)>.01){if(b.customCover)b.customCover.r=th.h/th.w;else b.coverRatio=th.h/th.w;if(layoutMode==='masonry')relayoutSoon();}
   }
@@ -238,7 +292,7 @@ export function install(ctx){
   let relayout=0;const relayoutSoon=()=>{if(!relayout)relayout=requestAnimationFrame(()=>{relayout=0;if(shelf.open&&shown.length)place();});};
   new ResizeObserver(()=>{if(shelf.open&&shown.length&&Math.abs(innerWidth()-laidWidth)>.5)place();}).observe(holder);
   // 卡片显示的内容摘要：变了才重建卡片内容（封面节点保留，不重新加载）。
-  const sig=b=>[ctx.title(b),pagesOf(b),ctx.expired(b)?'x':Math.round(ctx.readRatio(b)*100)+'/'+ctx.lostSources(b),tagsOf(b).join('\x01'),b.place,b===ctx.current,marksOf(b),coverSig(b),ctx.lang].join('|');
+  const sig=b=>[ctx.title(b),pagesOf(b),[...kindsOf(b)].join(),ctx.expired(b)?'x':Math.round(ctx.readRatio(b)*100)+'/'+ctx.lostSources(b),tagsOf(b).join('\x01'),b.place,b===ctx.current,marksOf(b),coverSig(b),ctx.lang].join('|');
   function card(b){
     const el=make('article','book'),pick=make('button','pick'),cover=make('span','cover');
     el.dataset.id=b.id;el.setAttribute('role','listitem');pick.type='button';pick.tabIndex=-1;pick.append(cover);el.append(pick);
@@ -265,6 +319,9 @@ export function install(ctx){
     const lost=ex?0:ctx.lostSources(b);if(lost){const w=make('span','part');w.title=fmt('partN',{n:lost});w.setAttribute('aria-label',w.title);w.append(icon('alert'));pick.append(w);}
     // 书签数：有书签时在封面左下角常显（没有书签不显示）。
     if(marks){const m=make('span','bm-flag');m.title=fmt('bmCount',{n:marks});m.setAttribute('aria-label',m.title);m.append(icon('bookmark'),make('span','',String(marks)));pick.append(m);}
+    // 类型角标：含视频 / 音频的书在封面右上角常显对应图标（只有图片的书不显示）。
+    const media=['video','audio'].filter(k=>kindsOf(b).has(k));
+    if(media.length){const k=make('span','kind-flag');k.title=media.map(x=>t(KIND_LABEL[x])).join(' · ');k.setAttribute('aria-label',k.title);for(const x of media)k.append(icon(x==='video'?'film':'music'));pick.append(k);}
     const tools=make('div','actions');
     const cover=iconButton('cover',t('coverSet'),()=>ctx.pickCover?.(b));
     if(ex)tools.append(iconButton('link',t('restore'),()=>restoreOne(b)),iconButton('pencil',t('rename'),()=>editName(b)),cover,iconButton('trash',t('remove'),()=>ctx.remove(b),'danger'));
@@ -404,6 +461,7 @@ export function install(ctx){
     toggle.title=t(panel.hidden?'filters':'filtersHide');toggle.setAttribute('aria-label',t('filters'));
     $('clearBtn').disabled=!filtering()&&!presetId;
     $('markedToggle').setAttribute('aria-pressed',String(F.marked));
+    for(const b of $('kindFilter').querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(F.kinds.includes(b.dataset.kind)));
     // 标签：当前列表中的标签按使用次数排列，已选的排在最前（即使当前列表里没有）。默认只显示一行，可展开或搜索。
     const tags=allTags(b=>inView(b)),counts=new Map(tags),on=new Set(F.tags.map(norm)),q=norm($('tagQuery').value);
     const items=[...F.tags.map(x=>[norm(x),{tag:x,n:counts.get(norm(x))?.n??0}]),...tags.filter(([k])=>!on.has(k))].filter(([k])=>!q||k.includes(q));
@@ -418,7 +476,8 @@ export function install(ctx){
     if(!sum.hidden){
       const x=(label,fn)=>{const c=make('span','fchip',label),b=make('button','tag-x');b.type='button';b.setAttribute('aria-label',t('remove')+' · '+label);b.append(icon('close'));b.onclick=fn;c.append(b);return c;};
       sum.replaceChildren(make('span','flabel',t('filterOn')),...F.tags.map(tag=>chip(tag,{remove:()=>toggleTag(tag)})),
-        ...(F.min||F.max?[x(rangeText(F),()=>setFilter({...F,min:'',max:''}))]:[]),...(F.marked?[x(t('hasBookmarks'),()=>setFilter({...F,marked:false}))]:[]));
+        ...(F.min||F.max?[x(rangeText(F),()=>setFilter({...F,min:'',max:''}))]:[]),...(F.marked?[x(t('hasBookmarks'),()=>setFilter({...F,marked:false}))]:[]),
+        ...(F.kinds.length?[x(kindText(F),()=>setFilter({...F,kinds:[]}))]:[]));
     }
     // 预设按钮：正在使用预设时高亮，预设名写在提示里；条件被改动后加“已修改”圆点。
     const p=presets.find(x=>x.id===presetId),mod=!!p&&!same(F,p.f),pb=$('presetBtn');
@@ -428,6 +487,8 @@ export function install(ctx){
   }
   $('tagMore').onclick=()=>{tagsOpen=!tagsOpen;drawFilterUI();};
   $('markedToggle').onclick=()=>setFilter({...F,marked:!F.marked});
+  // 类型：图片 / 视频 / 音频，可多选，全不选等于不限。
+  $('kindFilter').onclick=e=>{const b=e.target.closest('[data-kind]');if(!b)return;const k=b.dataset.kind;setFilter({...F,kinds:F.kinds.includes(k)?F.kinds.filter(x=>x!==k):[...F.kinds,k]});};
   function clearFilters(){$('tagQuery').value='';setFilter(EMPTY,{preset:null});}
   const form=$('filters');
   form.oninput=e=>{
@@ -577,6 +638,9 @@ export function install(ctx){
   const coverFile=async c=>(await c.dir.getFileHandle(coverName(c.names))).getFile();
   async function candHash(c){if(c.hash===undefined)try{const f=await coverFile(c);c.size=f.size;c.hash=await digest(f);}catch{c.hash=null;}return c.hash;}
   async function candSize(c){if(c.size===undefined)try{c.size=(await coverFile(c)).size;}catch{c.size=null;}return c.size;}
+  // 候选文件夹里媒体文件的大小（只读文件元数据），供按「文件名 + 大小」比较；只在记录里有已知大小的媒体文件时才读。
+  async function candSizes(c){if(c.sizes===undefined){const m=new Map();for(const n of c.names)if(mediaName(n))try{m.set(n,(await (await c.dir.getFileHandle(n)).getFile()).size);}catch{}c.sizes=m;}return c.sizes;}
+  const sized=t=>t.pages.some(p=>Number.isFinite(p.size)&&mediaName(p.name));
   // 槽：{book,source,merged,t}，t 是供 grade 比较的 {title,pages,fp}。
   // want(title)：只要名称相符的槽（普通导入时用，避免为大量无关的书构造比较对象）；all：不论是否缺失（定位原文件）。
   function slotsOf(b,want,all=false){
@@ -584,7 +648,7 @@ export function install(ctx){
     // 散图图集没有源，不按文件夹匹配：它的恢复是按相对目录 + 文件名逐页找回（restoreOne → ctx.relocate）。
     if(isLoose(b))return [];
     return b.sources.filter(s=>(ex||ctx.isDown(b,s))&&(!want||want(s.key?s.title:b.title))).map(s=>s.key
-      ?{book:b,source:s,merged:true,t:{title:s.title,pages:allPages(b).filter(p=>keyOf(p)===s.key).map(p=>({name:fileOf(p)})),fp:s.fp&&{cover:s.fp}}}
+      ?{book:b,source:s,merged:true,t:{title:s.title,pages:allPages(b).filter(p=>keyOf(p)===s.key).map(p=>({name:fileOf(p),size:p.size})),fp:s.fp&&{cover:s.fp}}}
       :{book:b,source:s,merged:false,t:b});
   }
   const allSlots=()=>[...books.values()].flatMap(b=>slotsOf(b));
@@ -592,13 +656,19 @@ export function install(ctx){
     const byName=new Map();for(const c of cands){const k=norm(c.title);if(!byName.has(k))byName.set(k,[]);byName.get(k).push(c);}
     const out=[];
     for(const x of slots){
-      const t=x.t,named=byName.get(norm(t.title))||[],fp=t.fp?.cover,pair=(c,g)=>({book:x.book,source:x.source,merged:x.merged,cand:c,...g});
-      for(const c of named){if(fp?.hash)await candHash(c);out.push(pair(c,grade(t,c)));}
-      if(!fp?.hash||named.some(c=>c.hash===fp.hash))continue;
-      for(const c of cands){
-        if(named.includes(c)||Math.abs(c.names.length-t.pages.length)>Math.max(2,t.pages.length*.1))continue;
-        if(await candSize(c)!==fp.size)continue;await candHash(c);const g=grade(t,c);if(g.level)out.push(pair(c,g));
+      const t=x.t,named=byName.get(norm(t.title))||[],fp=t.fp?.cover,pair=(c,g)=>({book:x.book,source:x.source,merged:x.merged,cand:c,...g}),media=sized(t),seen=new Set(named);
+      for(const c of named){if(fp?.hash)await candHash(c);if(media)await candSizes(c);out.push(pair(c,grade(t,c)));}
+      if(named.some(c=>fp?.hash&&c.hash===fp.hash))continue;
+      if(fp?.hash)for(const c of cands){
+        if(seen.has(c)||Math.abs(c.names.length-t.pages.length)>Math.max(2,t.pages.length*.1))continue;
+        if(await candSize(c)!==fp.size)continue;await candHash(c);if(media)await candSizes(c);const g=grade(t,c);if(g.level){seen.add(c);out.push(pair(c,g));}
       }
+      // 含媒体的书：文件夹改名且首个文件对不上时，按媒体的「文件名 + 大小」重合度找（先按文件名粗筛，再读候选的媒体文件大小）。
+      if(media){const mine=t.pages.filter(p=>mediaName(p.name)).map(p=>p.name);
+        for(const c of cands){
+          if(seen.has(c)||overlap(mine,c.names.filter(mediaName))<.5)continue;
+          await candSizes(c);if(fp?.hash)await candHash(c);const g=grade(t,c);if(g.level){seen.add(c);out.push(pair(c,g));}
+        }}
     }
     return out;
   }
@@ -612,7 +682,7 @@ export function install(ctx){
   ctx.autoMatch=async group=>{
     const k=norm(group.title),slots=[...books.values()].flatMap(b=>slotsOf(b,x=>norm(x)===k));if(!slots.length)return [];
     const c={...group,names:group.pages.map(p=>p.name)},ps=[];
-    for(const x of slots){if(x.t.fp?.cover?.hash)await candHash(c);ps.push({book:x.book,source:x.source,merged:x.merged,cand:c,...grade(x.t,c)});}
+    for(const x of slots){if(x.t.fp?.cover?.hash)await candHash(c);else if(sized(x.t))await candSizes(c);ps.push({book:x.book,source:x.source,merged:x.merged,cand:c,...grade(x.t,c)});}
     return assign(ps).filter(p=>p.level===2);
   };
   async function pickRoot(){if(!window.showDirectoryPicker){notice('needFsa');return null;}return showDirectoryPicker({mode:'read',id:'mv-restore'});} // id：选择框开在上次恢复时选的位置
@@ -641,7 +711,7 @@ export function install(ctx){
     // 同一个文件夹也可能是其他过期书或缺失的卷：完全匹配的一并接回。
     const extra=async()=>{await apply(assign(await pairs(others,cands)).filter(p=>p.level===2));await looseBack(dir);ctx.emit('books');};
     if(!mine[0].merged){
-      const x=mine[0],ps=[];for(const c of cands){if(b.fp?.cover?.hash)await candHash(c);ps.push({book:b,source:x.source,merged:false,cand:c,...grade(b,c)});}
+      const x=mine[0],ps=[];for(const c of cands){if(b.fp?.cover?.hash)await candHash(c);if(sized(b))await candSizes(c);ps.push({book:b,source:x.source,merged:false,cand:c,...grade(b,c)});}
       ps.sort((p,q)=>q.score-p.score);
       // 都不匹配时，以所选文件夹本身（或唯一的子文件夹）作为强制恢复的对象。
       const best=ps[0].level?ps[0]:ps.find(p=>p.cand.dir===dir)??(ps.length===1?ps[0]:null);
@@ -691,6 +761,7 @@ export function install(ctx){
       const why=make('span','why');
       why.append(make('span',p.same?'':'bad',t(p.same?'sameName':'diffName')));
       if(p.cover!=null)why.append(make('span',p.cover?'':'bad',t(p.cover?'sameCover':'diffCover')));
+      if(p.media>=.6)why.append(make('span','',t('sameMedia'))); // 含媒体的书：按「文件名 + 大小」重合度列出的
       row.append(why);return row;
     }));
     $('restoreGo').onclick=safe(async()=>{const chosen=checks?rows.filter(p=>p.box.checked):rows;dlg.close();if(chosen.length)await onGo(chosen);});

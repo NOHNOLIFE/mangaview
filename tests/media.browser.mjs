@@ -156,12 +156,12 @@ try{
   await wait(async()=>/^\d+:4096$/.test((await record()).pages.find(p=>p.name==='05 broken.mp4').bad??''),'failure saved with size and time');
   await shot('media-broken');
 
-  // 缩略图栏、全屏缩略图：媒体是带类型图标的固定占位，不读文件。
+  // 缩略图栏、全屏缩略图：媒体是带类型图标的固定占位，音频不读文件（视频的真实画面见 mediathumbs.browser.mjs）。
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);
   await wait(()=>js(`!!document.querySelector('#preview .page[data-name="04 song.wav"] .mv-tile.audio')`),'strip placeholder');
   assert.equal(await js(`document.querySelector('#preview .page[data-name="04 song.wav"]').querySelector('img,canvas,audio,video')`),null);
   await key('v','KeyV',86);await wait(()=>js(`[...document.querySelectorAll('.ov-item')].some(x=>x.querySelector('.mv-tile.video'))`),'overview placeholder');
-  assert.ok(await js(`[...document.querySelectorAll('.ov-item')].filter(x=>x.querySelector('.mv-tile')).every(x=>!x.querySelector('img,canvas')&&!x.classList.contains('failed'))`));
+  assert.ok(await js(`[...document.querySelectorAll('.ov-item')].filter(x=>x.querySelector('.mv-tile.audio')).every(x=>!x.querySelector('img,canvas')&&!x.classList.contains('failed'))`));
   await shot('media-overview');await key('Escape','Escape',27);await wait(()=>js(`!document.querySelector('dialog[open]')`));
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);
 
@@ -221,11 +221,11 @@ try{
   await tap('#reader .page[data-name="05 broken.mp4"] .mv-retry');
   await wait(async()=>(await js('srcLog')).includes('05 broken.mp4')&&await js(`!node('05 broken.mp4').querySelector('.mv-fail').hidden`),'retry probes again');
 
-  // 只有视频或音频的文件夹也成书；书架封面上它用带类型图标的占位，不截帧。
+  // 只有视频或音频的文件夹也成书；全书只有音频时，书架封面是用作品名生成的文字封面。
   await js(`(async()=>{const songs=await (await navigator.storage.getDirectory()).getDirectoryHandle('Songs');window.showDirectoryPicker=async()=>songs;document.querySelector('#bar [data-act="folder"]').click();})()`);
   await wait(()=>js(`bookTitle.textContent==='Songs'`));
   await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
-  await wait(()=>js(`!!document.querySelector('#books .book.current .mv-cover.audio')`),'audio-only book cover placeholder');
+  await wait(()=>js(`document.querySelector('#books .book.current .text-cover')?.textContent==='Songs'`),'audio-only book text cover');
   await shot('media-shelf');
   assert.deepEqual(errors,[]);
   console.log('PASS: media recognised by extension, unsupported formats reported on import, mixed sorting, video width / ratio / one-screen cap, audio bar, sources only for visible media, shell (play, seek, time, mute, volume, more popover, fullscreen), click / Space / Q E ; \' / long-press A D, autoplay rules, one player per window, unplayable placeholder probed once, media placeholders in thumbnails and covers');

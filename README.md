@@ -35,7 +35,7 @@ Handles huge libraries, works offline, and never uploads your files.
 - **Fast with big libraries**: only visible pages are created and decoded, behind a small read queue. Thousands of images on a spinning hard drive stay responsive.
 - **Thumbnail navigator**: pops out at the right window edge or stays pinned beside the page, and can show the whole book full screen. Click any point of a thumbnail to jump to that exact spot, even inside a very tall image.
 - **Shelf and library**: keep what you are reading on the shelf and everything else in the library. Both show a cover-only wall, as a regular grid or a masonry layout; titles and actions appear when you hover a cover or select it with the arrow keys.
-- **Search, filters and presets**: filter by title, path, tags, page count or whether a book has bookmarks, and save the filters you use often as presets.
+- **Search, filters and presets**: filter by title, path, tags, page count, whether a book has bookmarks or which file types it contains (images / videos / audio), and save the filters you use often as presets.
 - **Tags**: add your own tags to any book, with suggestions from the tags you already use. Each tag gets its own colour, and you can filter by clicking a tag or typing `#tag` in the search box.
 - **Bookmarks**: press and hold `F` to bookmark the current spot, or `Shift+F` to mark the end of a section. Bookmarks are listed as small pictures of the page, because nobody remembers file names, and thumbnails show which pages have them.
 - **Sorting**: by file name or modification time (either direction), or shuffle. Set a default or override it per book.
@@ -126,7 +126,7 @@ The **Bookshelf** button (or **B**) opens a full-screen view with four lists (cl
 
 When the shelf opens, the book you're reading is selected and scrolled into view. Hovering a cover and moving with the arrow keys share one selection: the selected cover shows its title, progress and tags, plus buttons to edit the title, edit tags, set the cover, move, copy the title or delete the record. `Enter` opens it and `Delete` deletes its record (after asking). Books with bookmarks show a bookmark count in the bottom-left corner of the cover. The rightmost toolbar button switches between a regular grid (the default, covers cropped to the same size) and a masonry layout (covers at their own proportions). Toolbar buttons show icons only; hover them for a description.
 
-**Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. While filters are active, the search box shows the number of results on its right. The **Filters** button opens a panel with a page-count range, **Has bookmarks** and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it, and the **Clear filters** button next to the search box clears them all. Filters are remembered and stay in place as you switch between shelf, library and all; previous / next book and the shelf bookmarks also stay within the filtered results.
+**Search and filters**: search matches titles, folder paths, tags and the folder names of each volume in a joined book; type `#tag` to filter by tag, and press `/` or `Ctrl+F` to jump to the search box. While filters are active, the search box shows the number of results on its right. The **Filters** button opens a panel with a page-count range, **Has bookmarks**, file types (images / videos / audio; pick any number, and a book matches if it has a page of any chosen type) and tags (several tags must all match; there is a search box when you have many). With the panel closed, the active filters are listed below it, and the **Clear filters** button next to the search box clears them all. Filters are remembered and stay in place as you switch between shelf, library and all; previous / next book and the shelf bookmarks also stay within the filtered results.
 
 **Presets**: save the current filters as a preset, then apply it with one click from the preset menu, where you can also rename, delete or update presets. If you change the filters after applying one, the preset button gets a small dot (its tooltip says *modified*).
 
@@ -163,7 +163,7 @@ Videos (mp4, m4v, webm, mkv, mov, ogv) and audio (mp3, flac, wav, ogg, oga, opus
 - **Volume**: one volume and mute setting for the whole app, shared by every video and audio file, remembered and synced across windows. `Q` / `;` turn it down and `E` / `'` up by 5% (hold to keep going), with a brief volume indicator.
 - **Seeking**: hold `D` / `→` to fast-forward or `A` / `←` to rewind the current media (paused ones too). It jumps about every 0.25 s, in steps that grow the longer you hold (2 s, 5 s, 10 s, then 30 s), showing the total offset and target time, and stops when you let go. A tap still turns the screen.
 - **Disk use**: importing and refreshing only look at file names and never open media files. Only media in view are handed to the browser, which reads them on demand (never into memory as a whole), and they are released when they leave the view; neighbouring media are not preloaded.
-- In the thumbnail strip and full-screen thumbnails, videos and audio show as fixed tiles with a type icon, the file name and the duration. On the shelf, a book whose first page is a video or audio file shows a cover with a type icon for now.
+- **Thumbnails and covers**: in the thumbnail strip and full-screen thumbnails, videos show a real frame: the picture at the video's earliest bookmark, or, without bookmarks, at about 10% of its length (trying 30% and then 50% if that frame is nearly black). Frames are saved as small compressed pictures and made one at a time, only for videos you can see, while the app is idle (they wait while media is playing or the page is loading images); they are reused as long as the file doesn't change. A video the browser can't play isn't tried again and keeps its type-icon tile. Audio shows as a tile with a type icon, the file name and the duration. On the shelf, the default cover is the first page with a picture (an image or a video) by file name; a book with only audio gets a text cover made from its title. Books with video or audio show a type badge in the top-right corner of the cover.
 
 ### Bookmarks
 
@@ -190,7 +190,7 @@ Thumbnails are cached in memory for the session (up to 64 MB, never written to d
 
 **Full-screen thumbnails**: the button at the top of the strip, or `V` / `]`, opens an overview of the whole book; press it again or `Esc` to close. Pages sit in a regular grid by default; the button in the title row switches to a masonry layout that follows each page's proportions (both full-screen views share this choice). A wide scrollbar on the right makes long books quick to skim. The current page is selected and keeps an outline (without shrinking, so it stays distinct from the moving selection); `A` `D` / `←` `→` move in page order, `W` `S` / `↑` `↓` move within a column, and `Page Up` / `Page Down`, `Home` / `End` also work. Click a thumbnail, or press `Space` / `Enter`, to jump to the top of that page and close the overview. Pages with bookmarks carry the same badges; selecting (hovering or using the keyboard) a page with a section start or section bookmark outlines every page the section covers, until you move on.
 
-**Searching the full-screen views**: both full-screen views have a search box in the title row. Results narrow as you type, and the keyboard moves only through the results. Full-screen thumbnails match file names (and the volume folder names of a joined book); full-screen shelf bookmarks match book titles and the file names the bookmarks are on, and a matching title shows all of that book's bookmarks. The view still opens on the current content; `/` or `Ctrl+F` jumps to the search box, and `Esc` in the box first clears it and returns to the list, then closes the view. With no results you get "No matching items" and a **Clear search** link. The search lasts only while the view is open and doesn't affect previous / next book or bookmark jumps.
+**Searching the full-screen views**: both full-screen views have a search box in the title row. Results narrow as you type, and the keyboard moves only through the results. Full-screen thumbnails match file names (and the volume folder names of a joined book); full-screen shelf bookmarks match book titles and the file names the bookmarks are on, and a matching title shows all of that book's bookmarks. Next to the search box, three toggles (images / videos / audio) show only the chosen types; pick any number, or none for all (full-screen shelf bookmarks go by the type of the page each bookmark is on). The view still opens on the current content; `/` or `Ctrl+F` jumps to the search box, and `Esc` in the box first clears it and returns to the list, then closes the view. With no results you get "No matching items" and a link that clears the search (and the type toggles). The search and types last only while the view is open and don't affect previous / next book or bookmark jumps.
 
 **Full-screen shelf bookmarks**: the button at the top of the shelf bookmark list, or `C` / `[`, shows every shelf bookmark full screen, grouped by book with the book title as a heading (the current book is highlighted). It switches between grid and masonry in the same way. The bookmark nearest your current position is selected; `A` `D` / `←` `→` move in order, `W` `S` / `↑` `↓` move to the nearest bookmark in the row above or below. Click or `Space` / `Enter` jumps to it, switching books if needed. Pressing `V` / `]` or `C` / `[` in one full-screen view switches to the other.
 
@@ -214,7 +214,7 @@ New subfolders are not detected: add the parent folder again to pick them up.
 
 A book whose folder can't be found is **never** deleted automatically, because the browser can't tell a deleted folder from an unplugged drive. Only when **all** of a book's folders are gone does it move to **Missing**, keeping its cover, tags, bookmarks and progress. Plug the drive back in and refresh, and it returns on its own. If only some volumes of a joined book are missing, the book stays readable: the missing volumes are hidden for now and its cover shows a small warning. They come back on their own once found, or you can reconnect them with **Restore** on the cover. Records are deleted only when you delete them.
 
-Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **cover** (the first image by file name, whatever custom cover you set). Joined books are matched volume by volume:
+Browsers never reveal a folder's full path on disk, so after files are moved MangaView recognises books by their **folder name** plus a fingerprint of the **first file** by file name (image, video or audio; unrelated to the cover picture or any custom cover). The fingerprint is the file name, its exact size and a digest of its first 64 KB; whole files are never hashed. For books with video or audio, the size of each media file is also noted in the background (from file information only): if the folder was renamed or its first file no longer matches, a folder where most media files match by name and size is listed for you to confirm, and a file with the same name but a different size is never reconnected automatically. Videos and audio in the loose album are found again by relative path and file name, and their size must match too. Joined books are matched volume by volume:
 
 - **Add the parent folder again**: a missing book or volume with the same folder name and cover is reconnected automatically instead of being added twice.
 - **Restore from folder…** (in *Missing*): pick a folder that contains your books, at any depth. Exact matches are restored at once. Likely matches (renamed folder with the same cover, or same name with a different cover) are listed for you to tick. Anything else stays missing. Lost images of the loose album are found again too. Restoring only reconnects existing records and **never adds books**: content with no matching record is ignored. Restoring a single book, or **Locate originals**, also reconnects any other missing books and loose images found in the chosen folder.
@@ -234,7 +234,7 @@ You can open several MangaView windows at once (browser tabs or windows of the i
 
 ### Your data
 
-Images, videos and audio are read on your device and never uploaded or copied. The browser stores a book index, read-only file handles, sort settings, reading positions, tags, bookmarks, search presets and small compressed thumbnails (covers and bookmarks, never the original files). Clearing site data erases all of this.
+Images, videos and audio are read on your device and never uploaded or copied. The browser stores a book index, read-only file handles, sort settings, reading positions, tags, bookmarks, search presets and small compressed thumbnails (covers, bookmarks and video frames, never the original files). Clearing site data erases all of this.
 
 **Settings → Data** shows how much storage is used, and can export everything to one JSON file and import it again, merging with or replacing the current data. The file contains no images and no folder access, so after importing on another computer the books appear under *Missing*: use **Restore from folder…** to reconnect them. Backups use format 2: older backups can still be imported, but older versions of the app can't import new ones. When storage gets close to the browser's quota, MangaView suggests deleting records of books you no longer need.
 
@@ -282,7 +282,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 | `help.mjs`, `help.css` | Keyboard and mouse map (left hand, right hand and mouse) |
 | `media.mjs`, `media.css` | Video and audio: player and controls, current media, autoplay, shared volume, media keys |
 | `settings.mjs`, `backup.mjs`, `settings.css` | Settings panel, export and import |
-| `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), session cache of page thumbnails |
+| `thumbs.mjs` | Compressed thumbnails (covers, bookmarks), video frames and video thumbnails, session cache of page thumbnails |
 | `view.mjs` | Virtualized reader, thumbnail strip, image loading queue |
 | `model.mjs` | Page types, sorting and layout math |
 | `sources.mjs` | Folder scanning and file access, books and their source folders (volumes) |
@@ -314,6 +314,7 @@ node tests/queue.browser.mjs "<path>"
 node tests/windows.browser.mjs "<path>"
 node tests/sections.browser.mjs "<path>"
 node tests/media.browser.mjs "<path>"
+node tests/mediathumbs.browser.mjs "<path>"
 ```
 
 Things the automated tests can't cover:
@@ -323,7 +324,7 @@ Things the automated tests can't cover:
 - middle-click auto-scroll across tall images on Windows;
 - the real window frame of the installed app;
 - handing background disk work over as real windows move between the foreground, the background and minimized;
-- a large video library on a real hard drive (disk use when opening and seeking), how videos look while dragging a real window edge, and real video fullscreen.
+- a large video library on a real hard drive (disk use when opening, seeking and making video thumbnails), how videos look while dragging a real window edge, and real video fullscreen.
 
 ### Releasing
 

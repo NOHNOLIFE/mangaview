@@ -128,6 +128,8 @@ export class Reader {
     this.layout();this.paint();
   }
   clear(p){for(const el of p.slots.values())release(el);p.slots.clear();p.strip.replaceChildren();}
+  // 正文是否还有图在排队或读取：后台生成视频画面让位于阅读（thumbs.mjs installFrames）。
+  busy(){for(const j of jobs.values())if(!j.small&&!j.dead&&(!j.started||j.held))return true;return false;}
   show(book,anchor){
     for(const p of this.panes)this.clear(p);
     this.book=book;this.browsing=false;this.held=null;this.main.scrollTop=0;this.preview.scrollTop=0;this.cap=this.main.clientHeight||Infinity;this.layout(anchor||null);
@@ -187,11 +189,13 @@ export class Reader {
         if(!node){node=document.createElement('div');node.className='page';node.dataset.name=page.name;node.dataset.n=i+1;/* 只有缩略图悬停时显示文件名 */if(k)node.title=shownName(page);p.strip.append(node);slots.set(i,node);}
         node.style.top=starts[i]+'px';node.style.height=starts[i+1]-starts[i]+'px';
         const kind=pageKind(page);
-        // 视频、音频页交给 media.mjs（hooks.media）：正文里是播放器，缩略图栏里是固定样式的占位，不读文件。
+        // 视频、音频页交给 media.mjs（hooks.media）：正文里是播放器，缩略图栏里是固定样式的占位；视频的占位上再叠真实画面（hooks.frame，持久化，只为可见项生成）。
         // visible：与视窗相交；只有它们持有媒体源，相邻页不预加载。
         if(kind!=='image'){
           node.style.maxWidth=!k&&kind==='video'?videoWidth(page,el.clientWidth,this.fit,this.cap)+'px':'';
-          this.hooks.media?.(node,this.book,page,kind,k,i>=first&&i<=last);continue;
+          this.hooks.media?.(node,this.book,page,kind,k,i>=first&&i<=last);
+          if(k&&kind==='video')this.hooks.frame?.(node,this.book,page,i>=first&&i<=last); // 缩略图栏里的视频叠上真实画面（thumbs.mjs installFrames）
+          continue;
         }
         if(!k && !this.fit && page.w)node.style.maxWidth=page.w+'px';else node.style.maxWidth='';
         const ahead=this.up ? i<first : i>last;
