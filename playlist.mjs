@@ -1,4 +1,4 @@
-// 播放顺序与循环（docs/requirements-media.zh-CN.md 3.7）、只播放书签区段（4.5）的纯逻辑，不碰界面和存储（media.mjs 调用，tests/core.test.mjs 覆盖）。
+// 播放顺序与循环（docs/requirements-media.zh-CN.md 3.7）、只播放书签区段（4.5）、新窗口播放的地址与窗口大小（10.2）的纯逻辑，不碰界面和存储（media.mjs 调用，tests/core.test.mjs 覆盖）。
 // 播放顺序：'list' 列表（默认）、'single' 单集、'shuffle' 随机；壳上的按钮按 ORDERS 的次序轮换。
 export const ORDERS=['list','shuffle','single'];
 export const orderOf=v=>ORDERS.includes(v)?v:'list';
@@ -42,4 +42,21 @@ export function sectionStep(ranges,t,k){
   if(r&&t>=r.a-EPS)return {k};
   const i=ranges.findIndex(x=>x.a<=t&&t<x.b-EPS);
   return {k:i<0?null:i};
+}
+
+// ---- 新窗口播放（10.2）：新窗口的地址带上书的 id、页名和时间点（秒），新窗口启动时据此定位并从该处播放（media.mjs、app.mjs）。
+export function popoutUrl(path,{book,name,t}){return path+'?'+new URLSearchParams({play:book,page:name,t:String(Number.isFinite(t)&&t>0?Math.round(t*1000)/1000:0)});}
+// 读地址里的目标：{book,name,t}，不是新窗口播放时为 null。
+export function popoutTarget(search){
+  const q=new URLSearchParams(search),book=q.get('play'),name=q.get('page');if(!book||name==null)return null;
+  const t=Number(q.get('t'));return {book,name,t:Number.isFinite(t)&&t>0?t:0};
+}
+// 新窗口的大小：默认开成较小的窗口。宽约为屏幕可用宽度的 45%（480–960）；视频按画面比例（未知时 16:9）定高，过高时按屏幕高度收窄；音频是一条横条，窗口矮一些。
+export function popoutSize(kind,page,screen={}){
+  const aw=screen.availWidth||1280,ah=screen.availHeight||800,top=Math.round(ah*.85);
+  let w=Math.round(Math.min(960,Math.max(480,aw*.45)));
+  if(kind==='audio')return {width:w,height:Math.min(top,360)};
+  const r=page?.w>0&&page?.h>0?page.h/page.w:9/16;let h=Math.round(w*r);
+  if(h>top){h=top;w=Math.max(320,Math.round(h/r));}
+  return {width:w,height:Math.max(240,h)};
 }

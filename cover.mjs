@@ -1,7 +1,6 @@
 import {extend} from './lang.mjs';
-import {forget} from './thumbs.mjs';
+import {forget,grabFrame} from './thumbs.mjs';
 import {pageKind} from './model.mjs';
-import {grabFrame} from './media.mjs';
 // 自定义封面：书架卡片的「设置封面」列出这本书的全部书签缩略图，点选其一即设为封面；「重置封面」恢复默认封面。对所有书可用。
 // 自定义封面是一份独立的压缩小图，存在 thumbs 的 `${book.id}:custom`，记录为 book.customCover={bm,r,at}（r：高宽比，瀑布流按它排版；at：设置时间，卡片据此判断要不要换图）。
 // 之后删除该书签、刷新、恢复、重新导入都不改变它；随书目和缩略图进入备份。它不参与识别：恢复用的指纹（book.fp）只来自默认封面。

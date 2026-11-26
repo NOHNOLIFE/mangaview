@@ -4,6 +4,7 @@ import {library,thumbs,update,isFrozen} from './store.mjs';
 import {getThumb,saveThumb,makeThumb,dropThumbs,forgetPages,forget,installFrames} from './thumbs.mjs';
 import {snap,merge,changes,adopt,refresh} from './merge.mjs';
 // 功能模块：每个模块导出 install(ctx)，在本文件末尾统一安装。
+import {popoutTarget} from './playlist.mjs';
 import {timed,isStuck,isDead,probe,source,scan,skipped,fileGroups,handleGroups,looseImages,looseFiles,reconnect,readMissingTimes,isLive,listDir,mergeKeys,applyNames,settle,down,sourceOf,isMerged,keyOf,makePage,isLoose,dirOf,addLoose,looseNames,allPages,mediaSizes} from './sources.mjs';
 import {install as shelfUI} from './shelf.mjs';
 import {Reader,imageJob,release} from './view.mjs';
@@ -679,7 +680,7 @@ function normalize(b){
   return b;
 }
 // 只保留一个散图图集：旧版本遇到同名图片会另建一本，载入时并入一本（最近打开的那本，否则最新添加的那本，它的书名、位置、排序和阅读位置保留）。
-// 各本的页按 addLoose 规则并入（同一个文件只留一份，同名的不同图片页名加序号），书签随之改写页名，标签取并集；
+// 各本的页按 addLoose 规则并入（同一个文件只留一份，同名的不同图片页名加序号），书签和播放位置（mediaPos，已有的为准）随之改写页名，标签取并集；
 // 先保存并入后的图集，再删除其余记录，中途关闭也不丢数据（下次载入再并一次，重复的页按同一规则去掉）。
 async function joinLoose(list){
   const last=get('last'),keep=list.find(b=>b.id===last)??list.reduce((a,b)=>(b.added??0)>(a.added??0)?b:a),moved=[];
@@ -687,6 +688,9 @@ async function joinLoose(list){
     if(b===keep)continue;
     const names=await addLoose(keep,allPages(b)),have=new Set(keep.bookmarks.map(m=>m?.id));
     for(const m of b.bookmarks){if(!m||have.has(m.id))continue;if(typeof m.name==='string')m.name=names.get(m.name)??m.name;if(typeof m.end?.name==='string')m.end.name=names.get(m.end.name)??m.end.name;keep.bookmarks.push(m);if(m.id!=null)moved.push([b,m]);}
+    const pos=Array.isArray(keep.mediaPos)?keep.mediaPos:[],had=new Set(pos.map(x=>x?.id));
+    for(const x of Array.isArray(b.mediaPos)?b.mediaPos:[]){const id=typeof x?.id==='string'?names.get(x.id)??x.id:null;if(id!=null&&!had.has(id)){had.add(id);pos.push({...x,id});}}
+    if(pos.length)keep.mediaPos=pos;
     keep.tags=[...new Set([...keep.tags,...b.tags])];if(keep.name==null&&b.name)keep.name=b.name;
   }
   if(sortMode(keep)!=='shuffle')keep.pages=sortedPages(keep.pages,sortMode(keep),dirOf(keep));
@@ -706,6 +710,8 @@ ctx.settings.push(
   {id:'lang',group:'general',label:'langLabel',type:'choice',options:[{value:'',label:'langAuto'},...languageList.map(v=>({value:v,text:{en:'English',zh:'中文',ja:'日本語',ko:'한국어'}[v]}))],get:()=>langPref()||'',set:v=>setLang(v)},
   {id:'autoCheck',group:'general',label:'autoCheck',type:'toggle',get:()=>get('autoCheck',true),set:v=>put('autoCheck',v)},
   {id:'edgeRight',group:'reading',label:'edgeRight',type:'toggle',get:()=>get('edgeRight',true),set:v=>put('edgeRight',v)});
+// 新窗口播放（media.mjs）打开的窗口：地址里带着要接着播放的书、媒体和时间点。打开这本书并从该处播放，不做启动时的全量文件夹检查（windows.mjs 也不接手）。
+const popped=popoutTarget(location.search);ctx.popout=!!popped;if(popped)history.replaceState(null,'',location.pathname);
 
 
 try{for(const b of await library('getAll')){try{const base=snap(b),old=b.added==null;books.set(b.id,normalize(b));bases.set(b,base);if(old)persist(b);}catch(e){console.warn(e);}}}catch{notice('storage');} // 旧记录补上的添加时间写回，排序才稳定
@@ -716,9 +722,10 @@ toolPanel(ctx);mediaPlayer(ctx);installFrames(ctx);
 pbfImport(ctx);
 
 await probeAll([...books.values()]);probed=true;
-select(books.get(get('last'))||books.values().next().value);
+select((popped&&books.get(popped.book))||books.get(get('last'))||books.values().next().value);
+if(popped&&current?.id===popped.book){const book=current;queueMicrotask(()=>{if(current===book)ctx.media?.resume?.(book,popped.name,popped.t);});} // 在 'select' 事件之后
 accessState(true);(listeners.books??=[]).push(()=>accessState(false));ctx.started=true;
-if(get('autoCheck',true))safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
+if(get('autoCheck',true)&&!ctx.popout)safe(()=>refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹（新窗口播放打开的窗口除外）
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
 try{if(sessionStorage.getItem(prefix+'reset')){sessionStorage.removeItem(prefix+'reset');notice('resetDone');}}catch{} // 还原默认设置后的重新载入
 if(new URLSearchParams(location.search).get('from')==='v1'){history.replaceState(null,'',location.pathname);notice('upgraded',undefined,10000);}

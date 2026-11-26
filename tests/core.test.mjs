@@ -7,7 +7,7 @@ import {grade,assign,coverName,hue,norm,mediaOverlap} from '../match.mjs';
 import {KEYS,ZONES,ROWS,MOUSE,MORE,pieces,plain} from '../help.mjs';
 import {snap,merge,changes,adopt,refresh,print} from '../merge.mjs';
 import {pair,ranges,fits} from '../sections.mjs';
-import {ORDERS,orderOf,following,sectionStart,sectionStep} from '../playlist.mjs';
+import {ORDERS,orderOf,following,sectionStart,sectionStep,popoutUrl,popoutTarget,popoutSize} from '../playlist.mjs';
 import {mergeMarks} from '../backup.mjs';
 import {skipped,handleGroups,fileGroups,scan,reconnect,source,readMissingTimes,mergeKeys,applyNames,settle,down,makePage,allPages,listDir,dirOf,addLoose,looseImages,looseFiles,looseNames,isLive,mediaSizes,pairFrom,pbfFile,hasPbf} from '../sources.mjs';
 import {parsePbf,decodePbf,mergePbf,pbfId} from '../pbf.mjs';
@@ -522,4 +522,19 @@ test('.pbf 的配对随扫描、刷新、散图一同得出，读取只取配对
   const album={id:'L',title:null,sources:[],pages:[],bookmarks:[]},h=file('q.mp3');
   await addLoose(album,[{name:'q.mp3',handle:h}]);await addLoose(album,[{name:'q.mp3',handle:h,pbf:{handle:file('q.pbf','Q')}}]);
   assert.equal(album.pages.length,1);assert.equal(await (await pbfFile(album,album.pages[0])).text(),'Q');
+});
+test('新窗口播放：地址带上书、页名和时间点，读回一致；不是新窗口播放时为空；窗口开得比屏幕小，视频按画面比例',()=>{
+  const url=popoutUrl('/mangaview/',{book:'b-1',name:'A/01 clip #1 & x?.webm',t:12.34567});
+  assert.ok(url.startsWith('/mangaview/?play=b-1&'));
+  assert.deepEqual(popoutTarget(url.slice(url.indexOf('?'))),{book:'b-1',name:'A/01 clip #1 & x?.webm',t:12.346});
+  assert.deepEqual(popoutTarget(popoutUrl('/',{book:'b',name:'a.wav',t:NaN}).slice(1)),{book:'b',name:'a.wav',t:0});
+  for(const s of ['','?from=v1','?play=b','?page=a.wav&t=3'])assert.equal(popoutTarget(s),null,s);
+  assert.equal(popoutTarget('?play=b&page=a.wav&t=-4').t,0);
+  const screen={availWidth:1920,availHeight:1040};
+  assert.deepEqual(popoutSize('video',{w:1920,h:1080},screen),{width:864,height:486});
+  assert.deepEqual(popoutSize('video',{},screen),{width:864,height:486},'Unknown size: 16:9');
+  assert.deepEqual(popoutSize('audio',{},screen),{width:864,height:360});
+  const tall=popoutSize('video',{w:1080,h:1920},screen);assert.equal(tall.height,884);assert.equal(tall.width,497,'Tall videos narrow the window to fit the screen');
+  assert.deepEqual(popoutSize('video',{w:16,h:9},{availWidth:800,availHeight:600}),{width:480,height:270},'At least 480 wide');
+  assert.ok(popoutSize('video',null,{availWidth:3840,availHeight:2100}).width<=960);
 });
