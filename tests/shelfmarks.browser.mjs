@@ -247,14 +247,15 @@ try {
     true,
   );
   assert.equal(await js('document.activeElement===reader'), true, 'Focus returns to the reader');
-  // 跨书（总控栏的开关）关闭时：只在本书的书签之间跳，到头回到本书第一个，不进入别的书。
+  // 总控栏的循环不是跨书循环（默认本书循环）时：只在本书的书签之间跳，到头回到本书第一个，不进入别的书。
   await tap();
   await wait(async () => JSON.stringify(await center()) === JSON.stringify(['Alpha', 2, 0.5]));
   assert.equal(await text(), 'Back to the first bookmark');
   await tap();
   await wait(async () => JSON.stringify(await center()) === JSON.stringify(['Alpha', 6, 0.5]));
-  await js(`document.querySelector('#controlbar [data-id="crossBook"]').click()`);
-  // 开启后：短按 F 沿列表跨书前进，末尾回到开头。
+  await js(`document.querySelector('#controlbar [data-id="loop"]').click()`); // 本书 → 跨书循环
+  assert.equal(await js(`document.querySelector('#controlbar [data-id="loop"]').dataset.loop`), 'books');
+  // 跨书循环时：短按 F 沿列表跨书前进，末尾回到开头。
   await tap();
   await wait(async () => JSON.stringify(await center()) === JSON.stringify(['Beta', 3, 0.5]));
   assert.equal(await text(), 'Bookmark 3 / 3 · Beta');

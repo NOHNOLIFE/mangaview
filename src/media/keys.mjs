@@ -1,4 +1,4 @@
-// 媒体按键：长按 A / D / ← / → 快退 / 快进当前媒体（ctx.pageHold）；空格 = 总控栏的大播放键（ctx.transport.toggle）、Q / E 调音量、Z / / 新窗口播放（ctx.keys）。
+// 媒体按键：长按 A / D / ← / → 快退 / 快进当前媒体（ctx.pageHold）；空格 = 总控栏的「自动滚动」（ctx.transport.toggle）、Q / E 调音量（ctx.keys）。
 // 按住快退 / 快进的推进（S.hold）是同一份逻辑：长按 A / D 与文件栏、音频卡片时间处的快退 / 快进按钮（shell.mjs makeTime）共用，
 // 按下立即走一步（core/model.mjs seekStep：最初 2 秒），按住每 250 毫秒再走一步，步长随按住的时间递增；提示浮层显示累计偏移与目标时间。
 import { clock, seekStep, nudge } from '../core/model.mjs';
@@ -6,7 +6,6 @@ import { clock, seekStep, nudge } from '../core/model.mjs';
 export function install(ctx, S) {
   const { players, api } = S;
   const current = (...a) => S.current(...a),
-    popout = (...a) => S.popout(...a),
     setVolume = (...a) => S.setVolume(...a),
     progress = (...a) => S.progress(...a),
     showHud = (...a) => S.showHud(...a),
@@ -56,8 +55,7 @@ export function install(ctx, S) {
     start: (d) => hold.start(current(), d),
     stop: () => hold.stop(),
   };
-  // 按键：空格（含 Shift）是总控栏的大播放键（运行 / 停止，见 reader/transport.mjs），不滚动；Q / ; 音量减、E / ' 音量加（每次 5%，按住连续调）；Z / / 新窗口播放当前媒体（无当前媒体时无功能）。
-  // 书架页、全屏界面里的 / 是聚焦搜索框：它们是对话框，reader/keys.mjs 不把按键交到这里。
+  // 按键：空格（含 Shift）是总控栏的「自动滚动」（开始 / 停止，见 reader/transport.mjs），不滚动；Q / ; 音量减、E / ' 音量加（每次 5%，按住连续调）。
   ctx.keys.push({
     down(e) {
       if (e.key === ' ' || e.code === 'Space') {
@@ -67,14 +65,6 @@ export function install(ctx, S) {
       }
       if (e.altKey) return false;
       const k = e.key.toLowerCase();
-      if (k === 'z' || k === '/') {
-        e.preventDefault();
-        if (!e.repeat) {
-          const p = current();
-          if (p && p.state !== 'failed') popout(p);
-        }
-        return true;
-      }
       const d =
         k === 'q' || k === ';' || e.code === 'Semicolon' ? -1 : k === 'e' || k === "'" || e.code === 'Quote' ? 1 : 0;
       if (!d) return false;

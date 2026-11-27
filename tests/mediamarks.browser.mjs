@@ -252,39 +252,12 @@ try {
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
     ['bookmark', 'section'],
   );
-  // 播放顺序只在影音模式下可用（混合模式按页序）。
-  await js(`${bar('mode-media')}.click()`);
-  assert.equal(await js(`${bar('order')}.disabled`), false);
-  const orderState = () =>
-    js(
-      `(()=>{const b=${bar('order')};return [b.querySelector('use').getAttribute('href'),b.getAttribute('aria-label')];})()`,
-    );
-  assert.deepEqual(await orderState(), ['#i-order-list', 'Play order: list'], 'Default: list');
-  const icons = [];
-  for (let k = 0; k < 3; k++) {
-    await js(`${bar('order')}.click()`);
-    icons.push((await orderState())[0]);
-  }
-  assert.deepEqual(
-    icons,
-    ['#i-order-shuffle', '#i-order-single', '#i-order-list'],
-    'One button cycles three states with three icons',
-  );
-  assert.equal(await js(`localStorage.getItem('mv2:playOrder')`), '"list"');
-  await js(`${bar('loop')}.click()`);
-  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'true');
-  assert.equal(await js(`localStorage.getItem('mv2:playLoop')`), 'true');
-  await js(`${bar('loop')}.click()`);
-  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'false');
-  // 别的窗口改了设置：即时应用。
-  await storage('playOrder', 'single');
-  assert.equal((await orderState())[0], '#i-order-single', 'Synced from another window');
-  await storage('playOrder', 'list');
-  await storage('playLoop', true);
-  assert.equal(await js(`${bar('loop')}.getAttribute('aria-pressed')`), 'true');
-  await storage('playLoop', false);
-  await js(`${bar('mode-mixed')}.click()`);
-  assert.equal(await js(`${bar('order')}.disabled`), true, 'Play order is unavailable in mixed mode');
+  // 没有「播放顺序」按钮；循环是总控栏的三态按钮（见 controlbar.browser.mjs），别的窗口改了即时应用。
+  assert.equal(await js(`!${bar('order')}`), true, 'No play order button');
+  await storage('loopMode', 'file');
+  assert.equal(await js(`${bar('loop')}.dataset.loop`), 'file', 'Synced from another window');
+  await storage('loopMode', null);
+  assert.equal(await js(`${bar('loop')}.dataset.loop`), 'book');
   // 书里一个区段都没有：开关可以开，提示「本书没有书签区段」。
   await js(`${bar('sections')}.click()`);
   await said('This book has no bookmark sections');
@@ -507,75 +480,39 @@ try {
   assert.equal(await paused('03 long.wav'), true, 'Autoplay off: stays paused');
   await js(`localStorage.setItem('mv2:autoplay','false')`); // 下面显式播放，不让自动播放插手
 
-  // ---- 播放顺序与循环（只在影音模式下生效：混合模式按页序，播完不按播放顺序切换）。
+  // ---- 影音模式播完后按页序切换，循环（本书〔默认〕/ 单文件）决定末尾与重复（混合模式由自动滚动往下滚，不在这里切换）。
   await js(`${bar('mode-media')}.click()`);
   const stopAll = () => js(`for(const e of reader.querySelectorAll('video,audio'))e.pause()`);
   const nearEnd = (name) =>
     js(`(()=>{const e=el(${JSON.stringify(name)});e.currentTime=Math.max(0,e.duration-.4);return e.play();})()`);
-  // 列表、循环关：按页序播放下一个媒体（图片跳过），滚到视窗中央、从头播放。
+  // 按页序播放下一个媒体（图片跳过），滚到视窗中央、从头播放。
   await stopAll();
   await toPageReady('03 long.wav');
   await nearEnd('03 long.wav');
   await wait(
     async () => !(await paused('04 clip.webm')) && (await centred('04 clip.webm')),
-    'list: next media plays centred',
+    'next media in page order plays centred',
   );
   assert.ok((await now('04 clip.webm')) < 1, 'From the start');
-  // 列表的最后一个播完停下。
+  // 本书循环：最后一个之后回到第一个。
   await stopAll();
   await toPageReady('06 tail.wav');
   await nearEnd('06 tail.wav');
-  await wait(async () => await paused('06 tail.wav'), 'ended');
-  await delay(800);
-  assert.equal(await anyPlaying(), false, 'List end stops');
-  // 列表 + 循环：最后一个之后回到第一个。
-  await storage('playLoop', true);
-  await nearEnd('06 tail.wav');
   await wait(
     async () => !(await paused('02 clip.webm')) && (await centred('02 clip.webm')),
-    'loop wraps to the first media',
+    'book loop wraps to the first media',
   );
-  // 单集 + 循环：重复播放当前媒体；单集、循环关：播完停下。
+  // 单文件循环：重复播放当前媒体。
   await stopAll();
-  await storage('playOrder', 'single');
+  await storage('loopMode', 'file');
   await toPageReady('04 clip.webm');
   await nearEnd('04 clip.webm');
-  await wait(async () => !(await paused('04 clip.webm')) && (await now('04 clip.webm')) < 0.8, 'single + loop repeats');
-  await storage('playLoop', false);
-  await nearEnd('04 clip.webm');
-  await wait(async () => await paused('04 clip.webm'), 'single stops');
-  await delay(600);
-  assert.equal(await anyPlaying(), false);
-  // 随机、循环关：不重复地把每个媒体播一遍后停下。
-  await storage('playOrder', 'shuffle');
-  await toPageReady('02 clip.webm');
-  const order = ['02 clip.webm'];
-  await nearEnd('02 clip.webm');
-  const playingName = () =>
-    js(
-      `(()=>{const e=[...reader.querySelectorAll('video,audio')].find(e=>!e.paused);return e?e.closest('.page').dataset.name:null;})()`,
-    );
-  for (let n = 0; n < 6; n++) {
-    const next = await wait(async () => {
-      const cur = await playingName();
-      if (cur && cur !== order.at(-1)) return cur;
-      return order.length === 4 && !cur ? 'done' : null;
-    }, 'shuffle next');
-    if (next === 'done') break;
-    order.push(next);
-    await nearEnd(next);
-  }
-  await delay(800);
-  assert.equal(await anyPlaying(), false, 'Shuffle stops after one round');
-  assert.deepEqual(
-    [...order].sort(),
-    ['02 clip.webm', '03 long.wav', '04 clip.webm', '06 tail.wav'],
-    'Shuffle plays each media once: ' + order,
-  );
-  await storage('playOrder', 'list');
+  await wait(async () => !(await paused('04 clip.webm')) && (await now('04 clip.webm')) < 0.8, 'file loop repeats');
+  await stopAll();
+  await storage('loopMode', null);
 
   // ---- 只播放书签区段。03 有区段 5–10 和 12–14，06 有区段 2–4，04 没有区段（自动切换时跳过）。
-  await deselect(); // 随机播放最后选中的媒体不再是当前文件，长按 Shift+F 作用于视窗中心的 03
+  await deselect(); // 最后选中的媒体不再是当前文件，长按 Shift+F 作用于视窗中心的 03
   await toPageReady('03 long.wav');
   await at('03 long.wav', 14);
   await hold(true);
@@ -675,7 +612,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: play order / loop buttons and their six behaviours, play position memory, media bookmarks (hold F, shell buttons, 2 s duplicates, time markers on the seek bar, type badges, lazy video thumbnails), media section bookmarks paired by time, F jumps into media, play bookmark sections only, bookmark thumbnail failures recorded with the file size and time',
+    'PASS: no play order button, loop synced, media mode moves on in page order (book loop wraps, file loop repeats), play position memory, media bookmarks (hold F, shell buttons, 2 s duplicates, time markers on the seek bar, type badges, lazy video thumbnails), media section bookmarks paired by time, F jumps into media, play bookmark sections only, bookmark thumbnail failures recorded with the file size and time',
   );
 } finally {
   if (ws?.readyState === 1) {

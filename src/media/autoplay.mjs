@@ -1,12 +1,12 @@
 // 选中媒体、当前文件与自动播放：
 // - 选中媒体 S.selected（规则见 core/selection.mjs，select / release）：带 .selected 类（不压暗、没有大播放键，shell.css）；
 //   中线离开视窗（全屏中的除外）、切书、播放器被释放时取消。
-// - 当前文件（target：选中的媒体，否则视窗中心所在的页，含图片）：文件栏、书签快捷键、长按 A / D、Z 新窗口播放作用的对象；
+// - 当前文件（target：选中的媒体，否则视窗中心所在的页，含图片）：文件栏、书签快捷键、长按 A / D 作用的对象；
 //   current 是其中的媒体播放器（播不了的、图片为 null）。
 // - 运行引擎挑哪个媒体（pick：选中的，否则正在播放的，否则中线在视窗内、离视窗中心最近的）与自动播放挑哪个视频的规则另算，不随当前文件变化。
-// 媒体中线离开视窗即暂停、滚动停稳后自动播放、启动或切书后有过用户操作才自动播放；设置里的「自动播放」开关。
+// 媒体中线离开视窗即暂停、滚动停稳后自动播放、启动或切书后有过用户操作才自动播放；设置里的「自动播放」开关（默认关闭）。
 // 未运行时（手动浏览）：漫画模式下任何媒体都不自动播放；混合、影音模式下只有视频在滚动停稳时自动播放，
-// 音频只在点击音频书签、播放顺序 / 循环切到它、运行中轮到它时开始。运行中由总控的驱动器决定播放什么，这里不插手。
+// 音频只在点击音频书签、影音模式切到它、自动滚动中轮到它时开始。自动滚动中由总控的驱动器决定播放什么，这里不插手。
 // 翻屏对齐（align，keys.mjs 的 A / D / ← / →）：翻过去之后有视频进入播放范围时，直接落在该视频居中处（漫画模式、自动播放关闭时不对齐）。
 // 视窗中心所在的视频带 .mv-center（未选中的视频压得更暗，它恢复到普通的压暗程度，shell.css）：滚动、重画时每帧至多更新一次，
 // 只按页的累计高度二分查找（centerIndex），不遍历页、不读布局。
@@ -29,7 +29,7 @@ const SETTLE = 300;
 
 export function install(ctx, S) {
   const { main, get, put } = ctx,
-    { players, rounds } = S;
+    { players } = S;
   const start = (...a) => S.start(...a);
   let armed = false;
   ctx.prefs.sync('autoplay');
@@ -119,7 +119,7 @@ export function install(ctx, S) {
     }
   }
   let settleTimer = 0;
-  const allowed = () => get('autoplay', true) && ctx.transport?.mode !== 'comic';
+  const allowed = () => get('autoplay', false) === true && ctx.transport?.mode !== 'comic';
   function settled() {
     if (!allowed() || !armed || document.hidden || ctx.transport?.running) return;
     if ([...players.values()].some((p) => (p.state === 'ready' && !p.el.paused) || p.wantPlay)) return;
@@ -183,17 +183,16 @@ export function install(ctx, S) {
     armed = false;
     S.queued = null;
     setSelected(selectAfter(S.selected, { type: 'book' }));
-    rounds.delete(ctx.current);
   });
 
-  // ---- 设置：自动播放（默认开启，设置类偏好，跨窗口同步）。
+  // ---- 设置：自动播放（默认关闭，设置类偏好，跨窗口同步）。
   ctx.settings.push({
     id: 'autoplay',
     group: 'reading',
     label: 'mvAutoplay',
     hint: 'mvAutoplayHint',
     type: 'toggle',
-    get: () => get('autoplay', true),
+    get: () => get('autoplay', false) === true,
     set: (v) => put('autoplay', v),
   });
   Object.assign(S, { inView, current, target, pick, select, release, align, centerSoon });

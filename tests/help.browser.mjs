@@ -144,14 +144,12 @@ try {
     'T',
     'Q',
     'E',
-    'Z',
     'ShiftLeft',
     'Space',
     'Enter',
     'ShiftRight',
     ';',
     "'",
-    '/',
     '[',
     ']',
     'Home',
@@ -180,7 +178,8 @@ try {
     [...bound].sort(),
     'Only bound keys are highlighted',
   );
-  for (const k of ['R', 'G', 'Tab', 'CapsLock', 'ControlLeft', 'Backspace', 'P'])
+  for (const k of ['R', 'G', 'Tab', 'CapsLock', 'ControlLeft', 'Backspace', 'P', 'Z', '/'])
+    // Z、/ 没有功能（不再有新窗口播放）
     assert.deepEqual(
       await js(
         '(()=>{const el=' +

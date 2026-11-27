@@ -6,7 +6,7 @@
 //   之后每次挂上源只取文件的大小和修改时间，变了才重读；读不到时简短提示，不影响播放。
 // - 开关全局记住（偏好 'subs'，跨窗口同步）；选择按媒体记在书目记录的 book.subPick=[{id:页名,f:字幕文件名}]（按条目合并，见 merge.mjs），
 //   没选过的默认取与媒体完全同名的，其次按文件名顺序第一个（model.mjs defaultSub）。
-// - 显示在面板（shell.mjs）建好的字幕容器 p.subs（.mv-subs）里：视频叠在画面底部（全屏、新窗口播放同样显示），音频在卡片里始终占位 3 行的字幕区。
+// - 显示在面板（shell.mjs）建好的字幕容器 p.subs（.mv-subs）里：视频叠在画面底部（全屏同样显示），音频在卡片里始终占位 3 行的字幕区。
 // 时间更新：timeupdate，视频播放中另用 requestVideoFrameCallback 逐帧；定位、变速、只播区段的跳转后立即刷新；卸载源时清空。
 import { extend } from '../core/lang.mjs';
 import { fileOf, defaultSub } from '../core/model.mjs';

@@ -4,7 +4,6 @@ import { languageList } from './core/lang.mjs';
 import { natural } from './core/model.mjs';
 import { library, thumbs } from './core/store.mjs';
 import { snap } from './core/merge.mjs';
-import { popoutTarget } from './core/playlist.mjs';
 import { source, mergeKeys, down, isLive, isLoose } from './core/sources.mjs';
 import { t, fmt, title, lang, langPref } from './core/locale.mjs';
 import { listeners, emit } from './core/events.mjs';
@@ -168,7 +167,7 @@ ctx.pageHold = null; // 长按翻页键的接入点（见 reader/keys.mjs 的 HO
 // - bookmarks.mjs：marks、shelfmarks；overview.mjs：overview；thumbs.mjs：frames；pbf.mjs：pbf
 // - transport.mjs：transport（总控的状态与驱动器）；single.mjs：single（单文件模式）；controlbar.mjs：controlBar
 // - media.mjs：media、player、mediaTile、pageHold；filecard.mjs：fileCard（文件详情框）
-// - 本文件启动流程：popout（新窗口播放打开的窗口）、started（启动完成）
+// - 本文件启动流程：started（启动完成）
 prefsSync(ctx);
 readerShell(ctx);
 prefs.sync('autoCheck').sync('edgeRight').sync('edgeLeft');
@@ -217,11 +216,6 @@ ctx.settings.push(
     set: (v) => put('edgeRight', v),
   },
 );
-// 新窗口播放（media.mjs）打开的窗口：地址里带着要接着播放的书、媒体和时间点。打开这本书并从该处播放，不做启动时的全量文件夹检查（windows.mjs 也不接手）。
-const popped = popoutTarget(location.search);
-ctx.popout = !!popped;
-if (popped) history.replaceState(null, '', location.pathname);
-
 try {
   for (const b of await library('getAll')) {
     try {
@@ -269,17 +263,11 @@ pbfImport(ctx);
 
 await probeAll([...books.values()]);
 markProbed();
-select((popped && books.get(popped.book)) || books.get(get('last')) || books.values().next().value);
-if (popped && current?.id === popped.book) {
-  const book = current;
-  queueMicrotask(() => {
-    if (current === book) ctx.media?.resume?.(book, popped.name, popped.t);
-  });
-} // 在 'select' 事件之后
+select(books.get(get('last')) || books.values().next().value);
 accessState(true);
 (listeners.books ??= []).push(() => accessState(false));
 ctx.started = true;
-if (get('autoCheck', true) && !ctx.popout) safe(() => refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹（新窗口播放打开的窗口除外）
+if (get('autoCheck', true)) safe(() => refreshAll(false))(); // 每次打开或刷新页面时检查一次已授权的文件夹
 // 从旧版 v1（dist/）迁移过来时提示安装新版。
 try {
   if (sessionStorage.getItem(prefix + 'reset')) {

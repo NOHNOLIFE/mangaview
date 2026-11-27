@@ -58,7 +58,6 @@ const shell = [
     'src/media/media.mjs',
     'src/media/order.mjs',
     'src/media/player.mjs',
-    'src/media/popout.mjs',
     'src/media/position.mjs',
     'src/media/scrub.mjs',
     'src/media/sections.mjs',
