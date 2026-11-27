@@ -30,7 +30,7 @@ export function install(ctx, S) {
   dockGrip.setAttribute('aria-orientation', 'vertical');
   dockGrip.tabIndex = 0;
   dock.append(dockHead, dockList, dockGrip);
-  S.mates(dockList);
+  S.cards(dockList);
   document.getElementById('toolbar').before(dock);
   // 阅读列表里的书（书架页当前选中的页签 + 筛选，不含过期书），顺序与上一本 / 下一本相同。
   const shelfBooks = () => ctx.readingList();
@@ -76,7 +76,7 @@ export function install(ctx, S) {
         const section = make('section', 'sm-book');
         section.dataset.book = book.id;
         section.setAttribute('aria-label', ctx.title(book));
-        section.append(...items.flatMap((x) => S.tiles(book, x, true)));
+        section.append(...items.map((x) => S.tile(book, x, true)));
         if (grid) section.style.containIntrinsicSize = sizeOf(section);
         return section;
       }),
@@ -105,7 +105,8 @@ export function install(ctx, S) {
     for (const s of all) s.style.containIntrinsicSize = sizeOf(s);
   }
   new ResizeObserver(() => estimate()).observe(dockList);
-  // 标出当前书的一组，以及最近书签（当前标记，.active；core/recent.mjs：阅读位置之前最近的一项，本书前面没有时是列表里前面某本书的最后一项）。只改样式，不滚动列表。
+  // 标出当前书的一组，以及最近书签（当前标记，.active；core/recent.mjs：阅读位置之前最近的一项，本书前面没有时是列表里前面某本书的最后一项；
+  // 是区段书签时只高亮那一格的小图）。只改样式，不滚动列表。
   function markDock() {
     if (dock.hidden) return;
     for (const s of dockList.querySelectorAll('.sm-book'))
@@ -115,11 +116,7 @@ export function install(ctx, S) {
   let marked = null;
   function markNear() {
     const r = ctx.current && S.nearest(shelfBooks()),
-      item = r
-        ? dockList.querySelector(
-            `.sm-book[data-book="${CSS.escape(r.book.id)}"] .bm-item[data-id="${CSS.escape(r.id)}"]${r.end ? '[data-end]' : ':not([data-end])'}`,
-          )
-        : null;
+      item = r ? S.spotOf(dockList.querySelector(`.sm-book[data-book="${CSS.escape(r.book.id)}"]`), r) : null;
     if (item !== marked) {
       marked?.classList.remove('active');
       item?.classList.add('active');
@@ -211,13 +208,15 @@ export function install(ctx, S) {
     );
   }
   dockList.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit,.bm-sub-del')) return;
     const section = e.target.closest('.sm-book'),
       book = section && ctx.books.get(section.dataset.book);
     if (!book) return;
+    // 点起点格子跳到起点，点左下角的小图跳到区段书签。
     const item = e.target.closest('.bm-item'),
-      end = !!item && 'end' in item.dataset;
-    if (!item || item.classList.contains('gone')) return;
+      sub = e.target.closest('.bm-sub'),
+      end = !!sub;
+    if (!item || (sub ?? item).classList.contains('gone')) return;
     const x = list(book).find((x) => x.bm.id === item.dataset.id);
     if (x && (end ? x.e >= 0 : x.i >= 0)) goShelf(book, x, end);
     main.focus();

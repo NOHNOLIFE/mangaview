@@ -1,9 +1,9 @@
 import { extend } from '../core/lang.mjs';
 import { shownName } from '../core/model.mjs';
-import { list } from './list.mjs';
+import { list, isMedia } from './list.mjs';
 // 「选择起点」对话框：添加区段书签时（actions.mjs 的 addSection）列出可作起点的书签（core/sections.mjs 的 starts），按位置排序，默认选中最近的一个并滚到可见。
 // 缩略图网格：方向键或点击改选，回车 / 「确定」确认（双击即确认），Esc / 「取消」取消。悬停只高亮、不改选（移向「确定」时不会经过别的书签而改掉选择）。
-// 已有区段的起点带区段标记和虚线框，选中时底部写明「已有区段，将移动终点」。终点在打开之前就已取好，媒体不因对话框暂停。
+// 已有区段的起点带区段标记和虚线框，选中时底部写明「已有区段，将移动终点」。视频、音频书签悬停 / 聚焦时显示文件详情框（filecard.mjs）。终点在打开之前就已取好，媒体不因对话框暂停。
 // 书签很多（几百个）时：格子固定比例，只为进入可见范围的格子画缩略图（IntersectionObserver），加载不引起重排；列表照常可以按住拖动滚动（ui/dragscroll.mjs）。
 extend({
   spTitle: ['Choose the section start', '选择起点', '区間の始点を選択', '구간 시작점 선택'],
@@ -102,10 +102,11 @@ export function install(ctx, S) {
         return { x, node, thumb, img, moves: o.moves, painted: false };
       })
       .filter(Boolean);
+    // 视频、音频书签悬停 / 聚焦时显示文件详情框（filecard.mjs），不设提示。
     items.forEach((it, k) => {
       it.node.dataset.k = k;
       it.node.setAttribute('aria-label', label(it));
-      it.node.title = label(it);
+      if (!isMedia(it.x.bm)) it.node.title = label(it);
     });
     grid.replaceChildren(...items.map((it) => it.node));
     sel = -1;
@@ -124,6 +125,12 @@ export function install(ctx, S) {
   grid.addEventListener('click', (e) => {
     const node = e.target.closest('.stp-item');
     if (node) select(+node.dataset.k, false);
+  });
+  ctx.fileCard?.attach(grid, (target) => {
+    const node = target.closest('.stp-item'),
+      it = node && items[+node.dataset.k];
+    if (!it || !isMedia(it.x.bm) || it.x.i < 0) return null;
+    return { el: node, book, page: book.pages[it.x.i], mark: { id: it.x.bm.id, end: false } };
   });
   grid.addEventListener('dblclick', (e) => {
     const node = e.target.closest('.stp-item');

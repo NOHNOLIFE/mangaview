@@ -115,7 +115,7 @@ try {
   }
   await book('Alpha', true);
   await book('Beta', false);
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(`sortBtn.click();sortPop.querySelector('[data-sort="nameAsc"]').click();shelf.close()`);
   const store = `import('./src/core/store.mjs')`;
@@ -207,7 +207,9 @@ try {
     await wait(() => js(`!document.querySelector('.bm-panel').hidden`));
   };
   const panelActive = () =>
-    js(`[...document.querySelectorAll('.bm-panel .bm-item.active')].map(e=>e.getAttribute('aria-label')).join('|')`);
+    js(
+      `[...document.querySelectorAll('.bm-panel :is(.bm-item, .bm-sub).active')].map(e=>e.getAttribute('aria-label')).join('|')`,
+    );
   await goto(6, 0.5);
   await panelOpen();
   assert.equal(await panelActive(), 'Page 6', 'The ordinary bookmark inside the section is nearer than its start');
@@ -229,23 +231,24 @@ try {
   await wait(() => js(`!document.getElementById('shelfmarks').hidden`));
   const dockActive = () =>
     js(
-      `(()=>{const a=[...document.querySelectorAll('#shelfmarks .bm-item.active')];return a.map(e=>e.closest('.sm-book').getAttribute('aria-label')+' · '+e.getAttribute('aria-label')).join('|');})()`,
+      `(()=>{const a=[...document.querySelectorAll('#shelfmarks :is(.bm-item, .bm-sub).active')];return a.map(e=>e.closest('.sm-book').getAttribute('aria-label')+' · '+e.getAttribute('aria-label')).join('|');})()`,
     );
   await goto(1, 0.5);
-  await wait(async () => (await dockActive()) === 'Alpha · Alpha · Section bookmark · Page 8');
+  // 最近的是区段书签：只高亮起点格子里的那张小图。
+  await wait(async () => (await dockActive()) === 'Alpha · Section bookmark · Page 8');
   await goto(3, 0.6);
   await wait(async () => (await dockActive()) === 'Beta · Beta · Page 4');
   await goto(1, 0.5);
-  await wait(async () => (await dockActive()) === 'Alpha · Alpha · Section bookmark · Page 8');
-  // 全屏书架书签打开时选中同一项（在前面那本书的一组里）。
+  await wait(async () => (await dockActive()) === 'Alpha · Section bookmark · Page 8');
+  // 全屏书架书签打开时选中同一格（在前面那本书的一组里；区段书签所在的格子是它的起点）。
   await tap('c');
   await wait(() => js(`document.getElementById('shelfOverview').open`));
   await delay(250);
   assert.equal(
     await js(
-      `(()=>{const n=document.querySelector('#shelfOverview .ov-mark.sel');return n.getAttribute('aria-label')+('end' in n.dataset?' [end]':'');})()`,
+      `(()=>{const n=document.querySelector('#shelfOverview .ov-mark.sel');return n.getAttribute('aria-label')+' / '+n.querySelector(':scope>.bm-sub')?.getAttribute('aria-label');})()`,
     ),
-    'Alpha · Section bookmark · Page 8 [end]',
+    'Alpha · Page 5 · Section start / Section bookmark · Page 8',
   );
   await tap('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)));
@@ -338,7 +341,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: nearest bookmark before the reading position (panel: this book only, section start and end as separate items, exactly-here counts, nothing before marks nothing; shelf bookmarks fall back to the last item of the previous book and scroll to it; full-screen shelf bookmarks open on it), start picker with 300 candidates (nearest selected and shown, lazy thumbnails, drag scrolling without selecting, arrows / Home, repeated Enter ignored, layout at 800 and 360 wide)',
+    'PASS: nearest bookmark before the reading position (panel: this book only, a section bookmark highlights only its small picture, exactly-here counts, nothing before marks nothing; shelf bookmarks fall back to the last item of the previous book and scroll to it; full-screen shelf bookmarks open on it), start picker with 300 candidates (nearest selected and shown, lazy thumbnails, drag scrolling without selecting, arrows / Home, repeated Enter ignored, layout at 800 and 360 wide)',
   );
 } finally {
   if (ws?.readyState === 1) {

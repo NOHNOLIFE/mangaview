@@ -1,7 +1,7 @@
-import { pageKind, clock } from '../core/model.mjs';
+import { pageKind } from '../core/model.mjs';
 import { forget, grabFrames, frameOf, fileStamp } from '../reader/thumbs.mjs';
 import { isMedia, key, endKey } from './list.mjs';
-import { audioArt } from '../media/art.mjs';
+import { audioArt, typeBadge } from '../media/art.mjs';
 // 书签缩略图：添加书签时截取（图片截视口区域、视频截当前画面），列表里绘制缩略图与媒体占位，视频书签画面的懒生成队列。
 // 视频书签的缩略图是书签时间点的画面：在播放器里添加时直接截当前画面，否则在列表里可见时排队截取（懒生成、串行、持久化）；音频没有画面，显示音频的图（书的封面或占位图，media/art.mjs）。
 const THUMB_W = 240,
@@ -99,15 +99,9 @@ export function install(ctx, S) {
   }
   // 类型角标：视频 / 音频的图标 + 时间点（end：区段终点的时间），叠在缩略图一角，不改变排布。
   function mediaBadge(book, x, end = false) {
-    const el = make('span', 'mv-badge bm-type'),
-      i = end ? x.e : x.i,
+    const i = end ? x.e : x.i,
       page = i >= 0 ? book.pages[i] : null;
-    el.setAttribute('aria-hidden', 'true');
-    el.append(
-      icon(page && pageKind(page) === 'audio' ? 'music' : 'film'),
-      make('span', '', clock((end ? x.bm.end : x.bm).t)),
-    );
-    return el;
+    return typeBadge(ctx, page && pageKind(page) === 'audio' ? 'audio' : 'video', (end ? x.bm.end : x.bm).t);
   }
   // 懒生成：缩略图进入可见范围才排队；串行、空闲时进行，同一个视频的多个书签一次打开截完；截好即保存（别的窗口经 'thumbs' 同步）。
   // 文件打不开（播不了、没有画面）：连同文件的大小和修改时间记入页记录（page.vfail，与视频缩略图共用，见 thumbs.mjs），文件没变就不再尝试；

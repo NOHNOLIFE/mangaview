@@ -157,16 +157,28 @@ export function splitTail(name, keep = 8) {
     n = Math.min(a.length, ext + keep);
   return n >= a.length ? [name, ''] : [a.slice(0, a.length - n).join(''), a.slice(a.length - n).join('')];
 }
+// 全屏缩略图网格的格子比例（高 / 宽）：本书已知尺寸的页面比例的中位数，限制在 0.7 ~ 1.6，一页都不知道时为 1.4。
+// 缩略图栏里的视频、音频也按它（offsets 的 nav），与全屏缩略图的格子同样大小。
+export function cellRatio(pages) {
+  const r = pages
+    .filter((p) => p.w && p.h)
+    .map((p) => p.h / p.w)
+    .sort((x, y) => x - y);
+  return Math.min(1.6, Math.max(0.7, r.length ? r[r.length >> 1] : 1.4));
+}
 // 只为可见项创建元素；累计高度同时用于虚拟窗口、长图内跳转和续读。
 // 媒体页：视频的宽度规则与图片相同、高度按帧比例（尺寸未知时按 16:9），高于 cap（阅读视窗高度）时等比缩小到正好一屏；
-// 音频在正文里是固定高度的卡片（AUDIO_H：文件名、3 行字幕区、控件），在缩略图栏（nav）里是固定比例的小块。
+// 音频在正文里是固定高度的卡片（AUDIO_H：文件名、3 行字幕区、控件）。
+// nav：缩略图栏的排版（宽度一律铺满），视频、音频是与全屏缩略图格子同样比例的小块（cellRatio；nav 为数字时即用它作比例）。
 export const AUDIO_H = 170;
 export function offsets(pages, width, fit, cap = Infinity, nav = false) {
-  const starts = [0];
+  const starts = [0],
+    cell = nav ? width * (typeof nav === 'number' ? nav : cellRatio(pages)) : 0;
   for (const p of pages) {
     const kind = pageKind(p);
     let h;
-    if (kind === 'audio') h = nav ? width * 0.5 : AUDIO_H;
+    if (nav && kind !== 'image') h = cell;
+    else if (kind === 'audio') h = AUDIO_H;
     else {
       const w = p.w || (kind === 'video' ? 1600 : 800),
         ph = p.h || (kind === 'video' ? 900 : 1120);

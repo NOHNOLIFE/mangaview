@@ -333,45 +333,54 @@ try {
   await said('Section end updated');
   await menu(300, 400);
   assert.deepEqual((await marks())[2], ['8.svg', 0.5, ['12.svg', 0.5]]);
-  await wait(() => js(`document.querySelectorAll('.bm-item').length===7`));
-  // 区段书签不计入书签数量；起点和终点是前后紧挨的两项。
+  await wait(() => js(`document.querySelectorAll('.bm-item').length===5`));
+  // 区段书签不计入书签数量；一个区段只占一格：区段书签是起点格子左下角的小图。
   assert.equal(await js(`document.querySelector('.bm-head .count').textContent`), '5');
-  assert.deepEqual(await js(`[...document.querySelectorAll('.bm-item')].map(e=>e.getAttribute('aria-label'))`), [
-    'Page 3 · Section start',
-    'Section bookmark · Page 6',
-    'Page 4',
-    'Page 9 · Section start',
-    'Section bookmark · Page 13',
-    'Page 21',
-    'Page 21',
-  ]);
+  assert.deepEqual(
+    await js(
+      `[...document.querySelectorAll('.bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector(':scope>.bm-sub')?.getAttribute('aria-label')??null])`,
+    ),
+    [
+      ['Page 3 · Section start', 'Section bookmark · Page 6'],
+      ['Page 4', null],
+      ['Page 9 · Section start', 'Section bookmark · Page 13'],
+      ['Page 21', null],
+      ['Page 21', null],
+    ],
+  );
   await wait(() =>
-    js(`[...document.querySelectorAll('.bm-item.sec-end img')].every(i=>i.complete&&i.naturalWidth===240)`),
+    js(`[...document.querySelectorAll('.bm-item > .bm-sub img')].every(i=>i.complete&&i.naturalWidth===240)`),
   );
   assert.equal(
     await js(
-      `document.querySelectorAll('.bm-item.sec-start .bm-mk.start use[href="#i-bm-start"]').length+document.querySelectorAll('.bm-item.sec-end .bm-mk.end use[href="#i-bm-end"]').length`,
+      `document.querySelectorAll('.bm-item.paired > .bm-thumb > .bm-mk.start use[href="#i-bm-start"]').length+document.querySelectorAll('.bm-item.paired > .bm-sub > .bm-mk.end use[href="#i-bm-end"]').length`,
     ),
     4,
-    'Paired marks on both items',
+    'Paired marks on the start and its small picture',
   );
-  // 悬停起点：它的终点一起高亮（区段配色）。
-  let p = await rect('.bm-item:nth-child(4) .bm-thumb');
-  await mouse('mouseMoved', p.x, p.y - 20);
+  // 小图在起点格子的左下角，有自己的删除按钮。
+  const subBox = await js(
+    `(()=>{const i=document.querySelector('.bm-item:nth-child(3)'),a=i.querySelector('.bm-sub').getBoundingClientRect(),b=i.querySelector('.bm-thumb').getBoundingClientRect();return {left:Math.round(a.left-b.left),bottom:Math.round(b.bottom-a.bottom),half:a.width<b.width*.6,del:!!i.querySelector('.bm-sub > .bm-sub-del')}})()`,
+  );
+  assert.deepEqual(subBox, { left: 4, bottom: 4, half: true, del: true });
+  // 悬停这一格：起点和小图一起高亮（区段配色），别的区段不亮。
+  let p = await rect('.bm-item:nth-child(3) .bm-thumb');
+  await mouse('mouseMoved', p.right - 10, p.top + 30);
   await delay(250);
-  assert.match(
-    await js(`getComputedStyle(document.querySelector('.bm-item:nth-child(5) .bm-thumb')).boxShadow`),
-    /rgb\(90, 180, 255\) 0px 0px 0px 2px/,
-    'Hovering the start highlights its section end',
-  );
+  for (const part of ['.bm-thumb', '.bm-sub'])
+    assert.match(
+      await js(`getComputedStyle(document.querySelector('.bm-item:nth-child(3) > ${part}')).boxShadow`),
+      /rgb\(90, 180, 255\) 0px 0px 0px 2px/,
+      'Hovering the cell highlights the start and its section bookmark: ' + part,
+    );
   assert.doesNotMatch(
-    await js(`getComputedStyle(document.querySelector('.bm-item:nth-child(2) .bm-thumb')).boxShadow`),
+    await js(`getComputedStyle(document.querySelector('.bm-item:nth-child(1) > .bm-sub')).boxShadow`),
     /0px 0px 0px 2px/,
   );
   await shot('sections-panel');
-  // 点终点：跳到区段书签的位置并关闭面板。
-  p = await rect('.bm-item:nth-child(2) .bm-thumb');
-  await click(p.x, p.y);
+  // 点小图：跳到区段书签的位置并关闭面板。
+  p = await rect('.bm-item:nth-child(1) > .bm-sub');
+  await click(p.left + 8, p.bottom - 8); // 避开右上角的删除按钮
   await wait(() => js('document.querySelector(".bm-panel").hidden'));
   assert.deepEqual(await center(), [5, 0.5]);
   // 区段书签不是 F / Enter 的停靠点：从这里往后是 3.svg 之后的 8.svg。
@@ -590,30 +599,31 @@ try {
   const sm = () => js(`[...document.querySelectorAll('#shelfOverview .ov-mark')].map(n=>n.getAttribute('aria-label'))`);
   assert.deepEqual(await sm(), [
     'Sections · Page 3 · Section start',
-    'Sections · Section bookmark · Page 6',
     'Sections · Page 4',
     'Sections · Page 9 · Section start',
-    'Sections · Section bookmark · Page 13',
     'Sections · Page 15',
     'Sections · Page 21',
     'Sections · Page 21',
   ]);
+  assert.deepEqual(
+    await js(
+      `[...document.querySelectorAll('#shelfOverview .ov-mark > .bm-sub')].map(n=>n.getAttribute('aria-label'))`,
+    ),
+    ['Section bookmark · Page 6', 'Section bookmark · Page 13'],
+    'Section bookmarks are small pictures in their starts',
+  );
   assert.equal(
     await js(`document.querySelector('#shelfOverview .ov-find input').placeholder`),
     'Search titles, file names',
   );
   await tap('/');
   await cdp('Input.insertText', { text: '12.svg' });
-  await wait(async () => (await sm()).length === 2);
-  assert.deepEqual(
-    await sm(),
-    ['Sections · Page 9 · Section start', 'Sections · Section bookmark · Page 13'],
-    'The section bookmark file name matches too',
-  );
+  await wait(async () => (await sm()).length === 1);
+  assert.deepEqual(await sm(), ['Sections · Page 9 · Section start'], 'The section bookmark file name matches too');
   await js(
     `(()=>{const q=document.querySelector('#shelfOverview .ov-find input');q.value='sections';q.dispatchEvent(new Event('input'));})()`,
   );
-  await wait(async () => (await sm()).length === 8);
+  await wait(async () => (await sm()).length === 6);
   await js(
     `(()=>{const q=document.querySelector('#shelfOverview .ov-find input');q.value='nothing here';q.dispatchEvent(new Event('input'));})()`,
   );
@@ -626,7 +636,7 @@ try {
   await wait(() => sheetOpen('shelfOverview'));
   await delay(200);
   p = await js(
-    `(()=>{const r=document.querySelectorAll('#shelfOverview .ov-mark.sec-end')[1].getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()`,
+    `(()=>{const r=document.querySelectorAll('#shelfOverview .ov-mark > .bm-sub')[1].getBoundingClientRect();return {x:r.left+8,y:r.bottom-8};})()`,
   );
   await click(p.x, p.y);
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)));
@@ -644,10 +654,10 @@ try {
     ]);
   };
   await menu(300, 400);
-  p = await rect('.bm-item:nth-child(5) .bm-thumb');
+  p = await rect('.bm-item:nth-child(3) > .bm-sub');
   await mouse('mouseMoved', p.x, p.y);
-  await wait(() => js(`getComputedStyle(document.querySelector('.bm-item:nth-child(5) .bm-del')).opacity==='1'`));
-  p = await rect('.bm-item:nth-child(5) .bm-del');
+  await wait(() => js(`getComputedStyle(document.querySelector('.bm-item:nth-child(3) .bm-sub-del')).opacity==='1'`));
+  p = await rect('.bm-item:nth-child(3) .bm-sub-del');
   await click(p.x, p.y);
   await wait(async () => !(await record()).bookmarks.find((m) => m.name === '8.svg').end);
   assert.deepEqual(await keysOf(), [
@@ -659,7 +669,11 @@ try {
     ['20.svg', true, false],
   ]);
   assert.equal(await js('document.querySelector(".bm-panel").hidden'), false);
-  assert.equal(await js(`document.querySelectorAll('.bm-item.sec-start').length`), 1);
+  assert.equal(await js(`document.querySelectorAll('.bm-item.paired').length`), 1);
+  assert.equal(
+    await js(`document.querySelectorAll('.bm-item:nth-child(3) .bm-sub, .bm-item:nth-child(3) .bm-mk').length`),
+    0,
+  );
   p = await rect('.bm-item:nth-child(1) .bm-thumb');
   await mouse('mouseMoved', p.x, p.y - 20);
   p = await rect('.bm-item:nth-child(1) .bm-del');
@@ -695,7 +709,8 @@ try {
   await wait(async () => (await tickSet())['8.svg'] === 'mark@50%');
   assert.equal((await tickSet())['10.svg'], undefined);
   await menu(300, 400);
-  assert.equal(await js(`document.querySelectorAll('.bm-item.sec-end.off').length`), 1);
+  assert.equal(await js(`document.querySelectorAll('.bm-item > .bm-sub.off').length`), 1);
+  assert.equal(await js(`document.querySelectorAll('.bm-item .bm-mk').length`), 0, 'Neither end shows a section mark');
   await closeMenu();
   assert.deepEqual((await marks())[1], ['8.svg', 0.5, ['10.svg', 0.5]], 'Data is kept');
   await sortBy('nameAsc');
@@ -716,7 +731,7 @@ try {
   await wait(async () => !!(await record('Plain')));
   const sections = await record(),
     fp = JSON.stringify(sections.fp);
-  await js(`document.querySelector('[data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   const card = (t) =>
     `[...document.querySelectorAll('#books .book')].find(b=>b.querySelector('.pick').getAttribute('aria-label')==='${t}')`;
@@ -782,7 +797,7 @@ try {
   await js(`${store}.then(()=>0)`);
   await js(`shelf.close()`);
   await wait(() => js('!shelf.open'));
-  await js(`document.querySelector('[data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(
     `[...document.querySelectorAll('#books .book .pick')].find(p=>p.getAttribute('aria-label')==='Sections').click()`,
@@ -801,7 +816,7 @@ try {
     'Deleting the bookmark keeps the custom cover',
   );
   // 重置封面：恢复默认封面，自定义封面的小图删除，同样只更新这一张卡片。
-  await js(`document.querySelector('[data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await wait(() =>
     js(
@@ -838,7 +853,7 @@ try {
   // ==== 9. 区段可以嵌套、交叉：缩略图栏的细标记、全屏缩略图的区段范围按嵌套层级向内缩进 ====
   await wait(() => js(`!!bookTitle.textContent`));
   if ((await js('bookTitle.textContent')) !== 'Sections') {
-    await js(`document.querySelector('[data-act="shelf"]').click()`);
+    await js(`barTitle.click()`);
     await wait(() => js('shelf.open'));
     await wait(() => js(`!!${card('Sections')}`));
     await js(`${card('Sections')}.querySelector('.pick').click()`);
@@ -976,7 +991,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: section bookmarks (hold Shift+F / panel button open the start picker: default to the nearest earlier bookmark, arrows / click to change, Enter / OK to confirm, Esc to cancel, a start with a section moves its end, too close, nothing before; normal bookmarks inside sections, start and end as two adjacent items with paired marks, jump to either end, delete rules, inactive after re-sorting), thumbnail strip badges and in-page ticks (only the changed page redrawn, pair highlight), full-screen thumbnail badges and section ranges, full-screen search (/, Ctrl+F, Esc clears first, no-match hint with clear, results-only navigation, cleared on close), shelf bookmark search by title / file name, custom cover (bookmark picker, reset, crop at bookmark, no fingerprint change, one card updated, survives bookmark deletion, no-bookmark hint), backup export / replace import, nested and crossing sections indented by level in the strip ticks and full-screen ranges',
+    'PASS: section bookmarks (hold Shift+F / panel button open the start picker: default to the nearest earlier bookmark, arrows / click to change, Enter / OK to confirm, Esc to cancel, a start with a section moves its end, too close, nothing before; normal bookmarks inside sections, one cell per section with the section bookmark as a small picture in its start (paired marks, its own delete button), jump to either end, delete rules, inactive after re-sorting), thumbnail strip badges and in-page ticks (only the changed page redrawn, pair highlight), full-screen thumbnail badges and section ranges, full-screen search (/, Ctrl+F, Esc clears first, no-match hint with clear, results-only navigation, cleared on close), shelf bookmark search by title / file name, custom cover (bookmark picker, reset, crop at bookmark, no fingerprint change, one card updated, survives bookmark deletion, no-bookmark hint), backup export / replace import, nested and crossing sections indented by level in the strip ticks and full-screen ranges',
   );
 } finally {
   if (ws?.readyState === 1) {

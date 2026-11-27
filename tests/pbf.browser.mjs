@@ -217,7 +217,7 @@ try {
   assert.equal((await js(`document.querySelectorAll('.page').length`)) > 0, true);
   assert.ok(!(await thumbKeys()).some((k) => k.includes(':bm:pbf-')), 'No screenshots at import');
 
-  // ---- 书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标）；名称叠在缩略图下沿，也在提示和说明里。
+  // ---- 书签列表里可见时才懒生成视频书签的缩略图；音频书签是占位（图标）；名称叠在缩略图下沿，也在说明里（媒体书签不设提示，悬停显示文件详情框）。
   await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: 300, y: 300, button: 'right', clickCount: 1 });
   await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 300, y: 300, button: 'right', clickCount: 1 });
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
@@ -226,10 +226,10 @@ try {
       `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.title,e.querySelector('.bm-name')?.textContent??null,!!e.querySelector('.bm-ph.audio')])`,
     ),
     [
-      ['Page 1 · 0:00 · 01 clip-Intro', '01 clip-Intro', '01 clip-Intro', false],
-      ['Page 1 · 0:01 · 01 clip-Mid * part', '01 clip-Mid * part', '01 clip-Mid * part', false],
-      ['Page 2 · 0:02 · 02 song-Verse', '02 song-Verse', '02 song-Verse', true],
-      ['Page 2 · 0:06 · 02 song-Bookmark1', '02 song-Bookmark1', '02 song-Bookmark1', true],
+      ['Page 1 · 0:00 · 01 clip-Intro', '', '01 clip-Intro', false],
+      ['Page 1 · 0:01 · 01 clip-Mid * part', '', '01 clip-Mid * part', false],
+      ['Page 2 · 0:02 · 02 song-Verse', '', '02 song-Verse', true],
+      ['Page 2 · 0:06 · 02 song-Bookmark1', '', '02 song-Bookmark1', true],
     ],
   );
   const ids = (await record()).bookmarks.map((b) => b.id),

@@ -396,10 +396,10 @@ try {
     await click(x, y);
   }
   assert.equal(await aligned(), '08.svg', 'Clicking a thumbnail opens its page');
-  await wait(() =>
-    js(
-      `(()=>{const m=box(document.querySelector('#preview .viewport-marker')),n=box(document.querySelector('#preview .page[title="08.svg"]'));return Math.abs(m.top-n.top)<1&&Math.abs(m.height-n.height)<1;})()`,
-    ),
+  assert.equal(
+    await js(`!!document.querySelector('#preview .viewport-marker')`),
+    false,
+    'No viewport area on the strip',
   );
   await fits('08.svg', 'Page beside the docked panel');
   await shot('single-docked');

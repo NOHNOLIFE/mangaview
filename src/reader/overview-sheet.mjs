@@ -25,7 +25,7 @@ const KINDS = [
   ],
   KIND_LABEL = { image: 'kindImage', video: 'kindVideo', audio: 'kindAudio' };
 export function install(ctx) {
-  const { t, fmt, make, main } = ctx;
+  const { t, make, main } = ctx;
   const sheets = [],
     masonry = () => ctx.get('ovLayout', 'grid') === 'masonry';
   function syncLayout() {
@@ -44,8 +44,7 @@ export function install(ctx) {
     dialog.setAttribute('aria-labelledby', id + 'Title');
     const head = make('header', 'ov-head'),
       name = make('strong', 'ov-title'),
-      pos = make('span', 'ov-pos'),
-      hint = make('span', 'ov-hint');
+      pos = make('span', 'ov-pos');
     name.id = id + 'Title';
     const shut = ctx.iconButton('close', t('close'), () => s.close()),
       shelfBtn = ctx.iconButton('library', t('ovShelf'), () => ctx.actions.shelf(), 'ov-shelf');
@@ -118,7 +117,8 @@ export function install(ctx) {
     };
     q.addEventListener('input', () => hooks.filter());
     scroller.append(body, none);
-    head.append(name, pos, hint, find, kindBox, shelfBtn, lay, shut);
+    // 右侧依次是布局切换、书架（橙色加宽，常用）、关闭；书名和位置文字占据剩余宽度。
+    head.append(name, pos, find, kindBox, lay, shelfBtn, shut);
     dialog.append(head, scroller);
     document.body.append(dialog);
     let closing = 0;
@@ -144,7 +144,6 @@ export function install(ctx) {
         kinds.clear();
         syncKinds(); // 搜索词和类型只在一次打开期间有效（关闭后立即重新打开时 close 事件可能还没到）
         if (!hooks.setup(quiet)) return false;
-        hint.textContent = fmt('ovHint', { key: keys[0].toUpperCase() });
         syncLayout();
         q.placeholder = t(hooks.find);
         q.setAttribute('aria-label', q.placeholder);

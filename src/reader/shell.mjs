@@ -32,7 +32,7 @@ export function localize() {
   }
 }
 export function toolsState() {
-  $('bookTitle').textContent = $('bookTitle').title = current ? title(current) : 'MangaView';
+  $('bookTitle').textContent = $('bookTitle').title = $('barTitle').title = current ? title(current) : 'MangaView';
   $('empty').hidden = !!current;
   $('hud').hidden = !current;
   for (const key of ['fit', 'preview']) document.querySelector(`#bar [data-act="${key}"]`).disabled = !current;

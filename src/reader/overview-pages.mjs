@@ -1,6 +1,6 @@
 import { imageJob, release } from './view.mjs';
 import { pageKey } from './thumbs.mjs';
-import { shownName, pageKind } from '../core/model.mjs';
+import { shownName, pageKind, cellRatio } from '../core/model.mjs';
 import { sourceOf } from '../core/sources.mjs';
 import { norm } from '../core/match.mjs';
 // 全屏缩略图：整本书的页面排成规整网格或瀑布流，只为可见范围创建元素；书签角标与区段范围；按文件名搜索、按类型过滤。
@@ -32,7 +32,8 @@ export function install(ctx, { sheet, masonry }) {
     pm = new Map(),
     spans = [],
     span = null,
-    spanKey = '';
+    spanKey = '',
+    keyed = false; // 这次选中来自键盘移动：选中后为它弹出文件详情框
   const nodes = new Map();
   const thumbs = sheet('overview', ['v', ']'], 'ov-grid', {
     find: 'ovFindPages',
@@ -43,7 +44,7 @@ export function install(ctx, { sheet, masonry }) {
       thumbs.name.textContent = thumbs.name.title = ctx.title(b);
       here = view.position()?.i ?? 0;
       sel = here;
-      ratio = cellRatio(b);
+      ratio = cellRatio(b.pages);
       hays = [];
       pm = ctx.marks?.pages(b) ?? new Map();
       spans = ctx.marks?.spans(b) ?? [];
@@ -62,6 +63,7 @@ export function install(ctx, { sheet, masonry }) {
     move(act) {
       const it = items[sel];
       if (!it) return;
+      keyed = true;
       select(
         {
           left: shown[it.k - 1] ?? sel,
@@ -74,6 +76,7 @@ export function install(ctx, { sheet, masonry }) {
           pageDown: vertical(1, true),
         }[act],
       );
+      keyed = false;
     },
     hover(node) {
       const i = +node.dataset.i;
@@ -81,6 +84,7 @@ export function install(ctx, { sheet, masonry }) {
         follow = false;
         select(i, false);
       }
+      card(i);
     },
     relayout() {
       keep(layout);
@@ -110,6 +114,7 @@ export function install(ctx, { sheet, masonry }) {
       paint();
     },
     cleanup() {
+      ctx.fileCard?.hide();
       for (const i of [...nodes.keys()]) drop(i);
       items = [];
       cols = [];
@@ -129,13 +134,6 @@ export function install(ctx, { sheet, masonry }) {
   }
   const sc = thumbs.scroller,
     grid = thumbs.body;
-  function cellRatio(b) {
-    const r = b.pages
-      .filter((p) => p.w && p.h)
-      .map((p) => p.h / p.w)
-      .sort((x, y) => x - y);
-    return Math.min(1.6, Math.max(0.7, r.length ? r[r.length >> 1] : 1.4));
-  }
   function layout() {
     const pages = book?.pages || [],
       W = sc.clientWidth,
@@ -208,7 +206,8 @@ export function install(ctx, { sheet, masonry }) {
         node = make('div', 'ov-item');
         node.dataset.i = i;
         node.setAttribute('role', 'option');
-        node.title = shownName(page);
+        if (pageKind(page) === 'image') node.title = shownName(page); // 视频、音频显示文件详情框
+
         node.append(make('div', 'ov-img'), make('span', 'ov-n', String(i + 1)));
         node.classList.toggle('sel', i === sel);
         node.classList.toggle('here', i === here);
@@ -350,7 +349,20 @@ export function install(ctx, { sheet, masonry }) {
       reveal(i);
       schedule();
     }
+    if (keyed) {
+      keyed = false;
+      paint(); // 键盘移到的格子可能刚滚进来，先建出元素
+      card(i);
+    }
   }
+  // 文件详情框：选中（悬停或键盘移动）的是视频、音频时弹出，其余收起；指针离开列表时收起。
+  function card(i) {
+    const node = nodes.get(i),
+      page = book?.pages[i];
+    if (node && page && pageKind(page) !== 'image') ctx.fileCard?.show(node, { book, page });
+    else ctx.fileCard?.hide();
+  }
+  grid.addEventListener('pointerleave', () => ctx.fileCard?.hide());
   function reveal(i) {
     const it = items[i];
     if (!it) return;
@@ -373,13 +385,15 @@ export function install(ctx, { sheet, masonry }) {
     while (col[k + d] != null && (d > 0 ? items[col[k]].y < target : items[col[k]].y > target)) k += d;
     return col[k];
   }
+  // 跳过去：图片停在该页的上沿；视频、音频把该文件放到阅读区中央（不选中、不播放）。
   function choose(i) {
     const b = book,
       s = view.panes[0].starts;
     thumbs.close();
     if (b && ctx.current === b && s.length === b.pages.length + 1) {
       view.browsing = false;
-      main.scrollTop = s[i];
+      if (pageKind(b.pages[i]) !== 'image') view.jump({ i, f: 0.5 });
+      else main.scrollTop = s[i];
     }
   }
   grid.addEventListener('click', (e) => {

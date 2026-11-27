@@ -428,7 +428,7 @@ try {
   await hold(true);
   await said('No bookmark before this point to pair with — add a bookmark first');
 
-  // 书签列表：媒体书签带类型角标和时间点；音频是占位小块；带区段书签的显示为一组；视频书签的缩略图在列表里可见时才截取。
+  // 书签列表：媒体书签带类型角标和时间点；音频是占位小块；区段只占一格（区段书签是起点左下角的小图）；视频书签的缩略图在列表里可见时才截取。
   assert.ok(!(await thumbKeys()).includes((await record()).id + ':bm:lazy'), 'Not generated before it is shown');
   await js(`reader.scrollTop=0`);
   await delay(100);
@@ -437,14 +437,20 @@ try {
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
   assert.deepEqual(
     await js(
-      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector('.bm-name')?.textContent??null])`,
+      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-thumb .bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector(':scope>.bm-thumb>.bm-name')?.textContent??null,e.querySelector(':scope>.bm-sub')?.getAttribute('aria-label')??null,!!e.querySelector(':scope>.bm-sub>.bm-ph.audio')])`,
     ),
     [
-      ['Page 2 · 0:01 · 02 clip-Bookmark1', '0:01', false, '02 clip-Bookmark1'],
-      ['Page 3 · 0:05 · 03 long-Bookmark1 · Section start', '0:05', true, '03 long-Bookmark1'],
-      ['Section bookmark · Page 3 · 0:10', '0:10', true, '03 long-Bookmark1'],
-      ['Page 3 · 0:12 · 03 long-Bookmark2', '0:12', true, '03 long-Bookmark2'],
-      ['Page 4 · 0:00 · 04 clip-Bookmark1', '0:00', false, '04 clip-Bookmark1'],
+      ['Page 2 · 0:01 · 02 clip-Bookmark1', '0:01', false, '02 clip-Bookmark1', null, false],
+      [
+        'Page 3 · 0:05 · 03 long-Bookmark1 · Section start',
+        '0:05',
+        true,
+        '03 long-Bookmark1',
+        'Section bookmark · Page 3 · 0:10',
+        true,
+      ],
+      ['Page 3 · 0:12 · 03 long-Bookmark2', '0:12', true, '03 long-Bookmark2', null, false],
+      ['Page 4 · 0:00 · 04 clip-Bookmark1', '0:00', false, '04 clip-Bookmark1', null, false],
     ],
   );
   await wait(
@@ -460,12 +466,14 @@ try {
   );
   await shot('mediamarks-panel');
   await tapKey('Escape');
-  // 全屏书架书签里同样带类型角标（区段的终点是单独的一项，角标是终点的时间）。
+  // 全屏书架书签里同样带类型角标（区段同样只占一格，区段书签是左下角的小图）。
   await tapKey('c');
   await wait(() => js(`document.getElementById('shelfOverview').open`), 'full-screen bookmarks');
   assert.deepEqual(
-    await js(`[...document.querySelectorAll('#shelfOverview .ov-mark .bm-type')].map(e=>e.textContent)`),
-    ['0:01', '0:05', '0:10', '0:12', '0:00'],
+    await js(
+      `[...document.querySelectorAll('#shelfOverview .ov-mark')].map(e=>e.querySelector('.bm-type').textContent+(e.querySelector(':scope>.bm-sub')?' +sub':''))`,
+    ),
+    ['0:01', '0:05 +sub', '0:12', '0:00'],
   );
   await tapKey('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)), 'closed');

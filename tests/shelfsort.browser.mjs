@@ -178,7 +178,7 @@ try {
   await wait(() => js(`bookTitle.textContent==='Book B'`));
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='Book B'`));
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   assert.equal(await js('sortBtn.dataset.sort'), 'folderOld');
   assert.equal(await order(), 'Book C,Book A,Book B');
@@ -204,7 +204,7 @@ try {
   await js(`query.value='';query.dispatchEvent(new Event('input',{bubbles:true}))`);
   await js(`${card('Book B')}.querySelector('.pick').click()`);
   await wait(() => js('!shelf.open'));
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(
     `${card('Zeta')}.querySelector('.actions .more').click();[...cardMenu.querySelectorAll('[role=menuitem]')].find(x=>x.textContent==='Edit title').click()`,

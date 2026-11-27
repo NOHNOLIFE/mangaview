@@ -42,6 +42,7 @@ import { install as windows } from './core/windows.mjs';
 import { install as shelfUI } from './shelf/shelf.mjs';
 import { install as settingsPanel } from './panels/settings.mjs';
 import { install as backup } from './panels/backup.mjs';
+import { install as fileCard } from './media/filecard.mjs';
 import { install as bookmarks } from './marks/bookmarks.mjs';
 import { install as focusMode } from './reader/focus.mjs';
 import { install as overview } from './reader/overview.mjs';
@@ -166,7 +167,7 @@ ctx.pageHold = null; // 长按翻页键的接入点（见 reader/keys.mjs 的 HO
 // - 书架页（shelf/）：autoMatch、restoreBatch、restoreOne、shelfView、filtering、clearFilters、refreshCard；cover.mjs：pickCover
 // - bookmarks.mjs：marks、shelfmarks；overview.mjs：overview；thumbs.mjs：frames；pbf.mjs：pbf
 // - transport.mjs：transport（总控的状态与驱动器）；single.mjs：single（单文件模式）；controlbar.mjs：controlBar
-// - media.mjs：media、player、mediaTile、pageHold
+// - media.mjs：media、player、mediaTile、pageHold；filecard.mjs：fileCard（文件详情框）
 // - 本文件启动流程：popout（新窗口播放打开的窗口）、started（启动完成）
 prefsSync(ctx);
 readerShell(ctx);
@@ -250,6 +251,7 @@ windows(ctx);
 shelfUI(ctx);
 settingsPanel(ctx);
 backup(ctx);
+fileCard(ctx);
 bookmarks(ctx);
 focusMode(ctx);
 overview(ctx);

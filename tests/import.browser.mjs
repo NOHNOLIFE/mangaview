@@ -130,7 +130,7 @@ try {
     `(async()=>{await mk('s','Vol 1',3,'red');await mk('s','Vol 2',2,'blue');await mk('s','Vol 10',2,'green');})()`,
   );
   const open = async () => {
-    if (!(await js('shelf.open'))) await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+    if (!(await js('shelf.open'))) await js(`barTitle.click()`);
     await wait(() => js('shelf.open'));
   };
   const pick = (path, act) =>

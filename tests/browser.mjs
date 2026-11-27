@@ -141,7 +141,7 @@ try {
   const frac = () =>
     js(`(reader.scrollTop+reader.clientHeight/2)/document.querySelector('#reader [data-name="0.svg"]').offsetHeight`);
   await wait(async () => Math.abs((await frac()) - 0.7) < 0.002);
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js(`shelf.open&&document.querySelector('.pick').textContent.includes('65')`));
   await js('shelf.close()');
   await delay(1000);
@@ -350,7 +350,7 @@ try {
     2,
     'Missing folders keep their records',
   );
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js(`!document.querySelector('[data-view="expired"]').hidden`));
   await js(`document.querySelector('[data-view="expired"]').click()`);
   await wait(() => js(`document.querySelectorAll('#books .book.expired').length===1`));

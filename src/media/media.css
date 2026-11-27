@@ -147,30 +147,20 @@
 .mv-tile .mid-name {
   max-width: 100%;
 }
-/* 音频（art.mjs / art.css）：整块是封面或占位图，不压暗；小音乐图标 + 时长在左上（右上留给书签角标），文件名在最下的深色条上。 */
+/* 音频：与音频书签同一种样子（art.mjs / art.css，名称条与类型角标的样式在 bookmarks.css 的 .bm-name / .bm-type）：
+   整块是封面或占位图，不压暗；音乐图标 + 时长在右下、文件名在下沿的名称条上，右上留给书签角标。 */
 .mv-tile.audio {
   display: block;
   padding: 0;
 }
-.mv-tile.audio > .mv-badge {
-  left: 4px;
-  top: 4px;
-  right: auto;
-  bottom: auto;
+.mv-tile.audio > .mv-note {
+  top: 40%;
 }
-.mv-tile.audio > .mid-name {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 2px 6px;
-  background: rgba(10, 10, 12, 0.86);
-  color: #fff;
-  line-height: 16px;
-}
-/* 全屏缩略图的页码（overview.css .ov-n）移到文件名条上方，不盖住文件名。 */
+/* 全屏缩略图的页码（overview.css .ov-n）移到名称条上方的左侧，不盖住文件名和类型角标。 */
 .ov-item:has(> .ov-img > .mv-tile.audio) > .ov-n {
-  bottom: 23px;
+  left: 3px;
+  right: auto;
+  bottom: 24px;
 }
 .mv-badge {
   position: absolute;

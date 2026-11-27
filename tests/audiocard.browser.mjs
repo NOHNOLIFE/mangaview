@@ -247,7 +247,7 @@ try {
   await shot('audiocard-cover');
   await stop();
 
-  // 缩略图栏里的音频：整块是封面，没有大图标和遮罩；小音乐图标 + 时长在左上，文件名在最下。
+  // 缩略图栏里的音频与音频书签同一种样子：整块是封面，没有大图标和遮罩；小音乐图标 + 时长在右下（名称条之上），文件名在最下的名称条上。
   const stripTile = `document.querySelector('#preview .page[data-name="03 b.wav"] .mv-tile.audio')`;
   await js(`document.querySelector('[data-act="preview"]').click()`); // 固定显示缩略图栏
   await wait(() => js(`${stripTile}?.classList.contains('has-cover')`), 'strip tile cover');
@@ -260,8 +260,8 @@ try {
     [0, 'none', '#i-music', '03 b.wav'],
   );
   assert.ok(
-    near(strip.badge.top, strip.tile.top + 4) && near(strip.badge.left, strip.tile.left + 4),
-    'Type and duration at the top: ' + JSON.stringify(strip),
+    near(strip.badge.right, strip.tile.right - 4) && near(strip.badge.bottom, strip.name.top - 4),
+    'Type and duration at the bottom right, above the name: ' + JSON.stringify(strip),
   );
   assert.ok(near(strip.name.bottom, strip.tile.bottom) && strip.name.top > strip.badge.bottom, 'Name at the bottom');
   // 截图：指针移到缩略图栏上（专注模式下侧栏悬停才显示内容）。
@@ -322,7 +322,7 @@ try {
 
   // 换封面（书架卡片「更多」→「设置封面」）：已显示的卡片小图跟着换，不必重建。
   await js(`window.__art=art('03 b.wav');0`);
-  await js(`document.querySelector('[data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'), 'shelf');
   await wait(() => js(`!!document.querySelector('#books .book .actions .more')`), 'more button');
   await js(
@@ -414,7 +414,7 @@ try {
     await delay(700);
     await shot('audiocard-plain-strip');
   }
-  // 全屏缩略图里的音频：同一张占位图，小音乐图标在左上，文件名在最下。
+  // 全屏缩略图里的音频：同一张占位图，小音乐图标在右下（名称条之上），文件名在最下。
   await js('reader.focus()');
   await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86 });
   await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86 });
@@ -428,7 +428,12 @@ try {
     [ov.look.cover, ov.look.note, ov.look.icons, ov.look.hue],
     [false, 'block', 0, plain['03 b.wav'].art.hue],
   );
-  assert.ok(near(ov.badge.top, ov.tile.top + 4) && near(ov.name.bottom, ov.tile.bottom), JSON.stringify(ov));
+  assert.ok(
+    near(ov.badge.right, ov.tile.right - 4) &&
+      near(ov.badge.bottom, ov.name.top - 4) &&
+      near(ov.name.bottom, ov.tile.bottom),
+    JSON.stringify(ov),
+  );
   // 当前页的页码在文件名条上方，不盖住文件名。
   const ovN = await js(`box(document.querySelector('#overview .ov-item.here > .ov-n'))`),
     ovName = await js(`box(document.querySelector('#overview .ov-item.here .mid-name'))`);

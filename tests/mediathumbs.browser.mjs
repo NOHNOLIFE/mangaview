@@ -326,7 +326,7 @@ try {
 
   // 封面：默认封面取文件名顺序第一个有画面的页（视频用它的缩略图，优先最早的书签画面）；识别用的指纹仍是首个文件（不论类型）。
   // 全书只有音频时用作品名生成文字封面；含视频 / 音频的书在封面上有类型角标。
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   const songs =
     'Songs of a very long title that keeps going on and on across several lines for the text cover so that the last part has to be cut off at the end of the sixth line';
@@ -424,7 +424,7 @@ try {
     assert.ok(['Mix', songs].includes(await js('bookTitle.textContent')), 'next stays within the filter');
   }
   // 清除筛选：类型一并清除。
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js('clearBtn.click()');
   await wait(async () => (await shown()).length === 4, 'cleared');

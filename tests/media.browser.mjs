@@ -484,7 +484,7 @@ try {
     `(async()=>{const songs=await (await navigator.storage.getDirectory()).getDirectoryHandle('Songs');window.showDirectoryPicker=async()=>songs;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
   await wait(() => js(`bookTitle.textContent==='Songs'`));
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(
     () => js(`document.querySelector('#books .book.current .text-cover')?.textContent==='Songs'`),
     'audio-only book text cover',

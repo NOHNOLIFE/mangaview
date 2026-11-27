@@ -48,6 +48,8 @@ const shell = [
     'src/media/art.mjs',
     'src/media/autoplay.mjs',
     'src/media/driver.mjs',
+    'src/media/filecard.css',
+    'src/media/filecard.mjs',
     'src/media/hud.mjs',
     'src/media/keys.mjs',
     'src/media/marks.mjs',

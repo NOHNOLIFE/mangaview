@@ -127,7 +127,7 @@ try {
     await js('frame()');
   };
   const tab = async (view) => {
-    await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+    await js(`barTitle.click()`);
     await wait(() => js('shelf.open'));
     await js(`document.querySelector('#views [data-view="${view}"]').click()`);
     await wait(() =>
@@ -195,7 +195,7 @@ try {
   // 卡片上的删除按钮同样：书架页里删除当前书 D，切到 E（A、B、D、E 中 D 的下一本）。
   await js(`S().then(s=>s.select(s.readingList().find(b=>b.title==='D')))`);
   await wait(async () => (await current()) === 'D');
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(`(async()=>{const id=(await S()).current.id;const card=document.querySelector('#books .book[data-id="'+id+'"]');card.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));
     const b=[...card.querySelectorAll('button')].find(x=>/^(Delete|Remove)/.test(x.getAttribute('aria-label')||x.title||''));b.click();})()`);
