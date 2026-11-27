@@ -4,11 +4,12 @@
 //   离开视窗即卸载源、释放解码器；相邻页不预加载。缩略图栏、全屏缩略图里是固定样式的占位（ctx.mediaTile），不读文件。
 // - 帧尺寸、时长在首次挂上源时读到，记入页记录（page.w / h / d），之后排版不再读文件；浏览器播不了的文件记下当时的
 //   大小和修改时间（page.bad），文件没变就不再探测，只在用户点「重试」或文件变化后重做（变化在该页本来要读取时顺带比较）。
-// - 壳（单个文件的播放面板）上的按钮登记在 ctx.player.add：只放与该文件有关的（添加书签、添加区段书签、字幕等），默认是次要控件（宽度不够时收进弹出层）；
+// - 只与该文件有关的按钮登记在 ctx.player.add（添加书签、添加区段书签、字幕等）：音频卡片上排成一行（默认是次要控件，宽度不够时收进弹出层），
+//   文件栏（reader/filebar.mjs）按 id 取用同一份登记（ctx.player.controls()），点击、状态都带上所在的按钮；视频画面内没有控件。
 //   列表级的控制（音量、播放顺序、循环、只播区段、新窗口播放、上一个 / 下一个媒体、播放速率）在总控栏（reader/controlbar.mjs），经 ctx.media 读写；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
-// - 当前媒体（ctx.media.current，带强调色外框）：选定的媒体（最近播放、按过自己的播放键或被切到的）正在播放或仍在视窗内时是它；
-//   否则本窗口正在播放的；否则中线在视窗内、离视窗中心最近的；都没有为 null。空格与总控栏操作的就是它。
+// - 选中媒体与当前文件（autoplay.mjs，规则见 core/selection.mjs）：选中媒体不压暗、没有大播放键；当前文件是选中的媒体，否则视窗中心所在的页，
+//   文件栏与快捷键作用于它；ctx.media.current() 是其中的媒体播放器（没有为 null）。
 // - 总控（ctx.transport）的 'media' 驱动器、单个媒体自己的播放键、上一个 / 下一个媒体、播放速率在 driver.mjs。
 // - 播放顺序与循环、只播放书签区段的规则在 playlist.mjs；区段来自 bookmarks.mjs（ctx.marks.ranges）。
 // - 播放位置记忆：会话内存在 times，持久化在书目记录的 book.mediaPos=[{id:页名,t:秒}]（按条目合并，见 merge.mjs），
@@ -123,7 +124,7 @@ export function install(ctx) {
   };
   autoplay(ctx, S);
 
-  // 点击正文里的媒体：画面、卡片上等同它自己的播放键（driver.mjs press），面板控件之间的空白处不动作；都不翻屏（tap.mjs 的正文点击先问这里）。
+  // 点击正文里的媒体：画面、大播放键、卡片上等同它自己的播放键（driver.mjs press），卡片控件之间的空白处不动作；都不翻屏（tap.mjs 的正文点击先问这里）。
   ctx.media = {
     tap(target) {
       const node = target?.closest?.('.page.media');
@@ -156,12 +157,18 @@ export function install(ctx) {
   popout(ctx, S);
   keys(ctx, S);
   // ---- 播放器的扩展点：登记按钮、画进度条上的标记。
-  // add({id,icon,label(文案 key),order?,secondary?=true,kinds?:['video','audio'],click(播放器,api),state?(播放器,api)→{disabled,pressed,icon,label}})
+  // add({id,icon,label(文案 key),order?,secondary?=true,kinds?:['video','audio'],click(播放器,api,按钮),state?(播放器,api,按钮)→{disabled,pressed,icon,label}})
+  // 文件栏用：controls() 登记的按钮；seekBar(get) 建一条进度条（get() 为它作用的播放器），paintBar(进度条, 播放器) 画进度、返回时间文字；
+  // timeWidth(时长) 时间文字的宽度（ch）。
   ctx.player = {
     add(c) {
       controls.push(c);
       for (const p of players.values()) layoutControls(p);
     },
+    controls: () => controls,
+    seekBar: (get) => S.makeBar(get),
+    paintBar: (parts, p, at) => S.paintBar(parts, p, at),
+    timeWidth: (d) => S.timeWidth(d),
     decorate(fn) {
       decorators.push(fn);
       for (const p of players.values())

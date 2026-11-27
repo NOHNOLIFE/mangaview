@@ -53,6 +53,7 @@ import { install as runEngine } from './reader/engine.mjs';
 import { install as singleFile } from './reader/single.mjs';
 import { install as controlBar } from './reader/controlbar.mjs';
 import { install as mediaPlayer } from './media/media.mjs';
+import { install as fileBar } from './reader/filebar.mjs';
 import { install as pbfImport } from './marks/pbf.mjs';
 
 // 边缘触发区（像素），见下方 atEdge：顶、左、右三边同为 EDGE；底缘（总控栏）为 EDGE_BOTTOM，宽一些，容易唤出。
@@ -260,6 +261,7 @@ runEngine(ctx);
 singleFile(ctx);
 controlBar(ctx);
 mediaPlayer(ctx);
+fileBar(ctx);
 installFrames(ctx);
 pbfImport(ctx);
 

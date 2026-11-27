@@ -1,7 +1,7 @@
 import { clock } from '../core/model.mjs';
 import { union, layers } from '../core/sections.mjs';
 import { list, isMedia } from '../marks/list.mjs';
-// 播放器上的书签：进度条上的书签标记与区段、壳上的「添加书签」「添加区段书签」按钮。由 marks/bookmarks.mjs 安装（S 为书签模块的共享对象）。
+// 播放器上的书签：进度条上的书签标记与区段、「添加书签」「添加区段书签」按钮（音频卡片与文件栏）。由 marks/bookmarks.mjs 安装（S 为书签模块的共享对象）。
 // 进度条标记只依赖进度条元素本身（drawBar / wireBar：给一个进度条和它的书、页、时长、定位函数就能画、能交互），不依赖它所在的面板。
 const NEAR = 9; // 指针离标记这么多像素以内算指向它（挤在一起时取最近的）
 export function install(ctx, S) {
@@ -169,12 +169,16 @@ export function install(ctx, S) {
       if (!layer.contains(e.relatedTarget)) hot(layer, null);
     });
   }
-  // 播放器（media.mjs 的 ctx.player）的进度条。
-  const drawPlayer = (p) =>
-    drawBar(p.bar, p.book, p.page, ctx.player.api.duration(p), (s) => ctx.player.api.seek(p, s));
+  // 播放器（media.mjs 的 ctx.player）的进度条：音频卡片上的（视频画面内没有）；文件栏的进度条经 ctx.player.drawMarks(进度条, 播放器) 画，没有播放器时清空。
+  const drawFor = (bar, p) =>
+    p
+      ? drawBar(bar, p.book, p.page, ctx.player.api.duration(p), (s) => ctx.player.api.seek(p, s))
+      : drawBar(bar, null, null, 0, null);
+  const drawPlayer = (p) => p.bar && drawFor(p.bar, p);
   // media.mjs 在 bookmarks.mjs 之后安装：等安装完再登记到播放器。
   queueMicrotask(() => {
     if (!ctx.player) return;
+    ctx.player.drawMarks = drawFor;
     ctx.player.decorate(drawPlayer);
     ctx.player.add({
       id: 'bookmark',

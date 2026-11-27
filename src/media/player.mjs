@@ -28,9 +28,8 @@ extend({
     '브라우저가 소리 있는 자동 재생을 차단했습니다. 클릭하면 재생됩니다',
   ],
 });
-// 视频的壳在播放中静止 IDLE 毫秒后淡出；读取元数据的上限 META 毫秒（超时按失败处理，不记录）。
-const IDLE = 2500,
-  META = 20000;
+// 读取元数据的上限 META 毫秒（超时按失败处理，不记录）。
+const META = 20000;
 
 export function install(ctx, S) {
   const { t, make, icon } = ctx,
@@ -102,7 +101,6 @@ export function install(ctx, S) {
       p.auto = false;
       p.popped = false;
       render(p);
-      idle(p);
       if (p.blocked) {
         p.blocked = false;
         ctx.notice(null, '', 1);
@@ -143,23 +141,7 @@ export function install(ctx, S) {
       else p.sec = null;
     }); // 手动定位到区段之外不强行跳回
     el.addEventListener('seeked', () => progress(p));
-    if (p.kind === 'video') {
-      p.node.addEventListener('pointermove', () => idle(p));
-      p.node.addEventListener('pointerleave', () => {
-        clearTimeout(p.idleTimer);
-        p.node.classList.remove('idle');
-      });
-    }
-    fitter.observe(p.shell);
-  }
-  // 视频播放中鼠标静止 IDLE 毫秒后，壳淡出、指针隐藏；移动即恢复。
-  function idle(p) {
-    if (p.kind !== 'video') return;
-    p.node.classList.remove('idle');
-    clearTimeout(p.idleTimer);
-    p.idleTimer = setTimeout(() => {
-      if (!p.el.paused) p.node.classList.add('idle');
-    }, IDLE);
+    if (p.shell) fitter.observe(p.shell);
   }
   // 挂上源：先取文件信息（不读内容）比较大小和修改时间；已知播不了且文件没变的，直接显示占位，不再探测。
   async function load(p) {
@@ -219,11 +201,13 @@ export function install(ctx, S) {
   }
   function dispose(p) {
     unload(p);
-    fitter.unobserve(p.shell);
-    clearTimeout(p.idleTimer);
-    if (p.pop.matches(':popover-open')) p.pop.hidePopover();
-    if (document.fullscreenElement === p.node) document.exitFullscreen().catch(() => {});
+    if (p.shell) {
+      fitter.unobserve(p.shell);
+      if (p.pop.matches(':popover-open')) p.pop.hidePopover();
+    }
+    if (S.full === p) S.leaveFull();
     players.delete(p.node);
+    S.release(p); // 选中的播放器被释放即取消选中（autoplay.mjs）
   }
   // why：decode 浏览器播不了（记下文件的大小和修改时间，不再探测）；known 已记录过；read / timeout 暂时读不到（不记录，可重试）。
   function fail(p, why) {

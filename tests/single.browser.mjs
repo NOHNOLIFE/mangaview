@@ -352,7 +352,7 @@ try {
   await js(`document.querySelector('#bar [data-act="fit"]').click()`);
   assert.equal(await aligned(), '03 small.svg');
 
-  // ---- 媒体：视频在槽内按窗口完整显示、是当前媒体并自动播放；音频是居中的卡片；只有当前页的媒体持有源。
+  // ---- 媒体：视频在槽内按窗口完整显示、自动播放并成为选中媒体；音频是居中的卡片；只有当前页的媒体持有源。
   await press('d');
   assert.equal(await aligned(), '04 clip.webm');
   await wait(() => js(`el('04 clip.webm')?.readyState>=1`));
@@ -365,8 +365,8 @@ try {
     inside(r, v, 'Video picture');
     assert.ok(Math.abs(r.width - v.width) < 1, 'Video fills the width ' + JSON.stringify(r));
   }
-  await wait(() => js(`node('04 clip.webm').classList.contains('current')`));
   await wait(() => js(`!el('04 clip.webm').paused`), 'video autoplays');
+  await wait(() => js(`node('04 clip.webm').classList.contains('selected')`), 'autoplayed video is selected');
   assert.equal(await js(`!el('05 song.wav')?.currentSrc`), true, 'The next media holds no source');
   await shot('single-video');
   await press('d');
@@ -377,7 +377,10 @@ try {
     assert.ok(Math.abs(c.top + c.height / 2 - (v.top + v.height / 2)) < 1, 'Audio card is centred vertically');
     assert.ok(c.width > v.width - 40 && c.left >= v.left, 'Audio card spans the view');
   }
-  await wait(() => js(`node('05 song.wav').classList.contains('current')`));
+  await wait(
+    () => js(`!node('04 clip.webm')?.classList.contains('selected')`),
+    'turned-away video is no longer selected',
+  );
   assert.equal(await js(`!el('04 clip.webm')||el('04 clip.webm').paused`), true, 'The video stops when turned away');
   await shot('single-audio');
 

@@ -114,10 +114,10 @@ extend({
   hkHalfR: ['Next screen', '下一屏', '次の画面', '다음 화면'],
   hkTipTop: ['Rest at the top edge: toolbar', '停在顶缘：工具栏', '上端で止める：ツール', '위쪽 가장자리: 도구'],
   hkTipBottom: [
-    'Rest at the bottom edge: control bar (books, play, speed, volume)',
-    '停在底缘：总控栏（切书、播放、速率、音量）',
-    '下端で止める：コントロールバー（本の切替、再生、速度、音量）',
-    '아래쪽 가장자리: 컨트롤 바 (책 전환, 재생, 속도, 볼륨)',
+    'Rest at the bottom edge: file bar and control bar (current file, books, play, volume)',
+    '停在底缘：文件栏与总控栏（当前文件、切书、播放、音量）',
+    '下端：ファイルバーとコントロールバー（現在のファイル、本の切替、再生、音量）',
+    '아래쪽 가장자리: 파일 바와 컨트롤 바 (현재 파일, 책 전환, 재생, 볼륨)',
   ],
   hkTipLeft: [
     'Rest at the left edge: shelf bookmarks (when not pinned)',

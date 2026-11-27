@@ -2,14 +2,13 @@
 // - 'media' 模式的驱动器：开始 = 播放当前媒体（没有当前媒体时取视窗内或其后最近的媒体，滚到居中再播放），停止 = 暂停；
 //   播完之后的切换沿用 order.mjs 的「播放顺序 × 循环」。running 与实际播放保持一致：有媒体开始播放即报告运行，
 //   暂停、播完不再继续、打不开时报告停止（ctx.transport.report，只在 'media' 是当前模式生效的驱动器时起作用）。
-// - 单个媒体自己的播放键（press，也用于点击画面）：影音、混合模式下等同大播放键并把它设为当前媒体（混合模式下由 reader/engine.mjs 先播它，
-//   播完接着往下滚）；漫画模式下只播这一个文件，播完即停。
+// - 单个媒体自己的播放键（press，也用于点击画面、大播放键、文件栏的播放键）：影音、混合模式下等同大播放键并把它设为选中媒体
+//   （混合模式下由 reader/engine.mjs 先播它，播完接着往下滚）；漫画模式下只播这一个文件，播完即停。
 // - 混合模式的驱动器（reader/engine.mjs）经 ctx.media.run 播放、暂停媒体并查看它的状态；翻屏对齐经 ctx.media.align（autoplay.mjs）。
-// - 当前媒体（autoplay.mjs current）带 .current 类（强调色外框）。S.chosen 是选定的媒体（按过自己的播放键、开始播放或被切到的）：
-//   在播放或仍在视窗内时优先作为当前媒体；没有在播放时，正文一滚动就不再优先。
+// - 选中媒体（autoplay.mjs select）：按过自己的播放键、开始播放、被切到的；当前文件（autoplay.mjs target）变化时派发 ctx.emit('media', 'current')。
 // - 上一个 / 下一个媒体（总控栏）：按播放顺序找（列表、单集按页序，随机按本轮洗牌、上一个按播放记录），滚到居中；在播放时接着播放。
 // - 播放速率 ctx.transport.playRate 作用于所有媒体元素（含之后加载的），变速不变调（preservesPitch 保持默认）。
-// - 总控栏经 ctx.media 读写音量、播放顺序、循环，读当前媒体的名称与时间（now）；变化时派发 ctx.emit('media', 字段名)。
+// - 总控栏、文件栏经 ctx.media 读写音量、播放顺序、循环，读当前文件（target）与当前媒体的名称与时间（now）；变化时派发 ctx.emit('media', 字段名)。
 import { pageKind, shownName } from '../core/model.mjs';
 import { following } from '../core/playlist.mjs';
 
@@ -19,6 +18,9 @@ export function install(ctx, S) {
   const start = (...a) => S.start(...a),
     toggle = (...a) => S.toggle(...a),
     current = (...a) => S.current(...a),
+    fileTarget = (...a) => S.target(...a),
+    pick = (...a) => S.pick(...a),
+    select = (...a) => S.select(...a),
     claimNow = (...a) => S.claimNow(...a),
     candidates = (...a) => S.candidates(...a),
     sectionMap = (...a) => S.sectionMap(...a),
@@ -34,9 +36,9 @@ export function install(ctx, S) {
   // ---- 'media' 驱动器
   ctx.transport.drive('media', {
     start() {
-      const p = current();
+      const p = pick();
       if (p) {
-        S.chosen = p;
+        select(p, 'play');
         p.solo = false;
         if (!on(p)) start(p);
         return true;
@@ -86,8 +88,7 @@ export function install(ctx, S) {
   // ---- 单个媒体自己的播放键、点击画面
   function press(p) {
     if (p.state === 'failed') return;
-    S.chosen = p;
-    mark();
+    select(p, 'press');
     if (ctx.transport.mode === 'comic') {
       if (!on(p)) p.solo = true;
       toggle(p);
@@ -106,26 +107,25 @@ export function install(ctx, S) {
   const run = {
     // 能否停下来播放：视频、音频，且没有记为播不了。
     playable: (page) => ['video', 'audio'].includes(pageKind(page)) && !page.bad && !S.failedPages.has(page),
-    // 开始运行时先播哪一个：刚按了自己播放键的；否则正在播放的；否则选定的当前媒体（仍在视窗内、没有播完）；都没有为 null。
+    // 开始运行时先播哪一个：刚按了自己播放键的；否则正在播放的；否则选中的媒体（仍在视窗内、没有播完）；都没有为 null。
     first() {
       const ok = (p) => p && players.has(p.node) && p.book === ctx.current && p.state !== 'failed';
       if (ok(S.pressed)) return S.pressed.page;
       const p = [...players.values()].find((q) => ok(q) && on(q));
       if (p) return p.page;
-      const c = S.chosen;
+      const c = S.selected;
       return ok(c) && !c.done && inView(c) ? c.page : null;
     },
     // 播放这一页的媒体（已滚到视窗中央）：正在播放的不动；否则从记住的位置播放（只播区段时从区段开始，见 player.mjs start）。
     play(page) {
       const p = playerAt(page);
       if (p && on(p)) {
-        S.chosen = p;
+        select(p, 'play');
         return;
       }
       if (p && p.state === 'ready' && inView(p)) {
-        S.chosen = p;
+        select(p, 'play');
         start(p);
-        mark();
         return;
       }
       S.queued = { page, time: times.get(page) ?? savedPos(ctx.current, page), play: true, auto: false };
@@ -148,15 +148,17 @@ export function install(ctx, S) {
     },
   };
 
-  // ---- 当前媒体的外框
+  // ---- 当前文件的变化（选中、滚动、切书后）：派发 'current'；marked 是当前媒体（它的时间变化派发 'time'）。
   let marked = null,
+    markedPage = null,
     frame = 0;
   function mark() {
-    const p = current() ?? null;
-    if (p === marked) return;
-    marked?.node.classList.remove('current');
+    const tg = fileTarget(),
+      p = current() ?? null,
+      page = tg?.page ?? null;
+    if (p === marked && page === markedPage) return;
     marked = p;
-    p?.node.classList.add('current');
+    markedPage = page;
     ctx.emit('media', 'current');
   }
   function later() {
@@ -166,15 +168,8 @@ export function install(ctx, S) {
         mark();
       });
   }
-  // 滚动后，选定但没有在播放的媒体不再优先：当前媒体回到「正在播放的，否则离视窗中心最近的」。
-  main.addEventListener(
-    'scroll',
-    () => {
-      if (S.chosen && !on(S.chosen)) S.chosen = null;
-      later();
-    },
-    { passive: true },
-  );
+  // 滚动后当前文件可能变了（视窗中心换了一页、选中的媒体中线离开视窗）。
+  main.addEventListener('scroll', later, { passive: true });
 
   // ---- 播放速率
   const rate = () => ctx.transport.playRate;
@@ -189,7 +184,7 @@ export function install(ctx, S) {
     (e) => {
       const p = playerOf(e.target);
       if (!p) return;
-      S.chosen = p;
+      select(p, 'play');
       const trail = (S.trail ??= []);
       if (trail.at(-1) !== p.page.name) trail.push(p.page.name);
       if (trail.length > 200) trail.shift();
@@ -233,7 +228,6 @@ export function install(ctx, S) {
   // 切书。影音模式运行中用户切到别的书：在新书里接着运行（从阅读位置往后找媒体），没有媒体即停止；跨书自动切过去的由 order.mjs 接手。
   ctx.on('select', (book) => {
     S.trail = [];
-    S.chosen = null;
     if (book && book === S.onward) S.onward = null;
     else if (book && ctx.transport.running && ctx.transport.driver === 'media') ahead();
     changed();
@@ -290,10 +284,15 @@ export function install(ctx, S) {
 
   // ---- 总控栏读写的接口（ctx.media 由 media.mjs 建立；按属性描述符并入，保留取值函数）
   const bar = {
-    press: (target) => {
-      const p = playerOf(target);
+    press: (el) => {
+      const p = playerOf(el);
       if (p) press(p);
     },
+    // 当前文件（文件栏）：{book, page, i, kind, player}，见 autoplay.mjs target。
+    target: () => fileTarget(),
+    // 视频全屏（文件栏的全屏按钮）：再按一次退出；isFull(p) 是否正在全屏。
+    fullscreen: (p) => S.fullscreen(p),
+    isFull: (p) => !!p && S.full === p,
     get volume() {
       return S.volume;
     },
@@ -326,7 +325,7 @@ export function install(ctx, S) {
     align: (d, step) => align(d, step),
     // 当前媒体的名称（最末一段）、完整路径、时间与时长（秒）、是否在播放；没有当前媒体时为 null。
     now() {
-      const p = marked && players.has(marked.node) ? marked : current();
+      const p = current();
       if (!p) return null;
       const full = shownName(p.page);
       return {
@@ -339,5 +338,5 @@ export function install(ctx, S) {
     },
   };
   Object.defineProperties(ctx.media, Object.getOwnPropertyDescriptors(bar));
-  Object.assign(S, { press, mark: later });
+  Object.assign(S, { press, mark: later, markNow: mark, on });
 }

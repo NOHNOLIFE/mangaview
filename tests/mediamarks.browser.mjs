@@ -221,6 +221,11 @@ try {
     await at(name, s);
     await js(`el(${JSON.stringify(name)}).play()`);
   };
+  // 取消选中媒体（中线离开视窗即取消）：之后的「当前文件」是视窗中心所在的页。
+  const deselect = async () => {
+    await js('reader.scrollTop=0');
+    await wait(() => js(`!reader.querySelector('.page.media.selected')`), 'nothing selected');
+  };
   const toPageReady = async (name) => {
     await js(`toPage(${JSON.stringify(name)})`);
     await ready(name);
@@ -347,7 +352,8 @@ try {
   ]);
   await js(`node('03 long.wav').querySelector('.mv-mk').click()`);
   await wait(async () => Math.abs((await now('03 long.wav')) - 5) < 0.05, 'marker click seeks');
-  // 视频书签：在播放器里添加时直接截当前画面作缩略图。
+  // 视频书签：在播放器里添加时直接截当前画面作缩略图。之前播放过的音频是选中媒体，先取消，长按 F 作用于视窗中心的视频。
+  await deselect();
   await toPageReady('02 clip.webm');
   await at('02 clip.webm', 1);
   await hold();
@@ -561,6 +567,7 @@ try {
   await storage('playOrder', 'list');
 
   // ---- 只播放书签区段。03 有区段 5–10 和 12–14，06 有区段 2–4，04 没有区段（自动切换时跳过）。
+  await deselect(); // 随机播放最后选中的媒体不再是当前文件，长按 Shift+F 作用于视窗中心的 03
   await toPageReady('03 long.wav');
   await at('03 long.wav', 14);
   await hold(true);
