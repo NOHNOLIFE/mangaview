@@ -142,7 +142,7 @@ try {
   await shot('names-failed');
   await js(`document.querySelector('#bar [data-act="preview"]').click()`);
   await wait(() => js(`!document.body.classList.contains('docked')`));
-  // 工具栏书名：单行、末尾省略，完整书名在提示里，可悬停、可选中；工具栏按钮位置与短书名时相同。
+  // 工具栏书名：单行、末尾省略，完整书名在提示里，可悬停；名称区整块是按钮，文字不可选中；工具栏按钮位置与短书名时相同。
   const tbLefts = () =>
     js(
       `[...bar.querySelectorAll('.tb')].filter(b=>!b.hidden).map(b=>Math.round(b.getBoundingClientRect().left)).join()`,
@@ -159,9 +159,9 @@ try {
   await wait(() => js('!bar.hidden'));
   await delay(300);
   const tb = await js(
-    `(()=>{const t=bookTitle,s=getComputedStyle(t),r=barTitle.getBoundingClientRect();return {title:t.title,cut:t.scrollWidth>t.clientWidth,one:t.clientHeight<parseFloat(s.lineHeight)*1.5,pe:s.pointerEvents,us:s.userSelect,inside:r.left>=0&&r.right<=innerWidth}})()`,
+    `(()=>{const t=bookTitle,s=getComputedStyle(t),r=barTitle.getBoundingClientRect();return {title:t.title,tip:barTitle.title,cut:t.scrollWidth>t.clientWidth,one:t.clientHeight<parseFloat(s.lineHeight)*1.5,pe:s.pointerEvents,us:s.userSelect,inside:r.left>=0&&r.right<=innerWidth}})()`,
   );
-  assert.deepEqual(tb, { title: LONG, cut: true, one: true, pe: 'auto', us: 'text', inside: true });
+  assert.deepEqual(tb, { title: LONG, tip: LONG, cut: true, one: true, pe: 'auto', us: 'none', inside: true });
   const longLefts = await tbLefts();
   await shot('names-toolbar');
   await js(`document.querySelector('#controlbar [data-act="prev"]').click()`);
@@ -182,7 +182,7 @@ try {
     await wait(() => js('document.querySelector("dialog.overview[open]")!==null'));
     await delay(250);
     return js(
-      `(()=>{const d=document.querySelector('dialog.overview[open]'),h=d.querySelector('.ov-head'),t=d.querySelector('.ov-title');return {title:t.title,cut:t.scrollWidth>t.clientWidth,fits:h.scrollWidth<=h.clientWidth,btns:[...h.querySelectorAll('button,.ov-hint')].map(b=>{const r=b.getBoundingClientRect();return Math.round(r.left)+'/'+Math.round(r.width)}).join()+' '+Math.round(d.querySelector('.ov-pos').getBoundingClientRect().width),dbg:[...h.children].map(b=>b.className+':'+Math.round(b.getBoundingClientRect().left)+'/'+Math.round(b.getBoundingClientRect().width)).join(' ')+' hw'+h.clientWidth+' sw'+h.scrollWidth}})()`,
+      `(()=>{const d=document.querySelector('dialog.overview[open]'),h=d.querySelector('.ov-head'),t=d.querySelector('.ov-title');return {title:t.title,cut:t.scrollWidth>t.clientWidth,fits:h.scrollWidth<=h.clientWidth,btns:[...h.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return Math.round(r.left)+'/'+Math.round(r.width)}).join()+' '+Math.round(d.querySelector('.ov-pos').getBoundingClientRect().width),dbg:[...h.children].map(b=>b.className+':'+Math.round(b.getBoundingClientRect().left)+'/'+Math.round(b.getBoundingClientRect().width)).join(' ')+' hw'+h.clientWidth+' sw'+h.scrollWidth}})()`,
     );
   };
   const closeOv = async () => {
@@ -206,7 +206,7 @@ try {
   assert.ok(lo.cut && lo.fits, 'Overview title is ellipsized inside the header');
   assert.equal(lo.btns, so.btns, 'Hint, position and buttons keep their place and size ' + so.dbg + ' || ' + lo.dbg);
   // 书架卡片：书名最多两行、末尾省略，完整书名在提示里；卡片尺寸与短书名相同。
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   const card = (n) =>
     `[...document.querySelectorAll('#books .book')].find(b=>b.querySelector('.name').textContent===${JSON.stringify(n)})`;
@@ -230,7 +230,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: long names: middle-ellipsized file names with intact endings, one-line toolbar title with tooltip (hoverable, selectable) and stable buttons, overview title, two-line shelf card titles with tooltips and stable card size, clipped names in notices',
+    'PASS: long names: middle-ellipsized file names with intact endings, one-line toolbar title with tooltip (a button, not selectable) and stable buttons, overview title, two-line shelf card titles with tooltips and stable card size, clipped names in notices',
   );
 } finally {
   if (ws?.readyState === 1) {

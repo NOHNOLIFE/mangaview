@@ -126,7 +126,7 @@ try {
     'image/webp',
   );
   const open = async () => {
-    await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+    await js(`barTitle.click()`);
     await wait(() => js('shelf.open'));
   };
   const count = (v) => js(`document.querySelector('[data-view="${v}"] .count').textContent`);

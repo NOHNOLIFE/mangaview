@@ -13,8 +13,11 @@ import { addIcons } from '../ui/icons.mjs';
 // 标题行的搜索框：输入即过滤，键盘选择只在结果内移动；打开时焦点仍在列表上，/ 或 Ctrl+F 聚焦搜索框，搜索框内 Esc 先清空并回到列表。
 // 搜索框旁的「图片 / 视频 / 音频」开关按页（书签所在页）的类型过滤，可多选，全不选等于不限；没有结果时的一键清除连同类型一起清除。
 // 搜索词和类型只在本次打开期间有效，关闭即清空，不影响上一本 / 下一本和书签跳转。
+// 标题行右侧依次是布局切换、书架（橙色加宽的按钮）、关闭；不显示按键说明（键位见键鼠操作图示）。
 // 标题行的书架按钮（或 B）在上层打开书架，全屏界面留在下面：书架里切书时全屏缩略图跟着换成新书，关闭书架后回到全屏界面（全屏书签按书架的最新状态重排）。
-// 本文件是入口：文案、图标、按顺序装配面板外壳（overview-sheet.mjs）、全屏缩略图（overview-pages.mjs）、全屏书架书签（overview-marks.mjs），以及缩略图栏顶部的打开按钮。
+// 两个全屏界面与缩略图栏里的视频、音频（全屏书签里是视频、音频书签）悬停或键盘选中时显示文件详情框（media/filecard.mjs），不设提示。
+// 本文件是入口：文案、图标、按顺序装配面板外壳（overview-sheet.mjs）、全屏缩略图（overview-pages.mjs）、全屏书架书签（overview-marks.mjs），
+// 以及缩略图栏顶部的打开按钮和缩略图栏的文件详情框。
 extend({
   ovOpen: ['Full-screen thumbnails (V)', '全屏缩略图（V）', '全画面サムネイル（V）', '전체 화면 미리보기 (V)'],
   smOvOpen: [
@@ -47,12 +50,6 @@ extend({
   ],
   ovNoMatch: ['No matching items', '没有匹配的项', '一致する項目はありません', '일치하는 항목 없음'],
   ovClear: ['Clear search', '清除搜索', '検索をクリア', '검색 지우기'],
-  ovHint: [
-    'WASD / arrows: choose · Space / Enter: open · {key} / Esc: close',
-    'WASD / 方向键选择 · 空格 / Enter 打开 · {key} / Esc 关闭',
-    'WASD / 矢印で選択 · Space / Enter で開く · {key} / Esc で閉じる',
-    'WASD / 화살표로 선택 · Space / Enter로 열기 · {key} / Esc로 닫기',
-  ],
 });
 // 侧栏顶部“打开全屏”按钮的图标（2×2 网格）；模块加载时就放进 sprite，书签列表安装时即可引用。
 addIcons({
@@ -97,5 +94,13 @@ export function install(ctx) {
   ctx.on('select', pvSync);
   ctx.on('books', pvSync);
   ctx.on('lang', pvSync);
+  // 缩略图栏里的视频、音频：悬停 / 聚焦时显示文件详情框（media/filecard.mjs），取代提示。
+  const nav = document.getElementById('preview');
+  ctx.fileCard?.attach(nav, (target) => {
+    const node = target.closest('.page'),
+      book = ctx.current,
+      page = node && nav.contains(node) ? book?.pages[+node.dataset.n - 1] : null;
+    return page && page.name === node.dataset.name ? { el: node, book, page } : null;
+  });
   ctx.overview = { thumbs, shelfmarks: shelfSheet };
 }

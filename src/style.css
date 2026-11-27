@@ -561,16 +561,6 @@ body.docked #panel {
 #grip:focus-visible {
   outline: none;
 }
-.viewport-marker {
-  position: absolute;
-  inset-inline: 0;
-  z-index: 1;
-  border: 2px solid var(--accent);
-  border-radius: 3px;
-  background: rgba(255, 122, 89, 0.08);
-  box-shadow: 0 0 14px rgba(255, 122, 89, 0.45);
-  pointer-events: none;
-}
 
 /* 授权提示与通知 */
 #access {

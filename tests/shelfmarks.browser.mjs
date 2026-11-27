@@ -187,7 +187,7 @@ try {
   await goto(3, 0.5);
   await hold();
   await wait(async () => (await count()) === 3);
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open')); // 书架顺序按名称，便于断言
   await js(`sortBtn.click();sortPop.querySelector('[data-sort="nameAsc"]').click();shelf.close()`);
   // 关闭时：短按只在本书内循环。
@@ -453,7 +453,7 @@ try {
   await filterBy('');
   await wait(() => js(`document.querySelectorAll('#shelfmarks .bm-item').length===2`));
   const total = () => js('import("./src/core/store.mjs").then(async({library})=>(await library("getAll")).length)');
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(`document.querySelector('#views [data-view="shelf"][aria-selected="false"]')?.click()`); // 再点已激活的页签会关闭书架
   const clear = `[...bulkActions.querySelectorAll('button')].find(b=>b.textContent.startsWith('Clear shelf'))`;

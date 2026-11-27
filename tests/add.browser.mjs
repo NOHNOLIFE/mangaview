@@ -237,7 +237,7 @@ try {
     ['1.svg'],
   );
   // 7. 添加为单个作品（书架页）：一个根文件夹用其名；多个根文件夹取文件名顺序第一个。
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await js(
     `(async()=>{const d=await dirOf('S2');window.showDirectoryPicker=async()=>d;document.querySelector('#shelf [data-act="folder"]').click();await opened();addOne.click();})()`,

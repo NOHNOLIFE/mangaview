@@ -20,7 +20,7 @@ export function install(ctx, S) {
   topRow.append(addBtn, secBtn, coverBtn);
   panel.append(topRow, head, grid);
   document.body.append(panel);
-  S.mates(grid);
+  S.cards(grid);
   function label(b, name, keys) {
     b.title = keys ? name + ' (' + keys + ')' : name;
     b.setAttribute('aria-label', name);
@@ -40,14 +40,14 @@ export function install(ctx, S) {
       grid.replaceChildren(make('p', 'bm-empty', t('bmEmpty')));
       return;
     }
-    grid.replaceChildren(...items.flatMap((x) => S.tiles(book, x)));
+    grid.replaceChildren(...items.map((x) => S.tile(book, x)));
     markPanel();
   }
-  // 面板里的最近书签（只看本书，core/recent.mjs；与书架书签列表的 .active 相同，区段只高亮最近的那一端）；面板开着时随阅读滚动更新。
+  // 面板里的最近书签（只看本书，core/recent.mjs；与书架书签列表的 .active 相同，是区段书签时只高亮小图）；面板开着时随阅读滚动更新。
   function markPanel() {
-    const r = S.nearest();
-    for (const el of grid.querySelectorAll('.bm-item'))
-      el.classList.toggle('active', !!r && el.dataset.id === r.id && 'end' in el.dataset === r.end);
+    const el = S.spotOf(grid, S.nearest());
+    for (const o of grid.querySelectorAll('.active')) if (o !== el) o.classList.remove('active');
+    el?.classList.add('active');
   }
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function open(x, y) {
@@ -83,7 +83,7 @@ export function install(ctx, S) {
   });
   panel.addEventListener('contextmenu', (e) => e.preventDefault());
   panel.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit,.bm-sub-del')) return;
     if (e.target.closest('.bm-cover')) {
       close();
       ctx.safe(ctx.actions.setCover)();
@@ -100,9 +100,11 @@ export function install(ctx, S) {
       main.focus();
       return;
     }
-    const item = e.target.closest('.bm-item');
-    if (!item || item.classList.contains('gone')) return;
-    S.jumpTo(item.dataset.id, 'end' in item.dataset);
+    // 点起点格子跳到起点，点左下角的小图跳到区段书签。
+    const item = e.target.closest('.bm-item'),
+      end = e.target.closest('.bm-sub');
+    if (!item || (end ?? item).classList.contains('gone')) return;
+    S.jumpTo(item.dataset.id, !!end);
     close();
     main.focus();
   });

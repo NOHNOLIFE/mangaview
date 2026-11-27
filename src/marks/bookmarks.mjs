@@ -15,7 +15,7 @@ import { addIcons } from '../ui/icons.mjs';
 // 媒体（视频、音频）书签记录时间点而不是页内位置：{id,name,t(秒，毫秒精度),at,label,named?,pbfName?,from?,end?}。
 // 名称（names.mjs）：label 为完整的名称字符串，媒体书签都有，图片书签只在手动改名后有；named：手动改过；pbfName：.pbf 里的原名（pbf.mjs）。
 // end：区段书签（终点，见 sections.mjs），记录的内容与书签相同 {name,f|t,at}，缩略图键为 `${book.id}:bm:${id}:end`；它不是独立的书签，
-// 不计数、不是 F / Enter 的停靠点；列表里紧跟在起点后面单独显示一项（tile.mjs）。配对只在同一坐标系里：图片为「页序 + 页内位置」（可跨页），每个媒体文件各自按时间。
+// 不计数、不是 F / Enter 的停靠点；列表里是起点那一格左下角的一张小图（tile.mjs）。配对只在同一坐标系里：图片为「页序 + 页内位置」（可跨页），每个媒体文件各自按时间。
 // 本文件是书签功能的入口：文案、图标、按顺序安装各子模块（共享对象 S 上登记彼此要用的函数与状态），登记跨子模块的事件，对外提供 ctx.marks。
 extend({
   bmAdd: ['Add bookmark', '添加书签', 'しおりを追加', '책갈피 추가'],
@@ -141,8 +141,9 @@ export function install(ctx) {
   dock(ctx, S);
   playerMarks(ctx, S);
   pageMarkers(ctx, S);
-  // ranges(book,page)：一个媒体内生效的区段（秒）；face / named / where / name：书签格子的内容、名称、位置说明、名称文字（全屏书架书签、设置封面共用）。
-  // edit(item,book,bm,after)：就地重命名（rename.mjs）；mates(box,sel)：区段两项的成对高亮。
+  // ranges(book,page)：一个媒体内生效的区段（秒）；face / sub / named / where / name：书签格子的内容、区段书签的小图、名称、位置说明、名称文字
+  // （全屏书架书签、设置封面共用）。edit(item,book,bm,after)：就地重命名（rename.mjs）。
+  // drawBar(进度条,book,page,时长,seek)：在一条进度条上画出该文件的全部书签与区段（media/marks.mjs，文件详情框也用它）。
   // changed(book)：书签在别处（如 .pbf 导入，pbf.mjs）增改后，更新面板、书架书签列表和其他界面。
   ctx.marks = {
     list,
@@ -156,8 +157,9 @@ export function install(ctx) {
     mediaRanges,
     ranges: (book, page) => mediaRanges(book).get(page.name) ?? [],
     face: S.face,
+    sub: S.sub,
     named: S.named,
-    mates: S.mates,
+    drawBar: (...a) => S.drawBar(...a),
     where: S.where,
     name: S.name,
     ensure: S.ensure,

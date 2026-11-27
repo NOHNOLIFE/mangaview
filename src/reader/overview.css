@@ -54,18 +54,7 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.ov-hint {
-  flex: none;
-  max-width: max(0px, min(40%, 100% - 32rem - clamp(7.5rem, 20vw, 15rem)));
-  margin-left: auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--faint);
-  font-size: 12px;
-}
-/* 名称长短不改变说明文字和按钮的尺寸与位置：只有书名（和全屏书签里带书名的位置）收缩并末尾省略。 */
+/* 名称长短不改变搜索框和按钮的尺寸与位置：只有书名（和全屏书签里带书名的位置）收缩并末尾省略。 */
 .ov-head > .icon-btn {
   flex: none;
 }
@@ -194,8 +183,8 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 260px;
 }
-/* 选中项（及成对高亮的另一项）所在的分组不做绘制隔离，选中的阴影不被分组边缘裁掉。 */
-.ov-sec:has(.ov-mark:is(.sel, .mate)) {
+/* 选中项所在的分组不做绘制隔离，选中的阴影不被分组边缘裁掉。 */
+.ov-sec:has(.ov-mark.sel) {
   content-visibility: visible;
 }
 .ov-sec-head {
@@ -248,6 +237,19 @@
 .ov-layout,
 .ov-shelf {
   flex: none;
+}
+/* 书架按钮：橙色（强调色）、加宽，方便点击。 */
+.ov-head > .ov-shelf {
+  width: 60px;
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 18px rgba(255, 110, 80, 0.25);
+}
+.ov-head > .ov-shelf:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--accent-hi);
+  color: var(--accent-ink);
 }
 
 /* 侧栏头部（缩略图栏 .pv-head；书架书签列表的 .sm-head 见 bookmarks.css）：两侧同高（52px）、镜像对称，各是一个占满整行的块状“打开全屏”按钮
@@ -319,6 +321,7 @@
   display: flex;
   flex: none;
   width: clamp(7.5rem, 20vw, 15rem);
+  margin-left: auto;
 }
 .ov-find .i {
   position: absolute;
@@ -368,15 +371,12 @@
 .ov-ring.end {
   box-shadow: inset 0 0 0 3px var(--sec);
 }
-/* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */
+/* 窄窗口：搜索框换到第二行占满整行，标题行不溢出。 */
 @media (max-width: 560px) {
   .overview > .ov-head {
     flex-wrap: wrap;
     row-gap: 6px;
     column-gap: 8px;
-  }
-  .overview .ov-hint {
-    display: none;
   }
   .overview .ov-title {
     flex: 0 1 auto;
@@ -394,7 +394,7 @@
     width: auto;
   }
 }
-/* 搜索框旁的类型开关（图片 / 视频 / 音频）：始终占位，按下时高亮（.icon-btn[aria-pressed]）；说明文字的宽度上限已为它们留出位置（.ov-hint） */
+/* 搜索框旁的类型开关（图片 / 视频 / 音频）：始终占位，按下时高亮（.icon-btn[aria-pressed]）。 */
 .ov-kinds {
   display: flex;
   flex: none;

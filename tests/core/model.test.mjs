@@ -24,6 +24,7 @@ import {
   clock,
   seekStep,
   nudge,
+  cellRatio,
 } from '../../src/core/model.mjs';
 import { dirOf } from '../../src/core/sources.mjs';
 
@@ -177,10 +178,30 @@ test('媒体排版：视频按帧比例（未知按 16:9），高于视窗封顶
   const small = offsets([{ name: 'a.mp4', w: 320, h: 180 }], 800, false, 900);
   assert.equal(small[1], 180);
   assert.equal(videoWidth({ name: 'a.mp4', w: 320, h: 180 }, 800, false, 900), 320);
-  // 缩略图栏（nav）不封顶，音频是固定比例的小块。
+  // 缩略图栏（nav）：图片照常；视频、音频是与全屏缩略图格子同样比例的小块（cellRatio：已知比例的中位数 1.5）。
   const nav = offsets(pages, 100, true, Infinity, true),
     n = nav.slice(1).map((x, i) => Math.round(x - nav[i]));
-  assert.deepEqual(n, [150, 56, 56, 400, 50]);
+  assert.deepEqual(n, [150, 150, 150, 150, 150]);
+  const fixed = offsets(pages, 100, true, Infinity, 0.8);
+  assert.deepEqual(
+    fixed.slice(1).map((x, i) => Math.round(x - fixed[i])),
+    [150, 80, 80, 80, 80],
+    'nav 为数字时即用它作媒体的比例',
+  );
+});
+test('全屏缩略图的格子比例：已知比例的中位数，限制在 0.7 ~ 1.6，都未知时 1.4', () => {
+  assert.equal(cellRatio([]), 1.4);
+  assert.equal(cellRatio([{ name: 'a.mp3' }, { name: 'b.jpg' }]), 1.4);
+  assert.equal(
+    cellRatio([
+      { w: 100, h: 120 },
+      { w: 100, h: 130 },
+      { w: 100, h: 900 },
+    ]),
+    1.3,
+  );
+  assert.equal(cellRatio([{ w: 1920, h: 1080 }]), 0.7);
+  assert.equal(cellRatio([{ w: 100, h: 400 }]), 1.6);
 });
 test('媒体时间、快进步长与音量步进', () => {
   assert.equal(clock(0), '0:00');

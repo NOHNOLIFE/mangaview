@@ -159,7 +159,7 @@ export function install(ctx) {
   // ---- 播放器的扩展点：登记按钮、画进度条上的标记。
   // add({id,icon,label(文案 key),order?,secondary?=true,kinds?:['video','audio'],click(播放器,api,按钮),state?(播放器,api,按钮)→{disabled,pressed,icon,label}})
   // 文件栏用：controls() 登记的按钮；seekBar(get) 建一条进度条（get() 为它作用的播放器），paintBar(进度条, 播放器) 画进度、返回时间文字；
-  // timeWidth(时长) 时间文字的宽度（ch）。
+  // timeWidth(时长) 时间文字的宽度（ch）。文件详情框（filecard.mjs）用：seekBar、paintBar、position(书, 页)。
   ctx.player = {
     add(c) {
       controls.push(c);
@@ -183,6 +183,12 @@ export function install(ctx) {
     },
     list: () => [...players.values()],
     current: () => current(),
+    // 某个文件的播放进度 {t, d, playing}（文件详情框用，不读文件）：有播放器时是它的实时值，否则是本次会话记下的或保存的位置、页记录里的时长（未知为 null）。
+    position(book, page) {
+      const p = [...players.values()].find((q) => q.book === book && q.page === page);
+      if (p) return { t: api.time(p) || 0, d: api.duration(p), playing: p.state === 'ready' && !p.el.paused };
+      return { t: times.get(page) ?? savedPos(book, page), d: page.d ?? null, playing: false };
+    },
     api,
   };
   driver(ctx, S);

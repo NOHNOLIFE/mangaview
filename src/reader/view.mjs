@@ -317,9 +317,6 @@ export class Reader {
     this.hooks = hooks;
     this.fit = true;
     this.panes = [main, preview].map((el) => ({ el, strip: el.firstElementChild, slots: new Map(), starts: [0] }));
-    this.marker = document.createElement('div');
-    this.marker.className = 'viewport-marker';
-    this.marker.setAttribute('aria-hidden', 'true');
     main.addEventListener(
       'scroll',
       () => {
@@ -552,23 +549,21 @@ export class Reader {
     }
     this.main.scrollTop = point(this.panes[0].starts, pos) - this.main.clientHeight / 2;
   }
+  // 点击缩略图栏：图片按点击处在缩略图里的位置定位；视频、音频直接把该文件放到阅读区中央（不选中、不播放）。
   fromPreview(y) {
     if (!this.book) return;
     this.browsing = false;
-    this.jump(at(this.panes[1].starts, this.preview.scrollTop + y));
+    const pos = at(this.panes[1].starts, this.preview.scrollTop + y),
+      page = this.book.pages[pos.i];
+    this.jump(page && pageKind(page) !== 'image' ? { i: pos.i, f: 0.5 } : pos);
     this.follow();
   }
+  // 缩略图栏跟随阅读位置：视窗中心对应的位置滚到缩略图栏中央（读者正在独立浏览缩略图栏时不动）。不画视窗对应的区域。
   follow() {
-    if (!this.book?.pages.length || !this.preview.clientWidth) return;
+    if (!this.book?.pages.length || !this.preview.clientWidth || this.browsing) return;
     const [body, nav] = this.panes,
-      top = this.main.scrollTop,
-      H = this.main.clientHeight;
-    const map = (y) => point(nav.starts, at(body.starts, y));
-    if (!this.browsing) this.preview.scrollTop = map(top + H / 2) - this.preview.clientHeight / 2;
-    if (!this.marker.isConnected) nav.strip.append(this.marker);
-    const start = map(top);
-    this.marker.style.top = start + 'px';
-    this.marker.style.height = Math.max(2, map(top + H) - start) + 'px';
+      mid = this.main.scrollTop + this.main.clientHeight / 2;
+    this.preview.scrollTop = point(nav.starts, at(body.starts, mid)) - this.preview.clientHeight / 2;
   }
   schedule() {
     if (!this.frame)
@@ -605,7 +600,8 @@ export class Reader {
           node.className = 'page';
           node.dataset.name = page.name;
           node.dataset.n = i + 1;
-          /* 只有缩略图悬停时显示文件名 */ if (k) node.title = shownName(page);
+          // 缩略图栏里的图片悬停时显示文件名；视频、音频显示文件详情框（media/filecard.mjs，overview.mjs 接上），不设提示。
+          if (k && pageKind(page) === 'image') node.title = shownName(page);
           p.strip.append(node);
           slots.set(i, node);
         }

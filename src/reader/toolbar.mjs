@@ -1,6 +1,6 @@
 // 顶部工具栏：鼠标贴近顶缘稍作停留即弹出、移开后收起（showBar），平时不可见的菜单按钮供键盘打开；窄窗口自动换行。
-// 工具栏下方是名称区（#barTitle）：一行「书名 · 当前页 / 总页数 · 进度」（内容由 shell.mjs 的 updateProgress 写入），
-// 整块是一个按钮（点击、Enter / 空格），打开书架页，等同「书架」按钮；书名仍可选中复制（选中文字时的那次点击不打开）。
+// 工具栏下方是名称区（#barTitle）：一个大的块级按钮，一行「书架图标 书名 · 当前页 / 总页数 · 进度」（内容由 shell.mjs 的 updateProgress 写入），
+// 点击或 Enter / 空格打开书架页（工具栏里没有单独的「书架」按钮，键盘另有 B）；按钮文字不可选中，完整书名在悬停提示里。
 // 底部总控栏见 controlbar.mjs；T 同时开关两者（keys.mjs）。
 import { extend } from '../core/lang.mjs';
 import { $, fade, showing } from '../ui/dom.mjs';
@@ -136,13 +136,9 @@ export function install(ctx) {
   document.addEventListener('pointerout', (e) => {
     if (!e.relatedTarget) cancel();
   });
-  // 名称区：打开书架（等同「书架」按钮）。拖选书名后松开不算点击。
+  // 名称区：打开书架。
   const openShelf = () => ctx.actions.shelf?.();
-  heading.addEventListener('click', () => {
-    const s = getSelection();
-    if (s && !s.isCollapsed && heading.contains(s.anchorNode)) return;
-    openShelf();
-  });
+  heading.addEventListener('click', openShelf);
   heading.addEventListener('keydown', (e) => {
     if ((e.key !== 'Enter' && e.key !== ' ') || e.repeat) return;
     e.preventDefault();

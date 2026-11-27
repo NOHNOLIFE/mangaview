@@ -371,7 +371,7 @@ try {
   await delay(700);
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='B35'`));
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await wait(async () => JSON.stringify(await names()) === '["B10","B35"]');
   assert.equal((await active()).name, 'B35', 'Focus on the current book after reload');
@@ -575,7 +575,7 @@ try {
   );
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='B35'`));
-  await js(`document.querySelector('#bar [data-act="shelf"]').click()`);
+  await js(`barTitle.click()`);
   await wait(() => js('shelf.open'));
   await wait(async () => (await names()).length > 5);
   assert.equal(await js('layoutBtn.dataset.mode+"|"+query.value+"|"+filterBadge.textContent'), 'grid||');

@@ -134,14 +134,16 @@
 }
 .bm-thumb .bm-type,
 .ov-mark .bm-type,
-.cp-item .bm-type {
+.cp-item .bm-type,
+.mv-tile .bm-type {
   z-index: 1;
   pointer-events: none;
 }
 .cp-item {
   position: relative;
 }
-/* 名称：叠在缩略图下沿，一行，超出省略；底色接近不透明（白底页面上对比度仍远高于 4.5:1）。有名称时类型角标、页码移到它上方。 */
+/* 名称：叠在缩略图下沿，一行，超出省略；底色接近不透明（白底页面上对比度仍远高于 4.5:1）。有名称时类型角标、页码移到它上方。
+   缩略图里音频的文件名条也是它（media/art.mjs nameStrip）。 */
 .bm-name {
   position: absolute;
   z-index: 1;
@@ -158,6 +160,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
+}
+.bm-name > .mid-name {
+  justify-content: flex-start;
 }
 .named > .bm-type,
 .ov-mark.named > .ov-n {
@@ -192,7 +197,7 @@
   font-size: 12px;
   user-select: text;
 }
-.bm-thumb.empty::before {
+:is(.bm-thumb, .bm-sub).empty::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -202,18 +207,17 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'/%3E%3C/svg%3E")
     center/32% no-repeat;
 }
-/* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮；区段的两项用区段配色，悬停或聚焦其中一项两项一起高亮（.mate）。 */
+/* .active：离阅读视窗最近的书签（右键书签面板与书架书签列表一致），与悬停同一高亮；带区段书签的一格（.paired）用区段配色，
+   悬停或聚焦这一格时起点和小图一起高亮；最近书签是区段书签时只高亮小图（.bm-sub.active）。 */
 .bm-item {
   --hl: var(--accent);
 }
-.bm-item.sec-start,
-.bm-item.sec-end {
+.bm-item.paired {
   --hl: var(--sec);
 }
-.bm-item.active .bm-thumb,
-.bm-item.mate .bm-thumb,
-.bm-item:not(.gone):hover .bm-thumb,
-.bm-item:focus-within .bm-thumb {
+.bm-item.active > .bm-thumb,
+.bm-item:not(.gone):hover > .bm-thumb,
+.bm-item:focus-within > .bm-thumb {
   box-shadow:
     0 0 0 2px var(--hl),
     0 6px 16px rgba(0, 0, 0, 0.4);
@@ -224,12 +228,6 @@
 .bm-item.gone .bm-thumb {
   filter: grayscale(1);
   opacity: 0.35;
-}
-/* 暂不生效的区段（页序改变使终点排到起点前）：终点变灰，仍可删除。 */
-.bm-item.off .bm-thumb > :is(img, .bm-ph),
-.bm-item.off .bm-thumb.empty {
-  filter: grayscale(1);
-  opacity: 0.4;
 }
 .bm-del,
 .bm-ren {
@@ -397,8 +395,9 @@ body.shelfmarks {
   outline: none;
 }
 
-/* 区段书签（bookmarks.mjs 的 i-bm-start / i-bm-end）：列表里起点和终点是前后紧挨、同样大小的两项，左上角各带一个互相呼应的区段配色标记；
-   平时不描边，悬停 / 选中任意一项时两项一起以区段配色高亮（.mate），作为最近书签（.active）时只高亮那一项。 */
+/* 区段书签（bookmarks.mjs 的 i-bm-start / i-bm-end，tile.mjs）：一个区段只占一格——起点缩略图左下角叠一张较小的区段书签缩略图（.bm-sub），
+   起点左上角、小图左上角各带一个互相呼应的区段配色标记；平时不描边，悬停 / 选中这一格时两张一起以区段配色高亮，
+   作为最近书签（.active）时只高亮对应的那一张。有名称时小图移到名称条之上。 */
 .bm-mk {
   position: absolute;
   z-index: 1;
@@ -418,18 +417,114 @@ body.shelfmarks {
   height: 14px;
   stroke-width: 2;
 }
-/* 全屏书架书签：选中区段的一项时两项一起高亮（区段配色）。 */
-.ov-mark:is(.sec-start, .sec-end):is(.sel, .mate) {
+.bm-sub {
+  position: absolute;
+  z-index: 1;
+  left: 4px;
+  bottom: 4px;
+  display: block;
+  width: 46%;
+  aspect-ratio: var(--bm-ar, 0.75);
+  overflow: hidden;
+  border-radius: 6px;
+  background: linear-gradient(160deg, #2c2e35, #1b1c21);
+  box-shadow:
+    0 0 0 1.5px rgba(10, 10, 12, 0.9),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: box-shadow 0.12s;
+}
+.bm-item:has(> .bm-thumb.named) > .bm-sub,
+.ov-mark.named > .bm-sub {
+  bottom: 24px;
+}
+.bm-sub > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bm-sub .bm-ph {
+  gap: 1px;
+  padding: 2px;
+}
+.bm-sub .bm-ph .i {
+  width: 14px;
+  height: 14px;
+}
+.bm-sub .bm-ph.mv-art > .mv-note {
+  top: 50%;
+}
+.bm-sub > .bm-mk {
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+.bm-sub > .bm-mk .i {
+  width: 12px;
+  height: 12px;
+}
+/* 悬停 / 聚焦这一格、全屏书架书签里选中这一格、最近书签是区段书签时：小图以区段配色描边。 */
+.bm-item.paired:hover > .bm-sub,
+.bm-item.paired:focus-within > .bm-sub,
+.bm-sub.active,
+.ov-mark.paired.sel > .bm-sub {
+  box-shadow:
+    0 0 0 2px var(--sec),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+}
+/* 暂不生效的区段：小图变灰（两头都不画区段标记），仍可删除；页已不存在的不能跳转。 */
+.bm-sub.off > :is(img, .bm-ph),
+.bm-sub.off.empty::before {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.bm-sub.gone {
+  cursor: default;
+  opacity: 0.5;
+}
+.bm-item.editing > .bm-sub {
+  visibility: hidden;
+}
+/* 窄格子里小图与右下角的类型角标会碰到：角标（时间点）在上。 */
+.bm-item.paired > .bm-thumb > .bm-type,
+.ov-mark.paired > .bm-type {
+  z-index: 2;
+}
+.bm-sub-del {
+  position: absolute;
+  z-index: 2;
+  right: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(10, 10, 12, 0.82);
+  color: #fff;
+  opacity: 0;
+}
+.bm-sub-del:not(:disabled):hover {
+  background: rgba(10, 10, 12, 0.95);
+  color: var(--danger);
+}
+.bm-sub:hover > .bm-sub-del,
+.bm-sub-del:focus-visible {
+  opacity: 1;
+}
+.bm-sub-del .i {
+  width: 12px;
+  height: 12px;
+}
+/* 全屏书架书签：选中带区段书签的一格时以区段配色描边；页码移到小图右侧。 */
+.ov-mark.paired.sel {
   box-shadow:
     0 0 0 3px var(--sec),
     0 8px 22px rgba(0, 0, 0, 0.55);
 }
-.ov-mark.mate:not(.sel) {
-  z-index: 1;
-}
-.ov-mark.off > :is(img, .bm-ph) {
-  filter: grayscale(1);
-  opacity: 0.4;
+.ov-mark.paired > .ov-n {
+  left: calc(46% + 10px);
 }
 
 /* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，pagemarks.mjs 的 badge）：一个书签图标（有区段书签时为区段配色），多个书签时带数量。 */
