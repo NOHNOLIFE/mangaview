@@ -109,7 +109,6 @@
 <div id="win-drag"></div>
 <div id="toolbar">
 <button id="tab" class="icon-btn" data-label="tools" aria-expanded="false" aria-controls="bar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
-<div id="barTitle"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small><div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div></div>
 <nav id="bar" hidden data-aria="tools">
 <button class="tb shelf-btn" data-act="shelf"><svg class="i" aria-hidden="true"><use href="#i-library"/></svg><span data-t="shelf"></span></button>
 <button class="tb" data-act="refresh"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span data-t="refresh"></span></button>
@@ -129,6 +128,7 @@
 <button class="tb" data-act="settings" data-optional hidden><svg class="i" aria-hidden="true"><use href="#i-tb-settings"/></svg><span data-t="settings"></span></button>
 <a class="tb" href="https://github.com/NOHNOLIFE/mangaview" target="_blank" rel="noopener noreferrer"><svg class="i" aria-hidden="true"><use href="#i-github"/></svg><span data-t="github"></span></a>
 </nav>
+<div id="barTitle" role="button" tabindex="0" aria-haspopup="dialog"><strong id="bookTitle">MangaView</strong><small id="bookMeta"></small><div class="bar-progress" aria-hidden="true"><i id="barProgress"></i></div></div>
 </div>
 
 <div id="hud" aria-hidden="true" hidden><svg class="ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle id="ring" class="fill" cx="10" cy="10" r="8" pathLength="100"/></svg><span id="pageNum"></span></div>

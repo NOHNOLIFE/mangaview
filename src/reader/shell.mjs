@@ -43,12 +43,15 @@ export function toolsState() {
 // 页码、进度环和工具栏进度条；flash 表示由滚动触发，短暂显示页码浮标。
 export function updateProgress(flash = false) {
   const pos = current && view.position(),
-    ratio = pos ? pos.ratio : 0;
+    ratio = pos ? pos.ratio : 0,
+    d = pos ? String(pos.n).length : 0;
+  // 名称区：当前页 / 总页数 · 进度（已到书尾时是 n / n）；按总页数的位数预留宽度，滚动中位数变化不推动书名。
   $('bookMeta').textContent = pos
-    ? `${pos.i + 1} / ${pos.n} · ${Math.round(ratio * 100)}%`
+    ? `${ctx?.atEnd?.() ? pos.n : pos.i + 1} / ${pos.n} · ${Math.round(ratio * 100)}%`
     : current
       ? `${current.pages.length} ${t('pages')}`
       : '';
+  $('bookMeta').dataset.room = pos ? `${'0'.repeat(d)} / ${'0'.repeat(d)} · 100%` : '';
   $('pageNum').textContent = pos ? `${pos.i + 1} / ${pos.n}` : '';
   $('barProgress').style.transform = `scaleX(${ratio})`;
   $('ring').style.strokeDashoffset = String(100 - ratio * 100);

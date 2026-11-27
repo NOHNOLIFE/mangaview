@@ -1,20 +1,17 @@
-/* 总控栏（controlbar.mjs）：底缘弹出，阅读区底部居中；三区（左阅读、中通用、右媒体）各两行，高度约 84px。
-   只有大播放键是主按钮（强调色实心）；模式切换次之；其余为普通图标按钮；第二行为小号灰字。禁用的控件只变暗，不隐藏、不移动。
-   窄窗口：.compact 时次要按钮收进各区的「⋯」弹出层；.stacked 时中区在上一行、左右两区在下一行；.tall 时三区各占一行。 */
+/* 总控栏（controlbar.mjs）：底缘弹出，阅读区底部居中，默认一行（约 58px 高）。弹出层 #controlbar 内自上而下是文件栏的行容器（#filebar，
+   空时 hidden、不占高度）和三区那一行（.cb-zones：左阅读、中运行、右媒体）。
+   只有大播放键是主按钮（强调色实心）；其余为普通图标按钮，组之间是细分隔线。禁用的控件只变暗，不隐藏、不移动。
+   窄窗口：.compact 时左、右区的次要按钮收进本区末尾的「⋯」弹出层（仍一行）；.stacked 时中区一行、左右两区并排一行（最多两行）。 */
 #controlbar {
   --leave-y: 8px;
   position: fixed;
   z-index: 5;
   bottom: 12px;
   left: calc(var(--dockL) + (100% - var(--dock) - var(--dockL)) / 2);
-  display: grid;
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
-  grid-template-areas: 'left mid right';
-  align-items: start;
-  column-gap: 14px;
-  row-gap: 4px;
+  display: flex;
+  flex-direction: column;
   width: min(1040px, calc(100% - var(--dock) - var(--dockL) - 16px));
-  padding: 6px 10px;
+  padding: 6px 8px;
   overflow: hidden;
   border: 1px solid var(--line2);
   border-radius: 16px;
@@ -26,43 +23,61 @@
   -webkit-user-select: none;
   user-select: none;
 }
-#controlbar.stacked {
+/* 文件栏的行容器：内容由文件栏模块放入，与三区那一行同宽，之间一条细线。 */
+#filebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 40px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line2);
+}
+.cb-zones {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  grid-template-areas: 'left mid right';
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+#controlbar.compact .cb-zones {
+  column-gap: 8px;
+}
+#controlbar.stacked .cb-zones {
   grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
   grid-template-areas:
     'mid mid'
     'left right';
-  row-gap: 6px;
-}
-#controlbar.tall {
-  grid-template-columns: minmax(max-content, 1fr);
-  grid-template-areas:
-    'mid'
-    'left'
-    'right';
 }
 .cb-zone {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
   min-width: 0;
+  height: 44px;
 }
 .cb-left {
   grid-area: left;
-  align-items: flex-start;
+  justify-content: flex-start;
 }
 .cb-mid {
   grid-area: mid;
-  align-items: center;
+  justify-content: center;
 }
 .cb-right {
   grid-area: right;
-  align-items: flex-end;
+  justify-content: flex-end;
 }
-.cb-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 44px;
+.cb-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line2);
 }
 /* 普通图标按钮 */
 .cb-btn {
@@ -130,7 +145,7 @@
 .cb-play {
   width: 44px;
   height: 44px;
-  margin: 0 8px;
+  margin: 0 4px;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-ink);
@@ -150,84 +165,7 @@
 .cb-play:disabled {
   box-shadow: none;
 }
-/* 模式切换：三段，选中的一段为浅强调色底。 */
-.cb-modes {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
-}
-.cb-mode {
-  width: 40px;
-  height: 24px;
-  border-radius: 7px;
-}
-.cb-mode .i {
-  width: 17px;
-  height: 17px;
-}
-.cb-mode[aria-checked='true'] {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.cb-mode[aria-checked='true']:not(:disabled):hover {
-  background: rgba(255, 122, 89, 0.22);
-  color: var(--accent-hi);
-}
-/* 第二行：小号灰字。位置与时间按位数预留宽度（零高度、不可见的 ::after 占位串），数字变化不推动别的元素。 */
-.cb-info {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.cb-pos,
-.cb-time {
-  display: inline-flex;
-  flex: none;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 28px;
-}
-.cb-time {
-  align-items: flex-end;
-}
-.cb-pos::after,
-.cb-time::after {
-  content: attr(data-room);
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-}
-.cb-now {
-  max-width: 100%;
-  min-width: 0;
-}
-.cb-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.cb-name:not(:empty) + .cb-time::before {
-  content: '·';
-  position: absolute;
-  margin-left: -10px;
-}
-.cb-name:not(:empty) + .cb-time {
-  position: relative;
-  margin-left: 14px;
-}
-#controlbar[data-mode='comic'] .cb-now {
-  opacity: 0.45;
-}
-/* 弹出层：「⋯」收进来的次要按钮排成一行；速率、音量的小面板（滑杆 + 常用档位，音量另有静音）。 */
+/* 弹出层：「⋯」收进来的次要按钮排成一行；播放模式的三项；速率、音量的小面板（滑杆 + 常用档位，音量另有静音）。 */
 .cb-pop {
   position: fixed;
   inset: auto;
@@ -240,9 +178,19 @@
   color: var(--text);
   overflow: visible;
 }
-.cb-more-pop:popover-open {
+.cb-more-pop:popover-open,
+.mode-pop:popover-open {
   display: flex;
   gap: 2px;
+}
+/* 播放模式：选中的一项为浅强调色底。 */
+.cb-mode[aria-checked='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cb-mode[aria-checked='true']:not(:disabled):hover {
+  background: rgba(255, 122, 89, 0.22);
+  color: var(--accent-hi);
 }
 .dial-pop:popover-open {
   display: grid;
@@ -251,8 +199,8 @@
   gap: 6px 8px;
   width: 248px;
 }
-/* 面板与按钮之间的空隙：透明延伸区，指针经过时面板不收起。 */
-.dial-pop::after {
+/* 悬停弹出的面板与按钮之间的空隙：透明延伸区，指针经过时面板不收起。 */
+.cb-hover::after {
   content: '';
   position: absolute;
   left: 0;

@@ -11,6 +11,10 @@ import {
   disabledControls,
   RIGHT,
   MEDIA_ONLY,
+  ZONES,
+  KEEP,
+  arrange,
+  nextMode,
 } from '../../src/core/control.mjs';
 
 test('模式：三种，默认（及读到坏值时）为混合', () => {
@@ -62,17 +66,62 @@ test('速率的显示：整十分位一位小数，否则两位', () => {
   assert.equal(rateText(1.3), '1.3×');
 });
 
-test('禁用规则：漫画模式右区除循环外全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区除循环外全部，影音模式下大播放键也禁用', () => {
+test('禁用规则：漫画模式右区全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区全部，影音模式下大播放键也禁用', () => {
   const off = (mode, hasMedia) => [...disabledControls({ mode, hasMedia })].sort();
   assert.deepEqual(MEDIA_ONLY, ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
+  assert.deepEqual(RIGHT, MEDIA_ONLY);
   assert.deepEqual(off('comic', true), [...MEDIA_ONLY].sort());
   assert.deepEqual(off('mixed', true), ['order']);
   assert.deepEqual(off('media', true), ['scrollRate']);
   assert.deepEqual(off('mixed', false), [...MEDIA_ONLY].sort());
   assert.deepEqual(off('media', false), [...MEDIA_ONLY, 'play', 'scrollRate'].sort());
   assert.deepEqual(off('comic', false), [...MEDIA_ONLY].sort());
-  // 循环（右区）任何模式、有无媒体都可用
+  // 中区的开关（播放模式、只播区段、单文件、循环）任何模式、有无媒体都可用
   for (const mode of ['comic', 'mixed', 'media'])
-    for (const hasMedia of [true, false]) assert.ok(!disabledControls({ mode, hasMedia }).has('loop'), mode);
-  assert.ok(RIGHT.includes('loop'));
+    for (const hasMedia of [true, false])
+      for (const id of ['mode', 'sections', 'single', 'loop'])
+        assert.ok(!disabledControls({ mode, hasMedia }).has(id), mode + ' ' + id);
+});
+
+test('三区排布：左 6、中 5、右 6，左右对称；循环在中区', () => {
+  const ids = (z) => ZONES[z].filter((id) => id !== '|');
+  assert.deepEqual(ids('left'), ['prevBook', 'toStart', 'toEnd', 'nextBook', 'crossBook', 'scrollRate']);
+  assert.deepEqual(ZONES.mid, ['mode', 'sections', 'play', 'single', 'loop']);
+  assert.deepEqual(ids('right'), ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
+  assert.equal(ZONES.left.indexOf('|'), 4);
+  assert.equal(ZONES.right.indexOf('|'), 3);
+  assert.equal(ids('left').length + ZONES.mid.length + ids('right').length, 17);
+  const every = [...ids('left'), ...ZONES.mid, ...ids('right')];
+  assert.equal(new Set(every).size, every.length, 'Each control appears once');
+});
+
+test('窄窗口：左区留上一本 / 下一本，右区留下一个媒体 / 音量，其余收进本区的「⋯」；中区不收', () => {
+  assert.deepEqual(arrange('left', false), { row: ZONES.left, more: [] });
+  assert.deepEqual(arrange('left', true), {
+    row: ['prevBook', 'nextBook', 'more'],
+    more: ['toStart', 'toEnd', 'crossBook', 'scrollRate'],
+  });
+  assert.deepEqual(arrange('right', true), {
+    row: ['mediaNext', 'volume', 'more'],
+    more: ['mediaPrev', 'order', 'playRate', 'popout'],
+  });
+  assert.deepEqual(arrange('mid', true), { row: ZONES.mid, more: [] });
+  assert.deepEqual(KEEP, { left: ['prevBook', 'nextBook'], right: ['mediaNext', 'volume'] });
+  // 收起前后每个控件仍只出现一次
+  for (const z of ['left', 'right']) {
+    const { row, more } = arrange(z, true);
+    assert.deepEqual(
+      [...row.filter((id) => id !== 'more'), ...more].sort(),
+      ZONES[z].filter((id) => id !== '|').sort(),
+    );
+  }
+});
+
+test('播放模式按钮：点击按漫画 → 混合 → 影音 → 漫画轮换，方向键反向也相接；坏值按混合', () => {
+  assert.equal(nextMode('comic'), 'mixed');
+  assert.equal(nextMode('mixed'), 'media');
+  assert.equal(nextMode('media'), 'comic');
+  assert.equal(nextMode('comic', -1), 'media');
+  assert.equal(nextMode('mixed', -1), 'comic');
+  assert.equal(nextMode('bogus'), 'media');
 });

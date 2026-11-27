@@ -1,19 +1,21 @@
-// 总控栏：取代原来的底部操作栏。鼠标贴近底缘稍作停留即弹出、移开后收起（设置里可关闭底缘弹出），不常驻；
-// 新窗口播放的窗口里同样有。分三区，每区两行（第二行是小号灰字或模式切换），高度约 84px：
-// - 左（阅读）：上一本、到顶部、到底部、下一本（书架有筛选时带小圆点，只在筛选结果内切换）、跨书开关、滚动速率；第二行页码与进度。
-// - 中（通用）：只播区段开关、大的播放 / 暂停（唯一的主按钮，= 空格）、单文件模式开关；第二行模式切换（漫画 / 混合 / 影音）。
-// - 右（媒体）：上一个媒体、下一个媒体、播放顺序、循环、播放速率、音量、新窗口播放；第二行当前媒体的文件名（最末一段）· 时间。
+// 总控栏：取代原来的底部操作栏。鼠标贴近底缘稍作停留即弹出、移开后收起（设置里可关闭底缘弹出），按 T 与顶部工具栏一起显示 / 收起；
+// 新窗口播放的窗口里同样有。默认一行，分三区（排布见 core/control.mjs 的 ZONES，左右对称）：
+// - 左（阅读）：上一本、书首、书尾、下一本（书架有筛选时带小圆点，只在筛选结果内切换）│ 跨书开关、滚动速率。
+// - 中（运行）：播放模式（二级按钮：图标是当前模式，悬停 / 聚焦在上方弹出三种模式，点击轮换）、只播区段、大的播放 / 暂停（唯一的主按钮，= 空格）、
+//   单文件模式、循环。
+// - 右（媒体）：上一个媒体、下一个媒体、播放顺序 │ 播放速率、音量、新窗口播放。
+// 书名与阅读进度在顶部工具栏下方的名称区（toolbar.mjs）。三区那一行的上方是文件栏的行容器（#filebar，内容由文件栏模块放入；
+// 空时 hidden、不占高度），与总控栏一起显示 / 收起、同宽：经 ctx.controlBar.fileRow 取得，显示 / 收起时派发 'controlbar'（是否显示）。
 // 状态在 ctx.transport（transport.mjs）与 ctx.media（media/driver.mjs）；禁用规则在 core/control.mjs（与当前模式无关的变暗禁用，不隐藏、不移动）。
-// 位置稳定：数字按位数预留宽度（::after 占位串），按钮禁用只变暗。窄窗口：先把次要按钮（到顶部、到底部、播放顺序、循环、新窗口播放）
-// 收进各区的「⋯」弹出层（.compact），仍放不下时三区分两行排（中区在上，.stacked），再放不下时三区各占一行（.tall），约 360px 宽时不溢出。
+// 位置稳定：速率按最长的数字预留宽度，按钮禁用只变暗。窄窗口：先把左、右区的次要按钮收进本区末尾的「⋯」弹出层（.compact，仍是一行），
+// 仍放不下时分两行（.stacked：中区一行，左、右区并排一行）；总控栏自身最多两行，任何宽度都不横向溢出。
 import { extend } from '../core/lang.mjs';
-import { clock } from '../core/model.mjs';
-import { RATES, rateOf, stepRate, rateText, disabledControls, MODES } from '../core/control.mjs';
+import { RATES, rateOf, stepRate, rateText, disabledControls, MODES, arrange, nextMode } from '../core/control.mjs';
 import { nudge } from '../core/model.mjs';
 import { make, icon } from '../ui/dom.mjs';
 import { ORDER_ICON, ORDER_LABEL } from '../media/order.mjs';
 import { DWELL, LEAVE } from './toolbar.mjs';
-import { dial } from './controlbar-dial.mjs';
+import { dial, hoverPop, arrows } from './controlbar-dial.mjs';
 
 extend({
   tbEdgeBottom: [
@@ -45,8 +47,11 @@ extend({
   cbLoopBook: ['Loop: the whole book', '循环：整本', 'ループ：本全体', '반복: 책 전체'],
   cbLoopList: ['Loop: the whole reading list', '循环：整个阅读列表', 'ループ：読書リスト全体', '반복: 읽기 목록 전체'],
 });
-// 弹出层的尺寸（与 controlbar.css 一致）：按钮 36px，内边距 6px + 边框 1px。
+
+// 「⋯」弹出层的尺寸（与 controlbar.css 一致）：图标按钮 36px，速率按钮 52px，间距 2px，内边距 6px + 边框 1px。
 const BTN = 36,
+  RATE = 52,
+  GAP = 2,
   POP_PAD = 14;
 const MODE_ICON = { comic: 'mode-comic', mixed: 'mode-mixed', media: 'mode-media' },
   MODE_LABEL = { comic: 'cbComic', mixed: 'cbMixed', media: 'cbMedia' };
@@ -57,22 +62,25 @@ export function install(ctx) {
     M = () => ctx.media;
   const dialog = () => document.querySelector('dialog[open]');
 
-  // ---- DOM
+  // ---- DOM：#controlbar 是弹出层，内含文件栏的行容器与三区那一行。
   const bar = make('div');
   bar.id = 'controlbar';
   bar.setAttribute('role', 'toolbar');
   bar.hidden = true;
+  const fileRow = make('div');
+  fileRow.id = 'filebar';
+  fileRow.hidden = true;
+  const zones = make('div', 'cb-zones');
+  bar.append(fileRow, zones);
   const zone = (cls) => {
-    const z = make('div', 'cb-zone ' + cls),
-      row = make('div', 'cb-row');
-    z.append(row);
-    bar.append(z);
-    return row;
+    const z = make('div', 'cb-zone ' + cls);
+    zones.append(z);
+    return z;
   };
   const left = zone('cb-left'),
     mid = zone('cb-mid'),
     right = zone('cb-right');
-  // 图标按钮：文字只在 title 与 aria-label（label 为文案 key 或函数）。
+  // 图标按钮：文字只在 title 与 aria-label（label 为文案 key 或返回文字的函数）。
   const btns = {};
   function btn(id, name, label, action, cls = '') {
     const b = make('button', 'cb-btn ' + cls);
@@ -89,39 +97,52 @@ export function install(ctx) {
     if (b.title !== text) b.title = text;
     if (b.getAttribute('aria-label') !== text) b.setAttribute('aria-label', text);
   };
+  const labelOf = (b) => (typeof b.label === 'function' ? b.label() : t(b.label));
   const pressed = (b, on) => b.setAttribute('aria-pressed', String(!!on));
-  // 「⋯」弹出层：窄窗口时收进来的次要按钮（各区一个）。
+  const sep = () => {
+    const s = make('span', 'cb-sep');
+    s.setAttribute('aria-hidden', 'true');
+    return s;
+  };
+  // 「⋯」弹出层：窄窗口时收进来的次要按钮（左、右区各一个，位于本区末尾）。
+  const dials = [];
   function more(id) {
     const b = btn(id, 'more', 'cbMore', null, 'cb-more'),
       pop = make('div', 'cb-pop cb-more-pop');
     pop.popover = 'auto';
     b.popoverTargetElement = pop;
     b.setAttribute('aria-haspopup', 'true');
-    b.hidden = true;
+    // 选了一项即收起；速率按钮除外（它的小面板在弹出层里接着用）。
     pop.addEventListener('click', (e) => {
-      if (e.target.closest('button')) pop.hidePopover(); // 选了一项即收起
+      const hit = e.target.closest('button');
+      if (hit?.parentElement === pop && !hit.matches('.cb-dial')) pop.hidePopover();
     });
-    // 打开前（同步）按按钮定位在它上方、夹在窗口内：弹出层是一行固定尺寸的按钮，尺寸可以直接算出。
+    // 打开前（同步）定位在总控栏上方（分两行时不盖住中区）、按钮居中、夹在窗口内：弹出层是一行固定尺寸的按钮，尺寸可以直接算出。
     pop.addEventListener('beforetoggle', (e) => {
       b.setAttribute('aria-expanded', String(e.newState === 'open'));
       if (e.newState !== 'open') return;
-      const r = b.getBoundingClientRect(),
-        n = pop.children.length,
-        w = n * BTN + (n - 1) * 2 + POP_PAD,
+      const items = [...pop.children].filter((c) => c.matches('.cb-btn')),
+        r = b.getBoundingClientRect(),
+        w = items.reduce((s, c) => s + (c.matches('.cb-rate') ? RATE : BTN), 0) + (items.length - 1) * GAP + POP_PAD,
         h = BTN + POP_PAD;
       pop.style.left = Math.round(Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2))) + 'px';
-      pop.style.top = Math.round(Math.max(4, r.top - h - 8)) + 'px';
+      pop.style.top = Math.round(Math.max(4, bar.getBoundingClientRect().top - h - 8)) + 'px';
+    });
+    // 收起时，里面速率按钮的小面板一起收起。
+    pop.addEventListener('toggle', (e) => {
+      if (e.newState === 'closed') for (const d of dials) if (pop.contains(d.button)) d.hide();
     });
     return { b, pop };
   }
+  const closeMore = (m) => m.pop.matches(':popover-open') && m.pop.hidePopover();
 
   // 左区
   const prevBook = btn('prevBook', 'book-prev', 'prev', null, 'cb-book'),
-    toStart = btn('toStart', 'to-top', 'toTop', null, 'cb-minor'),
-    toEnd = btn('toEnd', 'to-end', 'toEnd', null, 'cb-minor'),
+    toStart = btn('toStart', 'to-top', 'toTop', null),
+    toEnd = btn('toEnd', 'to-end', 'toEnd', null),
     nextBook = btn('nextBook', 'book-next', 'next', null, 'cb-book'),
-    moreL = more('moreLeft'),
-    cross = btn('crossBook', 'cross-book', 'cbCrossBook', () => T().setCrossBook(!T().crossBook), 'cb-toggle');
+    cross = btn('crossBook', 'cross-book', 'cbCrossBook', () => T().setCrossBook(!T().crossBook), 'cb-toggle'),
+    moreL = more('moreLeft');
   prevBook.dataset.act = 'prev';
   nextBook.dataset.act = 'next';
   toStart.dataset.act = 'toStart';
@@ -146,30 +167,34 @@ export function install(ctx) {
     presets: RATES.scroll.presets.map((v) => ({ value: v, text: rateText(v) })),
   });
   btns.scrollRate = scrollDial.button;
-  left.append(prevBook, toStart, toEnd, nextBook, moreL.b, moreL.pop, cross, scrollDial.button, scrollDial.pop);
-  const pos = make('div', 'cb-info cb-pos');
-  left.after(pos);
 
-  // 中区
-  const sections = btn('sections', 'sections', 'mvSections', () => T().setSectionsOnly(!T().sectionsOnly), 'cb-toggle'),
-    play = btn('play', 'play', 'mvPlay', () => T().toggle(), 'cb-play'),
-    single = btn('single', 'single-file', 'cbSingle', () => T().setSingle(!T().single), 'cb-toggle');
-  mid.append(sections, play, single);
-  const modes = make('div', 'cb-modes');
-  modes.setAttribute('role', 'radiogroup');
+  // 中区：播放模式是二级按钮（图标为当前模式；悬停 / 聚焦弹出三种模式，与速率小面板的交互一致；点击轮换，方向键逐个切换）。
+  const modeBtn = btn(
+      'mode',
+      MODE_ICON.mixed,
+      () => t('cbMode') + ' · ' + t(MODE_LABEL[T()?.mode ?? 'mixed']),
+      () => T().setMode(nextMode(T().mode)),
+    ),
+    modePop = make('div', 'cb-pop mode-pop');
+  modePop.dataset.for = 'mode';
+  modePop.setAttribute('role', 'radiogroup');
   for (const m of MODES) {
     const b = btn('mode-' + m, MODE_ICON[m], MODE_LABEL[m], () => T().setMode(m), 'cb-mode');
     b.setAttribute('role', 'radio');
     b.dataset.mode = m;
-    modes.append(b);
+    modePop.append(b);
   }
-  mid.after(modes);
+  const modeHover = hoverPop(modeBtn, modePop);
+  arrows(modeBtn, (d) => T().setMode(nextMode(T().mode, d)));
+  const sections = btn('sections', 'sections', 'mvSections', () => T().setSectionsOnly(!T().sectionsOnly), 'cb-toggle'),
+    play = btn('play', 'play', 'mvPlay', () => T().toggle(), 'cb-play'),
+    single = btn('single', 'single-file', 'cbSingle', () => T().setSingle(!T().single), 'cb-toggle'),
+    loop = btn('loop', 'repeat', 'mvLoop', () => M()?.toggleLoop(), 'cb-toggle');
 
   // 右区
   const mediaPrev = btn('mediaPrev', 'skip-back', 'cbMediaPrev', () => M()?.step(-1)),
     mediaNext = btn('mediaNext', 'skip-forward', 'cbMediaNext', () => M()?.step(1)),
-    order = btn('order', 'order-list', 'mvOrderList', () => M()?.cycleOrder(), 'cb-minor'),
-    loop = btn('loop', 'repeat', 'mvLoop', () => M()?.toggleLoop(), 'cb-minor cb-toggle'),
+    order = btn('order', 'order-list', 'mvOrderList', () => M()?.cycleOrder()),
     moreR = more('moreRight');
   const playDial = dial({
     id: 'playRate',
@@ -219,28 +244,38 @@ export function install(ctx) {
     extra: muteBtn,
   });
   btns.volume = volDial.button;
-  const popout = btn('popout', 'popout', 'mvPopout', () => M()?.popout(), 'cb-minor');
-  right.append(
-    mediaPrev,
-    mediaNext,
-    order,
-    loop,
-    moreR.b,
-    moreR.pop,
-    playDial.button,
-    playDial.pop,
-    volDial.button,
-    volDial.pop,
-    popout,
-  );
-  const now = make('div', 'cb-info cb-now'),
-    nowName = make('span', 'cb-name'),
-    nowTime = make('span', 'cb-time');
-  nowName.dataset.nodrag = '';
-  now.append(nowName, nowTime);
-  right.after(now);
+  const popout = btn('popout', 'popout', 'mvPopout', () => M()?.popout());
+  dials.push(scrollDial, playDial, volDial);
   document.body.append(bar);
-  const dials = [scrollDial, playDial, volDial];
+
+  // ---- 排布：按 core/control.mjs 的 arrange 把按钮（连同它的小面板）、分隔线、「⋯」放进各区与「⋯」弹出层。
+  const popOf = { scrollRate: scrollDial.pop, playRate: playDial.pop, volume: volDial.pop, mode: modePop };
+  const parts = {
+    left: { row: left, sep: sep(), more: moreL },
+    mid: { row: mid },
+    right: { row: right, sep: sep(), more: moreR },
+  };
+  let compacted = null;
+  function hidePops() {
+    for (const d of dials) d.hide();
+    modeHover.hide();
+    closeMore(moreL);
+    closeMore(moreR);
+  }
+  function arrangeAll(compact) {
+    if (compacted === compact) return;
+    compacted = compact;
+    hidePops();
+    for (const [name, p] of Object.entries(parts)) {
+      const nodes = (id) =>
+        id === '|' ? [p.sep] : id === 'more' ? [p.more.b, p.more.pop] : [btns[id], ...(popOf[id] ? [popOf[id]] : [])];
+      const { row, more: inMore } = arrange(name, compact);
+      p.row.replaceChildren(...row.flatMap(nodes));
+      p.more?.pop.replaceChildren(...inMore.flatMap(nodes));
+    }
+    bar.classList.toggle('compact', compact);
+  }
+  arrangeAll(false);
 
   // ---- 状态显示
   const showing = () => ctx.showing(bar);
@@ -248,17 +283,9 @@ export function install(ctx) {
   let hasMedia = false;
   function texts() {
     bar.setAttribute('aria-label', t('controlBar'));
-    modes.setAttribute('aria-label', t('cbMode'));
-    for (const b of Object.values(btns)) if (b.label) setLabel(b, t(b.label));
+    modePop.setAttribute('aria-label', t('cbMode'));
+    for (const b of Object.values(btns)) if (b.label) setLabel(b, labelOf(b));
     setLabel(muteBtn, t('cbMute'));
-  }
-  // 左区第二行：已读页 / 总页数 · 进度。按总页数的位数预留宽度（::after 占位串），滚动中位数变化不推动别的元素。
-  function syncPos() {
-    const p = ctx.current && ctx.view.position(),
-      n = p?.n ?? ctx.current?.pages.length ?? 0,
-      d = String(n).length;
-    pos.textContent = p ? `${ctx.atEnd() ? n : p.i + 1} / ${n} · ${Math.round(p.ratio * 100)}%` : '';
-    pos.dataset.room = n ? `${'0'.repeat(d)} / ${'0'.repeat(d)} · 100%` : '';
   }
   function syncBooks() {
     const o = others(),
@@ -272,7 +299,6 @@ export function install(ctx) {
   function syncScroll() {
     toStart.disabled = ctx.atStart();
     toEnd.disabled = ctx.atEnd();
-    syncPos();
     syncSteps();
   }
   function syncSteps() {
@@ -281,16 +307,6 @@ export function install(ctx) {
     mediaPrev.disabled = off.has('mediaPrev') || !M()?.canStep(-1);
     mediaNext.disabled = off.has('mediaNext') || !M()?.canStep(1);
     popout.disabled = off.has('popout') || !M()?.canPopout();
-  }
-  // 右区第二行：当前媒体的文件名（最末一段，放不下省略，完整路径在悬停提示）· 时间（按时长位数预留宽度）。
-  function syncNow() {
-    const n = M()?.now();
-    nowName.textContent = n?.name ?? '';
-    nowName.title = n?.full ?? '';
-    const d = n?.duration;
-    nowTime.textContent = n ? clock(n.time) + ' / ' + (d ? clock(d) : '-:--') : '';
-    nowTime.dataset.room = n ? clock(d || 0).replace(/\d/g, '0') + ' / ' + clock(d || 0).replace(/\d/g, '0') : '';
-    now.classList.toggle('empty', !n);
   }
   function syncTransport() {
     hasMedia = !!M()?.hasMedia(ctx.current);
@@ -304,7 +320,9 @@ export function install(ctx) {
     setLabel(play, t(play.label));
     pressed(play, tr.running);
     play.disabled = off.has('play');
-    for (const b of modes.children) b.setAttribute('aria-checked', String(b.dataset.mode === tr.mode));
+    setIcon(modeBtn, MODE_ICON[tr.mode]);
+    setLabel(modeBtn, labelOf(modeBtn));
+    for (const b of modePop.children) b.setAttribute('aria-checked', String(b.dataset.mode === tr.mode));
     for (const id of ['scrollRate', 'order', 'loop', 'playRate', 'volume']) btns[id].disabled = off.has(id);
     // 循环在漫画、混合模式下是整本循环（跨书开启时是整个阅读列表），提示里写明。
     loop.label = tr.mode === 'media' ? 'mvLoop' : tr.crossBook ? 'cbLoopList' : 'cbLoopBook';
@@ -332,42 +350,27 @@ export function install(ctx) {
     syncBooks();
     syncTransport();
     syncScroll();
-    syncNow();
   }
 
-  // ---- 窄窗口：先收次要按钮，仍放不下再分两行。
-  const minors = [
-    [toStart, nextBook, moreL],
-    [toEnd, nextBook, moreL],
-    [order, moreR.b, moreR],
-    [loop, moreR.b, moreR],
-    [popout, null, moreR],
-  ];
-  function compact(on) {
-    for (const [b, before, m] of minors)
-      if (on) m.pop.append(b);
-      else if (before) before.before(b);
-      else right.append(b);
-    moreL.b.hidden = moreR.b.hidden = !on;
-    if (!on) for (const m of [moreL, moreR]) if (m.pop.matches(':popover-open')) m.pop.hidePopover();
-    bar.classList.toggle('compact', on);
-  }
+  // ---- 窄窗口：一行放不下时先收次要按钮（仍一行），仍放不下再分两行（中区一行，左、右区并排一行）。
   const overflows = () =>
-    bar.scrollWidth > bar.clientWidth + 1 || [...bar.children].some((z) => z.scrollWidth > z.clientWidth + 1);
+    bar.scrollWidth > bar.clientWidth + 1 ||
+    zones.scrollWidth > zones.clientWidth + 1 ||
+    [...zones.children].some((z) => z.scrollWidth > z.clientWidth + 1);
   function fit() {
     if (bar.hidden) return;
-    bar.classList.remove('stacked', 'tall');
-    compact(false);
+    bar.classList.remove('stacked');
+    arrangeAll(false);
     if (!overflows()) return;
-    compact(true);
-    if (!overflows()) return;
-    bar.classList.add('stacked');
-    if (overflows()) bar.classList.add('tall');
+    arrangeAll(true);
+    if (overflows()) bar.classList.add('stacked');
   }
 
-  // ---- 弹出与收起（底缘停留弹出，离开收起；Esc 收起）
+  // ---- 弹出与收起（底缘停留弹出，离开收起；T 与工具栏一起开关；Esc 收起）
   let showTimer = 0,
-    leaveTimer = 0;
+    leaveTimer = 0,
+    open = false,
+    auto = false; // 由底缘弹出（或指针进过栏）：指针离开后自动收起；按 T 打开的不随指针移动收起
   const cancel = () => {
       clearTimeout(showTimer);
       showTimer = 0;
@@ -376,16 +379,18 @@ export function install(ctx) {
       clearTimeout(leaveTimer);
       leaveTimer = 0;
     };
-  function show(open) {
+  function show(on, edge = false) {
     stay();
-    ctx.fade(bar, open);
-    document.body.classList.toggle('controlbar-open', open);
-    if (open) {
+    if (on) auto = edge;
+    ctx.fade(bar, on);
+    document.body.classList.toggle('controlbar-open', on);
+    if (on) {
       syncAll();
       fit();
-    } else {
-      for (const d of dials) d.hide();
-      for (const m of [moreL, moreR]) if (m.pop.matches(':popover-open')) m.pop.hidePopover();
+    } else hidePops();
+    if (on !== open) {
+      open = on;
+      ctx.emit('controlbar', on);
     }
   }
   const nearBottom = (e) => {
@@ -407,8 +412,10 @@ export function install(ctx) {
   new ResizeObserver(() => {
     if (showing()) fit();
   }).observe(main); // 窗口缩放、侧栏停靠时阅读区宽度变化
+  // 按钮不留焦点，F / Enter / 空格继续作用于正文；速率小面板里的滑杆、键盘操作的小面板除外。
   bar.addEventListener('click', (e) => {
-    if (!e.target.closest('.dial-pop')) main.focus(); // 按钮不留焦点，F / Enter / 空格继续作用于正文
+    if (e.target.closest('.dial-pop') || (e.detail === 0 && e.target.closest('.cb-hover'))) return;
+    main.focus();
   });
   ctx.on('select', () => {
     if (!ctx.current) show(false);
@@ -416,14 +423,12 @@ export function install(ctx) {
   });
   ctx.on('books', () => showing() && syncBooks());
   ctx.on('synced', (book) => book === ctx.current && syncTransport());
-  // 开关与模式的状态随时更新（不显示时也保持最新，开销很小）；时间与逐页查找只在显示时更新。
+  // 开关与模式的状态随时更新（不显示时也保持最新，开销很小）；逐页查找只在显示时更新。
   ctx.on('transport', syncTransport);
   ctx.on('media', (key) => {
-    if (key === 'time' || key === 'current' || key === 'state') {
-      if (!showing()) return;
-      syncNow();
-      if (key !== 'time') syncSteps();
-    } else syncMedia();
+    if (key === 'time') return;
+    if (key === 'current' || key === 'state') syncSteps();
+    else syncMedia();
   });
   ctx.on('lang', () => showing() && (syncAll(), fit()));
   window.addEventListener('keydown', (e) => {
@@ -436,9 +441,11 @@ export function install(ctx) {
     else if (!showTimer)
       showTimer = setTimeout(() => {
         showTimer = 0;
-        if (ctx.current && !dialog()) show(true);
+        if (ctx.current && !dialog()) show(true, true);
       }, DWELL);
     if (showing() && e.pointerType === 'mouse') {
+      if (bar.contains(e.target)) auto = true;
+      if (!auto) return;
       if (bar.contains(e.target) || nearBottom(e)) stay();
       else if (!leaveTimer)
         leaveTimer = setTimeout(() => {
@@ -450,7 +457,7 @@ export function install(ctx) {
   document.addEventListener('pointerout', (e) => {
     if (!e.relatedTarget) cancel();
   });
-  // 到顶部 / 到底部只滚动（已在首尾时变灰），切书交给两端的上一本 / 下一本；Home / End 在首尾再按一次切书的键盘行为不变（keys.mjs）。
+  // 书首 / 书尾只滚动（已在首尾时变灰），切书交给两端的上一本 / 下一本；Home / End 在首尾再按一次切书的键盘行为不变（keys.mjs）。
   ctx.actions.toStart = () => {
     if (!ctx.atStart()) ctx.toStart();
   };
@@ -467,5 +474,6 @@ export function install(ctx) {
     get: () => ctx.get('edgeBottom', true),
     set: (v) => ctx.put('edgeBottom', !!v),
   });
-  ctx.controlBar = { show, fit };
+  // show(是否显示)：按 T 时与工具栏一起开关（keys.mjs）；fileRow：文件栏的行容器；showing()：总控栏是否显示。
+  ctx.controlBar = { show: (on) => show(!!on), fit, fileRow, showing };
 }

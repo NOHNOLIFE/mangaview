@@ -212,11 +212,61 @@ try {
         text: type === 'keyDown' ? (k.length === 1 ? k : k === 'Enter' ? '\r' : undefined) : undefined,
       });
   };
+  // T 同时开关顶部工具栏和底部总控栏：任一个没显示时两者都显示，否则都收起；按 T 打开的不随指针移动收起。
+  const both = () =>
+    js(
+      '[!bar.hidden&&!bar.classList.contains("leaving"),!controlbar.hidden&&!controlbar.classList.contains("leaving")]',
+    );
   await js('reader.focus()');
   await key('t', 'KeyT');
-  await wait(() => js('!bar.hidden'));
+  await wait(async () => (await both()).join() === 'true,true', 'T shows both');
+  await move(400, 300);
+  await move(420, 500);
+  await delay(700);
+  assert.deepEqual(await both(), [true, true], 'Opened with T: they stay while the mouse moves');
+  // 名称区：工具栏下方一行「书名 · 当前页 / 总页数 · 进度」，最小约 320px 宽。
+  await settle('#barTitle');
+  const named = await js(
+    `(()=>{const r=barTitle.getBoundingClientRect(),a=bookTitle.getBoundingClientRect(),m=bookMeta.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(r.height),row:Math.abs(a.bottom-m.bottom)<3&&a.right<=m.left,meta:bookMeta.textContent,dot:getComputedStyle(bookMeta,'::before').content,role:barTitle.getAttribute('role'),tab:barTitle.tabIndex};})()`,
+  );
+  assert.ok(named.w >= 319 && named.h < 50 && named.row, 'One line, at least 320px wide: ' + JSON.stringify(named));
+  assert.match(named.meta, /^\d+ \/ 12 · \d+%$/, 'Current page / total · progress');
+  assert.deepEqual([named.dot, named.role, named.tab], ['"·"', 'button', 0]);
+  await shot('toolbar-name');
+  await key('t', 'KeyT');
+  await wait(async () => (await both()).join() === 'false,false', 'T hides both');
+  // 只显示了其中一个（底缘弹出的总控栏）：T 把两者都显示。
+  await move(400, height - 3);
+  await wait(() => js('!controlbar.hidden'), 'control bar from the edge');
+  await js('reader.focus()');
+  await key('t', 'KeyT');
+  await wait(async () => (await both()).join() === 'true,true', 'T with one of them showing shows both');
   await key('Escape', 'Escape');
-  await wait(() => js('bar.hidden'));
+  await wait(async () => (await both()).join() === 'false,false', 'Esc hides both');
+  await move(400, 500);
+  // 点击名称区 = 「书架」按钮；键盘聚焦后 Enter 同样打开。
+  await key('t', 'KeyT');
+  await wait(async () => (await both()).join() === 'true,true');
+  await settle('#barTitle');
+  {
+    const n = await box('#barTitle');
+    await move(n.x, n.y);
+    for (const type of ['mousePressed', 'mouseReleased'])
+      await cdp('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, x: n.right - 20, y: n.y });
+  }
+  await wait(() => js('shelf.open'), 'clicking the name area opens the shelf');
+  await js('shelf.close()');
+  await key('Escape', 'Escape');
+  await key('t', 'KeyT');
+  await wait(async () => (await both()).join() === 'true,true');
+  await js('notice.textContent="";barTitle.focus()');
+  await key('Enter', 'Enter');
+  await wait(() => js('shelf.open'), 'Enter on the name area opens the shelf');
+  assert.equal(await js('notice.textContent.includes("ookmark")'), false, 'Enter there is not the bookmark key');
+  await js('shelf.close()');
+  await js('reader.focus()');
+  await key('Escape', 'Escape');
+  await wait(async () => (await both()).join() === 'false,false');
   // 左上角不再有常驻的菜单按钮：平时透明且不接收鼠标，悬停该处不弹出。
   assert.deepEqual(await js(`[getComputedStyle(tab).opacity,getComputedStyle(tab).pointerEvents]`), ['0', 'none']);
   const tabBox = await box('#tab');
@@ -268,9 +318,10 @@ try {
     ['toEnd', toEnd, toEnd, false],
     ['next', next, next, true],
   ]);
-  const posText = () => js(`controlbar.querySelector('.cb-pos').textContent`);
+  // 位置（当前页 / 总页数 · 进度）在顶部名称区。
+  const posText = () => js('bookMeta.textContent');
   assert.match(await posText(), /^\d+ \/ 12 · \d+%$/, 'Position: read / total · progress');
-  const lefts = () => js(`[...controlbar.querySelectorAll('.cb-btn,.cb-info')].map(e=>e.getBoundingClientRect().left)`),
+  const lefts = () => js(`[...controlbar.querySelectorAll('.cb-btn,.cb-sep')].map(e=>e.getBoundingClientRect().left)`),
     mid = await lefts();
   assert.equal(await js('controlbar.classList.contains("compact")'), false, 'Everything fits at 800px');
   await shot('controlbar-800');
@@ -354,7 +405,7 @@ try {
   await move(400, 300);
   await wait(() => js('controlbar.hidden'));
 
-  // 四边的边缘触发区同为 32px（app.mjs 的 ctx.atEdge）：距边缘 31px 内触发，32px 外不触发。
+  // 边缘触发区（app.mjs 的 ctx.atEdge）：顶、左、右三边 32px（距边缘 31px 内触发，32px 外不触发），底缘 48px。
   await key('Escape', 'Escape');
   await wait(() => js('bar.hidden&&controlbar.hidden'));
   const zone = async (x, y, shown, yes) => {
@@ -376,8 +427,8 @@ try {
   for (const [x, y, shown, yes] of [
     [400, 32, '!bar.hidden', false],
     [400, 31, '!bar.hidden', true],
-    [400, height - 33, '!controlbar.hidden', false],
-    [400, height - 32, '!controlbar.hidden', true],
+    [400, height - 49, '!controlbar.hidden', false],
+    [400, height - 48, '!controlbar.hidden', true],
     [32, 400, '!document.getElementById("shelfmarks").hidden', false],
     [31, 400, '!document.getElementById("shelfmarks").hidden', true],
     [width - 33, 400, '!document.getElementById("panel").hidden', false],
@@ -467,7 +518,7 @@ try {
   assert.equal(await js(`getComputedStyle(query).userSelect`), 'text');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: same 32px edge zone on all four sides, position shows read / total with stable button positions, no text selection in buttons, top edge popup, centred icon row with tooltips, title row, leave to fade out, no corner menu button, keyboard access, edgeTop off, bottom control bar, click pages only, WCO-safe top, wrapping in narrow windows, Esc / T, WASD / arrow keys',
+    'PASS: 32px edge zone on the top, left and right, 48px at the bottom, T shows / hides the toolbar and the control bar together, name area (one line, 320px, opens the shelf by click or Enter), position shows read / total with stable button positions, no text selection in buttons, top edge popup, centred icon row with tooltips, title row, leave to fade out, no corner menu button, keyboard access, edgeTop off, bottom control bar, click pages only, WCO-safe top, wrapping in narrow windows, Esc / T, WASD / arrow keys',
   );
 } finally {
   if (ws?.readyState === 1) {
