@@ -269,7 +269,7 @@ try {
   await wait(() => js(`el('04 song.wav').paused`), 'tap pauses');
   assert.equal(await js('reader.scrollTop'), top, 'Clicking media does not turn the screen');
 
-  // 空格 = 总控栏的大播放键：播放 / 暂停当前媒体（中线离视窗中心最近的，暂停的也算），不再滚动；Shift+空格同样不滚动。
+  // 空格：文件栏显示的是媒体（当前曲目，暂停的也算）就播放 / 暂停它，不滚动；Shift+空格是「自动滚动」（混合模式下从视窗里的这个媒体开始），同样不滚动。
   await key(' ', 'Space', 32);
   await wait(() => js(`!el('04 song.wav').paused`), 'space plays');
   await key(' ', 'Space', 32);
@@ -407,7 +407,7 @@ try {
     'Autoplay is off by default',
   );
   await js(`document.querySelector('#settings').close()`);
-  // 打开自动播放后：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
+  // 打开自动播放后：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；手动开始的媒体离开视窗照常播放（后台播放）；手动暂停的不再自动播放。
   await js(`localStorage.setItem('mv2:autoplay','true')`);
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
@@ -426,7 +426,13 @@ try {
   await js(`el('04 song.wav').play()`);
   await wait(() => js(`!el('04 song.wav').paused`));
   await js(`reader.scrollTop+=reader.clientHeight*.7`);
-  await wait(() => js(`!node('04 song.wav')||el('04 song.wav').paused`), 'leaving the view pauses');
+  await delay(500);
+  assert.equal(
+    await js(`[...document.querySelectorAll('audio')].some(m=>!m.paused)`),
+    true,
+    'Leaving the view keeps the current track playing (background play)',
+  );
+  await js(`document.querySelectorAll('audio,video').forEach(m=>m.pause())`);
   // 手动暂停后，在视窗内小幅滚动不会重新开始（自动播放只对视频生效，用一段较长的视频，播不完）。
   await js(
     `(async()=>{const d=await (await navigator.storage.getDirectory()).getDirectoryHandle('Long');window.showDirectoryPicker=async()=>d;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,

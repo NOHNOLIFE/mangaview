@@ -175,7 +175,8 @@ try {
     );
   const B = (id) => `document.querySelector('#controlbar [data-id="${id}"]')`;
   const running = async () => (await js(`${B('play')}.getAttribute('aria-pressed')`)) === 'true';
-  const space = () => key(' ', 'Space', 32);
+  // Shift+空格 = 总控栏的「自动滚动」；不带 Shift 的空格在文件栏是媒体时只播放 / 暂停它（见 background.browser.mjs）。
+  const space = () => key(' ', 'Space', 32, { modifiers: 8 });
   const top = () => js('reader.scrollTop');
   const maxTop = () => js('reader.scrollHeight-reader.clientHeight');
   const H = () => js('reader.clientHeight');
@@ -457,17 +458,22 @@ try {
   assert.equal(await running(), true);
   await wait(async () => (await playing()).join() === '04 v.webm', 'then plays the video');
   await stopped();
-  // 单个媒体自己的播放键：等同大播放键并设为当前媒体，播完接着往下滚。
+  // 单个媒体自己的播放键：后台播放（成为当前曲目，不在视窗中央的也是），不启动自动滚动；播完按播放列表接着播下一个，不滚动。
   assert.ok(await js(`toPage('02 a.wav')`));
   await wait(() => js(`el('02 a.wav')?.readyState>=1`));
   await js('reader.scrollTop-=120'); // 不在视窗中央的也是
   await tap('#reader .page[data-name="02 a.wav"] .mv-play');
-  await wait(async () => (await playing()).join() === '02 a.wav' && (await running()), 'own play button runs');
+  await wait(async () => (await playing()).join() === '02 a.wav', 'own play button plays');
+  assert.equal(await running(), false, 'Its own play button does not start auto-scroll');
   t1 = await top();
   await js(`el('02 a.wav').currentTime=el('02 a.wav').duration-0.2`);
-  await wait(async () => !(await playing()).length && (await top()) > t1 + 20, 'scrolls on after it ends');
-  assert.equal(await running(), true);
-  await stopped();
+  await wait(
+    () => js(`el('02 a.wav').paused&&[...document.querySelectorAll('video,audio')].some(m=>!m.paused)`),
+    'the play list moves on after it ends (also right after it last ended)',
+  );
+  assert.deepEqual([await running(), await top()], [false, t1], 'Without auto-scroll or scrolling');
+  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  await wait(() => js(`![...document.querySelectorAll('video,audio')].some(m=>!m.paused)`), 'stopped');
 
   // ---- 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段起点；整个处在图片区段之内的媒体整段播放，其余没有区段的媒体跳过。
   // 区段：01.svg 中部 → 03.svg 30%（盖住 02 a.wav），05.svg 20% → 80%；视频 04 没有区段，也不在图片区段内。

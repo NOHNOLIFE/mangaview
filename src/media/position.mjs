@@ -6,7 +6,7 @@ const POS_SAVE = 1000,
   POS_END = 5;
 
 export function install(ctx, S) {
-  const { players, api } = S;
+  const { api } = S;
   // ---- 播放位置记忆：随书目记录保存（book.mediaPos，进入备份），已移除的媒体的位置在下次保存时一并清掉。
   const savedPos = (book, page) => {
     const e = Array.isArray(book.mediaPos) ? book.mediaPos.find((x) => x?.id === page.name) : null;
@@ -38,7 +38,7 @@ export function install(ctx, S) {
     dirtyBooks.clear();
   }
   window.addEventListener('pagehide', () => {
-    for (const p of players.values()) if (p.state === 'ready') remember(p, p.el.currentTime);
+    for (const p of S.all()) if (p.state === 'ready') remember(p, p.el.currentTime);
     flushPos();
   });
   Object.assign(S, { savedPos, remember });

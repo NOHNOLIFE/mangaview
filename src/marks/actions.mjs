@@ -28,9 +28,9 @@ export function install(ctx, S) {
     const { i, f } = at(s, main.scrollTop + main.clientHeight / 2);
     return { i, f, name: ctx.current.pages[i].name, h: s[i + 1] - s[i] };
   }
-  // 添加书签的位置：有当前媒体（ctx.media.current，从壳上的按钮添加时是那个播放器）时为它的当前播放时间；
-  // 否则是屏幕中央的图片位置，中央是播放不了的媒体时不添加。
-  function target(player = ctx.media?.current?.()) {
+  // 添加书签的位置：有书签作用的媒体（ctx.media.here：当前曲目在本书且中线在视窗内时是它，否则视窗中心的媒体；
+  // 从壳上的按钮添加时是那个播放器）时为它的当前播放时间；否则是屏幕中央的图片位置，中央是播放不了的媒体时不添加。
+  function target(player = ctx.media?.here?.()) {
     const book = ctx.current;
     if (!book) return null;
     if (player && player.book === book) {
@@ -41,9 +41,9 @@ export function install(ctx, S) {
     const h = here();
     return h && pageKind(book.pages[h.i]) === 'image' ? h : null;
   }
-  // 当前媒体所在的页与播放时间（媒体书签按时间比较前后）。
+  // 书签作用的媒体所在的页与播放时间（媒体书签按时间比较前后）。
   function mediaNow() {
-    const p = ctx.media?.current?.(),
+    const p = ctx.media?.here?.(),
       b = ctx.current;
     if (!p || p.book !== b) return null;
     const i = b.pages.indexOf(p.page);

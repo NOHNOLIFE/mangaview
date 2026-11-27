@@ -89,6 +89,70 @@ body.mv-fullvideo #controlbar {
   display: none;
 }
 
+/* 后台播放的停放处（track.mjs）：当前曲目的页不在正文里时，它的媒体元素放在这里（仍在文档里，照常播放），不可见、不占位。 */
+#mv-park {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 画面在外部容器里（画中画）时页内的占位（track.mjs）：视频盖住整个画面，音频占卡片的字幕区；点它收回页内。 */
+.mv-away {
+  appearance: none;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: center;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mv-away .i {
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+.mv-away small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.media.video > .mv-away {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background: #000;
+}
+.mv-card > .mv-away {
+  grid-column: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  height: calc(3 * 20px);
+}
+.mv-card > .mv-away .i {
+  width: 20px;
+  height: 20px;
+}
+.media.mv-out .mv-big {
+  display: none;
+}
+
 /* 壳：音频卡片上的一行图标按钮 + 进度条 + 时间（视频画面内没有控件）。 */
 .mv-shell {
   display: flex;

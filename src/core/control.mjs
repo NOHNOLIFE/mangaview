@@ -46,15 +46,16 @@ export const nextMode = (mode, d = 1) =>
 export const LOOPS = ['file', 'book', 'books'];
 export const loopOf = (v, crossBook = false) => (LOOPS.includes(v) ? v : crossBook === true ? 'books' : 'book');
 export const nextLoop = (v) => LOOPS[(LOOPS.indexOf(loopOf(v)) + 1) % LOOPS.length];
-// 变暗并禁用的控件（不隐藏、不移动）：书里没有视频、音频时右区除字幕外全部（上一个 / 下一个媒体、播放速率、音量）；
+// 变暗并禁用的控件（不隐藏、不移动）：书里没有视频、音频且没有当前曲目（后台播放的文件，可以在别的书里）时右区除字幕外全部
+// （上一个 / 下一个媒体、播放速率、音量）；
 // 影音模式下滚动速率，书里没有媒体时连同大按钮；漫画模式下书里没有图片时大按钮（漫画模式只滚图片）。
 // 右区不随播放模式禁用；中区的播放模式、只播区段、单文件、循环始终可用。返回禁用的控件 id 集合。
 // RIGHT 是右区的全部控件；其中只对媒体有意义的是 MEDIA_ONLY，字幕作用于文件栏显示的那个文件，由它自己的状态决定（没有字幕或不是媒体时变灰，controlbar.mjs）。
 export const RIGHT = ZONES.right.filter((id) => id !== '|');
 export const MEDIA_ONLY = RIGHT.filter((id) => id !== 'subs');
-export function disabledControls({ mode, hasMedia, hasImages = true }) {
+export function disabledControls({ mode, hasMedia, hasTrack = false, hasImages = true }) {
   const off = new Set();
-  if (!hasMedia) for (const id of MEDIA_ONLY) off.add(id);
+  if (!hasMedia && !hasTrack) for (const id of MEDIA_ONLY) off.add(id);
   if (mode === 'media') off.add('scrollRate');
   if (mode === 'media' && !hasMedia) off.add('play');
   if (mode === 'comic' && !hasImages) off.add('play');

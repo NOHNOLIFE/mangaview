@@ -98,6 +98,12 @@ test('禁用规则：右区不随模式禁用，书里没有媒体时右区（�
   assert.deepEqual(off('comic', true, false), ['play'], 'Comic mode without images: nothing to scroll');
   assert.deepEqual(off('mixed', true, false), [], 'Mixed mode without images still plays the media');
   assert.deepEqual(off('media', true, false), ['scrollRate']);
+  // 本书没有媒体但有当前曲目（后台播放的文件在别的书里）：右区照常可用。
+  assert.deepEqual([...disabledControls({ mode: 'comic', hasMedia: false, hasTrack: true })], []);
+  assert.deepEqual([...disabledControls({ mode: 'media', hasMedia: false, hasTrack: true })].sort(), [
+    'play',
+    'scrollRate',
+  ]);
   // 中区的开关（播放模式、只播区段、单文件、循环）任何模式、有无媒体都可用
   for (const mode of ['comic', 'mixed', 'media'])
     for (const hasMedia of [true, false])

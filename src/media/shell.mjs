@@ -44,7 +44,6 @@ export function install(ctx, S) {
     { players, times, controls, decorators, api } = S;
   const savedPos = (...a) => S.savedPos(...a),
     events = (...a) => S.events(...a),
-    dispose = (...a) => S.dispose(...a),
     seek = (...a) => S.seek(...a),
     press = (...a) => S.press(...a),
     rangesOf = (...a) => S.rangesOf(...a);
@@ -65,8 +64,11 @@ export function install(ctx, S) {
     }
   };
 
-  // ---- 播放器
+  // ---- 播放器。node 为正文里的页节点；为 null 时（播放列表接续到不在正文里的文件）建在一个不在文档里的节点上，
+  // 之后该页出现在正文里时由 track.mjs host 放进去。
   function build(node, book, page, kind) {
+    const host = node ?? document.createElement('div');
+    if (!node) host.className = 'page';
     const el = document.createElement(kind);
     el.preload = 'metadata';
     el.controls = false;
@@ -76,7 +78,7 @@ export function install(ctx, S) {
       el.disablePictureInPicture = true;
     }
     const p = {
-      node,
+      node: host,
       book,
       page,
       kind,
@@ -91,15 +93,17 @@ export function install(ctx, S) {
       done: false,
       narrow: null,
       extra: new Map(),
+      by: null,
+      visible: false,
     };
-    node.classList.add('media', kind);
+    host.classList.add('media', kind);
     p.subs = make('div', 'mv-subs');
     p.subs.setAttribute('aria-live', 'off');
     // 未选中时中央的大播放键：不接收指针，点击落在画面 / 卡片上，等同点击画面（media.mjs tap）。
     p.big = make('span', 'mv-big');
     p.big.setAttribute('aria-hidden', 'true');
     p.big.append(icon('play'));
-    if (kind === 'video') node.replaceChildren(el, p.subs, p.big);
+    if (kind === 'video') host.replaceChildren(el, p.subs, p.big);
     else {
       shell(p);
       // 文件名只显示最末一段（不带路径和扩展名），完整路径放悬停提示；可选中复制。
@@ -120,18 +124,22 @@ export function install(ctx, S) {
       for (let i = 0; i < BARS; i++) bars.append(make('i'));
       p.subs.append(bars);
       card.append(head, art, p.subs, p.shell);
-      node.replaceChildren(card, el, p.big);
+      p.card = card;
+      p.art = art;
+      host.replaceChildren(card, el, p.big);
     }
     p.fail = make('div', 'mv-fail');
     p.fail.dataset.nodrag = '';
     p.fail.hidden = true;
-    node.append(p.fail);
+    host.append(p.fail);
     el.volume = S.volume;
     el.muted = S.muted;
     el.defaultPlaybackRate = el.playbackRate = ctx.transport?.playRate ?? 1;
     events(p);
-    node._dispose = () => dispose(p);
-    players.set(node, p);
+    if (node) {
+      node._dispose = () => S.letGo(p); // 正文回收这一页：当前曲目停放，其余释放（track.mjs）
+      players.set(node, p);
+    }
     decorate(p);
     render(p);
     return p;
@@ -141,7 +149,7 @@ export function install(ctx, S) {
     const s = make('div', 'mv-shell'),
       { bar, fill, knob } = makeBar(() => p),
       clockEl = makeTime(() => p, 'mv-time');
-    const play = button('play', t('mvPlay'), () => press(p), 'mv-play');
+    const play = button('play', t('mvPlay'), () => press(p, 'page'), 'mv-play');
     const more = button('more', t('mvMore'), () => {}, 'mv-more'),
       pop = make('div', 'mv-pop');
     pop.dataset.nodrag = '';
@@ -415,7 +423,7 @@ export function install(ctx, S) {
     );
   }
   function changedFull() {
-    for (const p of players.values()) render(p);
+    for (const p of S.all()) render(p);
     ctx.emit('media', 'full');
   }
   // 按 Esc 或别的方式退出了页面全屏：视频全屏随之结束。
@@ -445,11 +453,11 @@ export function install(ctx, S) {
   }
   // 登记的按钮的状态变了（字幕开关等）：音频卡片上的重画，文件栏随 'media' 事件（'controls'）重画。
   function refreshControls() {
-    for (const p of players.values()) renderControls(p);
+    for (const p of S.all()) renderControls(p);
     ctx.emit('media', 'controls');
   }
   function refreshAll() {
-    for (const p of players.values()) {
+    for (const p of S.all()) {
       p.ranges = null;
       renderControls(p);
       decorate(p);
@@ -457,7 +465,7 @@ export function install(ctx, S) {
     ctx.emit('media', 'controls');
   }
   ctx.on('lang', () => {
-    for (const p of players.values()) {
+    for (const p of S.all()) {
       if (p.bar) {
         p.bar.setAttribute('aria-label', t('mvSeek'));
         setLabel(p.more, t('mvMore'));

@@ -222,7 +222,9 @@ try {
     await js(`el(${JSON.stringify(name)}).play()`);
   };
   // 取消选中媒体（中线离开视窗即取消）：之后的「当前文件」是视窗中心所在的页。
+  // 取消当前曲目：后台播放的曲目离开视窗不取消，用文件栏的「停止」。
   const deselect = async () => {
+    await js(`filebar.querySelector('[data-head="stop"]')?.click()`);
     await js('reader.scrollTop=0');
     await wait(() => js(`!reader.querySelector('.page.media.selected')`), 'nothing selected');
   };
@@ -480,11 +482,18 @@ try {
   assert.equal(await paused('03 long.wav'), true, 'Autoplay off: stays paused');
   await js(`localStorage.setItem('mv2:autoplay','false')`); // 下面显式播放，不让自动播放插手
 
-  // ---- 影音模式播完后按页序切换，循环（本书〔默认〕/ 单文件）决定末尾与重复（混合模式由自动滚动往下滚，不在这里切换）。
+  // ---- 影音模式的自动滚动（Shift+空格）播完后按页序切换，循环（本书〔默认〕/ 单文件）决定末尾与重复
+  // （混合模式由自动滚动往下滚，不在这里切换；后台播放的接续见 background.browser.mjs）。
   await js(`${bar('mode-media')}.click()`);
-  const stopAll = () => js(`for(const e of reader.querySelectorAll('video,audio'))e.pause()`);
-  const nearEnd = (name) =>
-    js(`(()=>{const e=el(${JSON.stringify(name)});e.currentTime=Math.max(0,e.duration-.4);return e.play();})()`);
+  const stopAll = () =>
+    js(
+      `(()=>{const b=${bar('play')};if(b.getAttribute('aria-pressed')==='true')b.click();for(const e of reader.querySelectorAll('video,audio'))e.pause();})()`,
+    );
+  const nearEnd = async (name) => {
+    await key(' ', 'Space', 32, { modifiers: 8 });
+    await wait(async () => !(await paused(name)), 'auto-scroll plays ' + name);
+    await js(`(()=>{const e=el(${JSON.stringify(name)});e.currentTime=Math.max(0,e.duration-.4);})()`);
+  };
   // 按页序播放下一个媒体（图片跳过），滚到视窗中央、从头播放。
   await stopAll();
   await toPageReady('03 long.wav');
@@ -541,7 +550,7 @@ try {
     'Outside the sections is dimmed',
   );
   await at('03 long.wav', 0);
-  await js(`node('03 long.wav').querySelector('.mv-play').click()`);
+  await key(' ', 'Space', 32, { modifiers: 8 }); // 影音模式的自动滚动从视窗里的 03 开始
   await wait(async () => {
     const t = await now('03 long.wav');
     return t >= 5 && t < 6;
