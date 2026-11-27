@@ -34,11 +34,11 @@ export function install(ctx, S) {
     grid.replaceChildren(...items.flatMap((x) => S.tiles(book, x)));
     markPanel();
   }
-  // 面板里离阅读视窗最近的书签（与书架书签列表的 .active 相同）；面板开着时随阅读滚动更新。
+  // 面板里的最近书签（只看本书，core/recent.mjs；与书架书签列表的 .active 相同，区段只高亮最近的那一端）；面板开着时随阅读滚动更新。
   function markPanel() {
-    const id = ctx.current && S.nearest(ctx.current);
+    const r = S.nearest();
     for (const el of grid.querySelectorAll('.bm-item'))
-      el.classList.toggle('active', el.dataset.id === id && !('end' in el.dataset));
+      el.classList.toggle('active', !!r && el.dataset.id === r.id && 'end' in el.dataset === r.end);
   }
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function open(x, y) {

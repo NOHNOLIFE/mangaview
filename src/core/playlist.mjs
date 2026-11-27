@@ -25,7 +25,8 @@ export function following({ order = 'list', loop = false, list = [], cur, played
   if (after != null) return { next: after, played };
   return { next: loop && list.length ? list[0] : null, played };
 }
-// ---- 只播放书签区段：ranges 为一个媒体内生效的区段 [{a,b}]（秒，按起点排序，互不重叠）。
+// ---- 只播放书签区段：ranges 为一个媒体内生效的区段的并集 [{a,b}]（秒，按起点排序，互不重叠）：区段可以嵌套、交叉，
+// 调用方先用 core/sections.mjs 的 union 合并（media/sections.mjs 的 rangesOf），重叠的部分只播一次。
 // 开始播放（或自动切到该媒体）时从哪里播：在某个区段内就从当前时间继续；否则从当前时间之后的第一个区段起点开始，之后没有区段时从第一个区段开始。
 export function sectionStart(ranges, t) {
   if (!ranges.length) return t;

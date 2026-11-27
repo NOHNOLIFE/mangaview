@@ -11,7 +11,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
     msel = 0,
     mframe = 0,
     mfollow = false,
-    prefer = null; // prefer：重建时保留的选中书签 id
+    prefer = null; // prefer：重建时保留的选中项 {book, id, end}
   const sm = () => ctx.shelfmarks;
   // groups：打开时的全部书签（按书分组）；搜索只在其中过滤后重建列表，不重新读取书架。
   let groups = [];
@@ -39,7 +39,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
     // 搜索词变化：保留仍在结果里的选中项，否则选中第一个结果；清空后回到当前位置附近的书签。
     filter() {
       const all = !shelfSheet.filtered();
-      build(all ? sm().start() : marks[msel]?.x.bm.id);
+      build(all ? sm().start() : at(msel));
       markLayout();
       mark(msel);
       mfollow = true;
@@ -88,7 +88,9 @@ export function install(ctx, { sheet, sheets, masonry }) {
       ),
     );
   }
-  // 按当前搜索词重建列表，start 为要选中的书签 id。区段书签的起点和终点是前后紧挨的两项（与书签列表相同），键盘导航把终点当作独立的一项，
+  // 第 k 项是哪个书签：{book, id, end}（end：区段书签那一项），重建后据此找回选中项。
+  const at = (k) => (marks[k] ? { book: marks[k].book, id: marks[k].x.bm.id, end: marks[k].end } : null);
+  // 按当前搜索词重建列表，start 为要选中的项 {book, id, end}（打开时为最近书签，见 dock.mjs 的 start）。区段书签的起点和终点是前后紧挨的两项（与书签列表相同），键盘导航把终点当作独立的一项，
   // 选中其中一项时两项一起高亮（.mate），点终点跳到终点。位置文字只数书签（终点显示它起点的序号）。
   function build(start) {
     const words = norm(shelfSheet.query()).split(' ').filter(Boolean),
@@ -127,7 +129,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
     );
     msel = Math.max(
       0,
-      marks.findIndex((m) => m.x.bm.id === start && !m.end),
+      marks.findIndex((m) => !!start && m.x.bm.id === start.id && m.end === !!start.end && m.book === start.book),
     );
     shelfSheet.none(!marks.length);
   }
@@ -189,7 +191,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
     const s = sheets.find((o) => o.live());
     if (!s) return;
     if (s === shelfSheet) {
-      prefer = marks[msel]?.x.bm.id ?? null;
+      prefer = at(msel);
       s.reload();
     }
     if (s.live()) s.scroller.focus({ preventScroll: true });

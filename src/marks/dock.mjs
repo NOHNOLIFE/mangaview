@@ -1,6 +1,6 @@
 import { clipEnd } from '../core/model.mjs';
 import { list, key, endKey } from './list.mjs';
-// 书架书签栏（左侧，常驻或左缘弹出）：按书架顺序集中显示各书的书签、标出离阅读位置最近的一个、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
+// 书架书签栏（左侧，常驻或左缘弹出）：按书架顺序集中显示各书的书签、标出最近书签（core/recent.mjs）、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
 const DWELL = 150,
   MIN_W = 160,
   BROWSE = 1500; // DWELL / MIN_W：与右侧缩略图栏（reader/panel.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
@@ -82,7 +82,7 @@ export function install(ctx, S) {
     );
     markDock();
   }
-  // 标出当前书的一组，以及其中离阅读视窗中心最近的书签（当前标记，.active）。只改样式，不滚动列表。
+  // 标出当前书的一组，以及最近书签（当前标记，.active；core/recent.mjs：阅读位置之前最近的一项，本书前面没有时是列表里前面某本书的最后一项）。只改样式，不滚动列表。
   function markDock() {
     if (dock.hidden) return;
     for (const s of dockList.querySelectorAll('.sm-book'))
@@ -91,10 +91,12 @@ export function install(ctx, S) {
   }
   let marked = null;
   function markNear() {
-    const book = ctx.current,
-      group = book && dockList.querySelector('.sm-book.current'),
-      id = group && S.nearest(book);
-    const item = id ? group.querySelector(`.bm-item[data-id="${CSS.escape(id)}"]:not([data-end])`) : null;
+    const r = ctx.current && S.nearest(shelfBooks()),
+      item = r
+        ? dockList.querySelector(
+            `.sm-book[data-book="${CSS.escape(r.book.id)}"] .bm-item[data-id="${CSS.escape(r.id)}"]${r.end ? '[data-end]' : ':not([data-end])'}`,
+          )
+        : null;
     if (item !== marked) {
       marked?.classList.remove('active');
       item?.classList.add('active');
@@ -115,7 +117,7 @@ export function install(ctx, S) {
     },
     { passive: true },
   );
-  // 列表定位：切书、跳转书签、列表弹出 / 显示时，把当前标记（还没有版面时为当前书那一组）滚入可见范围；当前书没有书签则不动。
+  // 列表定位：切书、跳转书签、列表弹出 / 显示时，把当前标记（可能在前面某本书的一组里；没有时为当前书那一组）滚入可见范围；都没有则不动。
   // 用户正在浏览列表（指针在列表上，或刚手动滚动过）时不抢滚动位置；列表刚显示时（force）除外。只滚动列表本身，不影响正文。
   let browsedAt = -Infinity;
   for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart'])
@@ -311,16 +313,14 @@ export function install(ctx, S) {
     endKey,
     ratio: S.ratio,
     emptyKey,
+    // 打开时选中最近书签 {book, id, end}（与书架书签列表的当前标记相同）；没有时选中当前书的第一个书签，当前书也没有为 null。
     start() {
       const book = ctx.current;
       if (!book) return null;
-      if (S.last?.book === book) return S.last.id;
-      const items = list(book).filter((x) => x.i >= 0),
-        s = S.starts();
-      if (!items.length) return null;
-      if (!s) return items[0].bm.id;
-      const c = S.cursor();
-      return (items.find((x) => c(x) >= 0) || items.at(-1)).bm.id;
+      const r = S.nearest(shelfBooks());
+      if (r) return r;
+      const first = list(book).find((x) => x.i >= 0);
+      return first ? { book, id: first.bm.id, end: false } : null;
     },
   };
   ctx.settings.push({

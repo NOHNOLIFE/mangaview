@@ -137,6 +137,24 @@ test('image sections from the bookmark list, media covered by them', () => {
   assert.equal(hasSections([]), false);
 });
 
+test('image sections nest and cross: running goes through their union once', () => {
+  const sec = (i, f, e, g) => ({ bm: { f, end: { f: g } }, i, e, live: true });
+  // [1.5, 6.5] 包含 [2.5, 3.5]；[6, 9.2] 与它交叉；[11, 12] 单独一段。
+  const spans = imageSpans([sec(2, 0.5, 3, 0.5), sec(1, 0.5, 6, 0.5), sec(6, 0, 9, 0.2), sec(11, 0, 12, 0)]);
+  assert.deepEqual(spans, [
+    { a: { i: 1, f: 0.5 }, b: { i: 9, f: 0.2 } },
+    { a: { i: 11, f: 0 }, b: { i: 12, f: 0 } },
+  ]);
+  assert.equal(covered(spans, 7), true, 'A page covered only by the union of two crossing sections');
+  // 单文件模式：与并集有重叠的页都经过，各页只出现一次。
+  assert.deepEqual(
+    pagePlan({ n: 13, spans })
+      .map((x, j) => (x ? j : null))
+      .filter((j) => j != null),
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 11],
+  );
+});
+
 test('next book across the reading list', () => {
   const [a, b, c] = ['a', 'b', 'c'];
   assert.equal(nextBook([a, b, c], a, false), b);

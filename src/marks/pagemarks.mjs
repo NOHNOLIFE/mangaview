@@ -17,7 +17,8 @@ export function install(ctx, S) {
     return el;
   }
 
-  // 缩略图栏：在正文的等比缩小长条上，为有书签的页叠一层标记（角标 + 按页内位置画的细标记：普通书签一道横线，起点与区段书签是一对方括号）。
+  // 缩略图栏：在正文的等比缩小长条上，为有书签的页叠一层标记（角标 + 按页内位置画的细标记：普通书签一道横线，起点与区段书签是一对方括号，
+  // 嵌套的区段按层级（list.mjs 的 lv，最多 3 级）向内缩进）。
   // 标记层在长条之外（切书时长条被清空也不受影响），只随排版（ctx.on('layout')）重新定位；书签变化时只重建内容变了的那几页。
   const nav = document.getElementById('preview'),
     layer = make('div', 'pv-marks'),
@@ -52,7 +53,10 @@ export function install(ctx, S) {
           ...m.ticks.map((t) => {
             const d = make('i', 'tick ' + t.kind);
             d.style.top = t.f * 100 + '%';
-            if (t.kind !== 'mark') d.dataset.sec = t.id;
+            if (t.kind !== 'mark') {
+              d.dataset.sec = t.id;
+              d.style.setProperty('--lv', t.lv ?? 0);
+            }
             return d;
           }),
         );

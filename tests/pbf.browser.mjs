@@ -272,7 +272,7 @@ try {
   await wait(
     () =>
       js(
-        `[...node('02 song.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>b.title).join('|')==='0:02 · My verse|0:06 · 02 song-Bookmark1'`,
+        `[...node('02 song.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>b.getAttribute('aria-label')).join('|')==='0:02 · My verse|0:06 · 02 song-Bookmark1'`,
       ),
     'markers with names',
   );

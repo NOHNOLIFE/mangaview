@@ -340,18 +340,25 @@
   font-size: 13.5px;
   text-align: center;
 }
-/* 区段范围（选中带起点或区段书签的页时）：覆盖的页叠一层淡色和描边（区段配色），两端加粗；不改变排布。 */
+/* 区段范围（选中带起点或区段书签的页时，overview-pages.mjs）：覆盖的页叠一层淡色，每个区段一圈描边（区段配色），两端加粗；
+   嵌套的区段按层级（--lv，0–2）向内缩进一级。不改变排布。 */
 .ov-item.in-sec::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 1;
   background: color-mix(in srgb, var(--sec) 14%, transparent);
+  pointer-events: none;
+}
+.ov-ring {
+  position: absolute;
+  inset: calc(var(--lv, 0) * 6px);
+  z-index: 1;
+  border-radius: 4px;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sec) 70%, transparent);
   pointer-events: none;
 }
-.ov-item.sec-a::before,
-.ov-item.sec-b::before {
+.ov-ring.end {
   box-shadow: inset 0 0 0 3px var(--sec);
 }
 /* 窄窗口：搜索框换到第二行占满整行，操作说明隐藏，标题行不溢出。 */

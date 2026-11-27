@@ -514,8 +514,10 @@ body.shelfmarks {
   background: var(--accent);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
 }
+/* 嵌套的区段按层级（--lv，0–2）向内缩进一级。 */
 .pv-mk .tick.start,
 .pv-mk .tick.end {
+  left: calc(var(--lv, 0) * 5px);
   width: 10px;
   height: 9px;
   margin-top: -1.5px;

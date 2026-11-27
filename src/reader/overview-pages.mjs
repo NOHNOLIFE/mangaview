@@ -31,7 +31,8 @@ export function install(ctx, { sheet, masonry }) {
     hays = [],
     pm = new Map(),
     spans = [],
-    span = null;
+    span = null,
+    spanKey = '';
   const nodes = new Map();
   const thumbs = sheet('overview', ['v', ']'], 'ov-grid', {
     find: 'ovFindPages',
@@ -116,6 +117,7 @@ export function install(ctx, { sheet, masonry }) {
       hays = [];
       book = null;
       span = null;
+      spanKey = '';
     },
   });
   // 搜索：文件名（合并作品含卷的文件夹名和路径），多个词须都出现。
@@ -291,24 +293,38 @@ export function install(ctx, { sheet, masonry }) {
     node.querySelector(':scope>.mk')?.remove();
     if (m) node.append(ctx.marks.badge(m));
   }
-  // 区段范围：选中（悬停或键盘聚焦）带起点或区段书签的页时，标出这些区段覆盖的所有页；移到别的页即消失。叠加层，不改变排布。
+  // 区段范围：选中（悬停或键盘聚焦）带起点或区段书签的页时，标出这些区段覆盖的所有页（in-sec，两端 sec-a / sec-b）；移到别的页即消失。
+  // 每个区段一圈描边（.ov-ring），嵌套的按层级（ctx.marks.spans 的 lv，最多 3 级）向内缩进一级。叠加层，不改变排布。
+  // span：选中页上起止的区段 [{id,a,b,lv}]，没有为 null。
   function inSpan(node, i) {
-    const on = !!span && i >= span[0] && i <= span[1];
-    node.classList.toggle('in-sec', on);
-    node.classList.toggle('sec-a', on && i === span[0]);
-    node.classList.toggle('sec-b', on && i === span[1]);
+    const hit = span ? span.filter((s) => i >= s.a && i <= s.b) : [],
+      rings = new Map(); // 层级 → 是否为端点（同一层只画一圈）
+    for (const s of hit) rings.set(s.lv, rings.get(s.lv) || i === s.a || i === s.b);
+    const k = [...rings].join();
+    if (node._sec === k) return;
+    node._sec = k;
+    node.classList.toggle('in-sec', hit.length > 0);
+    node.classList.toggle(
+      'sec-a',
+      hit.some((s) => i === s.a),
+    );
+    node.classList.toggle(
+      'sec-b',
+      hit.some((s) => i === s.b),
+    );
+    for (const r of node.querySelectorAll(':scope>.ov-ring')) r.remove();
+    for (const [lv, end] of rings) {
+      const r = make('i', 'ov-ring' + (end ? ' end' : ''));
+      r.style.setProperty('--lv', lv);
+      node.append(r);
+    }
   }
   function showSpan(i) {
-    let lo = Infinity,
-      hi = -1;
-    for (const s of spans)
-      if (s.a === i || s.b === i) {
-        lo = Math.min(lo, s.a);
-        hi = Math.max(hi, s.b);
-      }
-    const next = hi >= 0 ? [lo, hi] : null;
-    if (String(next) === String(span)) return;
-    span = next;
+    const next = spans.filter((s) => s.a === i || s.b === i),
+      k = next.map((s) => s.id + ':' + s.lv).join();
+    if (k === spanKey) return;
+    spanKey = k;
+    span = next.length ? next : null;
     for (const [j, node] of nodes) inSpan(node, j);
   }
   ctx.on('marks', (b) => {
@@ -316,7 +332,7 @@ export function install(ctx, { sheet, masonry }) {
     pm = ctx.marks.pages(b);
     spans = ctx.marks.spans(b);
     for (const [i, node] of nodes) badge(node, i);
-    span = null;
+    spanKey = null;
     showSpan(sel);
   });
   function select(i, scroll = true) {

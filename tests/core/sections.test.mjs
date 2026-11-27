@@ -1,120 +1,76 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pair, ranges, fits } from '../../src/core/sections.mjs';
+import { starts, union, layers, LAYERS } from '../../src/core/sections.mjs';
 
-test('区段书签配对：在区段内更新终点，否则配给前面最近的区段或普通书签', () => {
-  // 坐标：页序 + 页内位置。a 带区段 [1.5, 3.5]，b 在区段内（不参与配对），c 在区段之后，d 在当前位置之后。
+test('区段书签可选的起点：当前位置之前的书签，按位置排序，最后一个最近；已有区段的标明', () => {
+  // 坐标：页序 + 页内位置。a 带区段 [1.5, 3.5]，b 在区段内，c 的区段暂不生效（null），d 在当前位置之后。
   const items = [
-    { id: 'a', at: 1.5, end: 3.5 },
-    { id: 'b', at: 2.2 },
-    { id: 'c', at: 5.1 },
     { id: 'd', at: 9.5 },
+    { id: 'b', at: 2.2 },
+    { id: 'a', at: 1.5, end: 3.5 },
+    { id: 'c', at: 5.1, end: null },
+    { id: 'x', at: NaN },
   ];
-  assert.deepEqual(pair(items, 3), { kind: 'update', id: 'a', inside: true }, '在区段内：更新这个区段的终点（可缩短）');
-  assert.deepEqual(pair(items, 1.5), { kind: 'update', id: 'a', inside: true }, '区段两端算在区段内');
-  assert.deepEqual(pair(items, 3.5), { kind: 'update', id: 'a', inside: true });
-  assert.deepEqual(pair(items, 4), { kind: 'update', id: 'a', inside: false }, '最近的是区段：延长它');
+  assert.deepEqual(starts(items, 7), [
+    { id: 'a', at: 1.5, moves: true },
+    { id: 'b', at: 2.2, moves: false },
+    { id: 'c', at: 5.1, moves: true },
+  ]);
   assert.deepEqual(
-    pair(items, 7),
-    { kind: 'create', id: 'c', inside: false },
-    '最近的是不在区段内的普通书签：以它为起点新建',
+    starts(items, 2.2).map((m) => m.id),
+    ['a'],
+    '正好在当前位置的不算“之前”',
   );
-  assert.deepEqual(
-    pair(items, 5.1),
-    { kind: 'create', id: 'c', inside: false },
-    '坐标相同也算在前面（是否太近由界面判断）',
-  );
-  assert.equal(pair(items, 1), null, '前面什么都没有');
-  assert.equal(pair([], 3), null);
-  // 区段内的普通书签不参与配对：区段之后要延长的仍是区段本身。
-  assert.deepEqual(
-    pair(
-      [
-        { id: 'a', at: 1, end: 5 },
-        { id: 'b', at: 4.9 },
-      ],
-      6,
-    ),
-    { kind: 'update', id: 'a', inside: false },
-  );
-  // 暂不生效的区段（end 为 null）按起点算远近，配到它即更新终点；不在任何区段内的位置不受它影响。
-  assert.deepEqual(
-    pair(
-      [
-        { id: 'a', at: 2, end: null },
-        { id: 'b', at: 1 },
-      ],
-      3,
-    ),
-    { kind: 'update', id: 'a', inside: false },
-  );
-  assert.deepEqual(
-    pair(
-      [
-        { id: 'a', at: 2, end: null },
-        { id: 'b', at: 2.5 },
-      ],
-      3,
-    ),
-    { kind: 'create', id: 'b', inside: false },
-  );
-  // 图片已不存在的书签（坐标 NaN）忽略。
-  assert.deepEqual(
-    pair(
-      [
-        { id: 'x', at: NaN },
-        { id: 'b', at: 1 },
-      ],
-      3,
-    ),
-    { kind: 'create', id: 'b', inside: false },
-  );
-  // 同一坐标上优先选生效的区段。
-  assert.deepEqual(
-    pair(
-      [
-        { id: 'n', at: 4 },
-        { id: 'a', at: 1, end: 4 },
-      ],
-      6,
-    ),
-    { kind: 'update', id: 'a', inside: false },
-  );
+  assert.deepEqual(starts(items, 1), [], '前面没有书签');
+  assert.deepEqual(starts([], 5), []);
 });
-test('区段书签不嵌套、不交叉：按规则依次添加的结果始终互不重叠', () => {
-  // 随机地添加书签和区段书签，任何时候生效的区段都两两不重叠，且区段内的普通书签不会成为起点。
-  let seed = 7;
-  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let round = 0; round < 200; round++) {
-    const items = [];
-    let n = 0;
-    for (let step = 0; step < 25; step++) {
-      const x = Math.round(rand() * 2000) / 100;
-      if (rand() < 0.5) {
-        items.push({ id: 'm' + n++, at: x });
-        continue;
-      }
-      const r = pair(items, x);
-      if (!r) continue;
-      const m = items.find((m) => m.id === r.id);
-      if (x <= m.at) continue;
-      m.end = x;
-      const spans = ranges(items);
-      for (let i = 1; i < spans.length; i++) assert.ok(spans[i].a > spans[i - 1].b, '区段互不重叠');
-    }
-  }
+
+test('区段的并集：重叠、嵌套、首尾相接的合并成一段，按起点排序', () => {
   assert.deepEqual(
-    ranges([
-      { id: 'a', at: 1, end: 2 },
-      { id: 'b', at: 0, end: null },
-      { id: 'c', at: 3 },
+    union([
+      { a: 10, b: 20 },
+      { a: 2, b: 4 },
+      { a: 12, b: 15 },
+      { a: 18, b: 25 },
+      { a: 4, b: 6 },
+      { a: 30, b: 31 },
+      { a: 9, b: 8 },
     ]),
-    [{ id: 'a', a: 1, b: 2 }],
-    '只列出生效的区段',
+    [
+      { a: 2, b: 6 },
+      { a: 10, b: 25 },
+      { a: 30, b: 31 },
+    ],
   );
-  assert.equal(fits([{ id: 'a', at: 1, end: 3 }], 'b', 4, 6), true);
-  assert.equal(fits([{ id: 'a', at: 1, end: 3 }], 'b', 2, 6), false, '交叉');
-  assert.equal(fits([{ id: 'a', at: 1, end: 3 }], 'b', 0, 6), false, '嵌套');
-  assert.equal(fits([{ id: 'a', at: 1, end: 3 }], 'a', 1, 6), true, '自己不算冲突');
-  assert.equal(fits([], 'a', 3, 3), false, '终点必须在起点之后');
+  assert.deepEqual(union([]), []);
+  // 端点可以是对象，按 at 换算后比较，输出保留原来的端点。
+  const p = (i, f) => ({ i, f });
+  assert.deepEqual(
+    union(
+      [
+        { a: p(1, 0.5), b: p(4, 0.2) },
+        { a: p(2, 0.1), b: p(6, 0.9) },
+        { a: p(3, 0), b: p(3, 0.5) },
+      ],
+      (x) => x.i + x.f,
+    ),
+    [{ a: p(1, 0.5), b: p(6, 0.9) }],
+  );
+  const input = [{ a: 1, b: 3 }];
+  union([...input, { a: 2, b: 5 }]);
+  assert.deepEqual(input, [{ a: 1, b: 3 }], '不改动传入的区段');
+});
+
+test('区段分层：嵌套的深一层，交叉的错开，不相交的同一层，最多三层', () => {
+  assert.equal(LAYERS, 3);
+  const s = (a, b) => ({ a, b });
+  assert.deepEqual(layers([s(0, 10), s(2, 4), s(5, 8), s(12, 14)]), [0, 1, 1, 0], '嵌套');
+  assert.deepEqual(layers([s(0, 4), s(3, 8), s(7, 12)]), [0, 1, 0], '交叉：错开一层，与前一个不相交的回到外层');
+  assert.deepEqual(layers([s(0, 4), s(4, 8)]), [0, 0], '首尾相接不算重叠');
+  assert.deepEqual(layers([s(5, 6), s(0, 10)]), [1, 0], '与输入顺序无关：外层的先放');
+  assert.deepEqual(layers([s(0, 10), s(1, 9), s(2, 8), s(3, 7), s(4, 6)]), [0, 1, 2, 2, 2], '更深的并入第三层');
+  // 被包含的区段一定比包含它的深：A 包含 D，D 包含 C，即使 C 所在的位置在中间层空着。
+  assert.deepEqual(layers([s(0, 10), s(1, 3), s(2, 8), s(5, 7)]), [0, 1, 2, 2]);
+  assert.deepEqual(layers([s(0, 4), s(0, 4)]), [0, 1], '完全相同的两个区段也分开画');
+  assert.deepEqual(layers([]), []);
 });
