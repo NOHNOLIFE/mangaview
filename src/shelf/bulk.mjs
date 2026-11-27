@@ -1,5 +1,6 @@
 // 书架的批量操作：「全部」菜单（复制书名、全部移到书架 / 书库、清空书架 / 书库、全部恢复、删除全部过期书）与移动书籍。
 import { $, anchor } from './util.mjs';
+import { discardAll } from './remove.mjs';
 
 export function install(ctx, S) {
   const { books, t, fmt, notice, make, icon, safe } = ctx;
@@ -26,14 +27,14 @@ export function install(ctx, S) {
       !confirm(fmt(place === 'shelf' ? 'confirmClearShelf' : 'confirmClearLibrary', { n: list.length }))
     )
       return;
-    for (const b of list) if (books.has(b.id)) await ctx.discard(b);
+    await discardAll(list);
     notice(null, fmt('clearedN', { n: list.length }));
     draw();
     ctx.emit('books');
   }
   async function removeAll(list) {
     if (!confirm(fmt('confirmRemoveAll', { n: list.length }))) return;
-    for (const b of list) if (books.has(b.id)) await ctx.discard(b);
+    await discardAll(list);
     draw();
     ctx.emit('books');
   }

@@ -1,6 +1,6 @@
 import { shownName, pageKind } from '../core/model.mjs';
 import { norm } from '../core/match.mjs';
-// 全屏书架书签：书架上各书的书签按书分组显示（网格或瀑布流），搜索作品名、文件名、书签名称，点击跳转（数据来自 ctx.shelfmarks）。
+// 全屏书架书签：阅读列表里各书的书签按书分组显示（网格或瀑布流），搜索作品名、文件名、书签名称，点击跳转（数据来自 ctx.shelfmarks）。
 export function install(ctx, { sheet, sheets, masonry }) {
   const { t, fmt, make } = ctx;
   // ---- 全屏书架书签 ----

@@ -6,6 +6,7 @@
 import { extend } from '../core/lang.mjs';
 import { addIcons } from '../ui/icons.mjs';
 import { $ } from './util.mjs';
+import { listOf } from '../core/reading.mjs';
 import { install as sorting } from './sort.mjs';
 import { install as covers } from './covercache.mjs';
 import { install as filter } from './filter.mjs';
@@ -55,6 +56,10 @@ export function install(ctx) {
   const S = { draw };
   S.view = get('shelfView', 'shelf');
   if (!['shelf', 'library', 'all'].includes(S.view)) S.view = 'shelf';
+  // 阅读列表（reader/session.mjs 的 readingList）按当前选中的页签；选中「过期书籍」时沿用之前选中的页签（S.list）。
+  // 页签的选择与 shelfView 偏好一样各窗口独立，最后选中的书架 / 书库 / 全部作为下次启动的值。
+  S.list = S.view;
+  ctx.listView = () => listOf(S.view, S.list);
   sorting(ctx, S);
   covers(ctx, S);
   filter(ctx, S);
@@ -196,7 +201,10 @@ export function install(ctx) {
       return;
     }
     S.view = tab.dataset.view;
-    if (S.view !== 'expired') put('shelfView', S.view);
+    if (S.view !== 'expired') {
+      S.list = S.view;
+      put('shelfView', S.view);
+    }
     draw('view');
   };
   $('views').onkeydown = (e) => {

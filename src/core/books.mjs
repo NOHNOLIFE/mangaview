@@ -9,7 +9,7 @@ import { get, dropKey } from './prefs.mjs';
 import { normalize } from './normalize.mjs';
 import { notice } from '../ui/dom.mjs';
 import { forget, forgetPages, dropThumbs } from '../reader/thumbs.mjs';
-import { current, setCurrent, select, readingList, reloadView } from '../reader/session.mjs';
+import { current, reloadView, successorOf, leave } from '../reader/session.mjs';
 import { toolsState } from '../reader/shell.mjs';
 import { sortRequests } from '../reader/sort.mjs';
 let ctx;
@@ -54,13 +54,15 @@ export function persist(book) {
 export async function pull(ids) {
   const recs = await Promise.all(ids.map((id) => library('get', id).catch(() => null)));
   let any = false;
+  // 一起被删除的书（别的窗口批量删除）：当前书在其中时只切换一次。
+  const gone = new Set(ids.map((id, i) => recs[i] === undefined && books.get(id)).filter((b) => b && bases.has(b)));
   ids.forEach((id, i) => {
     const rec = recs[i],
       book = books.get(id);
     if (rec === null) return;
     if (!rec) {
       if (book && bases.has(book)) {
-        vanish(book);
+        vanish(book, gone);
         any = true;
       }
       return;
@@ -94,19 +96,18 @@ function followed(book, keys) {
   }
   emit('synced', book, keys);
 }
-// 别的窗口删除了这本书：从内存移除（之后不会写回）；正在读它时提示并切到下一本。
-function vanish(book) {
+// 别的窗口删除了这本书：从内存移除（之后不会写回）；正在读它时提示，并与本窗口删除一样切到阅读列表里原顺序的下一本（没有则上一本，
+// 列表空了回到书架页；session.mjs 的 successorOf / leave）。gone：同一批被删除的书，切书时跳过。
+function vanish(book, gone) {
   if (books.get(book.id) !== book) return;
-  const list = book === current ? readingList(book) : [];
+  const was = book === current,
+    next = was ? successorOf(book, gone) : null;
   sortRequests.delete(book);
   books.delete(book.id);
   forget(book.id + ':');
   forgetPages(book.id + ':');
-  if (book === current) {
-    const i = list.indexOf(book),
-      rest = list.filter((b) => b !== book);
-    setCurrent(null);
-    select(rest.length ? rest[Math.max(0, i) % rest.length] : books.values().next().value);
+  if (was) {
+    leave(next);
     setTimeout(() => notice('removedElsewhere'));
   } // 延后：保存这本书的操作自己的提示（如“已添加书签”）不会盖掉它
 }

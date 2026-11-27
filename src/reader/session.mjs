@@ -8,7 +8,8 @@ import { emit } from '../core/events.mjs';
 import { get, put } from '../core/prefs.mjs';
 import { books, persist } from '../core/books.mjs';
 import { expired } from '../core/status.mjs';
-import { $, main, nav, safe } from '../ui/dom.mjs';
+import { listOf, inList, stepBook, successor } from '../core/reading.mjs';
+import { $, main, nav, shelf, safe } from '../ui/dom.mjs';
 import { accessState, toolsState, updateProgress } from './shell.mjs';
 import { arrange, defaultSort } from './sort.mjs';
 let ctx;
@@ -100,25 +101,26 @@ export function reloadView(anchor = here()) {
   view.show(current, anchor);
   updateProgress();
 }
-// 当前导航范围：上一本 / 下一本在当前书所在的列表（书架或书库）内、且符合书架页当前筛选条件的书中切换，跳过过期书；
-// 书架书签列表（bookmarks.mjs、overview.mjs）用 ctx.readingList({place:'shelf'}) 取同一范围。
-// 顺序与书架页相同（ctx.orderBooks、ctx.matchFilter 由 shelf.mjs 按“书籍排序”和筛选条件提供）。
-export function readingList(book) {
-  const place = book?.place ?? 'shelf';
-  return ctx.orderBooks([...books.values()].filter((b) => b.place === place && !expired(b) && ctx.matchFilter(b)));
+// 阅读列表（规则见 core/reading.mjs）：书架页当前选中的页签（ctx.listView，由 shelf.mjs 提供；选中「过期书籍」时沿用之前的页签）里、
+// 符合筛选条件（ctx.matchFilter）的书，按书籍排序（ctx.orderBooks），跳过过期书。与当前书在哪个列表无关。
+// 上一本 / 下一本、跨书运行（engine.mjs、media/order.mjs）、书签快捷键跨书与书架书签列表（marks/dock.mjs）、删除当前书后切书都用它。
+export function readingList() {
+  const list = ctx.listView?.() ?? listOf();
+  return ctx.orderBooks([...books.values()].filter((b) => inList(b, list) && !expired(b) && ctx.matchFilter(b)));
 }
+// 上一本 / 下一本：当前书不在阅读列表里时，从它按排序应在的位置走到最近的一本。
 export function step(d) {
-  const list = readingList(current);
-  if (!list.length) return;
-  let i = list.indexOf(current),
-    next;
-  // 当前书不在筛选结果里（仍可正常阅读）：按排序从它所在的位置走到最近的一本结果。
-  if (i < 0 && current) {
-    const all = ctx.orderBooks([...list, current]);
-    i = all.indexOf(current);
-    next = all[(i + d + all.length) % all.length];
-  } else next = list[i < 0 ? (d < 0 ? list.length - 1 : 0) : (i + d + list.length) % list.length];
-  select(next);
+  const next = stepBook(readingList(), current, d, ctx.orderBooks);
+  if (next) select(next);
+}
+// 删除当前书（本窗口删除，或别的窗口删除了它）：在从 books 移除之前取得之后要切到的书——阅读列表里原顺序的下一本，没有则上一本；
+// gone：一起删除的书（批量删除），都跳过。
+export const successorOf = (book, gone) => successor(readingList(), book, ctx.orderBooks, gone);
+// 当前书已从 books 移除：切到 next；没有（阅读列表空了）时回到书架页，一本书都没有时显示欢迎页。
+export function leave(next) {
+  setCurrent(null);
+  select(next ?? null);
+  if (!next && books.size && !shelf.open) ctx.actions.shelf();
 }
 
 export function install(c) {

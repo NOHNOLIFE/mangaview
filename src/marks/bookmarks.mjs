@@ -76,10 +76,10 @@ extend({
   secStart: ['Section start', '区段起点', '区間の始点', '구간 시작'],
   secEnd: ['Section bookmark', '区段书签', '区間しおり', '구간 책갈피'],
   smEmpty: [
-    'No bookmarks on the shelf yet — hold F or Enter while reading to add one',
-    '书架上还没有书签，阅读时长按 F 或 Enter 添加',
-    '本棚にしおりはまだありません。読書中に F か Enter を長押しで追加',
-    '책장에 아직 책갈피가 없습니다. 읽는 중에 F 또는 Enter를 길게 눌러 추가하세요',
+    'No bookmarks in the current list yet — hold F or Enter while reading to add one',
+    '当前列表里还没有书签，阅读时长按 F 或 Enter 添加',
+    '現在のリストにしおりはまだありません。読書中に F か Enter を長押しで追加',
+    '현재 목록에 아직 책갈피가 없습니다. 읽는 중에 F 또는 Enter를 길게 눌러 추가하세요',
   ],
   smFiltered: [
     'No bookmarks in the current shelf filter results — clear or change the filters',

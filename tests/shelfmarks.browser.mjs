@@ -471,7 +471,7 @@ try {
   );
   assert.match(
     await js(`document.querySelector('#shelfmarks .bm-empty').textContent`),
-    /^No bookmarks on the shelf yet/,
+    /^No bookmarks in the current list yet/,
     'No filter: the shelf has no bookmarks',
   );
   // 关闭：正文恢复全宽。

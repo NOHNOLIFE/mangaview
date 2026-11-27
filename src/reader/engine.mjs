@@ -1,6 +1,7 @@
 // 总控的漫画、混合模式驱动器（影音模式的在 media/driver.mjs）。纯规则在 core/engine.mjs。
 // - 漫画：匀速向下滚动（ctx.transport.scrollRate，1.0× = 每秒视窗高度的 10%），媒体当普通页滚过、不播放。
 // - 混合：同样滚动；媒体的中线到达视窗中央时停住，经 ctx.media.run 播放（只播区段、播放位置记忆照常），播完接着往下滚；
+//   页序上紧挨的下一页也是要播的媒体时，播完直接定位到它（居中）接着播，不滚动过去（core/engine.mjs 的 chained）；
 //   始终按页序，播放顺序不适用。开始运行时先播刚按了自己播放键的、正在播放的或选定的当前媒体。
 //   运行中暂停 = 暂停滚动或暂停正在播放的媒体，继续时从原处接着；正在播放的媒体被滚出视窗（autoplay.mjs 随即暂停它）就从新位置继续滚动。
 // - 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段的起点；混合模式下只停在自带区段的媒体、整个处在图片区段之内的媒体。
@@ -27,6 +28,7 @@ import {
   covered,
   hasSections,
   nextBook,
+  chained,
 } from '../core/engine.mjs';
 import { point } from '../core/model.mjs';
 import { stop as stopFling } from '../ui/dragscroll.mjs';
@@ -113,7 +115,7 @@ export function install(ctx) {
       // 正文重排把位置校正到 correctedTop（view.mjs layout）；其余都是用户或别的模块挪的。
       if (main.scrollTop !== ctx.view.correctedTop) quiet = now + QUIET;
     }
-    if (playing) return watch(now);
+    if (playing) return watch(now, book);
     if (now < quiet) return;
     const g = geometry(book);
     if (!g) return;
@@ -139,12 +141,23 @@ export function install(ctx) {
     }
   }
   // 停下来播放时：播完或播不了就记下、接着滚；被滚出视窗从新位置接着滚；在视窗里被别处暂停（系统媒体键、新窗口播放等）即停止运行。
-  function watch(now) {
+  // 播完的下一页紧挨着也是要播的媒体：直接定位到它居中并播放。
+  function watch(now, book) {
     const s = M()?.state(playing.page) ?? 'away';
     if (s === 'playing' || (s === 'wait' && now - playing.since < WAIT)) return;
     if (s === 'paused') return finish();
-    if (s !== 'away') skip.add(playing.i);
+    const done = playing.i;
     playing = null;
+    if (s === 'away') return;
+    skip.add(done);
+    const g = geometry(book),
+      r = g && chained(g.stops, done, skip);
+    if (!r) return;
+    stopFling();
+    glide.set(r.to - g.H / 2);
+    idle = 0;
+    playing = { i: r.i, page: book.pages[r.i], since: now };
+    M().play(playing.page);
   }
   // ---- 单文件模式：按页推进。
   function paged(dt, book) {

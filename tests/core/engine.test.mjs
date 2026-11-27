@@ -12,6 +12,7 @@ import {
   hasSections,
   nextBook,
   turnTo,
+  chained,
   PAGE_MS,
   pageInterval,
   pagePlan,
@@ -232,4 +233,22 @@ test('single file mode with sections only: only pages inside image sections, plu
   assert.deepEqual(pageAfter(plan, 6), { type: 'end' });
   // 起点和终点在同一页的区段（同一处）也经过那一页
   assert.deepEqual(pagePlan({ n: 3, spans: [span(1, 0.4, 1, 0.4)] }), [null, 'show', null]);
+});
+
+test('mixed mode: a media page right after the one that finished is positioned directly, not scrolled to', () => {
+  const stops = [
+    { i: 2, at: 1000 },
+    { i: 3, at: 1600 },
+    { i: 6, at: 3000 },
+  ];
+  // 第 2 页播完，第 3 页紧挨着也是要播的媒体：直接居中播放
+  assert.deepEqual(chained(stops, 2), { type: 'play', i: 3, to: 1600 });
+  // 第 3 页之后隔着图片（第 4、5 页）：照常滚动
+  assert.equal(chained(stops, 3), null);
+  // 下一页是媒体但不在要播的里（只播区段时没有区段、播不了被跳过）：照常
+  assert.equal(chained(stops, 3, new Set()), null);
+  assert.equal(chained(stops, 2, new Set([3])), null);
+  // 最后一个媒体之后：照常（书末由 next 处理）
+  assert.equal(chained(stops, 6), null);
+  assert.equal(chained([], 0), null);
 });
