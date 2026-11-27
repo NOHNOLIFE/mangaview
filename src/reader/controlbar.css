@@ -23,13 +23,12 @@
   -webkit-user-select: none;
   user-select: none;
 }
-/* 文件栏的行容器：内容由文件栏模块放入，与三区那一行同宽，之间一条细线。 */
+/* 文件栏的行容器：内容由文件栏模块放入（两行：标题行、播放与按钮行），与三区那一行同宽，之间一条细线。 */
 #filebar {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  min-height: 40px;
   margin-bottom: 6px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line2);
@@ -129,9 +128,8 @@
   background: var(--accent);
   box-shadow: 0 0 0 2px rgba(16, 17, 20, 0.94);
 }
-/* 速率：显示数字，宽度按最长的 '0.25×' 预留；音量显示图标。 */
+/* 速率：显示一位小数的数字（不带「×」），与其他图标按钮同宽；音量显示图标。 */
 .cb-rate {
-  width: 52px;
   font-size: 13px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -165,7 +163,8 @@
 .cb-play:disabled {
   box-shadow: none;
 }
-/* 弹出层：「⋯」收进来的次要按钮排成一行；播放模式的三项；速率、音量的小面板（滑杆 + 常用档位，音量另有静音）。 */
+/* 弹出层（悬停 / 聚焦在按钮正上方弹出，ui/hoverpop.mjs）：「⋯」收进来的次要按钮排成一行；播放模式的三项；
+   速率、音量的小面板（滑杆 + 常用档位，音量另有静音）。 */
 .cb-pop {
   position: fixed;
   inset: auto;
@@ -179,6 +178,7 @@
   overflow: visible;
 }
 .cb-more-pop:popover-open,
+.fb-more-pop:popover-open,
 .mode-pop:popover-open {
   display: flex;
   gap: 2px;
@@ -198,15 +198,6 @@
   align-items: center;
   gap: 6px 8px;
   width: 248px;
-}
-/* 悬停弹出的面板与按钮之间的空隙：透明延伸区，指针经过时面板不收起。 */
-.cb-hover::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 12px;
 }
 .dial-line {
   display: flex;

@@ -178,8 +178,9 @@ try {
   const pressed = (id) => js(`${B(id)}.getAttribute('aria-pressed')`);
   const disabled = (ids) =>
     js(`${JSON.stringify(ids)}.filter(id=>document.querySelector('#controlbar [data-id="'+id+'"]').disabled)`);
+  // 右区除字幕外只对媒体有意义（字幕按文件栏显示的文件变灰，见下）；中区的播放模式、只播区段、单文件、循环任何模式、有无媒体都可用。
   const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout'],
-    MEDIA_ONLY = RIGHT; // 右区全部只对媒体有意义；中区的播放模式、只播区段、单文件、循环任何模式、有无媒体都可用
+    MEDIA_ONLY = RIGHT;
   const label = (id) => js(`${B(id)}.title`);
   // 栏里每个可见控件与分隔线的位置和尺寸（不含弹出层里的）。
   const rects = () =>
@@ -194,7 +195,7 @@ try {
     );
   const text = (id) => js(`${B(id)}.textContent`);
 
-  // ---- 布局。三区默认一行（约 44px，上方另有文件栏一行），三区并排：左 6、中 5、右 6，组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
+  // ---- 布局。三区默认一行（约 44px，上方另有文件栏两行），三区并排：左 6、中 5、右 7（末尾是字幕），组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
   // 总控栏下面不再有状态文字行（书名与进度在顶部名称区，当前媒体的文件名与时间在文件栏）。
   await js(
     `window.cbEvents=[];import('./src/core/events.mjs').then(m=>{(m.listeners.controlbar??=[]).push(v=>cbEvents.push(v));return true;})`,
@@ -207,9 +208,10 @@ try {
     await js(`(()=>{const b=controlbar.getBoundingClientRect(),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>e.getBoundingClientRect()),p=document.querySelector('#controlbar [data-id="play"]').getBoundingClientRect(),R=reader.getBoundingClientRect();
     return {h:b.height,zh:controlbar.querySelector('.cb-zones').getBoundingClientRect().height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,row:new Set(z.map(r=>Math.round(r.top))).size,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
   assert.ok(geo.zh >= 40 && geo.zh <= 48, 'One row of zones: ' + geo.zh);
-  assert.ok(geo.h >= 96 && geo.h <= 116, 'File bar row + one row, about 107px high: ' + geo.h);
+  assert.ok(geo.h >= 118 && geo.h <= 140, 'File bar (two rows) + one row, about 130px high: ' + geo.h);
+  // 大播放键居中（右区暂时比左区多一个按钮：字幕与新窗口播放并存，放不下 1fr 时偏几像素）。
   assert.ok(
-    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 1 && !geo.compact && geo.fits,
+    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 10 && !geo.compact && geo.fits,
     JSON.stringify(geo),
   );
   assert.deepEqual(
@@ -219,9 +221,9 @@ try {
     [
       ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
       ['mode', 'sections', 'play', 'single', 'loop'],
-      ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout'],
+      ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout', 'subs'],
     ],
-    'Left 6, middle 5, right 6',
+    'Left 6, middle 5, right 7',
   );
   assert.equal(
     await js('controlbar.querySelectorAll(".cb-info,.cb-pos,.cb-now,.cb-modes").length'),
@@ -229,6 +231,11 @@ try {
     'No status lines',
   );
   assert.equal(await js(`${B('mode-mixed')}.getAttribute('aria-checked')`), 'true', 'Mixed by default');
+  // 字幕按钮作用于文件栏显示的文件：这段音频没有字幕，变灰。
+  assert.deepEqual(
+    [await js(`${B('subs')}.disabled`), await js(`${B('subs')}.title`), await js(`${B('subs')}.dataset.control`)],
+    [true, 'No subtitles', 'subs'],
+  );
   assert.equal(await js(`${B('mode')}.querySelector('use').getAttribute('href')`), '#i-mode-mixed', 'Mode icon');
   assert.equal(
     await js(
@@ -236,6 +243,18 @@ try {
     ),
     true,
     'Icons only, except the rate numbers',
+  );
+  // 速率按钮与其他图标按钮同宽，只显示一位小数（不带「×」，提示里带）。
+  assert.deepEqual(
+    await js(
+      `['scrollRate','playRate','volume','mediaNext'].map(id=>Math.round(${B('scrollRate')}.ownerDocument.querySelector('#controlbar [data-id="'+id+'"]').getBoundingClientRect().width))`,
+    ),
+    [36, 36, 36, 36],
+    'Rate buttons as wide as the others',
+  );
+  assert.deepEqual(
+    [await text('scrollRate'), await text('playRate'), await label('scrollRate')],
+    ['1.0', '1.0', 'Scroll speed 1.0×'],
   );
   assert.equal(
     await js(`[...controlbar.querySelectorAll('.cb-btn')].every(b=>b.getAttribute('aria-label')&&b.title)`),
@@ -322,10 +341,12 @@ try {
   assert.equal(await label('loop'), 'Loop: the whole reading list', 'Mixed, across books: the whole reading list');
   await js(`${B('crossBook')}.click()`);
   assert.equal(await rects(), base);
+  // 滑杆按 0.1 一档：任意位置都落在 0.1 档上，显示一位小数即真实值。
+  assert.equal(await js(`${pop('scrollRate')}.querySelector('input').step`), '0.1');
   for (const [v, shown] of [
-    [0.25, '0.25×'],
-    [1.25, '1.25×'],
-    [4, '4.0×'],
+    [0.2, '0.2'],
+    [1.3, '1.3'],
+    [4, '4.0'],
   ]) {
     await js(
       `(()=>{const r=${pop('scrollRate')}.querySelector('input');r.value='${v}';r.dispatchEvent(new Event('input'));})()`,
@@ -334,7 +355,7 @@ try {
     assert.equal(await rects(), base, 'Rate ' + v + ' moves nothing');
   }
   await js(`${B('scrollRate')}.click()`);
-  assert.equal(await text('scrollRate'), '1.0×', 'Clicking the number resets to 1.0×');
+  assert.equal(await text('scrollRate'), '1.0', 'Clicking the number resets to 1.0');
   await js('reader.scrollTop=0');
   await wait(() => js(`${B('toStart')}.disabled`), 'at the start');
   assert.equal(await rects(), base, 'Disabled buttons keep their place');
@@ -350,6 +371,13 @@ try {
       `(()=>{const p=${pop('scrollRate')}.getBoundingClientRect(),b=${B('scrollRate')}.getBoundingClientRect();return {above:p.bottom<=b.top,inside:p.left>=0&&p.right<=innerWidth&&p.top>=0,presets:[...${pop('scrollRate')}.querySelectorAll('.dial-preset')].map(b=>b.textContent),slider:!!${pop('scrollRate')}.querySelector('input[type=range]')};})()`,
     );
     assert.deepEqual(p, { above: true, inside: true, presets: ['0.5×', '1.0×', '1.5×', '2.0×', '3.0×'], slider: true });
+    assert.equal(
+      await js(
+        `(()=>{const p=${pop('scrollRate')}.getBoundingClientRect(),b=${B('scrollRate')}.getBoundingClientRect();return Math.abs(p.left+p.width/2-(b.left+b.width/2))<1&&b.top-p.bottom<=10;})()`,
+      ),
+      true,
+      'Right above the button, centred',
+    );
     const [px, py] = await center('.dial-pop[data-for="scrollRate"] .dial-presets');
     await move(x, y - 26); // 经过按钮与面板之间的空隙
     await move(px, py);
@@ -366,11 +394,11 @@ try {
   }
   await openBar();
   await wheel('#controlbar [data-id="scrollRate"]', -100);
-  assert.equal(await text('scrollRate'), '1.25×', 'Wheel up: one step faster');
+  assert.equal(await text('scrollRate'), '1.1', 'Wheel up: 0.1 faster');
   await wheel('#controlbar [data-id="scrollRate"]', 100);
   await wheel('#controlbar [data-id="scrollRate"]', 100);
-  assert.equal(await text('scrollRate'), '0.75×');
-  await wait(() => js(`localStorage.getItem('mv2:scrollRate')==='0.75'`), 'scroll rate saved');
+  assert.equal(await text('scrollRate'), '0.9');
+  await wait(() => js(`localStorage.getItem('mv2:scrollRate')==='0.9'`), 'scroll rate saved');
   await wheel('#controlbar [data-id="volume"]', 100);
   assert.equal(await js(`el('03 b.wav').volume`), 0.95, 'Wheel down on the volume: 5% lower');
   await js(`${B('volume')}.click()`);
@@ -388,10 +416,10 @@ try {
   await js(`${B('playRate')}.focus()`);
   await wait(() => isOpen('playRate'), 'keyboard focus opens');
   await key('ArrowUp', 'ArrowUp', 38);
-  assert.equal(await text('playRate'), '1.25×', 'Arrow up: one step faster');
+  assert.equal(await text('playRate'), '1.1', 'Arrow up: 0.1 faster');
   const top0 = await js('reader.scrollTop');
   await key('ArrowDown', 'ArrowDown', 40);
-  assert.equal(await text('playRate'), '1.0×');
+  assert.equal(await text('playRate'), '1.0');
   assert.equal(await js('reader.scrollTop'), top0, 'Arrow keys on the button do not scroll');
   await key('Escape', 'Escape', 27);
   await wait(async () => !(await isOpen('playRate')), 'Esc closes');
@@ -405,7 +433,7 @@ try {
     await wait(() => isOpen('playRate'));
     await tap('.dial-pop[data-for="playRate"] .dial-preset[data-value="1.5"]');
   }
-  assert.equal(await text('playRate'), '1.5×');
+  assert.equal(await text('playRate'), '1.5');
   assert.deepEqual(
     await js(`[...new Set([...reader.querySelectorAll('video,audio')].map(m=>m.playbackRate+','+m.preservesPitch))]`),
     ['1.5,true'],
@@ -434,30 +462,22 @@ try {
   await storage('crossBook', true);
   await storage('singleFile', true);
   await storage('sectionsOnly', true);
-  await storage('playRate', 0.75);
+  await storage('playRate', 0.75); // 旧版本的档位：读入时取整到 0.1
   const state = () =>
     js(
       `[${B('mode-media')}.getAttribute('aria-checked'),${B('scrollRate')}.textContent,${B('crossBook')}.getAttribute('aria-pressed'),${B('single')}.getAttribute('aria-pressed'),${B('sections')}.getAttribute('aria-pressed'),${B('playRate')}.textContent,el('03 b.wav').playbackRate]`,
     );
-  assert.deepEqual(
-    await state(),
-    ['true', '2.0×', 'true', 'true', 'true', '0.75×', 0.75],
-    'Synced from another window',
-  );
+  assert.deepEqual(await state(), ['true', '2.0', 'true', 'true', 'true', '0.8', 0.8], 'Synced from another window');
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='Deck'`), 'reloaded');
   await js(MEDIA_FIXTURES);
   await js(helpers);
   assert.ok(await js(`toPage('03 b.wav')`));
   await wait(() => js(`el('03 b.wav')?.readyState>=1`));
-  assert.deepEqual(
-    await state(),
-    ['true', '2.0×', 'true', 'true', 'true', '0.75×', 0.75],
-    'Remembered after reloading',
-  );
+  assert.deepEqual(await state(), ['true', '2.0', 'true', 'true', 'true', '0.8', 0.8], 'Remembered after reloading');
   for (const k of ['playMode', 'scrollRate', 'crossBook', 'singleFile', 'sectionsOnly', 'playRate'])
     await storage(k, null);
-  assert.deepEqual(await state(), ['false', '1.0×', 'false', 'false', 'false', '1.0×', 1], 'Back to the defaults');
+  assert.deepEqual(await state(), ['false', '1.0', 'false', 'false', 'false', '1.0', 1], 'Back to the defaults');
   await js('reader.focus()');
 
   // ---- 空格 = 大播放键；影音模式下运行状态与实际播放一致（漫画、混合模式的运行见 transport.browser.mjs）。
@@ -550,7 +570,7 @@ try {
     await js(
       `(()=>{const s=node('03 b.wav').querySelector('.mv-card>.mv-subs');return [s.getAttribute('aria-live'),[...s.children].map(c=>c.className+':'+c.hidden).join(),s.textContent,Math.round(s.getBoundingClientRect().height)];})()`,
     ),
-    ['off', 'mv-cue:true', '', 60],
+    ['off', 'mv-bars:false,mv-cue:true', '', 60],
   );
   const cueText = (name, text) =>
     js(
@@ -562,6 +582,11 @@ try {
   assert.ok(await js(`toPage('05 clip.webm')`));
   await wait(() => js(`el('05 clip.webm')?.readyState>=1`));
   await cueText('05 clip.webm', 'subtitle');
+  // 视窗中心所在的未选中视频：普通的压暗程度（等过渡结束）。
+  await wait(
+    () => js(`getComputedStyle(node('05 clip.webm').querySelector('video')).filter==='brightness(0.55)'`),
+    'centre video dimmed as usual',
+  );
   assert.deepEqual(
     await js(
       `(()=>{const n=node('05 clip.webm'),s=n.querySelector('.mv-subs'),r=s.getBoundingClientRect(),v=n.getBoundingClientRect();return [s.parentNode===n,s.getAttribute('aria-live'),r.bottom<=v.bottom,r.top>=v.top,!n.querySelector('.mv-shell'),getComputedStyle(n.querySelector('video')).filter];})()`,
@@ -655,7 +680,7 @@ try {
         left:ids('.cb-left'),right:ids('.cb-right'),moreL:pop('moreLeft'),moreR:pop('moreRight')};})()`);
   const FULL = {
       left: ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
-      right: ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout'],
+      right: ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout', 'subs'],
       moreL: [],
       moreR: [],
     },
@@ -663,7 +688,7 @@ try {
       left: ['prevBook', 'nextBook', 'moreLeft'],
       right: ['mediaNext', 'volume', 'moreRight'],
       moreL: ['toStart', 'toEnd', 'crossBook', 'scrollRate'],
-      moreR: ['mediaPrev', 'order', 'playRate', 'popout'],
+      moreR: ['mediaPrev', 'order', 'playRate', 'popout', 'subs'],
     };
   for (const [w, tier] of [
     [1280, 'row'],
@@ -690,18 +715,26 @@ try {
     );
     await shot('controlbar-' + w);
     if (tier === 'row') continue;
-    await tap('#controlbar [data-id="moreRight"]');
+    // 「⋯」悬停即展开（不用点），紧贴在按钮正上方（与播放模式、速率的小面板同一种定位），移开收起。
     const more = `document.querySelector('#controlbar [data-id="moreRight"]').popoverTargetElement`;
-    await wait(() => js(`${more}.matches(':popover-open')`), 'more opens');
-    assert.equal(
-      await js(
-        `(()=>{const r=${more}.getBoundingClientRect(),b=document.querySelector('#controlbar [data-id="moreRight"]').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=b.top;})()`,
-      ),
-      true,
-      w + 'px: the ⋯ pop-up sits above its button inside the window',
+    const [mx, my] = await center('#controlbar [data-id="moreRight"]');
+    await move(mx, my);
+    await wait(() => js(`${more}.matches(':popover-open')`), 'more opens on hover');
+    const at = await js(
+      `(()=>{const r=${more}.getBoundingClientRect(),b=document.querySelector('#controlbar [data-id="moreRight"]').getBoundingClientRect();return {inside:r.left>=0&&r.right<=innerWidth&&r.top>=0,gap:Math.round(b.top-r.bottom),centre:Math.round(Math.abs(r.left+r.width/2-(b.left+b.width/2))),edge:r.right>=innerWidth-5,over:r.left<=b.left&&r.right>=b.right};})()`,
+    );
+    // 按钮居中，靠窗口边缘时夹在窗口内（仍盖住按钮的正上方）。
+    assert.ok(
+      at.inside && at.gap >= 4 && at.gap <= 10 && at.over && (at.centre <= 1 || at.edge),
+      w + 'px: the ⋯ pop-up sits right above its button: ' + JSON.stringify(at),
     );
     await shot('controlbar-' + w + '-more');
+    await move(mx, my - 300);
+    await wait(async () => !(await js(`${more}.matches(':popover-open')`)), w + 'px: leaving closes the ⋯ pop-up');
+    await tap('#controlbar [data-id="moreRight"]');
+    await wait(() => js(`${more}.matches(':popover-open')`), 'clicking also opens it');
     await key('Escape', 'Escape', 27);
+    await wait(async () => !(await js(`${more}.matches(':popover-open')`)), 'Esc closes it');
   }
   // 「⋯」里的速率按钮照常使用：悬停弹出小面板（在「⋯」上方），点档位不收起「⋯」。
   await cdp('Emulation.setDeviceMetricsOverride', { width: 560, height: 800, deviceScaleFactor: 1, mobile: false });
@@ -724,10 +757,10 @@ try {
     const [px, py] = await center('.dial-pop[data-for="scrollRate"] .dial-preset[data-value="1.5"]');
     await move(x, y - 30);
     await click(px, py);
-    assert.equal(await text('scrollRate'), '1.5×');
+    assert.equal(await text('scrollRate'), '1.5');
     assert.equal(await js(`${more}.matches(':popover-open')`), true, 'Choosing a preset keeps the ⋯ pop-up open');
     await js(`${B('scrollRate')}.click()`);
-    assert.equal(await text('scrollRate'), '1.0×');
+    assert.equal(await text('scrollRate'), '1.0');
     await key('Escape', 'Escape', 27);
     await wait(
       async () => !(await js(`${more}.matches(':popover-open')`)) && !(await isOpen('scrollRate')),
@@ -748,6 +781,11 @@ try {
     await disabled([...RIGHT, 'play', 'loop']),
     MEDIA_ONLY,
     'No media: the whole right zone is disabled',
+  );
+  assert.deepEqual(
+    [await js(`${B('subs')}.disabled`), await label('subs')],
+    [true, 'Subtitles'],
+    'Subtitles greyed out on an image',
   );
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(await disabled(['loop']), [], 'Comic mode without media: loop still works');
@@ -772,7 +810,7 @@ try {
   );
   await key(' ', 'Space', 32);
   await wait(async () => (await running()) === 'false');
-  // 文件名只显示最末一段（不带路径），完整路径在悬停提示：添加为单个作品时页名带卷的路径。
+  // 文件名只显示最末一段（不带路径和扩展名），完整路径在悬停提示：添加为单个作品时页名带卷的路径。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),nest=await root.getDirectoryHandle('Nest');window.showDirectoryPicker=async()=>nest;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();})()`,
   );
@@ -783,12 +821,12 @@ try {
     await js(
       `(()=>{const n=reader.querySelector('.page.media .mv-head .mid-name');return [n.textContent,n.title];})()`,
     ),
-    ['07 deep.wav', deep],
+    ['07 deep', deep],
   );
   await js('reader.focus()');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: control bar layout (one row, left 6 / middle 5 / right 6, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when hidden, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (selected not dimmed and no outline, unselected dimmed, playing accent progress, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
+    'PASS: control bar layout (one row, left 6 / middle 5 / right 7 with subtitles, rate buttons as wide as icons, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when hidden, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, ⋯ pop-ups right above on hover, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (selected not dimmed and no outline, unselected dimmed, playing accent progress, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
   );
 } finally {
   if (ws?.readyState === 1) {

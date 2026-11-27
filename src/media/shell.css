@@ -1,7 +1,9 @@
-/* 单个文件的播放面板（shell.mjs）：正文里的视频画面与大播放键、音频卡片（按钮、进度条、时间、「更多」弹出层）、字幕容器、播不了时的占位、视频全屏。
-   进度条（.mv-bar）与文件栏（reader/filebar.css）共用。壳的宽度预算见 shell.mjs（BTN 等）。
-   外观（视频、音频统一）：未选中（没有 .selected）压暗（音频连同右侧小图）并在中央显示大播放键；选中不压暗、不描边。
-   播放与暂停只在播放键图标、进度条颜色（播放中强调色）和音频的跳动音柱（唯一的动态效果，减少动态效果时静止）上有区别。 */
+/* 单个文件的播放面板（shell.mjs）：正文里的视频画面与大播放键、音频卡片（按钮、进度条、时间、「⋯」弹出层）、字幕容器与阶梯音柱、播不了时的占位、视频全屏。
+   进度条（.mv-bar）与时间（.mv-tbox，悬停 / 聚焦时换成快退 / 快进）与文件栏（reader/filebar.css）共用。壳的宽度预算见 shell.mjs（BTN 等）。
+   外观：未选中（没有 .selected）压暗并在中央显示大播放键；视频压得更暗，视窗中心所在的（.mv-center）、悬停或键盘聚焦的视频恢复到
+   音频的压暗程度（音频连同右侧小图）；选中不压暗、不描边。
+   播放与暂停只在播放键图标、进度条颜色（播放中强调色）和音频的音柱（标题旁的跳动音柱；没有字幕可显示时字幕区的阶梯音柱）上有区别，
+   减少动态效果时音柱静止。 */
 .page.media.video {
   background: #000;
 }
@@ -14,8 +16,11 @@
   pointer-events: none;
   transition: filter 0.2s;
 } /* --vh：拖动缩放期间视窗变矮时临时等比缩小，不改变占位 */
-/* 未选中：压暗（音频卡片连同右侧小图一起）。 */
-.page.media.video:not(.selected) video,
+/* 未选中：压暗（音频卡片连同右侧小图一起）。视频压得更暗，避免干扰相邻正在播放的画面；视窗中心所在的、悬停或键盘聚焦的视频恢复到普通的压暗程度。 */
+.page.media.video:not(.selected) video {
+  filter: brightness(0.22);
+}
+.page.media.video:not(.selected):is(.mv-center, :hover, :focus-within) video,
 .page.media.audio:not(.selected) .mv-card {
   filter: brightness(0.55);
 }
@@ -23,16 +28,21 @@
 body.mv-fullvideo #reader {
   z-index: 5;
 }
+/* 正文里给视频设的宽度上限（view.mjs，按帧比例）不适用于全屏：铺满整个窗口、画面居中，盖住其他页。 */
 .page.media.mv-full {
   position: fixed !important;
   inset: 0 !important;
   z-index: 10;
   width: auto !important;
+  max-width: none !important;
   height: auto !important;
   margin: 0;
   background: #000;
 }
-.page.media.mv-full video {
+/* 画面按窗口完整显示、居中（不按帧比例撑开网格行：竖的视频在网格里会被撑高、偏下）。 */
+.page.media.mv-full > video {
+  position: absolute;
+  inset: 0;
   max-height: none;
 }
 body.mv-fullvideo #controlbar {
@@ -166,25 +176,57 @@ body.mv-fullvideo #controlbar {
   inset: 0;
   pointer-events: none;
 } /* 书签标记层：标记自己设 pointer-events */
-/* 添加区段书签用区段配色。 */
-.mv-shell .mv-x[data-control='section'] .i,
-.mv-pop .mv-x[data-control='section'] .i {
-  color: var(--sec);
-}
 /* 壳上登记的开关（如字幕）打开时图标为强调色。 */
 .mv-shell .mv-x[aria-pressed='true'],
 .mv-pop .mv-x[aria-pressed='true'] {
   color: var(--accent);
 }
 .mv-time {
-  flex: none;
   padding: 0 4px;
+}
+/* 时间（音频卡片的 .mv-time、文件栏的 .fb-time）：宽度按总时长的位数预留（shell.mjs makeTime）；悬停或键盘聚焦时原位换成快退、快进两个按钮，宽度不变。 */
+.mv-tbox {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
   box-sizing: content-box;
+  height: 32px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
   color: var(--muted);
+}
+.mv-steps {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+.mv-tbox:hover .mv-steps,
+.mv-tbox:focus-within .mv-steps {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mv-tbox:hover .mv-clock,
+.mv-tbox:focus-within .mv-clock {
+  visibility: hidden;
+}
+.mv-tbox .mv-step {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  height: 100%;
+  border-radius: 8px;
+  color: var(--text);
+}
+.mv-tbox .mv-step .i {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 /* 「更多」弹出层：窄宽度下收进来的次要控件排成一行。 */
 .mv-pop {
@@ -232,6 +274,67 @@ body.mv-fullvideo #controlbar {
   font-size: 14px;
   line-height: 20px;
   color: var(--text);
+}
+/* 阶梯音柱：音频没有字幕可显示（.mv-nosubs，subtitles.mjs）时，选中即在字幕区显示；播放中逐格跳动，暂停、减少动态效果时静止成阶梯。
+   每根柱子由一格格小方块组成（渐变），高度按整格变化（steps），纯 CSS，不分析音频。 */
+.mv-bars {
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 0 2px;
+}
+.media.audio.selected.mv-nosubs .mv-bars {
+  display: flex;
+}
+.mv-bars i {
+  flex: 0 1 6px;
+  height: 100%;
+  background: repeating-linear-gradient(to top, var(--accent) 0 4px, transparent 4px 6px);
+  opacity: 0.85;
+  clip-path: inset(var(--h, 40%) 0 0 0);
+  animation: none 1.2s steps(5, jump-none) infinite alternate;
+}
+.media.audio.playing .mv-bars i {
+  animation-name: mv-bars;
+}
+/* 静止时排成阶梯（--h 为顶部裁掉的比例），跳动时各柱错开相位与节奏。 */
+.mv-bars i:nth-child(6n + 1) {
+  --h: 70%;
+  animation-duration: 0.9s;
+}
+.mv-bars i:nth-child(6n + 2) {
+  --h: 58%;
+  animation-delay: -0.4s;
+}
+.mv-bars i:nth-child(6n + 3) {
+  --h: 46%;
+  animation-duration: 1.4s;
+  animation-delay: -0.2s;
+}
+.mv-bars i:nth-child(6n + 4) {
+  --h: 34%;
+  animation-duration: 1s;
+  animation-delay: -0.7s;
+}
+.mv-bars i:nth-child(6n + 5) {
+  --h: 22%;
+  animation-delay: -0.9s;
+}
+.mv-bars i:nth-child(6n) {
+  --h: 10%;
+  animation-duration: 1.6s;
+  animation-delay: -0.3s;
+}
+@keyframes mv-bars {
+  from {
+    clip-path: inset(85% 0 0 0);
+  }
+  to {
+    clip-path: inset(5% 0 0 0);
+  }
 }
 
 /* 音频：固定高度（model.mjs AUDIO_H）的卡片，横向占满阅读区（两侧留边距），不设最大宽度；纯色底。
@@ -336,7 +439,8 @@ body.mv-fullvideo #controlbar {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mv-eq i {
+  .mv-eq i,
+  .mv-bars i {
     animation: none;
   }
   .mv-eq i:nth-child(odd) {

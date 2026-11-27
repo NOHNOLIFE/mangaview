@@ -250,7 +250,7 @@ try {
   await toPageReady('03 long.wav');
   assert.deepEqual(
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
-    ['bookmark', 'section', 'subs'],
+    ['bookmark', 'section'],
   );
   // 播放顺序只在影音模式下可用（混合模式按页序）。
   await js(`${bar('mode-media')}.click()`);

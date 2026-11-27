@@ -329,12 +329,21 @@ body.docked {
   font-size: 10px;
   padding: 4px;
 }
+/* 悬停弹出的浮层（ui/hoverpop.mjs）与按钮之间的空隙：浮层下方的透明延伸区，指针经过时浮层不收起。 */
+.hover-pop::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+}
 .mid-name {
   display: flex;
   justify-content: center;
   max-width: 100%;
   min-width: 0;
-  white-space: nowrap;
+  white-space: pre; /* 不换行，且保留两段交界处的空格（弹性项首尾的空格默认会被吞掉） */
 }
 .mid-name > span {
   min-width: 0;

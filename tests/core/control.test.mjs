@@ -8,6 +8,8 @@ import {
   rateOf,
   stepRate,
   rateText,
+  rateLabel,
+  RATE_STEP,
   disabledControls,
   RIGHT,
   MEDIA_ONLY,
@@ -23,53 +25,67 @@ test('模式：三种，默认（及读到坏值时）为混合', () => {
   for (const v of [null, undefined, '', 'video', 3, {}]) assert.equal(modeOf(v), 'mixed');
 });
 
-test('速率：滚动 0.25×–4×、播放 0.5×–3×，坏值为 1，按 0.05 取整', () => {
+test('速率：滚动 0.2–4.0、播放 0.5–3.0，坏值为 1，按 0.1 取整并夹在范围内（旧值读入时同样）', () => {
+  assert.equal(RATE_STEP, 0.1);
   assert.equal(rateOf(null, 'scroll'), 1);
   assert.equal(rateOf('abc', 'play'), 1);
   assert.equal(rateOf(0, 'scroll'), 1);
   assert.equal(rateOf(-2, 'play'), 1);
-  assert.equal(rateOf(0.1, 'scroll'), 0.25);
+  assert.equal(rateOf(0.1, 'scroll'), 0.2);
   assert.equal(rateOf(9, 'scroll'), 4);
-  assert.equal(rateOf(0.25, 'play'), 0.5);
+  assert.equal(rateOf(0.3, 'play'), 0.5);
   assert.equal(rateOf(5, 'play'), 3);
-  assert.equal(rateOf(1.2345, 'play'), 1.25);
   assert.equal(rateOf('1.5', 'scroll'), 1.5);
+  // 旧版本按 0.05 一档存下的值：取整到 0.1
+  assert.equal(rateOf(0.25, 'scroll'), 0.3);
+  assert.equal(rateOf(1.25, 'play'), 1.3);
+  assert.equal(rateOf(1.75, 'play'), 1.8);
+  assert.equal(rateOf(1.2345, 'play'), 1.2);
   for (const k of ['scroll', 'play']) {
     const r = RATES[k];
-    assert.ok(r.steps.includes(1) && r.presets.includes(1), k + ' includes 1.0×');
+    assert.ok(r.presets.includes(1), k + ' presets include 1.0');
     assert.ok(
-      r.steps.every((x, i) => i === 0 || x > r.steps[i - 1]),
-      k + ' steps ascend',
+      r.presets.every((x, i) => (i === 0 || x > r.presets[i - 1]) && x >= r.min && x <= r.max),
+      k + ' presets ascend within the range',
     );
-    assert.equal(r.steps[0], r.min);
-    assert.equal(r.steps.at(-1), r.max);
+    for (const x of r.presets) assert.equal(rateOf(x, k), x, k + ' preset ' + x + ' is on the 0.1 grid');
   }
+  assert.deepEqual([RATES.scroll.min, RATES.scroll.max, RATES.play.min, RATES.play.max], [0.2, 4, 0.5, 3]);
 });
 
-test('逐档调整：取相邻的档位，两端不变；不在档位上的值走到最近的一档', () => {
-  assert.equal(stepRate(1, 1, 'scroll'), 1.25);
-  assert.equal(stepRate(1, -1, 'scroll'), 0.75);
+test('逐档调整：每次 0.1，两端不变；不在 0.1 档上的旧值先取整', () => {
+  assert.equal(stepRate(1, 1, 'scroll'), 1.1);
+  assert.equal(stepRate(1, -1, 'scroll'), 0.9);
   assert.equal(stepRate(4, 1, 'scroll'), 4);
-  assert.equal(stepRate(0.25, -1, 'scroll'), 0.25);
-  assert.equal(stepRate(1.1, 1, 'play'), 1.25);
-  assert.equal(stepRate(1.1, -1, 'play'), 1);
+  assert.equal(stepRate(0.2, -1, 'scroll'), 0.2);
+  assert.equal(stepRate(0.3, -1, 'scroll'), 0.2);
   assert.equal(stepRate(3, 1, 'play'), 3);
   assert.equal(stepRate(0.5, -1, 'play'), 0.5);
+  assert.equal(stepRate(1.25, 1, 'play'), 1.4);
+  // 连续逐档不累积浮点误差
+  let v = 0.2;
+  for (let i = 0; i < 38; i++) v = stepRate(v, 1, 'scroll');
+  assert.equal(v, 4);
+  for (let i = 0; i < 15; i++) v = stepRate(v, -1, 'play'); // 4 读作播放速率时夹到 3
+  assert.equal(v, 1.5);
 });
 
-test('速率的显示：整十分位一位小数，否则两位', () => {
-  assert.equal(rateText(1), '1.0×');
-  assert.equal(rateText(0.5), '0.5×');
-  assert.equal(rateText(0.25), '0.25×');
-  assert.equal(rateText(1.25), '1.25×');
-  assert.equal(rateText(4), '4.0×');
-  assert.equal(rateText(1.3), '1.3×');
+test('速率的显示：一位小数、不带单位；提示与面板里带「×」', () => {
+  assert.equal(rateText(1), '1.0');
+  assert.equal(rateText(0.5), '0.5');
+  assert.equal(rateText(4), '4.0');
+  assert.equal(rateText(1.3), '1.3');
+  assert.equal(rateText(0.30000000000000004), '0.3');
+  assert.equal(rateLabel(1.5), '1.5×');
+  for (const k of ['scroll', 'play'])
+    for (let v = RATES[k].min; v <= RATES[k].max + 1e-9; v = stepRate(v, 1, k) + (v === RATES[k].max ? 1 : 0))
+      assert.equal(rateText(v).length, 3, k + ' ' + v + ': the same width for every value');
 });
 
-test('禁用规则：漫画模式右区全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区全部，影音模式下大播放键也禁用', () => {
+test('禁用规则：漫画模式右区（字幕除外）全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区（字幕除外）全部，影音模式下大播放键也禁用', () => {
   const off = (mode, hasMedia) => [...disabledControls({ mode, hasMedia })].sort();
   assert.deepEqual(MEDIA_ONLY, ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
-  assert.deepEqual(RIGHT, MEDIA_ONLY);
+  assert.deepEqual(RIGHT, [...MEDIA_ONLY, 'subs']);
   assert.deepEqual(off('comic', true), [...MEDIA_ONLY].sort());
   assert.deepEqual(off('mixed', true), ['order']);
   assert.deepEqual(off('media', true), ['scrollRate']);
@@ -83,14 +99,14 @@ test('禁用规则：漫画模式右区全部；影音模式滚动速率；混�
         assert.ok(!disabledControls({ mode, hasMedia }).has(id), mode + ' ' + id);
 });
 
-test('三区排布：左 6、中 5、右 6，左右对称；循环在中区', () => {
+test('三区排布：左 6、中 5、右 7（字幕在右区末尾）；循环在中区', () => {
   const ids = (z) => ZONES[z].filter((id) => id !== '|');
   assert.deepEqual(ids('left'), ['prevBook', 'toStart', 'toEnd', 'nextBook', 'crossBook', 'scrollRate']);
   assert.deepEqual(ZONES.mid, ['mode', 'sections', 'play', 'single', 'loop']);
-  assert.deepEqual(ids('right'), ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
+  assert.deepEqual(ids('right'), ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout', 'subs']);
   assert.equal(ZONES.left.indexOf('|'), 4);
   assert.equal(ZONES.right.indexOf('|'), 3);
-  assert.equal(ids('left').length + ZONES.mid.length + ids('right').length, 17);
+  assert.equal(ids('left').length + ZONES.mid.length + ids('right').length, 18);
   const every = [...ids('left'), ...ZONES.mid, ...ids('right')];
   assert.equal(new Set(every).size, every.length, 'Each control appears once');
 });
@@ -103,7 +119,7 @@ test('窄窗口：左区留上一本 / 下一本，右区留下一个媒体 / �
   });
   assert.deepEqual(arrange('right', true), {
     row: ['mediaNext', 'volume', 'more'],
-    more: ['mediaPrev', 'order', 'playRate', 'popout'],
+    more: ['mediaPrev', 'order', 'playRate', 'popout', 'subs'],
   });
   assert.deepEqual(arrange('mid', true), { row: ZONES.mid, more: [] });
   assert.deepEqual(KEEP, { left: ['prevBook', 'nextBook'], right: ['mediaNext', 'volume'] });

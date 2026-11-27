@@ -4,8 +4,9 @@
 //   离开视窗即卸载源、释放解码器；相邻页不预加载。缩略图栏、全屏缩略图里是固定样式的占位（ctx.mediaTile），不读文件。
 // - 帧尺寸、时长在首次挂上源时读到，记入页记录（page.w / h / d），之后排版不再读文件；浏览器播不了的文件记下当时的
 //   大小和修改时间（page.bad），文件没变就不再探测，只在用户点「重试」或文件变化后重做（变化在该页本来要读取时顺带比较）。
-// - 只与该文件有关的按钮登记在 ctx.player.add（添加书签、添加区段书签、字幕等）：音频卡片上排成一行（默认是次要控件，宽度不够时收进弹出层），
-//   文件栏（reader/filebar.mjs）按 id 取用同一份登记（ctx.player.controls()），点击、状态都带上所在的按钮；视频画面内没有控件。
+// - 只与该文件有关的按钮登记在 ctx.player.add（添加书签、添加区段书签、字幕等）：音频卡片上排成一行（默认是次要控件，宽度不够时收进弹出层；
+//   card: false 的不上卡片，如字幕），文件栏（reader/filebar.mjs）与总控栏的字幕按钮按 id 取用同一份登记（ctx.player.controls()），
+//   点击、状态都带上所在的按钮；视频画面内没有控件。
 //   列表级的控制（音量、播放顺序、循环、只播区段、新窗口播放、上一个 / 下一个媒体、播放速率）在总控栏（reader/controlbar.mjs），经 ctx.media 读写；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
 // - 选中媒体与当前文件（autoplay.mjs，规则见 core/selection.mjs）：选中媒体不压暗、没有大播放键；当前文件是选中的媒体，否则视窗中心所在的页，
@@ -19,7 +20,8 @@
 // 本文件是唯一入口：建立子模块共享的 S，按顺序装配子模块，对外提供 ctx.media、ctx.player（含 api）和正文的 ctx.view.hooks.media。
 // 子模块（安装顺序）：volume 统一音量；order 播放顺序与循环、播完后的切换、待接手的播放请求；sections 只播放书签区段；
 // position 播放位置记忆；hud 提示浮层；tile 缩略图里的占位；shell 壳的 DOM 与状态显示；player 播放器的状态（挂源、失败、播放 / 暂停）；
-// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；driver 与总控的衔接；subtitles 外挂字幕。进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
+// autoplay 当前媒体与自动播放；popout 新窗口播放；keys 媒体按键；scrub 横向拖动快进 / 快退；driver 与总控的衔接；subtitles 外挂字幕。
+// 进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
 import { pageKind } from '../core/model.mjs';
 import { addIcons } from '../ui/icons.mjs';
 import { install as volume } from './volume.mjs';
@@ -33,6 +35,7 @@ import { install as player } from './player.mjs';
 import { install as autoplay } from './autoplay.mjs';
 import { install as popout } from './popout.mjs';
 import { install as keys } from './keys.mjs';
+import { install as scrub } from './scrub.mjs';
 import { install as driver } from './driver.mjs';
 import { install as subtitles } from './subtitles.mjs';
 
@@ -117,6 +120,7 @@ export function install(ctx) {
     }
     const p = players.get(node) ?? build(node, book, page, kind);
     S.mark?.();
+    S.centerSoon?.();
     if (visible && S.queued?.page === page) claim(p);
     if (visible) {
       if (p.state === 'idle') load(p);
@@ -156,10 +160,11 @@ export function install(ctx) {
   };
   popout(ctx, S);
   keys(ctx, S);
+  scrub(ctx, S);
   // ---- 播放器的扩展点：登记按钮、画进度条上的标记。
-  // add({id,icon,label(文案 key),order?,secondary?=true,kinds?:['video','audio'],click(播放器,api,按钮),state?(播放器,api,按钮)→{disabled,pressed,icon,label}})
+  // add({id,icon,label(文案 key),order?,secondary?=true,card?=true,kinds?:['video','audio'],click(播放器,api,按钮),state?(播放器,api,按钮)→{disabled,pressed,icon,label}})
   // 文件栏用：controls() 登记的按钮；seekBar(get) 建一条进度条（get() 为它作用的播放器），paintBar(进度条, 播放器) 画进度、返回时间文字；
-  // timeWidth(时长) 时间文字的宽度（ch）。
+  // timeBox(get, 类名) 建时间（悬停换成快退 / 快进，见 shell.mjs makeTime）；timeWidth(时长) 时间文字的宽度（ch）。
   ctx.player = {
     add(c) {
       controls.push(c);
@@ -167,6 +172,7 @@ export function install(ctx) {
     },
     controls: () => controls,
     seekBar: (get) => S.makeBar(get),
+    timeBox: (get, cls) => S.makeTime(get, cls),
     paintBar: (parts, p, at) => S.paintBar(parts, p, at),
     timeWidth: (d) => S.timeWidth(d),
     decorate(fn) {

@@ -23,6 +23,7 @@ const shell = [
     'src/core/prefs.mjs',
     'src/core/reading.mjs',
     'src/core/recent.mjs',
+    'src/core/scrub.mjs',
     'src/core/sections.mjs',
     'src/core/selection.mjs',
     'src/core/sources.mjs',
@@ -57,6 +58,7 @@ const shell = [
     'src/media/player.mjs',
     'src/media/popout.mjs',
     'src/media/position.mjs',
+    'src/media/scrub.mjs',
     'src/media/sections.mjs',
     'src/media/shell.css',
     'src/media/shell.mjs',
@@ -129,6 +131,7 @@ const shell = [
     'src/style.css',
     'src/ui/dom.mjs',
     'src/ui/dragscroll.mjs',
+    'src/ui/hoverpop.mjs',
     'src/ui/icons.mjs',
   ].map((p) => new URL(p, self.registration.scope).href),
   index = new URL('index.html', self.registration.scope).href;
