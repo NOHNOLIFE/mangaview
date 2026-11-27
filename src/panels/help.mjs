@@ -47,6 +47,12 @@ extend({
     '다음 화면, *길게*: 미디어 빨리 감기',
   ],
   hkTipVolDown: ['Volume down', '音量减', '音量を下げる', '볼륨 낮추기'],
+  hkTipPip: [
+    'Picture-in-picture (inside: Space, A D, ↑ ↓ Enter for the list, Q E)',
+    '画中画（窗口内：空格、A D、↑ ↓ Enter 选播放列表、Q E）',
+    'ピクチャーインピクチャー（ウィンドウ内：スペース、A D、↑ ↓ Enter でリスト、Q E）',
+    'PIP 화면 (창 안: 스페이스, A D, ↑ ↓ Enter 목록, Q E)',
+  ],
   hkTipVolUp: ['Volume up', '音量加', '音量を上げる', '볼륨 높이기'],
   hkTipMark: [
     'Next bookmark, *hold*: add, Shift: reverse / section',
@@ -197,6 +203,7 @@ export const KEYS = {
   V: thumbs,
   B: { tip: 'hkTipShelf' },
   T: { tip: 'hkTipBars' },
+  Z: { tip: 'hkTipPip' },
   Q: volDown,
   E: volUp,
   ShiftLeft: rev,

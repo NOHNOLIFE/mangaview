@@ -54,6 +54,7 @@ import { install as singleFile } from './reader/single.mjs';
 import { install as controlBar } from './reader/controlbar.mjs';
 import { install as mediaPlayer } from './media/media.mjs';
 import { install as fileBar } from './reader/filebar.mjs';
+import { install as pictureInPicture } from './media/pip.mjs';
 import { install as pbfImport } from './marks/pbf.mjs';
 
 // 边缘触发区（像素），见下方 atEdge：顶、左、右三边同为 EDGE；底缘（总控栏）为 EDGE_BOTTOM，宽一些，容易唤出。
@@ -166,7 +167,7 @@ ctx.pageHold = null; // 长按翻页键的接入点（见 reader/keys.mjs 的 HO
 // - 书架页（shelf/）：autoMatch、restoreBatch、restoreOne、shelfView、filtering、clearFilters、refreshCard；cover.mjs：pickCover
 // - bookmarks.mjs：marks、shelfmarks；overview.mjs：overview；thumbs.mjs：frames；pbf.mjs：pbf
 // - transport.mjs：transport（总控的状态与驱动器）；single.mjs：single（单文件模式）；controlbar.mjs：controlBar
-// - media.mjs：media、player、mediaTile、pageHold；filecard.mjs：fileCard（文件详情框）
+// - media.mjs：media、player、mediaTile、pageHold；filecard.mjs：fileCard（文件详情框）；pip.mjs：pip（画中画窗口）
 // - 本文件启动流程：started（启动完成）
 prefsSync(ctx);
 readerShell(ctx);
@@ -258,6 +259,7 @@ singleFile(ctx);
 controlBar(ctx);
 mediaPlayer(ctx);
 fileBar(ctx);
+pictureInPicture(ctx);
 installFrames(ctx);
 pbfImport(ctx);
 

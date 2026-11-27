@@ -14,6 +14,8 @@
 // - show(el, {book, page, mark?})：为 el 弹出（列表自己管理选中项时用，如全屏界面里键盘移动的选中）；内容相同时不重画。
 // - hide()：收起。
 // - current()：当前所指的元素，没有为 null。
+// - within(窗口)：另一个窗口（画中画）里的详情框，接口同上（popover 建在那个文档里，按那个窗口的大小摆放）；窗口小到放不下时不弹出，
+//   退回元素上的 title 提示（完整路径）。
 import { extend } from '../core/lang.mjs';
 import { shownName, pageKind, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
@@ -28,175 +30,231 @@ const isMedia = (page) => !!page && pageKind(page) !== 'image';
 
 export function install(ctx) {
   const { t, make, icon } = ctx;
-  let card = null,
-    head = null,
-    meta = null,
-    parts = null,
-    pin = null,
-    note = null,
-    cur = null, // {el, book, page, mark, box}
-    timer = 0,
-    frame = 0;
-  // 第一次弹出时才建（进度条要等播放器模块装好）。
-  function build() {
-    card = make('div', 'fc');
-    card.popover = 'manual';
-    card.inert = true;
-    card.setAttribute('aria-hidden', 'true');
-    head = make('div', 'fc-name');
-    meta = make('div', 'fc-meta');
-    parts = ctx.player?.seekBar(() => null) ?? null;
-    note = make('div', 'fc-mark');
-    card.append(head, meta);
-    if (parts) {
-      parts.bar.tabIndex = -1;
-      pin = make('i', 'fc-pin');
-      parts.bar.append(pin);
-      card.append(parts.bar);
+  const live = new Set(); // 各窗口的详情框（主窗口一份，画中画窗口各一份）
+  // 一个窗口里的详情框。fallback：窗口小到放不下（会盖住所指的元素或超出窗口）时不弹出，改在元素上设 title（画中画窗口用）。
+  function instance(win, fallback = false) {
+    const doc = win.document;
+    let card = null,
+      head = null,
+      meta = null,
+      parts = null,
+      pin = null,
+      note = null,
+      cur = null, // {el, book, page, mark, box}
+      timer = 0,
+      frame = 0;
+    // 第一次弹出时才建（进度条要等播放器模块装好）。
+    function build() {
+      card = make('div', 'fc');
+      card.popover = 'manual';
+      card.inert = true;
+      card.setAttribute('aria-hidden', 'true');
+      head = make('div', 'fc-name');
+      meta = make('div', 'fc-meta');
+      parts = ctx.player?.seekBar(() => null) ?? null;
+      note = make('div', 'fc-mark');
+      card.append(head, meta);
+      if (parts) {
+        parts.bar.tabIndex = -1;
+        pin = make('i', 'fc-pin');
+        parts.bar.append(pin);
+        card.append(parts.bar);
+      }
+      card.append(note);
+      doc.body.append(card);
     }
-    card.append(note);
-    document.body.append(card);
-  }
-  const same = (a, b) =>
-    a.el === b.el &&
-    a.book === b.book &&
-    a.page === b.page &&
-    (a.mark?.id ?? null) === (b.mark?.id ?? null) &&
-    !!a.mark?.end === !!b.mark?.end;
-  function show(el, info, box = null) {
-    if (!el?.isConnected || !info?.book || !isMedia(info.page)) return hide();
-    const next = { el, book: info.book, page: info.page, mark: info.mark ?? null, box };
-    if (cur && same(cur, next) && card?.matches(':popover-open')) {
-      cur.box = box;
-      return;
+    const same = (a, b) =>
+      a.el === b.el &&
+      a.book === b.book &&
+      a.page === b.page &&
+      (a.mark?.id ?? null) === (b.mark?.id ?? null) &&
+      !!a.mark?.end === !!b.mark?.end;
+    function show(el, info, box = null) {
+      if (!el?.isConnected || !info?.book || !isMedia(info.page)) return hide();
+      const next = { el, book: info.book, page: info.page, mark: info.mark ?? null, box };
+      if (cur && same(cur, next) && card?.matches(':popover-open')) {
+        cur.box = box;
+        return;
+      }
+      if (!card) build();
+      cur = next;
+      render(true);
+      // 重新放进 top layer：之后才打开的对话框（全屏界面、选择起点）也盖不住它。
+      if (card.matches(':popover-open')) card.hidePopover();
+      card.showPopover();
+      if (!place() && fallback) {
+        hide();
+        // 放不下：退回 title 提示（完整路径）。
+        if (!el.title) {
+          el.title = shownName(info.page);
+          el.fcTip = true;
+        }
+        return;
+      }
+      if (el.fcTip) {
+        el.removeAttribute('title');
+        el.fcTip = false;
+      }
+      clearInterval(timer);
+      timer = setInterval(tick, TICK);
     }
-    if (!card) build();
-    cur = next;
-    render(true);
-    // 重新放进 top layer：之后才打开的对话框（全屏界面、选择起点）也盖不住它。
-    if (card.matches(':popover-open')) card.hidePopover();
-    card.showPopover();
-    place();
-    clearInterval(timer);
-    timer = setInterval(tick, TICK);
-  }
-  function hide() {
-    cur = null;
-    clearInterval(timer);
-    timer = 0;
-    if (card?.matches(':popover-open')) card.hidePopover();
-  }
-  // 正在播放时刷新进度；所指的元素没了就收起。
-  function tick() {
-    if (!cur) return;
-    if (!cur.el.isConnected) return hide();
-    render(false);
-  }
-  function render(full) {
-    const { book, page, mark } = cur,
-      kind = pageKind(page),
-      pos = ctx.player?.position?.(book, page) ?? { t: 0, d: page.d ?? null, playing: false },
-      d = Number.isFinite(pos.d) && pos.d > 0 ? pos.d : null,
-      now = Math.max(0, pos.t || 0);
-    if (full) {
-      const name = shownName(page);
-      head.replaceChildren(icon(kind === 'audio' ? 'music' : 'film'), midName(name.slice(name.lastIndexOf('/') + 1)));
+    function hide() {
+      cur = null;
+      clearInterval(timer);
+      timer = 0;
+      if (card?.matches(':popover-open')) card.hidePopover();
     }
-    meta.textContent =
-      t(kind === 'audio' ? 'mvAudio' : 'mvVideo') +
-      (d ? ' · ' + clock(now) + ' / ' + clock(d) : now > 0 ? ' · ' + clock(now) : '') +
-      (pos.playing ? ' · ' + t('fcPlaying') : '');
-    card.classList.toggle('playing', !!pos.playing);
-    if (parts) {
-      parts.bar.hidden = !d;
-      if (d) {
-        ctx.player.paintBar(parts, { el: { duration: d }, page }, Math.min(d, now));
-        if (full || !parts.bar.querySelector('.mv-marks')?._sig) ctx.marks?.drawBar(parts.bar, book, page, d, null);
+    // 正在播放时刷新进度；所指的元素没了就收起。
+    function tick() {
+      if (!cur) return;
+      if (!cur.el.isConnected) return hide();
+      render(false);
+    }
+    function render(full) {
+      const { book, page, mark } = cur,
+        kind = pageKind(page),
+        pos = ctx.player?.position?.(book, page) ?? { t: 0, d: page.d ?? null, playing: false },
+        d = Number.isFinite(pos.d) && pos.d > 0 ? pos.d : null,
+        now = Math.max(0, pos.t || 0);
+      if (full) {
+        const name = shownName(page);
+        head.replaceChildren(icon(kind === 'audio' ? 'music' : 'film'), midName(name.slice(name.lastIndexOf('/') + 1)));
+      }
+      meta.textContent =
+        t(kind === 'audio' ? 'mvAudio' : 'mvVideo') +
+        (d ? ' · ' + clock(now) + ' / ' + clock(d) : now > 0 ? ' · ' + clock(now) : '') +
+        (pos.playing ? ' · ' + t('fcPlaying') : '');
+      card.classList.toggle('playing', !!pos.playing);
+      if (parts) {
+        parts.bar.hidden = !d;
+        if (d) {
+          ctx.player.paintBar(parts, { el: { duration: d }, page }, Math.min(d, now));
+          if (full || !parts.bar.querySelector('.mv-marks')?._sig) ctx.marks?.drawBar(parts.bar, book, page, d, null);
+        }
+      }
+      // 书签：指针指在它（或区段书签那一端）的时间上，它这一对标记高亮，最下一行是它的时间和名称。
+      const bm = mark ? book.bookmarks?.find((b) => b.id === mark.id) : null,
+        m = bm ? (mark.end ? bm.end : bm) : null,
+        at = Number.isFinite(m?.t) ? m.t : null;
+      if (pin) {
+        pin.hidden = at == null || !d;
+        if (at != null && d) pin.style.left = Math.min(100, Math.max(0, (at / d) * 100)) + '%';
+        const layer = parts.bar.querySelector('.mv-marks');
+        for (const el of layer?.children ?? [])
+          el.classList.toggle(
+            'hot',
+            !!bm && (el.dataset.sec === bm.id || (el.classList.contains('mark') && +el.dataset.t === bm.t)),
+          );
+      }
+      note.hidden = at == null;
+      if (full && at != null) {
+        const name = ctx.marks?.name(book, bm) ?? '';
+        note.replaceChildren(
+          icon(mark.end ? 'bm-end' : 'bookmark'),
+          make('span', '', (mark.end ? t('secEnd') : t('bmWord')) + ' ' + clock(at) + (name ? ' · ' + name : '')),
+        );
       }
     }
-    // 书签：指针指在它（或区段书签那一端）的时间上，它这一对标记高亮，最下一行是它的时间和名称。
-    const bm = mark ? book.bookmarks?.find((b) => b.id === mark.id) : null,
-      m = bm ? (mark.end ? bm.end : bm) : null,
-      at = Number.isFinite(m?.t) ? m.t : null;
-    if (pin) {
-      pin.hidden = at == null || !d;
-      if (at != null && d) pin.style.left = Math.min(100, Math.max(0, (at / d) * 100)) + '%';
-      const layer = parts.bar.querySelector('.mv-marks');
-      for (const el of layer?.children ?? [])
-        el.classList.toggle(
-          'hot',
-          !!bm && (el.dataset.sec === bm.id || (el.classList.contains('mark') && +el.dataset.t === bm.t)),
-        );
+    // 放在格子旁边，不挡住它：右侧放得下放右侧，否则左侧，再否则下方、上方；夹在窗口内。返回是否放得下（不挡住它、不超出窗口）。
+    function place() {
+      if (!cur) return false;
+      const r = cur.el.getBoundingClientRect(),
+        W = win.innerWidth,
+        H = win.innerHeight;
+      if (!cur.el.isConnected || !r.width || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) {
+        hide();
+        return true;
+      }
+      const w = card.offsetWidth,
+        h = card.offsetHeight,
+        midY = r.top + r.height / 2 - h / 2,
+        midX = r.left + r.width / 2 - w / 2;
+      let x,
+        y,
+        fits = w + 2 * EDGE <= W && h + 2 * EDGE <= H;
+      if (r.right + GAP + w <= W - EDGE) [x, y] = [r.right + GAP, midY];
+      else if (r.left - GAP - w >= EDGE) [x, y] = [r.left - GAP - w, midY];
+      else if (r.bottom + GAP + h <= H - EDGE) [x, y] = [midX, r.bottom + GAP];
+      else {
+        [x, y] = [midX, r.top - GAP - h];
+        if (y < EDGE) fits = false;
+      }
+      card.style.left = Math.round(Math.min(W - w - EDGE, Math.max(EDGE, x))) + 'px';
+      card.style.top = Math.round(Math.min(H - h - EDGE, Math.max(EDGE, y))) + 'px';
+      return fits;
     }
-    note.hidden = at == null;
-    if (full && at != null) {
-      const name = ctx.marks?.name(book, bm) ?? '';
-      note.replaceChildren(
-        icon(mark.end ? 'bm-end' : 'bookmark'),
-        make('span', '', (mark.end ? t('secEnd') : t('bmWord')) + ' ' + clock(at) + (name ? ' · ' + name : '')),
-      );
+    // 委托：容器里的元素由 resolve 认出；离开容器即收起。
+    function attach(box, resolve) {
+      const pick = (target) => {
+        const info = target?.nodeType === 1 ? resolve(target) : null;
+        if (info?.el && isMedia(info.page)) show(info.el, info, box);
+        else if (cur?.box === box) hide();
+      };
+      box.addEventListener('pointerover', (e) => {
+        if (e.pointerType !== 'touch') pick(e.target);
+      });
+      box.addEventListener('pointerleave', () => {
+        if (cur?.box === box) hide();
+      });
+      box.addEventListener('focusin', (e) => pick(e.target));
+      box.addEventListener('focusout', (e) => {
+        if (cur?.box === box && !box.contains(e.relatedTarget)) hide();
+      });
     }
-  }
-  // 放在格子旁边，不挡住它：右侧放得下放右侧，否则左侧，再否则下方、上方；夹在窗口内。
-  function place() {
-    if (!cur) return;
-    const r = cur.el.getBoundingClientRect();
-    if (!cur.el.isConnected || !r.width || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth)
-      return hide();
-    const w = card.offsetWidth,
-      h = card.offsetHeight,
-      midY = r.top + r.height / 2 - h / 2,
-      midX = r.left + r.width / 2 - w / 2;
-    let x, y;
-    if (r.right + GAP + w <= innerWidth - EDGE) [x, y] = [r.right + GAP, midY];
-    else if (r.left - GAP - w >= EDGE) [x, y] = [r.left - GAP - w, midY];
-    else if (r.bottom + GAP + h <= innerHeight - EDGE) [x, y] = [midX, r.bottom + GAP];
-    else [x, y] = [midX, r.top - GAP - h];
-    card.style.left = Math.round(Math.min(innerWidth - w - EDGE, Math.max(EDGE, x))) + 'px';
-    card.style.top = Math.round(Math.min(innerHeight - h - EDGE, Math.max(EDGE, y))) + 'px';
-  }
-  // 委托：容器里的元素由 resolve 认出；离开容器即收起。
-  function attach(box, resolve) {
-    const pick = (target) => {
-      const info = target instanceof Element ? resolve(target) : null;
-      if (info?.el && isMedia(info.page)) show(info.el, info, box);
-      else if (cur?.box === box) hide();
+    // 按下指针（点击跳转、拖动滚动）即收起；滚动时跟着所指的元素走（每帧至多一次）。
+    doc.addEventListener('pointerdown', hide, true);
+    doc.addEventListener(
+      'scroll',
+      () => {
+        if (cur && !frame)
+          frame = win.requestAnimationFrame(() => {
+            frame = 0;
+            place();
+          });
+      },
+      { capture: true, passive: true },
+    );
+    win.addEventListener('blur', hide);
+    win.addEventListener('resize', hide);
+    const it = {
+      attach,
+      show: (el, info) => show(el, info),
+      hide,
+      current: () => cur?.el ?? null,
+      lang() {
+        if (cur) render(true);
+      },
+      marks(book) {
+        if (cur?.book === book) {
+          const l = parts?.bar.querySelector('.mv-marks');
+          if (l) l._sig = null;
+          render(true);
+        }
+      },
     };
-    box.addEventListener('pointerover', (e) => {
-      if (e.pointerType !== 'touch') pick(e.target);
-    });
-    box.addEventListener('pointerleave', () => {
-      if (cur?.box === box) hide();
-    });
-    box.addEventListener('focusin', (e) => pick(e.target));
-    box.addEventListener('focusout', (e) => {
-      if (cur?.box === box && !box.contains(e.relatedTarget)) hide();
-    });
+    live.add(it);
+    if (win !== window) win.addEventListener('pagehide', () => live.delete(it), { once: true });
+    return it;
   }
-  // 按下指针（点击跳转、拖动滚动）即收起；滚动时跟着所指的元素走（每帧至多一次）。
-  document.addEventListener('pointerdown', hide, true);
-  document.addEventListener(
-    'scroll',
-    () => {
-      if (cur && !frame)
-        frame = requestAnimationFrame(() => {
-          frame = 0;
-          place();
-        });
-    },
-    { capture: true, passive: true },
-  );
-  addEventListener('blur', hide);
-  addEventListener('resize', hide);
   ctx.on('lang', () => {
-    if (cur) render(true);
+    for (const it of live) it.lang();
   });
   ctx.on('marks', (book) => {
-    if (cur?.book === book) {
-      const l = parts?.bar.querySelector('.mv-marks');
-      if (l) l._sig = null;
-      render(true);
-    }
+    for (const it of live) it.marks(book);
   });
-  ctx.fileCard = { attach, show: (el, info) => show(el, info), hide, current: () => cur?.el ?? null };
+  const main = instance(window);
+  const others = new WeakMap();
+  ctx.fileCard = {
+    attach: main.attach,
+    show: main.show,
+    hide: main.hide,
+    current: main.current,
+    // 另一个窗口（画中画）里的详情框：同样的接口，放不下时退回 title 提示。
+    within(win) {
+      if (win === window) return main;
+      let it = others.get(win);
+      if (!it) others.set(win, (it = instance(win, true)));
+      return it;
+    },
+  };
 }

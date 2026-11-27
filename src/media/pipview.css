@@ -1,0 +1,290 @@
+/* 画中画窗口里的播放器面板（pipview.mjs）：可装进任意文档里的任意容器。容器是 size 查询容器（cqw）：
+   内容区（.pip-stage）的高度按宽度和画面比例（--ratio，高 / 宽），文件名、播放行、按钮行固定高度，列表区（.pip-list）分到剩下的高度；
+   空间不够时先压缩列表区（flex-basis 0），再压缩内容区（画面 object-fit: contain，比例不变）；根元素 overflow: hidden，任何尺寸都不溢出。
+   当前曲目的画面（track.mjs 的 .mv-screen，内含媒体元素与字幕容器）由 stage.take 放进 .pip-screen，样式在这里提供。 */
+html:has(> body > .pip),
+body:has(> .pip) {
+  height: 100%;
+}
+.pip {
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+/* ---- 内容区 */
+.pip-stage {
+  position: relative;
+  flex: 0 1 calc(100cqw * var(--ratio, 0.5625));
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+.pip-stage[data-kind='audio'] {
+  background: var(--solid);
+}
+.pip-screen,
+.pip-art-box {
+  position: absolute;
+  inset: 0;
+}
+.pip-screen > .mv-screen {
+  position: absolute;
+  inset: 0;
+}
+.mv-screen.video > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.mv-screen.audio > audio {
+  display: none;
+}
+.mv-screen.video > .mv-subs {
+  position: absolute;
+  z-index: 1;
+  left: 6%;
+  right: 6%;
+  bottom: max(8px, 4%);
+  font-size: clamp(12px, 4.5cqw, 22px);
+  line-height: 1.35;
+}
+.mv-screen.video > .mv-subs:empty {
+  display: none;
+}
+.mv-screen .mv-cue {
+  font-size: inherit;
+}
+/* 音频：图居中（方形，高度占满内容区），字幕区在底部 3 行；没有字幕可显示时是阶梯音柱，播放中跳动（shell.css）。 */
+.pip-art {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+}
+.mv-screen.audio > .mv-subs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(60px, 45%);
+  padding: 0 10px 4px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+}
+.pip-stage.nosubs .mv-screen.audio .mv-bars {
+  display: flex;
+  opacity: 0.9;
+}
+.pip-stage.playing .mv-bars i {
+  animation-name: mv-bars;
+}
+/* 画面不在这里时的占位（视频是黑底，音频盖在图上）：说明 + 「在画中画显示」，或没有曲目时的一句说明。 */
+.pip-idle {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  overflow: hidden;
+  background: rgba(10, 10, 12, 0.84);
+  color: var(--muted);
+  text-align: center;
+}
+.pip-idle > .i {
+  width: 26px;
+  height: 26px;
+}
+.pip-idle > p {
+  margin: 0;
+  color: var(--text);
+}
+.pip-show {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+.pip-show .i {
+  width: 16px;
+  height: 16px;
+}
+.pip-hud {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(22, 23, 27, 0.92);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.pip-hud .i {
+  width: 16px;
+  height: 16px;
+}
+/* ---- 文件名、播放行、按钮行 */
+.pip-name {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 28px;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  font-weight: 600;
+}
+.pip-name .mid-name {
+  justify-content: flex-start;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+.pip-line {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 6px;
+}
+.pip-line .mv-bar {
+  flex: 1 1 0;
+  min-width: 24px;
+}
+.pip-line.playing .mv-fill {
+  background: var(--accent);
+}
+.pip .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.pip-play {
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 50% !important;
+  color: var(--text);
+}
+.pip-play .i {
+  fill: currentColor;
+}
+.pip-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 6px 6px;
+}
+.pip-tools .icon-btn {
+  flex: 0 1 34px;
+  min-width: 0;
+  width: auto;
+}
+.pip-tools .icon-btn[aria-pressed='false'] {
+  color: var(--faint);
+}
+/* 很窄时收起时间（进度条仍可拖动），按钮行的按钮等分缩小。 */
+@container (max-width: 250px) {
+  .pip-time {
+    display: none;
+  }
+}
+/* 很矮时依次收起按钮行、文件名，只留内容区与播放行。 */
+@container (max-height: 150px) {
+  .pip-tools {
+    display: none;
+  }
+}
+@container (max-height: 110px) {
+  .pip-name {
+    display: none;
+  }
+}
+/* ---- 播放列表：固定行高（pipview.mjs ROW），只渲染可视范围的行（绝对定位）。 */
+.pip-list {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  overscroll-behavior: contain;
+}
+.pip-list:focus-visible {
+  outline-offset: -2px;
+}
+.pip-rows {
+  position: relative;
+}
+.pip-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pip-item > .i {
+  width: 15px;
+  height: 15px;
+  color: var(--faint);
+}
+.pip-item > .mid-name {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+.pip-item.sel {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+.pip-item.current,
+.pip-item.current > .i {
+  color: var(--accent);
+}
+.pip-item.current {
+  font-weight: 600;
+}
+/* 每项的「定位」「移除」：始终占位，只在悬停 / 选中 / 聚焦的项上显示。 */
+.pip .pip-ib {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  visibility: hidden;
+}
+.pip-ib .i {
+  width: 16px;
+  height: 16px;
+}
+.pip-item.sel .pip-ib,
+.pip-item:focus-within .pip-ib {
+  visibility: visible;
+}

@@ -9,7 +9,7 @@
 //   card: false 的不上卡片，如字幕），文件栏（reader/filebar.mjs）与总控栏的字幕按钮按 id 取用同一份登记（ctx.player.controls()），
 //   点击、状态都带上所在的按钮；视频画面内没有控件。
 //   列表级的控制（音量、只播区段、上一个 / 下一个媒体、播放速率）在总控栏（reader/controlbar.mjs），经 ctx.media 读写；自动滚动的循环在总控（ctx.transport.loop），
-//   后台播放的循环范围、随机、类型在播放列表（ctx.media.queue，queue.mjs）；
+//   后台播放的循环范围、随机、类型在播放列表（ctx.media.queue，queue.mjs），它们的按钮和列表在画中画窗口（pip.mjs、pipview.mjs）；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
 // - 当前曲目与当前文件（track.mjs，规则见 core/selection.mjs）：当前曲目即选中媒体，不压暗、没有大播放键；当前文件是当前曲目，否则视窗中心所在的页，
 //   文件栏、长按 A / D、空格作用于它；ctx.media.current() 是其中的媒体播放器（没有为 null），ctx.media.here() 是书签作用的媒体播放器。

@@ -369,7 +369,7 @@ try {
   }
   await reshow();
 
-  // ---- 音频：书签、区段（第三个位留空），位置不变；卡片自己的控件保留并与文件栏同步；卡片上没有字幕按钮；未选中时卡片连同小图压暗（不变）。
+  // ---- 音频：书签、区段（第三个位留空），位置不变；卡片自己的控件保留并与文件栏同步（另有画中画按钮）；卡片上没有字幕按钮；未选中时卡片连同小图压暗（不变）。
   s = await js('fb()');
   assert.deepEqual(s.places, ['bookmark', 'section', null]);
   assert.deepEqual(s.placeBoxes, places, 'The places do not move for audio');
@@ -384,8 +384,8 @@ try {
   );
   assert.deepEqual(
     await js(`[...node('03 song.wav').querySelectorAll('.mv-card [data-control]')].map(e=>e.dataset.control)`),
-    ['bookmark', 'section'],
-    'Card buttons: bookmark and section only',
+    ['bookmark', 'section', 'pip'],
+    'Card buttons: bookmark, section and picture-in-picture',
   );
   assert.equal(await js(`node('03 song.wav').querySelector('.mv-head .mid-name').textContent`), '03 song');
   assert.equal(
@@ -620,13 +620,13 @@ try {
   }
   await size(1280);
 
-  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：「定位」「停止」（按 order 排列，同时可用或禁用）；与文件名同在一行。
+  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：「定位」「画中画」「停止」（按 order 排列；定位与停止同时可用或禁用）；与文件名同在一行。
   await showBar();
   assert.deepEqual(
     await js(
-      `(()=>{const h=filebar.querySelector('.fb-head-tools'),r=h.getBoundingClientRect(),n=filebar.querySelector('.fb-name').getBoundingClientRect();return [h.parentElement.matches('.fb-head'),h.previousElementSibling.matches('.fb-name'),[...h.children].map(b=>b.dataset.head+':'+b.getAttribute('aria-label')),h.children[0].disabled===h.children[1].disabled,Math.abs((r.top+r.bottom)/2-(n.top+n.bottom)/2)<2,r.right<=filebar.getBoundingClientRect().right];})()`,
+      `(()=>{const h=filebar.querySelector('.fb-head-tools'),r=h.getBoundingClientRect(),n=filebar.querySelector('.fb-name').getBoundingClientRect();return [h.parentElement.matches('.fb-head'),h.previousElementSibling.matches('.fb-name'),[...h.children].map(b=>b.dataset.head+':'+b.getAttribute('aria-label')),h.children[0].disabled===h.children[2].disabled,Math.abs((r.top+r.bottom)/2-(n.top+n.bottom)/2)<2,r.right<=filebar.getBoundingClientRect().right];})()`,
     ),
-    [true, true, ['locate:Locate', 'stop:Stop'], true, true, true],
+    [true, true, ['locate:Locate', 'pip:Picture-in-picture', 'stop:Stop'], true, true, true],
   );
 
   // ---- 不显示时不更新：收起后时间不再跟着走，显示时立即取当前值。
