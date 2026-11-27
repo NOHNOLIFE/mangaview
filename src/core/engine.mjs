@@ -107,3 +107,11 @@ export function turnTo({ top, d, step, viewH, max, videos = [] }) {
   const v = d > 0 ? fresh[0] : fresh.at(-1);
   return clamp(v.mid - viewH / 2, 0, max);
 }
+
+// ---- 混合模式的相邻媒体：第 i 页的媒体播完（或播不了）后，页序上紧挨的下一页也是要停下播放的媒体（在 stops 里、没有跳过）时，
+// 直接定位到它的停靠点（居中）并播放，不匀速滚动过去：返回 {type:'play', i, to}；否则为 null（照常滚动，图片与媒体之间不受影响）。
+// stops：stopsOf 的结果（混合模式下应播的媒体，只播区段时已按规则筛过）；单文件模式按页推进，不用它。
+export function chained(stops, i, skip = new Set()) {
+  const s = stops.find((s) => s.i === i + 1);
+  return s && !skip.has(s.i) ? { type: 'play', i: s.i, to: s.at } : null;
+}

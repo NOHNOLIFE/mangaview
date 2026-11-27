@@ -217,6 +217,54 @@ try {
     ),
     'A programmatic jump stops the glide and keeps its target',
   );
+  // 每帧至多写一次滚动位置：一帧里来了多次指针移动也只写一次。
+  await js(`(()=>{const d=Object.getOwnPropertyDescriptor(Element.prototype,'scrollTop');let n=0;window.writes=[];
+    Object.defineProperty(reader,'scrollTop',{get(){return d.get.call(this)},set(v){n++;d.set.call(this,v)},configurable:true});
+    window.countOn=true;const f=()=>{writes.push(n);n=0;if(countOn)requestAnimationFrame(f)};requestAnimationFrame(f);})()`);
+  await js('reader.scrollTop=2000');
+  await still('reader');
+  await js('writes.length=0');
+  await mouse('mouseMoved', mx, my);
+  await press(mx, my);
+  await mouse('mouseMoved', mx, my - 20, { button: 'left', buttons: 1 });
+  // 同一帧里连着派发多次指针移动（高回报率鼠标）。
+  for (let i = 1; i <= 6; i++) {
+    await js(
+      `(()=>{for(let k=1;k<=5;k++)reader.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:1,pointerType:'mouse',isPrimary:true,buttons:1,clientX:${mx},clientY:${my - 20}-${i * 30}-k*6}));})()`,
+    );
+    await js('frame()');
+  }
+  await release(mx, my - 230);
+  await still('reader');
+  const writes = await js('countOn=false,delete reader.scrollTop,writes');
+  assert.ok(Math.max(...writes) <= 1 && writes.some((n) => n === 1), 'At most one scroll write per frame: ' + writes);
+  // 滑行未停时同方向再甩：速度叠加，比单独一甩快；反方向只按新的一甩。
+  const speedAfter = async () => {
+    const a = (await pos('reader'))[1];
+    await delay(100);
+    return ((await pos('reader'))[1] - a) / 100;
+  };
+  await js('reader.scrollTop=3000');
+  await still('reader');
+  await drag(mx, my, 0, -300, { steps: 6 });
+  const one = await speedAfter();
+  await still('reader');
+  await js('reader.scrollTop=3000');
+  await still('reader');
+  await drag(mx, my, 0, -300, { steps: 6 });
+  await delay(40);
+  await drag(mx, my, 0, -300, { steps: 6 });
+  const two = await speedAfter();
+  assert.ok(one > 0.5 && two > one * 1.3, 'A second fling in the same direction adds up: ' + [one, two]);
+  await still('reader');
+  await js('reader.scrollTop=6000');
+  await still('reader');
+  await drag(mx, my, 0, -300, { steps: 6 });
+  await delay(40);
+  await drag(mx, my - 300, 0, 300, { steps: 6 });
+  const back = await speedAfter();
+  assert.ok(back < 0 && -back < one * 1.3, 'Flinging back goes back at its own speed: ' + [one, back]);
+  await still('reader');
   // 惯性到书尾停下。
   // 先到书尾等末尾几页载入完（补齐尺寸会改变总高度），再从书尾前 300px 拖动。
   await js('reader.scrollTop=reader.scrollHeight');
@@ -465,7 +513,7 @@ try {
   await js(`${ds}.remove();document.querySelector('#dsy').remove()`);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: drag scrolling with inertia in the page, thumbnail strip, shelf bookmarks, bookmark panel, full-screen thumbnails, shelf, settings and help; stops on wheel / key / press / jump; no clicks after a drag; controls, selectable text, native drag, grips and scrollbars excluded; nested horizontal / vertical',
+    'PASS: drag scrolling with inertia in the page, thumbnail strip, shelf bookmarks, bookmark panel, full-screen thumbnails, shelf, settings and help; stops on wheel / key / press / jump; one scroll write per frame; same-direction flings add up; no clicks after a drag; controls, selectable text, native drag, grips and scrollbars excluded; nested horizontal / vertical',
   );
 } finally {
   if (ws?.readyState === 1) {

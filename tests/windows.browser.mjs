@@ -283,7 +283,7 @@ try {
   );
   await B.js(`document.getElementById('presetPop').hidePopover();shelf.close()`);
 
-  // ---- 删除：A 删除两个窗口正在读的书，B 提示并切到下一本，记录不会被 B 写回。
+  // ---- 删除：A 删除两个窗口正在读的书，B 提示并切到阅读列表里的下一本，记录不会被 B 写回。
   const omegaId = omega.id;
   await A.js('reader.focus()');
   await A.press('Delete');
@@ -299,8 +299,14 @@ try {
   await goto(B, 8);
   await delay(100);
   await hold(B);
-  await wait(async () => (await title(B)) === 'Alpha renamed');
+  // Beta 是阅读列表（书架页签）里剩下的唯一一本（Alpha 在书库里）：列表空了，B 回到书架页。
+  await wait(async () => (await title(B)) === 'MangaView' && (await B.js('shelf.open')));
   assert.equal(await notice(B), 'This book was removed in another window');
+  await B.js('shelf.close()');
+  await B.js(
+    `Promise.all([import('./src/core/books.mjs'),import('./src/reader/session.mjs')]).then(([m,s])=>s.select(m.books.get('${alphaId}')))`,
+  );
+  await wait(async () => (await title(B)) === 'Alpha renamed');
   await delay(500);
   assert.ok(!(await records(B)).some((b) => b.id === betaId), 'A save does not resurrect a deleted record');
 

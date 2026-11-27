@@ -9,7 +9,7 @@ import {
   keepPageThumb,
   dropPage,
 } from './thumbs.mjs';
-import { stop as stopFling } from '../ui/dragscroll.mjs';
+import { stop as stopFling, dragging } from '../ui/dragscroll.mjs';
 
 // 正文、预读、预览与封面共用两个读取/解码名额。已脱离视口的排队任务不碰硬盘。
 // 小图（缩略图栏、全屏缩略图）走 thumbs.mjs 的会话内存缓存：命中即显示、不读原图；正文解码后也顺手生成小图，
@@ -20,6 +20,88 @@ const jobs = new Map(),
   SMALL_H = 4096;
 export const limits = { read: 30000 }; // 单张图读取 + 解码的上限（毫秒），留足机械硬盘唤醒的时间
 let running = 0;
+
+// ---- 小图（缩略图栏、全屏缩略图）的加载时机：
+// - 解码、缩小在 Worker 里进行（thumbworker.mjs），不占主线程；Worker 解不了的（SVG）退回 <img> 解码。
+// - 所在列表滚动快于 FAST 像素 / 毫秒（高速拖动、滑行，或正文快速滚动带着缩略图栏走）时不开始新的读取，
+//   降到 FAST 以下 SETTLE 毫秒后再读；会话缓存里已有的照常立即显示（不读硬盘）。
+// - 占位尺寸固定（图片在格子里按比例完整显示）：拖动、滑行、快速滚动期间解码出的真实尺寸先不报告，停下后再报告，由使用方统一重排一次。
+export const FAST = 1.5,
+  SETTLE = 150;
+let fastUntil = 0,
+  wake = 0;
+const fast = () => performance.now() < fastUntil;
+const seen = new WeakMap(),
+  boxes = new WeakSet(); // 含小图的滚动容器
+function hasSmall(el) {
+  if (boxes.has(el)) return true;
+  for (const j of jobs.values())
+    if (j.small && el.contains(j.slot)) {
+      boxes.add(el);
+      return true;
+    }
+  return false;
+}
+document.addEventListener(
+  'scroll',
+  (e) => {
+    const el = e.target;
+    if (!(el instanceof Element) || !hasSmall(el)) return;
+    const now = performance.now(),
+      top = el.scrollTop,
+      p = seen.get(el);
+    seen.set(el, { top, t: now });
+    if (!p || now - p.t > 100 || Math.abs(top - p.top) <= FAST * (now - p.t)) return;
+    fastUntil = now + SETTLE;
+    clearTimeout(wake);
+    wake = setTimeout(pump, SETTLE + 10);
+  },
+  { capture: true, passive: true },
+);
+// 小图的真实尺寸：拖动、滑行或快速滚动时先记下，停下后再交给 ready。
+const waiting = [];
+let waitTimer = 0;
+function report(j, w, h) {
+  if (!j.ready || j.dead) return;
+  if (!dragging() && !fast()) return j.ready(w, h);
+  waiting.push([j, w, h]);
+  waitTimer ||= setInterval(() => {
+    if (dragging() || fast()) return;
+    clearInterval(waitTimer);
+    waitTimer = 0;
+    for (const [j, w, h] of waiting.splice(0)) if (!j.dead) j.ready(w, h);
+  }, 100);
+}
+// Worker 解码：返回 {bitmap, blob, w, h}；Worker 不可用或解不了时为 null（调用方改用 <img>）。
+let worker = null,
+  asked = 0;
+const asks = new Map();
+function offThread(file) {
+  if (worker === false || file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) return null;
+  if (!worker)
+    try {
+      worker = new Worker(new URL('./thumbworker.mjs', import.meta.url), { type: 'module' });
+      worker.onmessage = ({ data }) => {
+        const ok = asks.get(data.id);
+        asks.delete(data.id);
+        if (ok) ok(data.error ? null : data);
+        else data.bitmap?.close();
+      };
+      worker.onerror = () => {
+        worker = false;
+        for (const ok of asks.values()) ok(null);
+        asks.clear();
+      };
+    } catch {
+      worker = false;
+      return null;
+    }
+  return new Promise((ok) => {
+    const id = ++asked;
+    asks.set(id, ok);
+    worker.postMessage({ id, file, maxW: SMALL_W, maxH: SMALL_H });
+  });
+}
 function free(j) {
   if (j.held) {
     j.held = false;
@@ -75,9 +157,7 @@ function show(j, e) {
   img.decoding = 'async';
   img.src = e.url;
   j.slot.replaceChildren(img);
-  queueMicrotask(() => {
-    if (!j.dead) j.ready?.(e.w, e.h);
-  });
+  queueMicrotask(() => report(j, e.w, e.h));
   if (pageStale(e)) verify(j, e);
 }
 // 校验只读文件信息（不读图），单独两个名额，不占读图队列；文件变了就丢掉缓存、重新排队读图。
@@ -117,9 +197,11 @@ function drain() {
   }
 }
 function pump() {
+  const hold = fast(); // 高速滚动中：小图先不读
   while (running < 2) {
     let best;
-    for (const j of jobs.values()) if (!j.started && (!best || j.priority < best.priority)) best = j;
+    for (const j of jobs.values())
+      if (!j.started && !(hold && j.small) && (!best || j.priority < best.priority)) best = j;
     if (!best) break;
     best.started = best.held = true;
     running++;
@@ -171,6 +253,20 @@ async function read(j) {
   } // 排队期间正文已生成
   const file = await j.file();
   if (j.dead) return;
+  if (j.small) {
+    const out = await offThread(file);
+    if (out) {
+      if (j.dead) return out.bitmap.close();
+      const canvas = document.createElement('canvas');
+      canvas.width = out.bitmap.width;
+      canvas.height = out.bitmap.height;
+      canvas.getContext('bitmaprenderer').transferFromImageBitmap(out.bitmap);
+      j.slot.replaceChildren(canvas);
+      if (j.key && out.blob) keepPageThumb(j.key, out.blob, out.w, out.h, fileStamp(file));
+      return report(j, out.w, out.h);
+    }
+    if (j.dead) return;
+  }
   const img = new Image();
   img.alt = file.name;
   img.draggable = false;
@@ -186,6 +282,7 @@ async function read(j) {
     URL.revokeObjectURL(j.url);
     j.url = null;
     if (j.key) keep(j.key, canvas, w, h, file);
+    return report(j, w, h);
   } else {
     j.slot.replaceChildren(img);
     // 正文的图已在内存里解码：空闲时缩成小图存进缓存（只占 CPU，不读硬盘）。
@@ -420,6 +517,16 @@ export class Reader {
     this.schedule();
     this.hooks.laid?.();
   }
+  // 下一帧按当前锚点重排一次（多张缩略图补齐尺寸时合并）。
+  relayout() {
+    if (this.relaying) return;
+    this.relaying = requestAnimationFrame(() => {
+      this.relaying = 0;
+      if (!this.book) return;
+      this.layout(this.held ? this.held.anchor : this.anchor());
+      this.hooks.measured();
+    });
+  }
   // 页码与整体进度，供页码浮标、工具栏和书架显示。
   position() {
     const n = this.book?.pages.length || 0,
@@ -525,13 +632,18 @@ export class Reader {
           priority,
           k,
           (w, h) => {
-            if (page.w !== w || page.h !== h) {
-              const anchor = this.held ? this.held.anchor : this.anchor();
+            if (page.w === w && page.h === h) return;
+            // 缩略图栏补齐的尺寸（view.mjs 已推迟到停下后才报告）：同一帧里的多张合并为一次重排。
+            if (k) {
               page.w = w;
               page.h = h;
-              this.layout(anchor);
-              this.hooks.measured();
+              return this.relayout();
             }
+            const anchor = this.held ? this.held.anchor : this.anchor();
+            page.w = w;
+            page.h = h;
+            this.layout(anchor);
+            this.hooks.measured();
           },
           (e) => {
             node.classList.add('failed');

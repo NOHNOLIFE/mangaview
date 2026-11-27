@@ -188,8 +188,15 @@
 .ov-marks {
   padding: 0 4px 16px;
 }
+/* 全屏书架书签的分组：只排版、绘制可见附近的分组（藏书很多时打开、滚动不卡）；排过的分组记住实际高度。 */
 .ov-sec {
   padding-bottom: 10px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
+/* 选中项（及成对高亮的另一项）所在的分组不做绘制隔离，选中的阴影不被分组边缘裁掉。 */
+.ov-sec:has(.ov-mark:is(.sel, .mate)) {
+  content-visibility: visible;
 }
 .ov-sec-head {
   display: flex;

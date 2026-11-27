@@ -6,8 +6,12 @@
 // - 按在可选中的文字上（user-select 不为 none 的文本，保持可选可复制）；按下事件已被控件自己 preventDefault 的。
 // 按钮和列表项（button、[role=option] 等）照常可拖动，与触屏的系统滚动一致；拖动后不触发它们的点击。
 // 松手后按松手前的速度带惯性（core/fling.mjs）；再次按下、滚轮、按键、程序性跳转（stop()）立即停止。
+// 滑行未停时在同一个列表里按住再同方向甩出（CHAIN 毫秒内松手），新速度叠加上被按住时剩下的速度（core/fling.mjs 的 stack）；反方向照常只按新速度。
 // 惯性滑行快时（START 以上）在滑行的列表里按下，这一下只用来停住，不触发点击。
-import { SLOP, START, END, velocity, glide } from '../core/fling.mjs';
+// 每帧至多写一次滚动位置：拖动的位移先累计，在下一帧写入；松手时还没写入的部分并进惯性的第一帧。
+import { SLOP, START, END, velocity, glide, stack } from '../core/fling.mjs';
+
+const CHAIN = 500;
 
 const BLOCK = [
   'input',
@@ -27,7 +31,8 @@ const BLOCK = [
 ].join(',');
 const SCROLLS = /^(auto|scroll|overlay)$/;
 let gesture = null,
-  flight = null;
+  flight = null,
+  caught = null; // 被按住停下的滑行：{x, y, vx, vy, t}，供紧接着的同方向再甩叠加速度
 
 // 停止惯性滑行（程序性跳转、切书前调用）。
 export function stop() {
@@ -36,6 +41,8 @@ export function stop() {
   flight = null;
 }
 const isMoving = () => !!flight && Math.hypot(flight.vx, flight.vy) >= START;
+// 正在拖动或惯性滑行（缩略图据此推迟补齐尺寸的重排，见 reader/view.mjs）。
+export const dragging = () => !!flight || !!gesture?.moved;
 
 // 从 el 往上分别找纵向、横向可滚动的最近祖先。
 function scrollers(el) {
@@ -116,16 +123,25 @@ function swallowClick() {
 function fling(g, now) {
   stop();
   const v = velocity(g.samples, now),
+    prev = caught && now - caught.t <= CHAIN ? caught : null,
     f = {
       x: g.x,
       y: g.y,
-      vx: g.x ? -v.x : 0,
-      vy: g.y ? -v.y : 0,
+      vx: g.x ? stack(prev?.x === g.x ? prev.vx : 0, -v.x) : 0,
+      vy: g.y ? stack(prev?.y === g.y ? prev.vy : 0, -v.y) : 0,
       t: now,
       carry: { x: 0, y: 0 },
       frame: 0,
+      pend: { x: 0, y: 0 },
     };
-  if (Math.hypot(f.vx, f.vy) < START) return;
+  caught = null;
+  if (Math.hypot(f.vx, f.vy) < START) return false;
+  // 拖动还没写入的位移并进第一帧，这一帧只写一次。
+  if (g.frame) {
+    cancelAnimationFrame(g.frame);
+    g.frame = 0;
+    f.pend = { x: g.dx, y: g.dy };
+  }
   const live = (el) => el && el.isConnected && el.clientHeight > 0;
   const tick = (time) => {
     if (flight !== f) return;
@@ -135,14 +151,19 @@ function fling(g, now) {
       ['x', 'scrollLeft'],
       ['y', 'scrollTop'],
     ]) {
-      const key = 'v' + axis;
-      if (!f[key]) continue;
+      const key = 'v' + axis,
+        pend = f.pend[axis];
+      f.pend[axis] = 0;
+      if (!f[key]) {
+        if (pend) scroll(f[axis], prop, pend, f.carry, axis);
+        continue;
+      }
       if (!live(f[axis])) {
         f[key] = 0;
         continue;
       }
       const g = glide(f[key], dt),
-        got = scroll(f[axis], prop, g.d, f.carry, axis);
+        got = scroll(f[axis], prop, g.d + pend, f.carry, axis) - pend;
       // 到了边缘（这一帧该走一像素以上却没动）就停下这个方向。
       f[key] = Math.abs(g.d) >= 1 && !got ? 0 : g.v;
       if (Math.abs(f[key]) < END) f[key] = 0;
@@ -152,10 +173,12 @@ function fling(g, now) {
   };
   flight = f;
   f.frame = requestAnimationFrame(tick);
+  return true;
 }
 function end(e, glideOn) {
   const g = gesture;
   gesture = null;
+  if (!g.moved || !glideOn) caught = null; // 按住后没有再甩（点按、移出窗口松开）：不再叠加
   if (!g.moved) return;
   document.documentElement.classList.remove('dragscroll');
   if (g.held?.hasPointerCapture(g.id)) g.held.releasePointerCapture(g.id);
@@ -185,11 +208,12 @@ export function tap(el, fn) {
 }
 
 export function install() {
-  // 任何按下、滚轮、按键都先停住惯性；滑行较快时按在滑行的列表里，这一下不触发点击。
+  // 任何按下、滚轮、按键都先停住惯性（按下时记下剩下的速度，供同方向再甩叠加）；滑行较快时按在滑行的列表里，这一下不触发点击。
   window.addEventListener(
     'pointerdown',
     (e) => {
       if (!flight) return;
+      caught = { x: flight.x, y: flight.y, vx: flight.vx, vy: flight.vy, t: e.timeStamp };
       const box = [flight.x, flight.y].filter(Boolean);
       if (isMoving() && box.some((el) => el.contains(e.target)))
         window.addEventListener('pointerup', swallowClick, { capture: true, once: true });
@@ -213,13 +237,23 @@ export function install() {
       moved: false,
       held: null,
       carry: { x: 0, y: 0 },
+      dx: 0,
+      dy: 0,
+      frame: 0,
       samples: [{ t: e.timeStamp, x: e.clientX, y: e.clientY }],
     };
   });
-  // 跟随指针滚动，记下轨迹供松手时估算速度。
+  // 跟随指针滚动（位移累计到下一帧一次写入），记下轨迹供松手时估算速度。
   const follow = (g, e) => {
-    scroll(g.x, 'scrollLeft', g.lx - e.clientX, g.carry, 'x');
-    scroll(g.y, 'scrollTop', g.ly - e.clientY, g.carry, 'y');
+    g.dx += g.lx - e.clientX;
+    g.dy += g.ly - e.clientY;
+    if (!g.frame)
+      g.frame = requestAnimationFrame(() => {
+        g.frame = 0;
+        scroll(g.x, 'scrollLeft', g.dx, g.carry, 'x');
+        scroll(g.y, 'scrollTop', g.dy, g.carry, 'y');
+        g.dx = g.dy = 0;
+      });
     g.lx = e.clientX;
     g.ly = e.clientY;
     g.samples.push({ t: e.timeStamp, x: e.clientX, y: e.clientY });

@@ -1,12 +1,12 @@
 import { clipEnd } from '../core/model.mjs';
 import { list, key, endKey } from './list.mjs';
-// 书架书签栏（左侧，常驻或左缘弹出）：按书架顺序集中显示各书的书签、标出离阅读位置最近的一个、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
+// 书架书签栏（左侧，常驻或左缘弹出）：按阅读列表（ctx.readingList：书架页当前页签 + 筛选 + 书籍排序）集中显示各书的书签、标出离阅读位置最近的一个、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
 const DWELL = 150,
   MIN_W = 160,
   BROWSE = 1500; // DWELL / MIN_W：与右侧缩略图栏（reader/panel.mjs）一致；边缘触发区距离四边统一（ctx.atEdge）。BROWSE：手动滚动书架书签列表后这段时间内不自动定位
 export function install(ctx, S) {
   const { main, t, fmt, notice, make } = ctx;
-  // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按书架顺序集中显示书架上所有书的书签。
+  // 书架书签：开关打开后在左侧常驻一列（正文让出宽度），按阅读列表的顺序集中显示列表里所有书的书签。
   // 悬停不跳转，点击才跳转（可跨书）；此时短按 F / Enter（Shift 反向）也按这个列表跳到下一个书签，必要时切换书。
   const dock = make('aside', 'sm-dock'),
     dockHead = make('div', 'sm-head'),
@@ -32,8 +32,8 @@ export function install(ctx, S) {
   dock.append(dockHead, dockList, dockGrip);
   S.mates(dockList);
   document.getElementById('toolbar').before(dock);
-  // 书架上（不含书库和过期书）有书签的书，顺序与上一本 / 下一本相同。
-  const shelfBooks = () => ctx.readingList({ place: 'shelf' });
+  // 阅读列表里的书（书架页当前选中的页签 + 筛选，不含过期书），顺序与上一本 / 下一本相同。
+  const shelfBooks = () => ctx.readingList();
   // 书架上没有可显示的书签时的提示：书架页的筛选生效时，说明可能是筛选导致的（有清除筛选的接口时附一个按钮）；没有筛选才说书架上还没有书签。
   const emptyKey = () => (ctx.filtering?.() ? 'smFiltered' : 'smEmpty');
   function emptyNote() {
@@ -77,11 +77,34 @@ export function install(ctx, S) {
         section.dataset.book = book.id;
         section.setAttribute('aria-label', ctx.title(book));
         section.append(...items.flatMap((x) => S.tiles(book, x, true)));
+        if (grid) section.style.containIntrinsicSize = sizeOf(section);
         return section;
       }),
     );
     markDock();
+    estimate();
   }
+  // 未排版的分组（content-visibility，bookmarks.css）按已排版的一组量出的列数、行高估算占位高度，列表总高和滚动条接近真实值。
+  // 重建列表时新分组直接用上次的量度；列表显示、改变宽度时（ResizeObserver，已排版之后）重新量，列数、行高没变就不动。
+  let grid = null;
+  const sizeOf = (s, g = grid) => `auto ${Math.round(Math.ceil(s.children.length / g.cols) * g.row - g.gap + g.pad)}px`;
+  function estimate() {
+    if (dock.hidden) return;
+    const all = dockList.querySelectorAll('.sm-book'),
+      cur = dockList.querySelector('.sm-book.current'),
+      ref = cur?.offsetHeight ? cur : [...all].find((s) => s.checkVisibility({ contentVisibilityAuto: true }));
+    if (!ref?.offsetHeight) return;
+    const cs = getComputedStyle(ref),
+      cols = cs.gridTemplateColumns.split(' ').length || 1,
+      gap = parseFloat(cs.rowGap) || 0,
+      pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom),
+      g = { cols, gap, pad, row: (ref.offsetHeight - pad + gap) / Math.ceil(ref.children.length / cols) };
+    if (grid && g.cols === grid.cols && Math.abs(g.row - grid.row) < 0.5 && g.gap === grid.gap && g.pad === grid.pad)
+      return;
+    grid = g;
+    for (const s of all) s.style.containIntrinsicSize = sizeOf(s);
+  }
+  new ResizeObserver(() => estimate()).observe(dockList);
   // 标出当前书的一组，以及其中离阅读视窗中心最近的书签（当前标记，.active）。只改样式，不滚动列表。
   function markDock() {
     if (dock.hidden) return;
@@ -142,7 +165,7 @@ export function install(ctx, S) {
   }
   // 短按 F / Enter：当前书里位于屏幕中心之后的书签，没有则依次是后面各书的书签，最后回到列表开头。
   // d=-1（Shift）反向：屏幕中心之前的书签，没有则是前面各书的书签，最后回到列表末尾。
-  // 当前书不在书架上（书库中）时仍按本书内的书签循环。
+  // 当前书不在阅读列表里（被筛选掉、在别的页签里）时仍按本书内的书签循环。
   function nextShelf(d = 1) {
     const book = ctx.current,
       order = shelfBooks(),
