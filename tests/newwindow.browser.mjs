@@ -270,7 +270,7 @@ try {
   await A.tap('#controlbar [data-id="volume"]');
   await wait(() => A.js(`localStorage.getItem('mv2:muted')==='true'`), 'muted');
   assert.ok(await A.js(`toPage('02 clip.webm')`));
-  await A.tap('#reader .page[data-name="02 clip.webm"] .mv-play');
+  await A.tap('#reader .page[data-name="02 clip.webm"]'); // 点画面（画面内没有控件）
   await wait(() => A.js(`!el('02 clip.webm').paused&&el('02 clip.webm').currentTime>.6`), 'video playing in A');
   assert.equal(
     await A.js(`!node('02 clip.webm').querySelector('[data-control="popout"]')`),
@@ -297,6 +297,14 @@ try {
     await Q.js(`[!controlbar.hidden,controlbar.contains(filebar),!!controlbar.querySelector('[data-id="play"]')]`),
     [true, true, true],
     'The new window has the control bar too (with the file bar row)',
+  );
+  // 新窗口里接着播放的媒体是选中媒体，文件栏作用于它（播放键为暂停、全屏按钮可用）。
+  assert.deepEqual(
+    await Q.js(
+      `[node('02 clip.webm').classList.contains('selected'),filebar.querySelector('.fb-name').textContent,filebar.querySelector('.fb-play').getAttribute('aria-label'),filebar.querySelector('[data-slot="full"]').disabled]`,
+    ),
+    [true, '02 clip.webm', 'Pause', false],
+    'File bar on the media playing in the new window',
   );
   const vs = popoutSize(
     'video',

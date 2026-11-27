@@ -171,21 +171,23 @@ try {
   assert.ok(await js(`toPage('02 clip.webm')`));
   await wait(() => js(`el('02 clip.webm')?.readyState>=1`), 'clip metadata');
   const clip = await js(
-    `(()=>{const n=node('02 clip.webm'),r=n.getBoundingClientRect(),v=el('02 clip.webm');return {w:r.width,h:r.height,controls:v.controls,tag:v.tagName,shell:!!n.querySelector('.mv-shell .mv-bar .mv-marks')}})()`,
+    `(()=>{const n=node('02 clip.webm'),r=n.getBoundingClientRect(),v=el('02 clip.webm');return {w:r.width,h:r.height,controls:v.controls,tag:v.tagName,shell:!!n.querySelector('.mv-shell,.mv-bar,.mv-title,.mv-pop')}})()`,
   );
   assert.deepEqual(
     clip,
-    { w: 800, h: 450, controls: false, tag: 'VIDEO', shell: true },
-    'Wide video: full width, height by frame ratio, own shell instead of native controls',
+    { w: 800, h: 450, controls: false, tag: 'VIDEO', shell: false },
+    'Wide video: full width, height by frame ratio, no native controls and no controls in the picture (they are in the file bar)',
   );
   {
     const [x, y] = await center('#reader .page[data-name="02 clip.webm"]');
     await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
     await delay(300);
-    assert.equal(
-      await js(`getComputedStyle(node('02 clip.webm').querySelector('.mv-shell')).opacity`),
-      '1',
-      'Hovering a video shows its shell',
+    assert.deepEqual(
+      await js(
+        `[node('02 clip.webm').querySelectorAll('button').length,getComputedStyle(node('02 clip.webm').querySelector('.mv-big')).opacity]`,
+      ),
+      [0, '1'],
+      'Hovering a video shows no controls; the big play button of an unselected video stays',
     );
     await shot('media-video');
   }
@@ -395,21 +397,6 @@ try {
     'controls back inline',
   );
 
-  // 全屏：整个播放器（画面 + 壳）全屏，快捷键照常可用。
-  assert.ok(await js(`toPage('02 clip.webm')`));
-  await wait(() => js(`el('02 clip.webm')?.readyState>=1`));
-  // 全屏的是整个播放器（画面 + 壳）。无头浏览器不允许真正进入全屏，这里只验证按钮请求全屏的对象。
-  await js(
-    `Element.prototype.requestFullscreen=function(){window.fsTarget=this.dataset.name;return Promise.resolve();}`,
-  );
-  await tap('#reader .page[data-name="02 clip.webm"] .mv-full');
-  assert.equal(
-    await js('window.fsTarget'),
-    '02 clip.webm',
-    'The fullscreen button puts the whole player (video + shell) in fullscreen',
-  );
-  await js(`el('02 clip.webm').pause()`);
-
   // 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
@@ -437,8 +424,8 @@ try {
   assert.ok(await js(`toPage('01 long.webm')`));
   await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: 5 });
   await wait(() => js(`!!el('01 long.webm')&&!el('01 long.webm').paused`), 'the long video autoplays');
-  await js(`node('01 long.webm').querySelector('.mv-play').click()`);
-  await wait(() => js(`el('01 long.webm').paused`), 'paused by its own play button');
+  await tap('#reader .page[data-name="01 long.webm"]');
+  await wait(() => js(`el('01 long.webm').paused`), 'paused by clicking the picture');
   await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: rx, y: ry, deltaX: 0, deltaY: -20 });
   await delay(900);
   assert.equal(
@@ -505,7 +492,7 @@ try {
   await shot('media-shelf');
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: media recognised by extension, unsupported formats reported on import, mixed sorting, video width / ratio / one-screen cap, audio bar, sources only for visible media, shell (play, seek, time, more popover, fullscreen), mute in the control bar, click / Space / Q E ; ' / long-press A D, autoplay rules, one player per window, unplayable placeholder probed once, media placeholders in thumbnails and covers",
+    "PASS: media recognised by extension, unsupported formats reported on import, mixed sorting, video width / ratio / one-screen cap, audio bar, sources only for visible media, audio card controls (play, seek, time, more popover), no controls in the video picture, mute in the control bar, click / Space / Q E ; ' / long-press A D, autoplay rules, one player per window, unplayable placeholder probed once, media placeholders in thumbnails and covers",
   );
 } finally {
   if (ws?.readyState === 1) {

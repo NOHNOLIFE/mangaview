@@ -1,0 +1,75 @@
+/* 文件栏（filebar.mjs）：总控栏里三区那一行上方的一行（行容器 #filebar 的位置、分隔线见 controlbar.css）。
+   左：文件名（名称列宽度固定约 24 字，最先缩短）；中：播放键、进度条（与音频卡片共用 .mv-bar，shell.css；其次缩短）、时间；
+   右：固定的按钮位（只有图标，靠右对齐），这种文件没有的按钮留空位（.fb-void 只隐藏、不让位）；仍放不下时次要按钮收进「⋯」（.fb-more-pop）。
+   图片时中区留空（同样只隐藏、不让位）。播放与暂停只在播放键图标和进度条颜色上有区别。 */
+#filebar .fb-name {
+  display: flex;
+  flex: 0 1000 24ch;
+  align-items: center;
+  min-width: 56px;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text);
+}
+#filebar .fb-name .mid-name {
+  justify-content: flex-start;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+.fb-mid {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.fb-mid .mv-bar {
+  flex: 1 1 auto;
+  min-width: 56px;
+}
+.fb-mid.playing .mv-fill {
+  background: var(--accent);
+}
+.fb-play {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: var(--text);
+}
+.fb-play .i {
+  fill: currentColor;
+}
+.fb-time {
+  flex: none;
+  box-sizing: content-box;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.fb-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+/* 字幕开着：图标为强调色；添加区段书签用区段配色。 */
+.fb-x[aria-pressed='true'] {
+  background: transparent;
+  color: var(--accent);
+}
+.fb-x[data-slot='section'] .i {
+  color: var(--sec);
+}
+.fb-x[data-slot='section']:disabled .i {
+  color: inherit;
+}
+#filebar .fb-void,
+#filebar .fb-mid.fb-void > * {
+  visibility: hidden;
+}
+.fb-more-pop .fb-void {
+  display: none;
+}

@@ -1,10 +1,10 @@
-// 外挂字幕的显示：播放器面板上的字幕按钮（开关、多个字幕时的选择菜单）、读取与缓存、随播放时间更新。
+// 外挂字幕的显示：字幕按钮（开关、多个字幕时的选择菜单；登记在 ctx.player.add，按钮在音频卡片和文件栏上，菜单按所点的按钮定位）、读取与缓存、随播放时间更新。
 // - 配对只看文件名，在导入、刷新列目录时顺带完成（sources.mjs，记在 page.subs）；解析在 core/subtitles.mjs。
 // - 只在该媒体第一次要显示字幕时（字幕开着、播放器挂上源）读字幕文件，解析结果在会话内缓存（CACHE 条），
 //   之后每次挂上源只取文件的大小和修改时间，变了才重读；读不到时简短提示，不影响播放。
 // - 开关全局记住（偏好 'subs'，跨窗口同步）；选择按媒体记在书目记录的 book.subPick=[{id:页名,f:字幕文件名}]（按条目合并，见 merge.mjs），
 //   没选过的默认取与媒体完全同名的，其次按文件名顺序第一个（model.mjs defaultSub）。
-// - 显示在面板（shell.mjs）建好的字幕容器 p.subs（.mv-subs）里：视频叠在画面底部、控件上方（全屏、新窗口播放同样显示），音频在卡片里始终占位 3 行的字幕区。
+// - 显示在面板（shell.mjs）建好的字幕容器 p.subs（.mv-subs）里：视频叠在画面底部（全屏、新窗口播放同样显示），音频在卡片里始终占位 3 行的字幕区。
 // 时间更新：timeupdate，视频播放中另用 requestVideoFrameCallback 逐帧；定位、变速、只播区段的跳转后立即刷新；卸载源时清空。
 import { extend } from '../core/lang.mjs';
 import { fileOf, defaultSub } from '../core/model.mjs';
@@ -174,11 +174,11 @@ export function install(ctx) {
   menu.setAttribute('role', 'menu');
   menu.dataset.nodrag = '';
   document.body.append(menu);
+  // owner：菜单为哪个按钮（音频卡片或文件栏上的）打开 {p, b}。
   let owner = null,
     downOpen = null;
-  const buttonOf = (p) => p?.extra?.get(control);
   menu.addEventListener('toggle', (e) => {
-    buttonOf(owner)?.setAttribute('aria-expanded', String(e.newState === 'open'));
+    owner?.b.setAttribute('aria-expanded', String(e.newState === 'open'));
     if (e.newState === 'open') menu.querySelector('[aria-checked=true]')?.focus({ preventScroll: true });
     else owner = null;
   });
@@ -197,7 +197,9 @@ export function install(ctx) {
     'pointerdown',
     (e) => {
       downOpen =
-        menu.matches(':popover-open') && e.target.closest?.('[data-control="subs"]') === buttonOf(owner) ? owner : null;
+        menu.matches(':popover-open') && owner && e.target.closest?.('[data-control="subs"]') === owner.b
+          ? owner.b
+          : null;
     },
     true,
   );
@@ -208,17 +210,16 @@ export function install(ctx) {
     b.setAttribute('aria-checked', String(checked));
     b.append(icon('check'), make('span', '', label));
     b.onclick = () => {
-      const btn = buttonOf(owner);
+      const btn = owner?.b;
       menu.hidePopover();
       btn?.focus({ preventScroll: true });
       act();
     };
     return b;
   }
-  function openMenu(p) {
-    const btn = buttonOf(p),
-      cur = chosen(p);
-    owner = p;
+  function openMenu(p, btn) {
+    const cur = chosen(p);
+    owner = { p, b: btn };
     menu.replaceChildren(
       item(t('mvSubsOff'), !on, () => setOn(false)),
       ...subsOf(p.page).map((f) =>
@@ -261,17 +262,16 @@ export function install(ctx) {
     icon: 'subtitles',
     label: 'mvSubs',
     order: 20,
-    click(p) {
+    click(p, api, b) {
       const list = subsOf(p.page);
-      if (!list.length) return;
+      if (!list.length || !b) return;
       if (list.length === 1) return setOn(!on);
-      if (owner === p && menu.matches(':popover-open')) return menu.hidePopover();
-      if (downOpen === p) return;
-      openMenu(p);
+      if (owner?.b === b && menu.matches(':popover-open')) return menu.hidePopover();
+      if (downOpen === b) return;
+      openMenu(p, b);
     },
-    state(p) {
-      const n = subsOf(p.page).length,
-        b = buttonOf(p);
+    state(p, api, b) {
+      const n = subsOf(p.page).length;
       if (b && n > 1) b.setAttribute('aria-haspopup', 'menu');
       else b?.removeAttribute('aria-haspopup');
       return { disabled: !n, pressed: !!n && on, label: n ? 'mvSubs' : 'mvSubsNone' };

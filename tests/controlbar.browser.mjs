@@ -184,7 +184,7 @@ try {
   // 栏里每个可见控件与分隔线的位置和尺寸（不含弹出层里的）。
   const rects = () =>
     js(
-      `JSON.stringify([...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')&&!e.hidden).map(e=>{const r=e.getBoundingClientRect();return [e.dataset.id||e.className,Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join(' ');}))`,
+      `JSON.stringify([...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')&&!e.closest('#filebar')&&!e.hidden).map(e=>{const r=e.getBoundingClientRect();return [e.dataset.id||e.className,Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join(' ');}))`,
     );
   const playing = () =>
     js(`[...reader.querySelectorAll('video,audio')].filter(m=>!m.paused).map(m=>m.closest('.page').dataset.name)`);
@@ -194,7 +194,7 @@ try {
     );
   const text = (id) => js(`${B(id)}.textContent`);
 
-  // ---- 布局。默认一行（约 58px），三区并排：左 6、中 5、右 6，组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
+  // ---- 布局。三区默认一行（约 44px，上方另有文件栏一行），三区并排：左 6、中 5、右 6，组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
   // 总控栏下面不再有状态文字行（书名与进度在顶部名称区，当前媒体的文件名与时间在文件栏）。
   await js(
     `window.cbEvents=[];import('./src/core/events.mjs').then(m=>{(m.listeners.controlbar??=[]).push(v=>cbEvents.push(v));return true;})`,
@@ -205,8 +205,9 @@ try {
   assert.deepEqual(await js('cbEvents'), [true], "Showing dispatches 'controlbar' (true)");
   const geo =
     await js(`(()=>{const b=controlbar.getBoundingClientRect(),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>e.getBoundingClientRect()),p=document.querySelector('#controlbar [data-id="play"]').getBoundingClientRect(),R=reader.getBoundingClientRect();
-    return {h:b.height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,row:new Set(z.map(r=>Math.round(r.top))).size,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
-  assert.ok(geo.h >= 52 && geo.h <= 64, 'One row, about 58px high: ' + geo.h);
+    return {h:b.height,zh:controlbar.querySelector('.cb-zones').getBoundingClientRect().height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,row:new Set(z.map(r=>Math.round(r.top))).size,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
+  assert.ok(geo.zh >= 40 && geo.zh <= 48, 'One row of zones: ' + geo.zh);
+  assert.ok(geo.h >= 96 && geo.h <= 116, 'File bar row + one row, about 107px high: ' + geo.h);
   assert.ok(
     geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 1 && !geo.compact && geo.fits,
     JSON.stringify(geo),
@@ -241,22 +242,22 @@ try {
     true,
     'Every button has a tooltip and a name',
   );
-  // 文件栏的行容器：在三区那一行的上方、同宽；空时 hidden、不占高度；有内容时栏变高，三区那一行不动。
+  // 文件栏的行容器：在三区那一行的上方、同宽（内容见 filebar.browser.mjs）；hidden 时不占高度，三区那一行不动。
   const fileRow = () =>
     js(
       `(()=>{const f=filebar.getBoundingClientRect(),z=controlbar.querySelector('.cb-zones').getBoundingClientRect(),b=controlbar.getBoundingClientRect();return {inBar:filebar.parentElement===controlbar&&filebar.nextElementSibling===controlbar.querySelector('.cb-zones'),hidden:filebar.hidden,h:Math.round(f.height),above:f.bottom<=z.top,same:Math.abs(f.left-z.left)<=1&&Math.abs(f.width-z.width)<=1,bar:Math.round(b.height),zones:[Math.round(z.left),Math.round(z.width),Math.round(innerHeight-z.bottom)].join()};})()`,
     );
   const f0 = await fileRow();
-  assert.deepEqual([f0.inBar, f0.hidden, f0.h], [true, true, 0], 'Empty file bar row takes no height');
-  await js(`filebar.append(Object.assign(document.createElement('span'),{textContent:'file'}));filebar.hidden=false`);
-  const f1 = await fileRow();
   assert.ok(
-    f1.above && f1.same && f1.h >= 30 && f1.bar > f0.bar + 30,
-    'File bar row above, same width: ' + JSON.stringify(f1),
+    f0.inBar && !f0.hidden && f0.above && f0.same && f0.h >= 30,
+    'File bar row above, same width: ' + JSON.stringify(f0),
   );
-  assert.equal(f1.zones, f0.zones, 'The three zones stay put');
   await shot('controlbar-filebar');
-  await js(`filebar.replaceChildren();filebar.hidden=true`);
+  await js(`filebar.hidden=true`);
+  const f1 = await fileRow();
+  assert.ok(f1.h === 0 && f1.bar < f0.bar - 30, 'A hidden file bar row takes no height: ' + JSON.stringify(f1));
+  assert.equal(f1.zones, f0.zones, 'The three zones stay put');
+  await js(`filebar.hidden=false`);
   assert.equal((await fileRow()).bar, f0.bar);
   await shot('controlbar-800');
   await closeBar();
@@ -470,13 +471,13 @@ try {
   await wait(async () => !(await playing()).length, 'space pauses');
   await wait(async () => (await running()) === 'false', 'not running');
   assert.equal(await js('reader.scrollTop'), top1, 'Space does not scroll');
-  // 单个媒体自己的播放键：等同大播放键，并把它设为当前媒体（不在视窗中央的也是）。
+  // 单个媒体自己的播放键：等同大播放键，并把它设为选中媒体（不在视窗中央的也是）。
   await tap('#reader .page[data-name="02 a.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '02 a.wav', 'own play button');
   assert.deepEqual(
-    await js(`[...reader.querySelectorAll('.page.media.current')].map(n=>n.dataset.name)`),
+    await js(`[...reader.querySelectorAll('.page.media.selected')].map(n=>n.dataset.name)`),
     ['02 a.wav'],
-    'It becomes the current media',
+    'It becomes the selected media',
   );
   assert.equal(await running(), 'true');
   await key(' ', 'Space', 32);
@@ -511,28 +512,27 @@ try {
   await wait(async () => !(await playing()).length);
   await js(`${B('mode-mixed')}.click()`);
 
-  // ---- 单个文件的播放面板。状态一眼可辨：当前媒体外框；播放中播放键与进度条为强调色、卡片提亮并显示音柱。
+  // ---- 单个文件的播放面板。选中的不压暗、不描边；播放中进度条为强调色并显示音柱，播放键只换图标；未选中的压暗。
   assert.ok(await js(`toPage('03 b.wav')`));
   await tap('#reader .page[data-name="03 b.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '03 b.wav');
   await delay(400);
   const look = await js(
-    `(()=>{const s=n=>{const p=node(n),c=getComputedStyle;return {playing:p.classList.contains('playing'),current:p.classList.contains('current'),play:c(p.querySelector('.mv-play')).backgroundColor,fill:c(p.querySelector('.mv-fill')).backgroundColor,card:c(p.querySelector('.mv-card')).backgroundColor,ring:c(p.querySelector('.mv-card')).boxShadow,eq:c(p.querySelector('.mv-eq')).display};};return {a:s('02 a.wav'),b:s('03 b.wav'),c:s('04 c.wav')};})()`,
+    `(()=>{const s=n=>{const p=node(n),c=getComputedStyle;return {playing:p.classList.contains('playing'),current:p.classList.contains('selected'),dim:c(p.querySelector('.mv-card')).filter,play:c(p.querySelector('.mv-play')).backgroundColor,fill:c(p.querySelector('.mv-fill')).backgroundColor,card:c(p.querySelector('.mv-card')).backgroundColor,ring:c(p.querySelector('.mv-card')).boxShadow,eq:c(p.querySelector('.mv-eq')).display};};return {a:s('02 a.wav'),b:s('03 b.wav'),c:s('04 c.wav')};})()`,
   );
   const accent = 'rgb(255, 122, 89)';
   assert.deepEqual(
-    [look.b.playing, look.b.current, look.b.play, look.b.fill, look.b.eq],
-    [true, true, accent, accent, 'flex'],
+    [look.b.playing, look.b.current, look.b.dim, look.b.fill, look.b.eq, look.b.ring],
+    [true, true, 'none', accent, 'flex', 'none'],
     JSON.stringify(look.b),
   );
+  assert.notEqual(look.b.play, accent, 'The play button only changes its icon');
   for (const o of [look.a, look.c]) {
-    assert.deepEqual([o.playing, o.current, o.eq], [false, false, 'none']);
-    assert.notEqual(o.play, accent);
+    assert.deepEqual([o.playing, o.current, o.eq, o.dim], [false, false, 'none', 'brightness(0.55)']);
     assert.notEqual(o.fill, accent);
-    assert.notEqual(o.card, look.b.card, 'The playing card is brighter');
+    assert.equal(o.card, look.b.card, 'Same card background');
     assert.equal(o.ring, 'none');
   }
-  assert.match(look.b.ring, /255, 122, 89/, 'Current media: accent outline');
   await openBar();
   await shot('controlbar-panels');
   await closeBar();
@@ -542,7 +542,7 @@ try {
   await cdp('Emulation.setEmulatedMedia', { features: [] });
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
-  // 字幕容器：音频卡片里始终占位 3 行（有无字幕高度不变），视频叠在画面底部、控件上方；都不朗读（aria-live="off"）。
+  // 字幕容器：音频卡片里始终占位 3 行（有无字幕高度不变），视频叠在画面底部（画面内没有控件）；都不朗读（aria-live="off"）。
   // 容器里只有字幕模块放的一行 .mv-cue（没有字幕时隐藏）；这里直接往它里面写字来检查排版。
   const card = () => js(`Math.round(node('03 b.wav').querySelector('.mv-card').getBoundingClientRect().height)`);
   const h0 = await card();
@@ -564,16 +564,16 @@ try {
   await cueText('05 clip.webm', 'subtitle');
   assert.deepEqual(
     await js(
-      `(()=>{const n=node('05 clip.webm'),s=n.querySelector('.mv-subs'),r=s.getBoundingClientRect(),sh=n.querySelector('.mv-shell').getBoundingClientRect(),v=n.getBoundingClientRect();return [s.parentNode===n,s.getAttribute('aria-live'),r.bottom<=sh.top,r.top>=v.top,getComputedStyle(n.querySelector('video')).filter];})()`,
+      `(()=>{const n=node('05 clip.webm'),s=n.querySelector('.mv-subs'),r=s.getBoundingClientRect(),v=n.getBoundingClientRect();return [s.parentNode===n,s.getAttribute('aria-live'),r.bottom<=v.bottom,r.top>=v.top,!n.querySelector('.mv-shell'),getComputedStyle(n.querySelector('video')).filter];})()`,
     ),
-    [true, 'off', true, true, 'brightness(0.55)'],
-    'Video subtitles sit over the picture above the controls; a paused video is dimmed',
+    [true, 'off', true, true, true, 'brightness(0.55)'],
+    'Video subtitles sit over the picture, no controls in it; an unselected video is dimmed',
   );
   await cueText('05 clip.webm', '');
   assert.equal(
     await js(`getComputedStyle(node('05 clip.webm').querySelector('.mv-big')).opacity`),
     '1',
-    'Big play button while paused',
+    'Big play button while not selected',
   );
   assert.ok(await js(`toPage('04 c.wav')`));
   // 面板只有按钮、进度条、文件名不参与拖动；空白处按住拖动滚动正文，也不播放。
@@ -609,7 +609,7 @@ try {
   await js(`${B('mediaNext')}.click()`);
   await wait(() => centred('03 b.wav'), 'next media centred');
   assert.deepEqual(await playing(), [], 'Not running: only moves');
-  await wait(() => js(`node('03 b.wav').classList.contains('current')`));
+  await wait(() => js(`node('03 b.wav').classList.contains('selected')`), 'switched-to media is selected');
   await js(`${B('mediaPrev')}.click()`);
   await wait(() => centred('02 a.wav'), 'previous media centred');
   await key(' ', 'Space', 32);
@@ -649,9 +649,9 @@ try {
   // ---- 窄窗口：一行 → 左、右区各自把次要按钮收进本区末尾的「⋯」（仍一行；左区留上一本 / 下一本，右区留下一个媒体 / 音量）→ 两行
   // （中区一行，左、右区并排一行）。任何宽度都不超过两行、不横向溢出，控件都在栏内。
   const layoutAt = () =>
-    js(`(()=>{const b=controlbar.getBoundingClientRect(),items=[...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>Math.round(e.getBoundingClientRect().top)),ids=s=>[...controlbar.querySelector(s).children].filter(e=>!e.matches('.cb-pop')).map(e=>e.dataset.id||'|'),pop=id=>[...(document.querySelector('#controlbar [data-id="'+id+'"]')?.popoverTargetElement?.children??[])].filter(e=>e.matches('.cb-btn')).map(e=>e.dataset.id);
+    js(`(()=>{const b=controlbar.getBoundingClientRect(),items=[...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')&&!e.closest('#filebar')),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>Math.round(e.getBoundingClientRect().top)),ids=s=>[...controlbar.querySelector(s).children].filter(e=>!e.matches('.cb-pop')).map(e=>e.dataset.id||'|'),pop=id=>[...(document.querySelector('#controlbar [data-id="'+id+'"]')?.popoverTargetElement?.children??[])].filter(e=>e.matches('.cb-btn')).map(e=>e.dataset.id);
       return {inWindow:b.left>=0&&b.right<=innerWidth&&b.top>=0&&b.bottom<=innerHeight,fits:controlbar.scrollWidth<=controlbar.clientWidth&&controlbar.querySelector('.cb-zones').scrollWidth<=controlbar.querySelector('.cb-zones').clientWidth,inside:items.every(e=>{const r=e.getBoundingClientRect();return r.left>=b.left-.5&&r.right<=b.right+.5&&r.top>=b.top-.5&&r.bottom<=b.bottom+.5;}),
-        tier:controlbar.classList.contains('stacked')?'stacked':controlbar.classList.contains('compact')?'compact':'row',rows:new Set(z).size,midOnTop:z[1]<z[0]&&z[0]===z[2],h:Math.round(b.height),
+        tier:controlbar.classList.contains('stacked')?'stacked':controlbar.classList.contains('compact')?'compact':'row',rows:new Set(z).size,midOnTop:z[1]<z[0]&&z[0]===z[2],h:Math.round(controlbar.querySelector('.cb-zones').getBoundingClientRect().height),
         left:ids('.cb-left'),right:ids('.cb-right'),moreL:pop('moreLeft'),moreR:pop('moreRight')};})()`);
   const FULL = {
       left: ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
@@ -684,7 +684,10 @@ try {
       [true, true, true, tier, one ? 1 : 2, ...Object.values(tier === 'row' ? FULL : COMPACT)],
       w + 'px: ' + JSON.stringify(f),
     );
-    assert.ok(one ? f.h <= 64 : f.midOnTop && f.h <= 112, w + 'px rows: ' + JSON.stringify(f));
+    assert.ok(
+      one ? f.h <= 48 : f.midOnTop && f.h <= 96,
+      w + 'px rows (the zones, without the file bar row): ' + JSON.stringify(f),
+    );
     await shot('controlbar-' + w);
     if (tier === 'row') continue;
     await tap('#controlbar [data-id="moreRight"]');
@@ -785,7 +788,7 @@ try {
   await js('reader.focus()');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: control bar layout (one row, left 6 / middle 5 / right 6, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when empty, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (current outline, playing accent, brighter card, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
+    'PASS: control bar layout (one row, left 6 / middle 5 / right 6, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when hidden, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (selected not dimmed and no outline, unselected dimmed, playing accent progress, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
   );
 } finally {
   if (ws?.readyState === 1) {

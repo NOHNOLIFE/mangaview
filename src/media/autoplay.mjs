@@ -1,12 +1,17 @@
-// 当前媒体与自动播放：当前媒体的判定（current：选定的媒体 S.chosen（见 driver.mjs）正在播放或中线仍在视窗内时是它；
-// 否则本窗口正在播放的；否则中线在视窗内、离视窗中心最近的）、
+// 选中媒体、当前文件与自动播放：
+// - 选中媒体 S.selected（规则见 core/selection.mjs，select / release）：带 .selected 类（不压暗、没有大播放键，shell.css）；
+//   中线离开视窗（全屏中的除外）、切书、播放器被释放时取消。
+// - 当前文件（target：选中的媒体，否则视窗中心所在的页，含图片）：文件栏、书签快捷键、长按 A / D、Z 新窗口播放作用的对象；
+//   current 是其中的媒体播放器（播不了的、图片为 null）。
+// - 运行引擎挑哪个媒体（pick：选中的，否则正在播放的，否则中线在视窗内、离视窗中心最近的）与自动播放挑哪个视频的规则另算，不随当前文件变化。
 // 媒体中线离开视窗即暂停、滚动停稳后自动播放、启动或切书后有过用户操作才自动播放；设置里的「自动播放」开关。
 // 未运行时（手动浏览）：漫画模式下任何媒体都不自动播放；混合、影音模式下只有视频在滚动停稳时自动播放，
 // 音频只在点击音频书签、播放顺序 / 循环切到它、运行中轮到它时开始。运行中由总控的驱动器决定播放什么，这里不插手。
 // 翻屏对齐（align，keys.mjs 的 A / D / ← / →）：翻过去之后有视频进入播放范围时，直接落在该视频居中处（漫画模式、自动播放关闭时不对齐）。
 import { extend } from '../core/lang.mjs';
-import { pageKind } from '../core/model.mjs';
+import { pageKind, at } from '../core/model.mjs';
 import { turnTo } from '../core/engine.mjs';
+import { selectAfter } from '../core/selection.mjs';
 
 extend({
   mvAutoplay: ['Autoplay media', '自动播放', 'メディアを自動再生', '미디어 자동 재생'],
@@ -46,15 +51,65 @@ export function install(ctx, S) {
     }
     return best;
   }
+  // ---- 选中媒体：type 为成为选中的原因（'press' | 'play' | 'switch' | 'goto'）。
+  function setSelected(p) {
+    if (p === S.selected) return;
+    S.selected?.node.classList.remove('selected');
+    S.selected = p;
+    p?.node.classList.add('selected');
+    S.markNow?.(); // 当前文件随之变化：立即派发，总控栏、文件栏与 .selected 同步
+  }
+  const select = (p, type = 'press') => setSelected(selectAfter(S.selected, { type, player: p }));
+  const release = (p) => setSelected(selectAfter(S.selected, { type: 'gone', player: p }));
+  const live = (p) => !!p && players.has(p.node) && p.book === ctx.current;
+  // 视窗中心所在的页（单文件模式下是显示的那一页），没有时为 -1。
+  function centerIndex() {
+    const book = ctx.current,
+      view = ctx.view;
+    if (!book?.pages.length) return -1;
+    if (view.single) {
+      const a = view.anchor();
+      return a ? book.pages.findIndex((pg) => pg.name === a.name) : -1;
+    }
+    const s = view.panes?.[0]?.starts ?? [];
+    return s.length === book.pages.length + 1 ? at(s, main.scrollTop + main.clientHeight / 2).i : -1;
+  }
+  // 当前文件 {book, page, i, kind, player}：选中的媒体，否则视窗中心所在的页（媒体页带上它的播放器）；没有为 null。
+  function target() {
+    const book = ctx.current;
+    if (!book) return null;
+    const sel = live(S.selected) ? S.selected : null;
+    if (sel) return { book, page: sel.page, i: book.pages.indexOf(sel.page), kind: sel.kind, player: sel };
+    const i = centerIndex();
+    if (i < 0) return null;
+    const page = book.pages[i],
+      kind = pageKind(page),
+      player =
+        kind === 'video' || kind === 'audio'
+          ? ([...players.values()].find((q) => q.page === page && q.book === book) ?? null)
+          : null;
+    return { book, page, i, kind, player };
+  }
+  // 当前媒体：当前文件的播放器（播不了的不算）。
   const current = () => {
-    const c = S.chosen;
-    if (c && players.has(c.node) && c.state !== 'failed' && (c === S.playing || inView(c))) return c;
+    const p = target()?.player;
+    return p && p.state !== 'failed' ? p : null;
+  };
+  // 运行引擎（影音模式开始、混合模式先播哪个）挑的媒体：选中的，否则正在播放的，否则中线在视窗内、离视窗中心最近的。
+  const pick = () => {
+    const c = S.selected;
+    if (live(c) && c.state !== 'failed') return c;
     return S.playing && players.has(S.playing.node) ? S.playing : nearest();
   };
-  // 正在播放的媒体中线离开视窗即暂停（位置记在会话里）；手动暂停、播完的标记在它中线离开视窗后清除。
+  // 正在播放的媒体中线离开视窗即暂停（位置记在会话里）；手动暂停、播完的标记在它中线离开视窗后清除；选中的媒体中线离开视窗即取消选中。
   function watch() {
+    const sel = S.selected;
+    if (sel)
+      setSelected(
+        selectAfter(sel, { type: 'view', inView: players.has(sel.node) && inView(sel), full: S.full === sel }),
+      );
     for (const p of players.values()) {
-      if (document.fullscreenElement === p.node || inView(p)) continue;
+      if (S.full === p || inView(p)) continue;
       if (p.state === 'ready' && !p.el.paused) p.el.pause();
       if (p.wantPlay) p.wantPlay = false;
       p.userPaused = false;
@@ -107,7 +162,7 @@ export function install(ctx, S) {
   ctx.on('select', () => {
     armed = false;
     S.queued = null;
-    S.chosen = null;
+    setSelected(selectAfter(S.selected, { type: 'book' }));
     rounds.delete(ctx.current);
   });
 
@@ -121,5 +176,5 @@ export function install(ctx, S) {
     get: () => get('autoplay', true),
     set: (v) => put('autoplay', v),
   });
-  Object.assign(S, { inView, current, align });
+  Object.assign(S, { inView, current, target, pick, select, release, align });
 }

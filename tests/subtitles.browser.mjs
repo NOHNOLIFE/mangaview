@@ -132,7 +132,8 @@ try {
     window.node=name=>reader.querySelector('.page[data-name="'+CSS.escape(name)+'"]');
     window.el=name=>node(name)?.querySelector('video,audio');
     window.cue=name=>{const c=node(name)?.querySelector('.mv-subs .mv-cue');return c&&!c.hidden?c.textContent:null;};
-    window.btn=name=>node(name)?.querySelector('[data-control="subs"]');
+    // 字幕按钮：视频的在文件栏（作用于当前文件），音频的在卡片上。
+    window.btn=name=>{const n=node(name);return !n?null:n.classList.contains('video')?document.querySelector('#filebar [data-slot="subs"]'):n.querySelector('[data-control="subs"]');};
     window.toPage=async name=>{let from=0;for(let i=0;i<300;i++){const n=node(name);if(!n){reader.scrollTop=from;from+=300;await frame();continue;}
       const want=n.offsetTop+n.offsetHeight/2-reader.clientHeight/2;if(Math.abs(reader.scrollTop-Math.max(0,Math.min(want,reader.scrollHeight-reader.clientHeight)))<1&&i>2){await frame();if(Math.abs(n.offsetTop+n.offsetHeight/2-reader.clientHeight/2-want)<1)return true;}
       reader.scrollTop=want;await frame();}return false;};
@@ -191,6 +192,19 @@ try {
   await wait(() => js(`el('01 clip.webm')?.readyState>=1`), 'clip metadata');
   await wait(() => js(`cue('01 clip.webm')==='First line'`), 'first cue at 0 s');
   assert.ok((await reads()).includes('01 clip.srt'), 'The default is the exactly named one');
+  // 视频的字幕按钮在文件栏：点画面选中这个视频（下方的音频之前被选中过、中线仍在视窗内），显示总控栏（T），文件栏作用于它。
+  await tap('#reader .page[data-name="01 clip.webm"]');
+  await wait(
+    () => js(`node('01 clip.webm').classList.contains('selected')&&!el('01 clip.webm').paused`),
+    'clip selected',
+  );
+  await js(`el('01 clip.webm').pause()`);
+  await js(`seekTo('01 clip.webm',0)`);
+  await key('t', 'KeyT', 84);
+  await wait(
+    () => js(`!controlbar.hidden&&filebar.querySelector('.fb-name').textContent==='01 clip.webm'`),
+    'file bar on the clip',
+  );
   assert.deepEqual(
     await js(
       `(()=>{const b=btn('01 clip.webm');return [!!b,b.disabled,b.getAttribute('aria-pressed'),b.getAttribute('aria-haspopup'),b.getAttribute('aria-label')];})()`,
@@ -210,12 +224,12 @@ try {
   assert.ok(box.c[1] > (box.v[1] + box.v[3]) / 2, 'In the lower half of the picture');
   assert.ok(Math.abs((box.c[0] + box.c[2]) / 2 - (box.v[0] + box.v[2]) / 2) < 2, 'Centred');
   assert.equal(box.color, 'rgb(255, 255, 255)');
-  // 叠在画面底部、控件上方：不遮挡进度条（壳淡出时也照此占位）；只用面板提供的容器，不另建。
+  // 叠在画面底部（画面内没有控件）；只用面板提供的容器，不另建。
   assert.ok(
     await js(
-      `(()=>{const n=node('01 clip.webm'),c=n.querySelector('.mv-cue').getBoundingClientRect(),b=n.querySelector('.mv-bar').getBoundingClientRect();return c.bottom<=b.top&&n.querySelector('.mv-cue').parentNode===n.querySelector(':scope>.mv-subs');})()`,
+      `(()=>{const n=node('01 clip.webm');return !n.querySelector('.mv-bar')&&n.querySelector('.mv-cue').parentNode===n.querySelector(':scope>.mv-subs');})()`,
     ),
-    'Above the progress bar, in the panel container',
+    'In the panel container, no controls in the picture',
   );
   assert.equal(await js(`document.querySelectorAll('.mv-subs-own').length`), 0, 'No fallback container');
   assert.match(box.bg, /^rgba\(0, 0, 0, 0\.\d+\)$/);
@@ -234,7 +248,7 @@ try {
   await js(`el('01 clip.webm').pause()`);
 
   // ---- 多个字幕：按钮弹出菜单（关闭 + 各个字幕），选中的记在书目记录里；GBK 编码的也能读出。
-  await tap('#reader .page[data-name="01 clip.webm"] [data-control="subs"]');
+  await tap('#filebar [data-slot="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop')?.matches(':popover-open')`), 'menu open');
   assert.deepEqual(
     await js(
@@ -253,11 +267,11 @@ try {
   assert.deepEqual(pop, [true, true, true], 'The menu opens above the button, inside the window');
   await shot('subs-menu');
   // 再点一次按钮即收起。
-  await tap('#reader .page[data-name="01 clip.webm"] [data-control="subs"]');
+  await tap('#filebar [data-slot="subs"]');
   await wait(() => js(`!document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu closed by the button');
   await delay(150);
   assert.equal(await js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), false);
-  await tap('#reader .page[data-name="01 clip.webm"] [data-control="subs"]');
+  await tap('#filebar [data-slot="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu open again');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='01 clip.zh.srt').click()`);
   await wait(() => js(`cue('01 clip.webm')==='你好世界'`), 'GBK subtitle decoded');
@@ -265,13 +279,13 @@ try {
   await wait(async () => (await record()).subPick?.[0]?.f === '01 clip.zh.srt', 'choice saved');
   assert.deepEqual((await record()).subPick, [{ id: '01 clip.webm', f: '01 clip.zh.srt' }]);
   // 关闭：全局记住，所有媒体都不显示。
-  await tap('#reader .page[data-name="01 clip.webm"] [data-control="subs"]');
+  await tap('#filebar [data-slot="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='Off').click()`);
   await wait(() => js(`cue('01 clip.webm')===null&&btn('01 clip.webm').getAttribute('aria-pressed')==='false'`), 'off');
   assert.equal(await js(`localStorage.getItem('mv2:subs')`), 'false');
   // 不重复读：选回之前的字幕、离开视窗再回来，都只核对元数据。
-  await tap('#reader .page[data-name="01 clip.webm"] [data-control="subs"]');
+  await tap('#filebar [data-slot="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='01 clip.srt').click()`);
   await js(`seekTo('01 clip.webm',0.5)`);
@@ -280,6 +294,8 @@ try {
   await reads(); // 缓存命中：不再读
 
   // ---- 音频：显示在卡片里；只有一个字幕时按钮直接开 / 关；没有字幕的媒体按钮禁用。
+  await key('t', 'KeyT', 84);
+  await wait(() => js(`controlbar.hidden`), 'control bar hidden');
   assert.ok(await js(`toPage('02 song.wav')`));
   await wait(() => js(`el('02 song.wav')?.readyState>=1`), 'song loaded');
   await wait(() => js(`cue('02 song.wav')==='Lyric one'`), 'lyric');

@@ -1,5 +1,5 @@
 // 音频播放面板的卡片：纯色底，右侧方形小图是书的封面（没有封面时为按文件名配色的浅色占位图），封面更换后跟着变；
-// 缩略图栏、书签面板里的音频用同一张图；书签面板顶部按钮与「设置为封面」；不论有无封面，播放中的卡片都一眼可辨。独立临时配置 + OPFS 测试数据，音频由 tests/media-fixtures.mjs 现场生成。
+// 缩略图栏、书签面板里的音频用同一张图；书签面板顶部按钮与「设置为封面」；不论有无封面，未选中的卡片连同小图压暗、选中的不压暗也不描边。独立临时配置 + OPFS 测试数据，音频由 tests/media-fixtures.mjs 现场生成。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -132,7 +132,7 @@ try {
         note:note?getComputedStyle(note).display:null,hue:el.style.getPropertyValue('--art-h'),filter:s.filter,opacity:s.opacity,
         icons:[...el.children].filter(c=>c.matches('svg.i')).length};};
     window.look=name=>{const k=card(name),s=getComputedStyle(k),n=node(name);
-      return {playing:n.classList.contains('playing'),current:n.classList.contains('current'),art:artLook(art(name)),
+      return {playing:n.classList.contains('playing'),selected:n.classList.contains('selected'),dim:s.filter,big:getComputedStyle(n.querySelector('.mv-big')).opacity,art:artLook(art(name)),
         image:s.backgroundImage,color:s.backgroundColor,border:s.borderTopColor,ring:s.boxShadow,eq:getComputedStyle(k.querySelector('.mv-eq')).display,
         play:getComputedStyle(k.querySelector('.mv-play')).backgroundColor,fill:getComputedStyle(k.querySelector('.mv-fill')).backgroundColor};};
     window.parts=name=>{const k=card(name);return {node:box(node(name)),card:box(k),art:box(art(name)),head:box(k.querySelector('.mv-head')),
@@ -148,7 +148,8 @@ try {
     Object.fromEntries(await Promise.all(songs.map(async (n) => [n, await js(`look(${JSON.stringify(n)})`)])));
   const accent = 'rgb(255, 122, 89)';
   const near = (a, b, d = 1) => Math.abs(a - b) <= d;
-  // 播放中的卡片一眼可辨：强调色外框（当前媒体）与描边、提亮、音柱、强调色的播放键和进度条；其余两张为中性。小图不因播放改变。
+  // 选中（播放中）的卡片：不压暗、没有大播放键、不描边，播放中只多了音柱和强调色的进度条；未选中的两张压暗（连同小图）并显示大播放键。
+  // 卡片底色、边框不因播放或选中改变；播放键只换图标。
   async function playOne() {
     await js(`toPage('03 b.wav')`);
     await tap('#reader .page[data-name="03 b.wav"] .mv-play');
@@ -157,18 +158,21 @@ try {
     const all = await lookAll(),
       on = all['03 b.wav'];
     assert.deepEqual(
-      [on.playing, on.current, on.eq, on.play, on.fill, on.image],
-      [true, true, 'flex', accent, accent, 'none'],
+      [on.playing, on.selected, on.dim, on.big, on.eq, on.fill, on.image, on.ring],
+      [true, true, 'none', '0', 'flex', accent, 'none', 'none'],
       JSON.stringify(on),
     );
-    assert.match(on.ring, /255, 122, 89/, 'Current media: accent outline');
+    assert.notEqual(on.play, accent, 'The play button only changes its icon');
     for (const n of ['02 a.wav', '04 c.wav']) {
       const o = all[n];
-      assert.deepEqual([o.playing, o.current, o.eq, o.ring, o.image], [false, false, 'none', 'none', 'none'], n);
-      assert.notEqual(o.play, accent);
+      assert.deepEqual(
+        [o.playing, o.selected, o.dim, o.big, o.eq, o.ring, o.image],
+        [false, false, 'brightness(0.55)', '1', 'none', 'none', 'none'],
+        n,
+      );
       assert.notEqual(o.fill, accent);
-      assert.notEqual(o.border, on.border, 'The playing card has an accent border');
-      assert.notEqual(o.color, on.color, 'The playing card is brighter');
+      assert.equal(o.border, on.border, 'No accent border');
+      assert.equal(o.color, on.color, 'Same background');
     }
     return all;
   }
@@ -449,7 +453,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: audio card on a plain background with the cover (or a light per-file placeholder) as a square picture on the right; strip tiles and audio bookmarks show the same picture without an icon or dimming; the bookmark panel top has two icon buttons and a small set-as-cover button; set as cover takes the picture in the middle (image crop, video frame, disabled on audio); pictures follow cover changes in place; the playing card stands out',
+    'PASS: audio card on a plain background with the cover (or a light per-file placeholder) as a square picture on the right; strip tiles and audio bookmarks show the same picture without an icon or dimming; the bookmark panel top has two icon buttons and a small set-as-cover button; set as cover takes the picture in the middle (image crop, video frame, disabled on audio); pictures follow cover changes in place; the selected card is not dimmed and has no outline, unselected cards are dimmed with their pictures and show a big play button',
   );
 } finally {
   if (ws?.readyState === 1) {

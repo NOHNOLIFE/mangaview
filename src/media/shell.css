@@ -1,6 +1,7 @@
-/* 单个文件的播放面板（shell.mjs）：正文里的视频画面与大播放键、壳（按钮、进度条、时间、「更多」弹出层）、文件名、字幕容器、音频卡片、播不了时的占位。
-   壳的宽度预算见 shell.mjs（BTN 等）。状态一眼可辨：当前媒体（.current）强调色外框；播放中（.playing）播放键强调色实心、进度条强调色、
-   音频卡片底色提亮并显示跳动的音柱（唯一的动态效果，减少动态效果时静止）；未播放时灰阶，视频画面压暗、中央显示大播放键。 */
+/* 单个文件的播放面板（shell.mjs）：正文里的视频画面与大播放键、音频卡片（按钮、进度条、时间、「更多」弹出层）、字幕容器、播不了时的占位、视频全屏。
+   进度条（.mv-bar）与文件栏（reader/filebar.css）共用。壳的宽度预算见 shell.mjs（BTN 等）。
+   外观（视频、音频统一）：未选中（没有 .selected）压暗（音频连同右侧小图）并在中央显示大播放键；选中不压暗、不描边。
+   播放与暂停只在播放键图标、进度条颜色（播放中强调色）和音频的跳动音柱（唯一的动态效果，减少动态效果时静止）上有区别。 */
 .page.media.video {
   background: #000;
 }
@@ -12,27 +13,36 @@
   object-fit: contain;
   pointer-events: none;
   transition: filter 0.2s;
-}
-.page.media.video:not(.playing) video {
+} /* --vh：拖动缩放期间视窗变矮时临时等比缩小，不改变占位 */
+/* 未选中：压暗（音频卡片连同右侧小图一起）。 */
+.page.media.video:not(.selected) video,
+.page.media.audio:not(.selected) .mv-card {
   filter: brightness(0.55);
 }
-/* 当前媒体的外框：叠在画面之上、不占位。 */
-.page.media.video.current::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border: 2px solid var(--accent);
-  pointer-events: none;
-} /* --vh：拖动缩放期间视窗变矮时临时等比缩小，不改变占位 */
-.page.media:fullscreen {
+/* 视频全屏（shell.mjs fullscreen）：页面全屏，该视频铺满窗口；阅读区提到侧栏之上，总控栏（文件栏）仍在最上层、从底缘弹出。 */
+body.mv-fullvideo #reader {
+  z-index: 5;
+}
+.page.media.mv-full {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10;
+  width: auto !important;
+  height: auto !important;
+  margin: 0;
   background: #000;
 }
-.page.media:fullscreen video {
+.page.media.mv-full video {
   max-height: none;
 }
+body.mv-fullvideo #controlbar {
+  left: 50%;
+  width: min(1040px, calc(100% - 16px));
+}
+/* 未选中时中央的大播放键（不接收指针，点击落在画面 / 卡片上）；选中、播放不了时不显示。 */
 .mv-big {
   position: absolute;
+  z-index: 2;
   left: 50%;
   top: 50%;
   display: grid;
@@ -53,12 +63,23 @@
   margin-left: 3px;
   fill: currentColor;
 }
-.media.playing .mv-big,
-.media.mv-failed .mv-big {
+.media.audio .mv-big {
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+}
+.media.audio .mv-big .i {
+  width: 26px;
+  height: 26px;
+}
+.media.selected .mv-big {
   opacity: 0;
 }
+.media.mv-failed .mv-big {
+  display: none;
+}
 
-/* 壳：一行图标按钮 + 进度条 + 时间。视频的壳浮在画面底部，鼠标移开或播放中静止数秒后淡出，不参与布局；音频的壳常显。 */
+/* 壳：音频卡片上的一行图标按钮 + 进度条 + 时间（视频画面内没有控件）。 */
 .mv-shell {
   display: flex;
   align-items: center;
@@ -72,45 +93,6 @@
   user-select: none;
   overflow: hidden;
 }
-.media.video .mv-shell {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-.media.video:hover:not(.idle) .mv-shell,
-.media.video .mv-shell:focus-within,
-.media.video:has(.mv-pop:popover-open) .mv-shell,
-.media.video:hover:not(.idle) .mv-title,
-.media.video .mv-title:focus-within {
-  opacity: 1;
-}
-/* 视频的文件名：浮在画面左上角，与壳一起显隐；可选中复制。 */
-.mv-title {
-  position: absolute;
-  z-index: 2;
-  left: 8px;
-  top: 8px;
-  display: flex;
-  max-width: calc(100% - 16px);
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: rgba(14, 15, 18, 0.92);
-  font-size: 13px;
-  color: var(--text);
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-.mv-title .mid-name {
-  -webkit-user-select: text;
-  user-select: text;
-  cursor: text;
-}
-.media.video.idle {
-  cursor: none;
-}
 .mv-shell .icon-btn,
 .mv-pop .icon-btn {
   flex: none;
@@ -119,22 +101,14 @@
   border-radius: 8px;
   color: var(--muted);
 }
-.media.playing .mv-shell .icon-btn {
-  color: var(--text);
-}
-/* 播放键：未播放为灰阶描边，播放中为强调色实心（主按钮）。 */
+/* 播放键：描边圆形，播放与暂停只换图标。 */
 .mv-shell .mv-play {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 50%;
+  color: var(--text);
 }
 .mv-shell .mv-play .i {
   fill: currentColor;
-}
-.media.playing .mv-shell .mv-play,
-.media.playing .mv-shell .mv-play:not(:disabled):hover {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
 }
 .mv-shell .icon-btn[aria-pressed='true'] {
   background: transparent;
@@ -192,6 +166,11 @@
   inset: 0;
   pointer-events: none;
 } /* 书签标记层：标记自己设 pointer-events */
+/* 添加区段书签用区段配色。 */
+.mv-shell .mv-x[data-control='section'] .i,
+.mv-pop .mv-x[data-control='section'] .i {
+  color: var(--sec);
+}
 /* 壳上登记的开关（如字幕）打开时图标为强调色。 */
 .mv-shell .mv-x[aria-pressed='true'],
 .mv-pop .mv-x[aria-pressed='true'] {
@@ -225,7 +204,7 @@
   gap: 2px;
 }
 
-/* 字幕容器（字幕模块往里写内容）：视频叠在画面底部、控件上方，不遮挡进度条；音频在卡片里始终占位 3 行，有无字幕卡片高度不变。 */
+/* 字幕容器（字幕模块往里写内容）：视频叠在画面底部；音频在卡片里始终占位 3 行，有无字幕卡片高度不变。 */
 .mv-subs {
   display: flex;
   flex-direction: column;
@@ -240,7 +219,7 @@
   z-index: 1;
   left: 6%;
   right: 6%;
-  bottom: 60px;
+  bottom: max(16px, 5%);
   font-size: clamp(14px, 2.2vw, 26px);
   line-height: 1.35;
 }
@@ -277,10 +256,7 @@
   border: 1px solid var(--line2);
   border-radius: 14px;
   background-color: var(--solid);
-  transition:
-    background-color 0.2s,
-    border-color 0.2s,
-    box-shadow 0.2s;
+  transition: filter 0.2s;
 }
 .mv-card > .mv-head,
 .mv-card > .mv-subs {
@@ -299,14 +275,6 @@
 .mv-card > .mv-shell {
   grid-column: 1 / -1;
 }
-/* 播放中：底色提亮、描边带强调色（另有音柱、强调色的播放键与进度条）。 */
-.media.audio.playing .mv-card {
-  border-color: rgba(255, 122, 89, 0.6);
-  background-color: #2b2a31;
-}
-.media.audio.current .mv-card {
-  box-shadow: 0 0 0 2px var(--accent);
-}
 .mv-head {
   display: flex;
   align-items: center;
@@ -315,9 +283,6 @@
   padding: 0 6px;
   font-size: 13.5px;
   color: var(--muted);
-}
-.media.audio.playing .mv-head {
-  color: var(--text);
 }
 .mv-head .i {
   width: 16px;

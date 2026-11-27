@@ -121,7 +121,7 @@ export function install(ctx, S) {
       s = rs.length ? rs[0].a : 0;
     times.set(page, s);
     S.queued = { page, time: s, play, auto: play };
-    if (document.fullscreenElement?.classList.contains('media')) document.exitFullscreen().catch(() => {});
+    if (S.full) S.leaveFull();
     ctx.view.jump({ i, f: 0.5 });
     if (document.hidden) ctx.view.paint(); // 窗口在后台时不会有动画帧：立即排版，播放顺序照常生效
     claimNow();
@@ -133,7 +133,7 @@ export function install(ctx, S) {
     const q = S.queued;
     S.queued = null;
     if (p.state === 'failed') return;
-    S.chosen = p; // 成为当前媒体（driver.mjs）
+    S.select(p, q.auto ? 'switch' : 'goto'); // 成为选中媒体（autoplay.mjs）
     p.auto = !!q.auto;
     p.popped = !!q.popped;
     seek(p, q.time);
