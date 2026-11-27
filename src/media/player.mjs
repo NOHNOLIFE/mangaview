@@ -1,4 +1,7 @@
-// 播放器的状态：挂上 / 卸载源、读到元数据、播不了时的占位与重试、播放 / 暂停 / 定位；原生媒体元素的事件在这里处理。
+// 播放器的状态：挂上 / 卸载源、读到元数据、播不了时的占位与重试、播放 / 暂停 / 定位；原生媒体元素的事件在这里处理
+// （监听挂在媒体元素自己身上：元素停放或在外部容器里时照样收到），并经 S.notify(播放器, 事件名) 转给 driver.mjs。
+// 读文件经 ctx.source(书, 页)（限时 limits.read），不要求这本书是当前打开的书：后台播放的当前曲目可以在别的书里。
+// 同一时间只有一个媒体在播放：开始播放时暂停其他全部播放器（含停放中的当前曲目）。
 // 壳的 DOM 与状态显示在 shell.mjs；播完之后做什么在 order.mjs（finished）。
 import { extend } from '../core/lang.mjs';
 import { shownName } from '../core/model.mjs';
@@ -27,7 +30,7 @@ const META = 20000;
 
 export function install(ctx, S) {
   const { t, make, icon } = ctx,
-    { players, times, failedPages, fitter } = S;
+    { times, failedPages, fitter } = S;
   const progress = (...a) => S.progress(...a),
     render = (...a) => S.render(...a),
     sizeTime = (...a) => S.sizeTime(...a),
@@ -75,6 +78,7 @@ export function install(ctx, S) {
       sizeTime(p);
       render(p);
       decorate(p); // 进度条上的书签标记要用到时长
+      S.notify?.(p, 'meta');
       if (p.wantPlay) {
         p.wantPlay = false;
         start(p);
@@ -88,16 +92,18 @@ export function install(ctx, S) {
     });
     el.addEventListener('play', () => {
       if (el.paused) return; // 事件送到前已被后开始的媒体暂停（start 里同步暂停其他媒体），不要反过来暂停它
-      for (const q of players.values()) if (q !== p && !q.el.paused) q.el.pause();
+      for (const q of S.all()) if (q !== p && !q.el.paused) q.el.pause();
       S.playing = p;
       p.done = false;
       p.userPaused = false;
-      p.auto = false;
+      p.hop = false;
+      p.by ??= 'user'; // 不经本应用开始的（如系统媒体键）按后台播放对待
       render(p);
       clearInterval(p.posEvery);
       p.posEvery = setInterval(() => {
         if (p.state === 'ready' && !el.paused) remember(p, el.currentTime);
       }, POS_EVERY);
+      S.notify?.(p, 'play');
     });
     el.addEventListener('pause', () => {
       clearInterval(p.posEvery);
@@ -108,6 +114,7 @@ export function install(ctx, S) {
         remember(p, p.time);
       }
       render(p);
+      S.notify?.(p, 'pause');
     });
     el.addEventListener('ended', () => {
       clearInterval(p.posEvery);
@@ -116,17 +123,23 @@ export function install(ctx, S) {
       times.delete(page);
       remember(p, 0);
       render(p);
+      S.notify?.(p, 'ended');
       finished(p);
     });
     el.addEventListener('timeupdate', () => {
       progress(p);
       if (S.only) sectionTick(p);
+      S.notify?.(p, 'time');
     });
+    for (const type of ['durationchange', 'emptied']) el.addEventListener(type, () => S.notify?.(p, type));
     el.addEventListener('seeking', () => {
       if (p.selfSeek) p.selfSeek = false;
       else p.sec = null;
     }); // 手动定位到区段之外不强行跳回
-    el.addEventListener('seeked', () => progress(p));
+    el.addEventListener('seeked', () => {
+      progress(p);
+      S.notify?.(p, 'time');
+    });
     if (p.shell) fitter.observe(p.shell);
   }
   // 挂上源：先取文件信息（不读内容）比较大小和修改时间；已知播不了且文件没变的，直接显示占位，不再探测。
@@ -192,8 +205,9 @@ export function install(ctx, S) {
       if (p.pop.matches(':popover-open')) p.pop.hidePopover();
     }
     if (S.full === p) S.leaveFull();
-    players.delete(p.node);
-    S.release(p); // 选中的播放器被释放即取消选中（autoplay.mjs）
+    if (S.players.get(p.node) === p) S.players.delete(p.node);
+    S.unpark(p); // 停放处、外部容器里的媒体元素一并移除（track.mjs）
+    S.release(p); // 当前曲目被释放即取消（track.mjs）
   }
   // why：decode 浏览器播不了（记下文件的大小和修改时间，不再探测）；known 已记录过；read / timeout 暂时读不到（不记录，可重试）。
   function fail(p, why) {
@@ -233,10 +247,11 @@ export function install(ctx, S) {
     p.node.classList.add('mv-failed');
     render(p);
     S.changed?.(); // 运行状态（driver.mjs）：等着播放的媒体打不开
-    if (p.auto) {
-      p.auto = false;
+    if (p.hop) {
+      p.hop = false;
       finished(p);
     } // 自动切到的媒体播不了：跳过它，接着找下一个
+    if (S.track === p && p.by !== 'scroll') S.release(p); // 后台播放的文件打不开：取消当前曲目（自动滚动的由它自己跳过）
   }
   // 开始播放：源还没挂上时先挂上，读到元数据后再播。浏览器拦截自动出声时不提示（等用户自己点）。
   // 开启「只播放书签区段」且这个媒体有区段时，从当前时间之后的第一个区段起点开始（playlist.mjs sectionStart）。
@@ -253,7 +268,7 @@ export function install(ctx, S) {
     }
     if (p.state === 'ready') {
       // 同一时间只播一个：调用时就暂停其他媒体。只靠 play 事件的话，连续快速开始两个时先到的事件会把后开始的那个暂停。
-      for (const q of players.values()) if (q !== p && q.state === 'ready' && !q.el.paused) q.el.pause();
+      for (const q of S.all()) if (q !== p && q.state === 'ready' && !q.el.paused) q.el.pause();
       p.el.play().catch((e) => {
         if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.warn(e);
       });

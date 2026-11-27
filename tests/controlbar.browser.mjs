@@ -513,11 +513,13 @@ try {
   assert.deepEqual(await state(), ['false', '1.0', 'book', 'false', 'false', '1.0', 1], 'Back to the defaults');
   await js('reader.focus()');
 
-  // ---- 空格 = 自动滚动；影音模式下运行状态与实际播放一致（漫画、混合模式的自动滚动见 transport.browser.mjs）。
+  // ---- Shift+空格 = 自动滚动；影音模式下运行状态与它播放的媒体一致（漫画、混合模式的自动滚动见 transport.browser.mjs）。
+  // 空格：运行中即停止；否则文件栏显示的是媒体就只播放 / 暂停它（后台播放，见 background.browser.mjs）。
   const running = () => pressed('play');
+  const stopTrack = () => js(`document.querySelector('#filebar [data-head="stop"]').click()`);
   await js(`${B('mode-media')}.click()`);
-  await key(' ', 'Space', 32);
-  await wait(async () => (await playing()).join() === '03 b.wav', 'space plays the current media');
+  await key(' ', 'Space', 32, { modifiers: 8 });
+  await wait(async () => (await playing()).join() === '03 b.wav', 'Shift+Space starts with the media in view');
   assert.equal(await running(), 'true');
   assert.deepEqual(
     [await js(`${B('play')}.querySelector('use').getAttribute('href')`), await label('play')],
@@ -526,23 +528,29 @@ try {
   );
   const top1 = await js('reader.scrollTop');
   await key(' ', 'Space', 32);
-  await wait(async () => !(await playing()).length, 'space pauses');
+  await wait(async () => !(await playing()).length, 'Space stops auto-scroll and pauses its media');
   await wait(async () => (await running()) === 'false', 'not running');
   assert.equal(await js('reader.scrollTop'), top1, 'Space does not scroll');
-  // 单个媒体自己的播放键：等同自动滚动，并把它设为选中媒体（不在视窗中央的也是）。
+  // 单个媒体自己的播放键：后台播放它（成为当前曲目，不在视窗中央的也是），不启动自动滚动。
   await tap('#reader .page[data-name="02 a.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '02 a.wav', 'own play button');
   assert.deepEqual(
     await js(`[...reader.querySelectorAll('.page.media.selected')].map(n=>n.dataset.name)`),
     ['02 a.wav'],
-    'It becomes the selected media',
+    'It becomes the current track',
   );
-  assert.equal(await running(), 'true');
+  assert.equal(await running(), 'false', 'Its own play button does not start auto-scroll');
   await key(' ', 'Space', 32);
-  await wait(async () => !(await playing()).length, 'space pauses the chosen media');
+  await wait(async () => !(await playing()).length, 'space pauses the file bar media');
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '02 a.wav', 'and plays it again');
-  // 播完按页序切到下一个；本书循环（默认）：最后一个播完回到第一个，一直运行到手动停止。
+  assert.equal(await running(), 'false');
+  await stopTrack();
+  await wait(async () => !(await playing()).length, 'stopped');
+  // 影音模式的自动滚动：播完按页序切到下一个（滚到居中）；本书循环（默认）：最后一个播完回到第一个，一直运行到手动停止。
+  assert.ok(await js(`toPage('02 a.wav')`));
+  await key(' ', 'Space', 32, { modifiers: 8 });
+  await wait(async () => (await playing()).join() === '02 a.wav', 'auto-scroll from the media in view');
   await js(`el('02 a.wav').currentTime=5.7`);
   await wait(
     async () => (await playing()).join() === '03 b.wav' && (await centred('03 b.wav')),
@@ -553,7 +561,7 @@ try {
   await wait(async () => !(await playing()).length);
   assert.ok(await js(`toPage('05 clip.webm')`));
   await wait(() => js(`el('05 clip.webm')?.readyState>=1`));
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32, { modifiers: 8 });
   await wait(async () => (await playing()).join() === '05 clip.webm');
   await js(`el('05 clip.webm').currentTime=1.2`);
   await wait(
@@ -565,15 +573,17 @@ try {
   await wait(async () => (await running()) === 'false', 'stops by hand');
   assert.deepEqual(await playing(), []);
   // 视窗里没有媒体：取其后最近的媒体，滚到居中再播放。
+  await stopTrack();
   await js('reader.scrollTop=0');
   await delay(200);
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32, { modifiers: 8 });
   await wait(
     async () => (await playing()).join() === '02 a.wav' && (await centred('02 a.wav')),
     'the next media after the view',
   );
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
+  await stopTrack();
   await js(`${B('mode-mixed')}.click()`);
 
   // ---- 单个文件的播放面板。选中的不压暗、不描边；播放中进度条为强调色并显示音柱，播放键只换图标；未选中的压暗。
@@ -666,7 +676,9 @@ try {
     assert.deepEqual(await playing(), []);
   }
 
-  // ---- 上一个 / 下一个媒体按页序找（两端相接），滚到居中；未运行时只定位，运行中接着播放。
+  // ---- 上一个 / 下一个媒体：没有当前曲目时按页序找（两端相接），滚到居中，只定位、不选中；自动滚动运行中切过去接着播放；
+  // 有当前曲目时在播放列表里切换（不滚动，保持播放）。
+  await stopTrack();
   await js(`${B('mode-media')}.click()`);
   assert.ok(await js(`toPage('02 a.wav')`));
   await openBar();
@@ -674,14 +686,14 @@ try {
   await js(`${B('mediaNext')}.click()`);
   await wait(() => centred('03 b.wav'), 'next media centred');
   assert.deepEqual(await playing(), [], 'Not running: only moves');
-  await wait(() => js(`node('03 b.wav').classList.contains('selected')`), 'switched-to media is selected');
+  assert.equal(await js(`!!reader.querySelector('.page.media.selected')`), false, 'Not selected either');
   await js(`${B('mediaPrev')}.click()`);
   await wait(() => centred('02 a.wav'), 'previous media centred');
   await js(`${B('mediaPrev')}.click()`);
   await wait(() => centred('05 clip.webm'), 'previous before the first: the last media');
   await js(`${B('mediaNext')}.click()`);
   await wait(() => centred('02 a.wav'), 'next after the last: the first media');
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32, { modifiers: 8 });
   await wait(async () => (await playing()).join() === '02 a.wav');
   await js(`${B('mediaNext')}.click()`);
   await wait(async () => {
@@ -690,16 +702,29 @@ try {
   }, 'running: plays the next one');
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
+  await stopTrack();
+  // 有当前曲目：在播放列表里切换，不滚动。
+  assert.ok(await js(`toPage('02 a.wav')`));
+  await tap('#reader .page[data-name="02 a.wav"] .mv-play');
+  await wait(async () => (await playing()).join() === '02 a.wav');
+  const top2 = await js('reader.scrollTop');
+  await js(`${B('mediaNext')}.click()`);
+  await wait(async () => (await playing()).join() === '03 b.wav', 'the next item of the play list');
+  assert.equal(await js('reader.scrollTop'), top2, 'Switching within the play list does not scroll');
+  await stopTrack();
 
-  // ---- 漫画模式下单个媒体的播放键只播这一个文件，播完即停（不切到下一个）。
+  // ---- 任何模式下单个媒体的播放键都是后台播放：播完按播放列表接续（本书循环），与播放模式无关。
   await js(`${B('mode-comic')}.click()`);
   assert.ok(await js(`toPage('04 c.wav')`));
   await tap('#reader .page[data-name="04 c.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '04 c.wav');
   await js(`el('04 c.wav').currentTime=5.7`);
-  await wait(() => js(`el('04 c.wav').paused`), 'ended');
-  await delay(1000);
-  assert.deepEqual(await playing(), [], 'Comic mode: stops after this file');
+  await wait(
+    () => js(`el('04 c.wav').paused&&[...document.querySelectorAll('video,audio')].filter(m=>!m.paused).length===1`),
+    'comic mode: the play list goes on with the next file',
+  );
+  assert.equal(await running(), 'false', 'Without auto-scroll');
+  await stopTrack();
   await js(`${B('mode-mixed')}.click()`);
 
   // ---- 窄窗口：一行 → 左、右区各自把次要按钮收进本区末尾的「⋯」（仍一行；左区留上一本 / 下一本，右区留下一个媒体 / 音量）→ 两行
@@ -858,10 +883,10 @@ try {
   );
   assert.equal(await label('play'), 'Auto-scroll · no images in this book');
   await js('reader.focus()');
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32, { modifiers: 8 });
   await wait(
     () => js(`document.getElementById('notice').textContent==='This book has no images to scroll in Comic mode'`),
-    'Space: hint',
+    'Shift+Space: hint',
   );
   assert.equal(await running(), 'false');
   await js(`${B('mode-mixed')}.click()`);

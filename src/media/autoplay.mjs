@@ -1,19 +1,15 @@
-// 选中媒体、当前文件与自动播放：
-// - 选中媒体 S.selected（规则见 core/selection.mjs，select / release）：带 .selected 类（不压暗、没有大播放键，shell.css）；
-//   中线离开视窗（全屏中的除外）、切书、播放器被释放时取消。
-// - 当前文件（target：选中的媒体，否则视窗中心所在的页，含图片）：文件栏、书签快捷键、长按 A / D 作用的对象；
-//   current 是其中的媒体播放器（播不了的、图片为 null）。
-// - 运行引擎挑哪个媒体（pick：选中的，否则正在播放的，否则中线在视窗内、离视窗中心最近的）与自动播放挑哪个视频的规则另算，不随当前文件变化。
-// 媒体中线离开视窗即暂停、滚动停稳后自动播放、启动或切书后有过用户操作才自动播放；设置里的「自动播放」开关（默认关闭）。
-// 未运行时（手动浏览）：漫画模式下任何媒体都不自动播放；混合、影音模式下只有视频在滚动停稳时自动播放，
-// 音频只在点击音频书签、影音模式切到它、自动滚动中轮到它时开始。自动滚动中由总控的驱动器决定播放什么，这里不插手。
-// 翻屏对齐（align，keys.mjs 的 A / D / ← / →）：翻过去之后有视频进入播放范围时，直接落在该视频居中处（漫画模式、自动播放关闭时不对齐）。
-// 视窗中心所在的视频带 .mv-center（未选中的视频压得更暗，它恢复到普通的压暗程度，shell.css）：滚动、重画时每帧至多更新一次，
-// 只按页的累计高度二分查找（centerIndex），不遍历页、不读布局。
+// 自动播放、翻屏对齐视频与视窗中心所在的视频（.mv-center）：
+// - 自动播放（设置里的「自动播放」，默认关闭）：未在自动滚动、混合 / 影音模式、没有任何媒体在播放（含后台播放的当前曲目）时，
+//   滚动停稳后播放中线在视窗内、离视窗中心最近的视频（音频不自动开始；手动暂停过、播完的在它中线离开视窗之前不再自动播放；
+//   不碰当前曲目）。启动或切书后，本窗口有过用户操作才自动播放，避免一打开就出声。
+// - 由自动播放开始的视频（p.by === 'auto'）成为当前曲目，但中线离开视窗（全屏中的除外）或切书即暂停并取消（core/selection.mjs），
+//   播完不接续，不重建播放列表；用户手动接管（点它播放 / 暂停，driver.mjs press）后按后台播放对待。
+// - 翻屏对齐（align，keys.mjs 的 A / D / ← / →）：翻过去之后有视频进入播放范围时，直接落在该视频居中处（漫画模式、自动播放关闭时不对齐）。
+// - 视窗中心所在的视频带 .mv-center（未选中的视频压得更暗，它恢复到普通的压暗程度，shell.css）：滚动、重画时每帧至多更新一次，
+//   只按页的累计高度二分查找（centerIndex），不遍历页、不读布局。
 import { extend } from '../core/lang.mjs';
-import { pageKind, at } from '../core/model.mjs';
+import { pageKind } from '../core/model.mjs';
 import { turnTo } from '../core/engine.mjs';
-import { selectAfter } from '../core/selection.mjs';
 
 extend({
   mvAutoplay: ['Autoplay media', '自动播放', 'メディアを自動再生', '미디어 자동 재생'],
@@ -30,90 +26,27 @@ const SETTLE = 300;
 export function install(ctx, S) {
   const { main, get, put } = ctx,
     { players } = S;
-  const start = (...a) => S.start(...a);
+  const start = (...a) => S.start(...a),
+    inView = (...a) => S.inView(...a),
+    nearest = (...a) => S.nearest(...a),
+    centerIndex = (...a) => S.centerIndex(...a);
   let armed = false;
   ctx.prefs.sync('autoplay');
-  // ---- 当前媒体与自动播放
-  const middle = (p) => p.node.offsetTop + p.node.offsetHeight / 2;
-  const inView = (p) => {
-    const y = middle(p);
-    return y >= main.scrollTop && y <= main.scrollTop + main.clientHeight;
-  };
-  function nearest(ok = () => true) {
-    let best = null,
-      bd = Infinity;
-    const c = main.scrollTop + main.clientHeight / 2;
-    for (const p of players.values()) {
-      if (p.state === 'failed' || !inView(p) || !ok(p)) continue;
-      const d = Math.abs(middle(p) - c);
-      if (d < bd) {
-        bd = d;
-        best = p;
-      }
-    }
-    return best;
+  // 由自动播放开始、用户尚未接手的当前曲目离开视窗或切书：暂停并取消。
+  function drop(p) {
+    p.wantPlay = false;
+    if (p.state === 'ready' && !p.el.paused) p.el.pause();
   }
-  // ---- 选中媒体：type 为成为选中的原因（'press' | 'play' | 'switch' | 'goto'）。
-  function setSelected(p) {
-    if (p === S.selected) return;
-    S.selected?.node.classList.remove('selected');
-    S.selected = p;
-    p?.node.classList.add('selected');
-    S.markNow?.(); // 当前文件随之变化：立即派发，总控栏、文件栏与 .selected 同步
-  }
-  const select = (p, type = 'press') => setSelected(selectAfter(S.selected, { type, player: p }));
-  const release = (p) => setSelected(selectAfter(S.selected, { type: 'gone', player: p }));
-  const live = (p) => !!p && players.has(p.node) && p.book === ctx.current;
-  // 视窗中心所在的页（单文件模式下是显示的那一页），没有时为 -1。
-  function centerIndex() {
-    const book = ctx.current,
-      view = ctx.view;
-    if (!book?.pages.length) return -1;
-    if (view.single) {
-      const a = view.anchor();
-      return a ? book.pages.findIndex((pg) => pg.name === a.name) : -1;
-    }
-    const s = view.panes?.[0]?.starts ?? [];
-    return s.length === book.pages.length + 1 ? at(s, main.scrollTop + main.clientHeight / 2).i : -1;
-  }
-  // 当前文件 {book, page, i, kind, player}：选中的媒体，否则视窗中心所在的页（媒体页带上它的播放器）；没有为 null。
-  function target() {
-    const book = ctx.current;
-    if (!book) return null;
-    const sel = live(S.selected) ? S.selected : null;
-    if (sel) return { book, page: sel.page, i: book.pages.indexOf(sel.page), kind: sel.kind, player: sel };
-    const i = centerIndex();
-    if (i < 0) return null;
-    const page = book.pages[i],
-      kind = pageKind(page),
-      player =
-        kind === 'video' || kind === 'audio'
-          ? ([...players.values()].find((q) => q.page === page && q.book === book) ?? null)
-          : null;
-    return { book, page, i, kind, player };
-  }
-  // 当前媒体：当前文件的播放器（播不了的不算）。
-  const current = () => {
-    const p = target()?.player;
-    return p && p.state !== 'failed' ? p : null;
-  };
-  // 运行引擎（影音模式开始、混合模式先播哪个）挑的媒体：选中的，否则正在播放的，否则中线在视窗内、离视窗中心最近的。
-  const pick = () => {
-    const c = S.selected;
-    if (live(c) && c.state !== 'failed') return c;
-    return S.playing && players.has(S.playing.node) ? S.playing : nearest();
-  };
-  // 正在播放的媒体中线离开视窗即暂停（位置记在会话里）；手动暂停、播完的标记在它中线离开视窗后清除；选中的媒体中线离开视窗即取消选中。
+  // 滚动、重排后：自动播放的当前曲目中线离开视窗即暂停并取消；其余播放器中线离开视窗后清掉手动暂停、播完的标记（当前曲目除外）。
   function watch() {
-    const sel = S.selected;
-    if (sel)
-      setSelected(
-        selectAfter(sel, { type: 'view', inView: players.has(sel.node) && inView(sel), full: S.full === sel }),
-      );
+    const tr = S.track;
+    if (tr?.by === 'auto' && !inView(tr) && S.full !== tr) {
+      drop(tr);
+      S.after({ type: 'view', inView: false, full: false });
+    }
     for (const p of players.values()) {
-      if (S.full === p || inView(p)) continue;
-      if (p.state === 'ready' && !p.el.paused) p.el.pause();
-      if (p.wantPlay) p.wantPlay = false;
+      if (p === S.track || S.full === p || inView(p)) continue;
+      p.wantPlay = false;
       p.userPaused = false;
       p.done = false;
     }
@@ -122,9 +55,12 @@ export function install(ctx, S) {
   const allowed = () => get('autoplay', false) === true && ctx.transport?.mode !== 'comic';
   function settled() {
     if (!allowed() || !armed || document.hidden || ctx.transport?.running) return;
-    if ([...players.values()].some((p) => (p.state === 'ready' && !p.el.paused) || p.wantPlay)) return;
-    const p = nearest((p) => p.kind === 'video' && !p.userPaused && !p.done);
-    if (p) start(p);
+    if (S.all().some((p) => (p.state === 'ready' && !p.el.paused) || p.wantPlay)) return;
+    const p = nearest((p) => p.kind === 'video' && !p.userPaused && !p.done && p !== S.track);
+    if (!p) return;
+    p.by = 'auto';
+    S.select(p, 'play');
+    start(p);
   }
   // 翻屏的落点：从当前位置翻 d 屏（step 像素）后有视频进入播放范围时为该视频居中的 scrollTop，否则为 null（照常翻屏）。
   // 只在未运行、混合 / 影音模式、自动播放开启时对齐；播不了的视频不算。
@@ -170,7 +106,6 @@ export function install(ctx, S) {
     },
     { passive: true },
   );
-  // 启动或切书（恢复阅读位置）后，本窗口有过用户操作（按键、点击、滚轮）之前不自动播放，避免一打开就出声。
   for (const type of ['keydown', 'pointerdown', 'wheel'])
     window.addEventListener(
       type,
@@ -181,8 +116,9 @@ export function install(ctx, S) {
     );
   ctx.on('select', () => {
     armed = false;
-    S.queued = null;
-    setSelected(selectAfter(S.selected, { type: 'book' }));
+    const tr = S.track;
+    if (tr?.by === 'auto') drop(tr);
+    S.after({ type: 'book' });
   });
 
   // ---- 设置：自动播放（默认关闭，设置类偏好，跨窗口同步）。
@@ -195,5 +131,5 @@ export function install(ctx, S) {
     get: () => get('autoplay', false) === true,
     set: (v) => put('autoplay', v),
   });
-  Object.assign(S, { inView, current, target, pick, select, release, align, centerSoon });
+  Object.assign(S, { align, centerSoon });
 }

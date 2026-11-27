@@ -358,10 +358,8 @@ try {
   ]);
   // 回到视频：缓存命中，只核对元数据，不读内容；按媒体记住的选择仍在。
   const stats = await js('subStats.length');
-  // 前面点音频的播放键开始了混合模式的自动滚动（本书循环，到书末回到书首）：先停下，再滚走。
-  await js(
-    `(()=>{const b=document.querySelector('#controlbar [data-id="play"]');if(b.getAttribute('aria-pressed')==='true')b.click();})()`,
-  );
+  // 前面点音频的播放键是后台播放，它作为当前曲目会一直保留：先停止，再滚走。
+  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
   await js('reader.scrollTop=reader.scrollHeight');
   await wait(() => js(`!el('01 clip.webm')||el('01 clip.webm').readyState===0`), 'clip unloaded');
   assert.ok(await js(`toPage('01 clip.webm')`));
@@ -392,6 +390,7 @@ try {
   await js(`el('02 song.wav').pause()`);
   if (await js('controlbar.hidden')) await key('t', 'KeyT', 84);
   await wait(() => js(`btn('02 song.wav')?.disabled===true`), 'Removed subtitle disables the button');
+  await js(`document.querySelector('#filebar [data-head="stop"]').click()`); // 当前曲目跨书保留：停止它，文件栏才回到新书视窗中心的文件
 
   // ---- 散图图集：与媒体一起选入的字幕按主文件名配对并保存句柄；之后单独加入的字幕也配上已有的媒体。
   await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Loose',{create:true});

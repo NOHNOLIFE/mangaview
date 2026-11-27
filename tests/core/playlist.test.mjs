@@ -1,13 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { following, sectionStart, sectionStep } from '../../src/core/playlist.mjs';
+import {
+  following,
+  sectionStart,
+  sectionStep,
+  scopeOf,
+  typesOf,
+  typeOk,
+  queueOf,
+  afterEnd,
+  stepIn,
+} from '../../src/core/playlist.mjs';
 import * as playlist from '../../src/core/playlist.mjs';
 import { union } from '../../src/core/sections.mjs';
 
 test('接续：一个媒体播完之后播哪个（按页序或随机，循环与否）', () => {
   assert.deepEqual(
     Object.keys(playlist).sort(),
-    ['EPS', 'following', 'sectionStart', 'sectionStep'],
+    [
+      'EPS',
+      'KINDS',
+      'SCOPES',
+      'afterEnd',
+      'following',
+      'queueOf',
+      'scopeOf',
+      'sectionStart',
+      'sectionStep',
+      'stepIn',
+      'typeOk',
+      'typesOf',
+    ],
     'No play order, no new window',
   );
   const list = [1, 3, 4, 7];
@@ -81,4 +104,70 @@ test('只播放书签区段：嵌套、交叉的区段按并集播放，重叠�
   assert.deepEqual(sectionStep(rs, 9.5, 0), { k: 0 }, 'No jump at the end of an inner or crossing section');
   assert.deepEqual(sectionStep(rs, 12, 0), { k: 1, seek: 15 });
   assert.deepEqual(sectionStep(rs, 16, 1), { k: null, done: true });
+});
+
+test('播放列表的偏好：循环范围（默认本书）、类型开关（全不选即不限）', () => {
+  assert.equal(scopeOf('file'), 'file');
+  assert.equal(scopeOf('books'), 'books');
+  for (const v of [null, undefined, 'none', true, 3]) assert.equal(scopeOf(v), 'book', String(v));
+  assert.deepEqual(typesOf(['video', 'audio', 'image', 'video']), ['audio', 'video'], 'Known kinds only, fixed order');
+  assert.deepEqual(typesOf('audio'), []);
+  assert.deepEqual(typesOf(null), []);
+  assert.equal(typeOk([], 'audio'), true, 'None chosen: no limit');
+  assert.equal(typeOk(['video'], 'audio'), false);
+  assert.equal(typeOk(['video'], 'video'), true);
+});
+
+test('播放列表的内容：本书可播放的视频、音频，按页序；类型开关、播不了的、移除的不列入', () => {
+  const kinds = ['image', 'video', 'audio', 'image', 'audio', 'video'];
+  assert.deepEqual(queueOf(kinds), [1, 2, 4, 5]);
+  assert.deepEqual(queueOf(kinds, ['audio']), [2, 4]);
+  assert.deepEqual(queueOf(kinds, ['video']), [1, 5]);
+  assert.deepEqual(
+    queueOf(kinds, ['audio', 'video'], (i) => i === 4),
+    [1, 2, 5],
+  );
+  assert.deepEqual(queueOf(['image']), []);
+});
+
+test('播完之后：单文件重播、本书循环、跨书进入下一本；随机不重复地播完一轮', () => {
+  const list = [1, 2, 4, 5];
+  assert.equal(afterEnd({ scope: 'file', list, cur: 2 }).type, 'replay');
+  assert.deepEqual(afterEnd({ scope: 'book', list, cur: 2 }), { type: 'next', next: 4, played: new Set() });
+  assert.equal(afterEnd({ scope: 'book', list, cur: 5 }).next, 1, 'Book loop: back to the first');
+  assert.equal(afterEnd({ scope: 'book', list: [3], cur: 3 }).type, 'replay', 'Only itself: replay');
+  assert.equal(afterEnd({ scope: 'book', list: [], cur: 3 }).type, 'stop', 'Nothing to play');
+  assert.deepEqual(afterEnd({ scope: 'books', list, cur: 4 }).next, 5);
+  assert.equal(afterEnd({ scope: 'books', list, cur: 5 }).type, 'onward', 'Books loop: on to the next book');
+  assert.equal(afterEnd({ scope: 'books', list: [], cur: 0 }).type, 'onward');
+  assert.equal(afterEnd({ scope: 'book', list, cur: 3 }).next, 4, 'Not in the list: next in page order');
+  // 随机（本书循环）：一轮里每项只播一次，之后重新洗牌继续。
+  let played = new Set(),
+    cur = 1;
+  const seen = [cur];
+  for (let k = 0; k < 3; k++) {
+    const r = afterEnd({ scope: 'book', shuffle: true, list, cur, played, random: () => 0 });
+    assert.equal(r.type, 'next');
+    played = r.played;
+    cur = r.next;
+    seen.push(cur);
+  }
+  assert.deepEqual([...seen].sort(), [1, 2, 4, 5], 'One round without repeats');
+  const again = afterEnd({ scope: 'book', shuffle: true, list, cur, played, random: () => 0 });
+  assert.equal(again.type, 'next');
+  assert.notEqual(again.next, cur, 'A new round does not repeat the one just played');
+  // 随机（跨书）：一轮播完进入下一本。
+  assert.equal(afterEnd({ scope: 'books', shuffle: true, list, cur, played, random: () => 0 }).type, 'onward');
+});
+
+test('上一项 / 下一项：按页序，两端相接；不在列表里时取页序上的前后', () => {
+  const list = [1, 2, 4, 5];
+  assert.equal(stepIn(list, 2, 1), 4);
+  assert.equal(stepIn(list, 2, -1), 1);
+  assert.equal(stepIn(list, 5, 1), 1);
+  assert.equal(stepIn(list, 1, -1), 5);
+  assert.equal(stepIn(list, 3, 1), 4);
+  assert.equal(stepIn(list, 3, -1), 2);
+  assert.equal(stepIn([2], 2, 1), null, 'Only itself');
+  assert.equal(stepIn([], 2, 1), null);
 });

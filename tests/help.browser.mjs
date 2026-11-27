@@ -219,7 +219,7 @@ try {
   );
   assert.deepEqual(
     await js('[...document.querySelectorAll("#helpBody .hk-key.has-shift")].map(e=>e.dataset.key).sort()'),
-    ['ArrowDown', 'ArrowUp', 'Enter', 'F', 'S', 'W'],
+    ['ArrowDown', 'ArrowUp', 'Enter', 'F', 'S', 'Space', 'W'],
     'Shift combos are marked',
   );
   assert.equal(await js('document.querySelectorAll("#helpBody .hk-key.mod").length'), 2);

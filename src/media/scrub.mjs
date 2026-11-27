@@ -13,7 +13,7 @@ export function install(ctx, S) {
   function hit(e) {
     const node = e.target.closest?.('.page.media'),
       p = node && players.get(node);
-    if (!p || p.state === 'failed' || e.target.closest('[data-nodrag]')) return null;
+    if (!p || p.state === 'failed' || e.target.closest('[data-nodrag],.mv-away')) return null; // 画面在外部时的占位不定位
     if (p.kind === 'audio' && !inside(p.subs.getBoundingClientRect(), e)) return null;
     return api.duration(p) ? p : null;
   }
@@ -41,7 +41,7 @@ export function install(ctx, S) {
         },
         end() {
           S.hideHud(700);
-          if (off && players.has(p.node)) S.seek(p, to);
+          if (off && S.all().includes(p)) S.seek(p, to);
         },
         cancel() {
           if (shown) S.hideHud(0);

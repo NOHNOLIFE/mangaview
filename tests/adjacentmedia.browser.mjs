@@ -134,14 +134,14 @@ try {
   await js('reader.scrollTop=0;reader.focus()');
   await js('frame()');
   await js('record()');
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32, { modifiers: 8 }); // Shift+空格：自动滚动（单按空格会后台播放视窗中心的音频）
   await wait(async () => (await playing()).join() === '02 a.wav', 'plays the audio');
   await wait(async () => (await playing()).join() === '03 v.webm', 'then the video right after it');
   const [a, v] = await js(`[mid('02 a.wav'),mid('03 v.webm')]`);
   await wait(async () => (await playing()).join() === '05 c.wav', 'then the audio after the image');
   const c = await js(`mid('05 c.wav')`);
   await wait(async () => (await playing()).join() === '02 a.wav', 'book loop: back to the first audio');
-  await key(' ', 'Space', 32);
+  await key(' ', 'Space', 32); // 运行中空格即停止
   await wait(async () => !(await running()), 'stopped by hand');
   const centres = await js('recOn=false,rec'),
     lo = await js('reader.clientHeight/2'),

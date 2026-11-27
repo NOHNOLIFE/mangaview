@@ -29,10 +29,10 @@ extend({
     '아래로 스크롤, Shift: 다음 책',
   ],
   hkTipSpace: [
-    'Auto-scroll (control bar)',
-    '自动滚动（总控栏）',
-    '自動スクロール（コントロールバー）',
-    '자동 스크롤 (컨트롤 바)',
+    'Play / pause media or auto-scroll, Shift: auto-scroll',
+    '播放 / 暂停媒体或自动滚动，Shift 自动滚动',
+    'メディア再生／一時停止か自動スクロール、Shift で自動スクロール',
+    '미디어 재생 / 일시 정지 또는 자동 스크롤, Shift: 자동 스크롤',
   ],
   hkTipBack: [
     'Previous screen, *hold*: rewind media',
@@ -55,10 +55,10 @@ extend({
     '다음 책갈피, *길게*: 추가; Shift: 반대로 / 구간 책갈피',
   ],
   hkTipShift: [
-    'With W, S, ↑, ↓: change books; with F, Enter: reverse',
-    '配合 W、S、↑、↓ 切书，配合 F、Enter 反向',
-    'W・S・↑・↓ と併用で本の切替、F・Enter と併用で逆方向',
-    'W·S·↑·↓와 함께: 책 전환, F·Enter와 함께: 반대로',
+    'W, S, ↑, ↓: books; F, Enter: reverse; Space: auto-scroll',
+    '配合 W、S、↑、↓ 切书，F、Enter 反向，空格自动滚动',
+    'W・S・↑・↓ で本の切替、F・Enter で逆方向、スペースで自動スクロール',
+    'W·S·↑·↓: 책 전환, F·Enter: 반대로, 스페이스: 자동 스크롤',
   ],
   hkTipMarks: ['Full-screen bookmarks', '全屏书签', '全画面しおり', '전체 화면 책갈피'],
   hkTipRename: [
@@ -200,7 +200,7 @@ export const KEYS = {
   Q: volDown,
   E: volUp,
   ShiftLeft: rev,
-  Space: { tip: 'hkTipSpace' },
+  Space: { tip: 'hkTipSpace', shift: true },
   ';': volDown,
   "'": volUp,
   Enter: mark,
@@ -427,6 +427,7 @@ export function install(ctx) {
     }
     tip.replaceChildren(...(el.dataset.name ? [make('kbd', '', el.dataset.name), ' '] : []), ...rich(el.dataset.tip));
     tip.hidden = false;
+    tip.style.left = '0px'; // 先放到左端再量宽度：留在上一个位置会按剩下的宽度折行
     const d = dialog.getBoundingClientRect(),
       r = el.getBoundingClientRect(),
       w = tip.offsetWidth,

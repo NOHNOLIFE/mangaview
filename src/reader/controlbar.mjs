@@ -4,8 +4,8 @@
 // - 中（运行）：播放模式（二级按钮：图标是当前模式，悬停 / 聚焦在上方弹出三种模式，点击轮换）、只播区段、
 //   「自动滚动」（唯一的主按钮，= 空格；运行中显示暂停图标，再按停止；漫画模式下书里没有图片、影音模式下没有媒体时禁用，提示里写明原因）、
 //   单文件模式、循环（三态：单文件 / 本书 / 跨书，图标与提示随当前态，点击轮换，ctx.transport.loop）。
-// - 右（媒体）：上一个媒体、下一个媒体 │ 播放速率、音量、字幕（作用于文件栏显示的那个媒体：开 / 关，
-//   多个字幕时弹出选择菜单，菜单与开关在 media/subtitles.mjs；没有字幕或不是媒体时变灰）。
+// - 右（媒体）：上一个媒体、下一个媒体（有当前曲目时在播放列表里切换，见 media/driver.mjs step）│ 播放速率、音量、字幕（作用于文件栏显示的那个媒体：开 / 关，
+//   多个字幕时弹出选择菜单，菜单与开关在 media/subtitles.mjs；没有字幕或不是媒体时变灰）。本书没有媒体且没有当前曲目时除字幕外变灰。
 // 速率按钮只显示一位小数的数字（不带「×」，与其他图标按钮同宽），提示与小面板里带「×」。
 // 二级按钮（播放模式、速率、音量、「⋯」）悬停或键盘聚焦即在按钮正上方弹出，移开收起（ui/hoverpop.mjs）。
 // 书名与阅读进度在顶部工具栏下方的名称区（toolbar.mjs）。三区那一行的上方是文件栏的行容器（#filebar，内容由文件栏模块放入；
@@ -314,7 +314,7 @@ export function install(ctx) {
   }
   function syncSteps() {
     if (!showing()) return; // 要逐页查找，只在显示时计算
-    const off = disabledControls({ mode: T().mode, hasMedia, hasImages: images });
+    const off = disabledControls({ mode: T().mode, hasMedia, hasTrack: !!M()?.hasTrack?.(), hasImages: images });
     mediaPrev.disabled = off.has('mediaPrev') || !M()?.canStep(-1);
     mediaNext.disabled = off.has('mediaNext') || !M()?.canStep(1);
     syncSubs();
@@ -333,7 +333,7 @@ export function install(ctx) {
     hasMedia = !!M()?.hasMedia(ctx.current);
     images = !ctx.current || hasImages(ctx.current);
     const tr = T(),
-      off = disabledControls({ mode: tr.mode, hasMedia, hasImages: images });
+      off = disabledControls({ mode: tr.mode, hasMedia, hasTrack: !!M()?.hasTrack?.(), hasImages: images });
     pressed(sections, tr.sectionsOnly);
     pressed(single, tr.single);
     // 自动滚动：运行中是暂停图标（再按停止）；禁用时提示里写明原因。
@@ -444,8 +444,9 @@ export function install(ctx) {
   // 开关与模式的状态随时更新（不显示时也保持最新，开销很小）；逐页查找只在显示时更新。
   ctx.on('transport', syncTransport);
   ctx.on('media', (key) => {
-    if (key === 'time') return;
-    if (key === 'current' || key === 'state') syncSteps();
+    if (key === 'time' || key === 'display') return;
+    if (key === 'track') syncTransport();
+    else if (key === 'current' || key === 'state') syncSteps();
     else syncMedia();
   });
   ctx.on('lang', () => showing() && (syncAll(), fit()));
