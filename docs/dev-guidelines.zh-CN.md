@@ -157,6 +157,8 @@
     - `snap.mjs`：书签缩略图：截取、绘制、视频画面的懒生成。
     - `tile.mjs`：书签列表项的绘制（书签面板、书架书签栏、全屏书签、设置封面共用）。
   - `src/media/`：视频、音频播放器
+    - `art.css`：音频的图（封面或按文件名配色的占位图）的样式。
+    - `art.mjs`：音频的图：书的封面，没有时按文件名配色的占位图（音频卡片、音频书签、缩略图共用）。
     - `autoplay.mjs`：当前媒体的判定与自动播放。
     - `driver.mjs`：媒体与总控（`ctx.transport`）的衔接：影音模式的驱动器、单个媒体自己的播放键、列表级控制。
     - `hud.mjs`：提示浮层（音量、快进 / 快退）。
@@ -170,7 +172,7 @@
     - `position.mjs`：播放位置记忆。
     - `sections.mjs`：只播放书签区段。
     - `shell.css`：播放面板的样式：视频画面与大播放键、壳、字幕容器、音频卡片、失败占位。
-    - `shell.mjs`：单个文件的播放面板（壳）：DOM 与状态显示、字幕容器、音频卡片的封面背景。
+    - `shell.mjs`：单个文件的播放面板（壳）：DOM 与状态显示、字幕容器、音频卡片（右侧的小图见 `art.mjs`）。
     - `subtitles.css`：字幕的样式。
     - `subtitles.mjs`：外挂字幕的显示、读取与缓存，面板上的字幕按钮与选择菜单。
     - `tile.mjs`：缩略图栏、全屏缩略图里视频、音频的占位（`ctx.mediaTile`）。
@@ -212,10 +214,10 @@
     - `actions.mjs`：卡片上的操作按钮与「更多」菜单。
     - `add.mjs`：添加对话框。
     - `addlist.mjs`：添加对话框里待添加项的纯逻辑。
-    - `bookcover.mjs`：书的当前封面（`ctx.bookCover` / `ctx.coverBg`），音频的背景。
+    - `bookcover.mjs`：书的当前封面（`ctx.bookCover` / `ctx.coverBg`），供音频的图使用。
     - `bulk.mjs`：批量操作。
     - `card.mjs`：书卡片的内容与封面显示。
-    - `cover.mjs`：自定义封面（设置 / 重置封面）。
+    - `cover.mjs`：自定义封面（用书签设置 / 重置封面，以当前画面「设置为封面」的动作 `ctx.actions.setCover`）。
     - `covercache.mjs`：默认封面与识别指纹的后台生成。
     - `criteria.mjs`：筛选条件的纯逻辑。
     - `drop.mjs`：拖放导入（拖入覆盖层的三块区域）。

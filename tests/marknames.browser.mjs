@@ -292,14 +292,12 @@ try {
   );
   assert.equal(await js(`getComputedStyle(document.querySelector('${nth(3, ' .bm-mk.start')}')).color`), SEC);
   assert.equal(await js(`getComputedStyle(document.querySelector('${nth(4, ' .bm-mk.end')}')).color`), SEC);
-  assert.notEqual(
-    await js(`getComputedStyle(document.querySelector('${nth(3, ' .bm-thumb')}'),'::after').boxShadow`),
-    'none',
-  );
-  assert.equal(
-    await js(`getComputedStyle(document.querySelector('${nth(1, ' .bm-thumb')}'),'::after').content`),
-    'none',
-  );
+  // 区段的两项平时不描边，只靠互相呼应的标记区分；悬停 / 选中时才一起高亮。
+  for (const n of [1, 3, 4])
+    assert.equal(
+      await js(`getComputedStyle(document.querySelector('${nth(n, ' .bm-thumb')}'),'::after').content`),
+      'none',
+    );
   // 悬停终点：起点一起高亮（区段配色）；其他项不高亮。
   await mouse('mouseMoved', te.x, te.y);
   await wait(() => js(`document.querySelector('${nth(3)}').classList.contains('mate')`));

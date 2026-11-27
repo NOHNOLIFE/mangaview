@@ -1122,6 +1122,13 @@ h2 {
   height: 22px;
   color: var(--accent);
 }
+/* 长按添加区段书签（.sec）：进度环与图标用区段配色。 */
+.hold.sec .hold-ring .fill {
+  stroke: var(--sec);
+}
+.hold.sec .hold-dial .i {
+  color: var(--sec);
+}
 .hold.done .fill {
   stroke-dashoffset: 0;
   animation: none;

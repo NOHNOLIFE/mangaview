@@ -4,10 +4,11 @@
 // 音量、播放顺序、循环、只播区段、新窗口播放等列表级控制在总控栏（reader/controlbar.mjs）。
 // 字幕容器 .mv-subs 由这里建好并留空（aria-live="off"）：视频叠在画面底部、控件上方；音频是卡片里始终占位、可容 3 行的区域。
 // 只有按钮、进度条、可选中的文件名带 data-nodrag，面板的空白处可以拖动滚动正文。
-// 音频卡片：书有封面时以压暗的封面作背景（ctx.coverBg，见 shelf/bookcover.mjs；封面换了已显示的卡片跟着变）。
+// 音频卡片：纯色底，右侧一张方形小图（像内嵌的专辑图，art.mjs：书的当前封面，没有封面时按文件名配色的占位图；封面换了已显示的卡片跟着变）。
 import { extend } from '../core/lang.mjs';
 import { shownName, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
+import { audioArt } from './art.mjs';
 
 extend({
   mvPlay: ['Play', '播放', '再生', '재생'],
@@ -98,9 +99,9 @@ export function install(ctx, S) {
       eq.setAttribute('aria-hidden', 'true');
       eq.append(make('i'), make('i'), make('i'), make('i'));
       head.append(icon('music'), eq, name);
-      card.append(head, p.subs, p.shell);
+      const art = audioArt(ctx, make('span'), book, page); // 不存进页记录，每次建卡片时取当前封面
+      card.append(head, art, p.subs, p.shell);
       node.replaceChildren(card, el);
-      ctx.coverBg?.(card, book); // 不存进页记录，每次建卡片时取当前封面
     }
     p.fail = make('div', 'mv-fail');
     p.fail.dataset.nodrag = '';

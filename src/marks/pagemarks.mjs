@@ -3,16 +3,13 @@ import { pageMarks, sig } from './list.mjs';
 // 页上的书签标记：缩略图的角标（缩略图栏、全屏缩略图共用），以及缩略图栏上按页内位置画的细标记。每页的标记汇总见 list.mjs 的 pageMarks。
 export function install(ctx, S) {
   const { view, make, icon } = ctx;
-  // 角标：标记种类的图标（普通 / 起点 / 区段书签），书签多于一个时带数量。绝对定位叠在缩略图一角，不改变排布。
+  // 角标：一个书签图标，书签多于一个时带数量；这一页有区段书签（起点或终点）时图标用区段配色（--sec）。绝对定位叠在缩略图一角，不改变排布。
   function badge(m) {
-    const el = make('span', 'mk');
+    const el = make('span', 'mk'),
+      i = icon('bookmark');
     el.setAttribute('aria-hidden', 'true');
-    for (const k of ['mark', 'start', 'end'])
-      if (m[k]) {
-        const i = icon(k === 'mark' ? 'bookmark' : 'bm-' + k);
-        if (k !== 'mark') i.classList.add('sec'); // 区段的标记用区段配色（--sec）
-        el.append(i);
-      }
+    if (m.start || m.end) i.classList.add('sec');
+    el.append(i);
     if (m.n > 1) el.append(make('b', '', String(m.n)));
     return el;
   }

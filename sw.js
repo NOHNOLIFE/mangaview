@@ -38,6 +38,8 @@ const shell = [
     'src/marks/rename.mjs',
     'src/marks/snap.mjs',
     'src/marks/tile.mjs',
+    'src/media/art.css',
+    'src/media/art.mjs',
     'src/media/autoplay.mjs',
     'src/media/driver.mjs',
     'src/media/hud.mjs',

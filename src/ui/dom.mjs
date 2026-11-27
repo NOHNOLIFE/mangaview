@@ -48,6 +48,7 @@ export function holdRing() {
     el.hidden = true;
     void el.offsetWidth; // 先隐藏再显示，重新开始填充动画
     el.classList.toggle('done', done);
+    if (!done) el.classList.toggle('sec', name === 'bm-start'); // 添加区段书签：区段配色，完成时沿用
     glyph.firstChild.setAttribute('href', '#i-' + name);
     text.textContent = label;
     el.hidden = false;

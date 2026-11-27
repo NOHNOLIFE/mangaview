@@ -1,10 +1,11 @@
 import { extend } from '../core/lang.mjs';
-import { forget, grabFrame } from '../reader/thumbs.mjs';
-import { pageKind } from '../core/model.mjs';
+import { forget, grabFrame, frameOf } from '../reader/thumbs.mjs';
+import { pageKind, at } from '../core/model.mjs';
 import { install as bookCover } from './bookcover.mjs';
 import { addIcons } from '../ui/icons.mjs';
 // 自定义封面：书架卡片的「设置封面」列出这本书的全部书签缩略图，点选其一即设为封面；「重置封面」恢复默认封面。对所有书可用。
-// 书的当前封面（音频作背景用）见 bookcover.mjs，在这里一并安装。
+// 「设置为封面」（ctx.actions.setCover，书签面板的小按钮；可用与否见 ctx.canSetCover）：不必先有书签，直接以当前画面作自定义封面。
+// 书的当前封面（音频的图用）见 bookcover.mjs，在这里一并安装。
 // 自定义封面是一份独立的压缩小图，存在 thumbs 的 `${book.id}:custom`，记录为 book.customCover={bm,r,at}（r：高宽比，瀑布流按它排版；at：设置时间，卡片据此判断要不要换图）。
 // 之后删除该书签、刷新、恢复、重新导入都不改变它；随书目和缩略图进入备份。它不参与识别：恢复用的指纹（book.fp）只来自默认封面。
 extend({
@@ -17,6 +18,7 @@ extend({
   ],
   coverReset: ['Reset cover', '重置封面', '表紙をリセット', '표지 초기화'],
   coverDone: ['Cover set', '已设置封面', '表紙を設定しました', '표지를 설정했습니다'],
+  coverHere: ['Set as cover', '设置为封面', '表紙に設定', '표지로 설정'],
   coverResetDone: [
     'Cover reset to the default',
     '已恢复默认封面',
@@ -96,6 +98,15 @@ export function install(ctx) {
     dialog.showModal();
     (grid.querySelector('.current') || grid.firstChild || shut).focus();
   }
+  // 保存为这本书的自定义封面（bm：所用书签的 id，直接取当前画面时为 null）；书架卡片、音频的图随 'cover' 事件更新。
+  async function apply(b, th, bm) {
+    if (!ctx.books.has(b.id)) return; // 期间这本书已被删除
+    await ctx.saveThumb(customKey(b), th);
+    b.customCover = { bm, r: th.h / th.w, at: Date.now() };
+    await ctx.persist(b);
+    ctx.refreshCard?.(b);
+    notice('coverDone');
+  }
   // 源文件可读时按封面尺寸从书签位置重新截取，读不到（过期、句柄失效、图片已不存在）时用现有的书签缩略图。
   async function choose(b, x) {
     let th = null;
@@ -115,12 +126,52 @@ export function install(ctx) {
       notice('failed');
       return;
     }
-    if (!ctx.books.has(b.id)) return; // 期间这本书已被删除
-    await ctx.saveThumb(customKey(b), th);
-    b.customCover = { bm: x.bm.id, r: th.h / th.w, at: Date.now() };
-    await ctx.persist(b);
-    ctx.refreshCard?.(b);
-    notice('coverDone');
+    await apply(b, th, x.bm.id);
+  }
+  // 「设置为封面」的对象：给了播放器（之后的文件栏可传入选中的媒体）就是它，否则是视窗中心所在的页；f 为视窗中心在该页内的位置。
+  // 单文件模式下取该页的阅读位置（view.anchor()）。音频没有画面，返回 null。
+  function here(player) {
+    const b = ctx.current,
+      view = ctx.view;
+    if (!b?.pages.length) return null;
+    if (player) return player.book === b && player.kind === 'video' ? { b, page: player.page, player } : null;
+    const s = view.panes[0].starts;
+    if (s.length !== b.pages.length + 1) return null;
+    let i, f;
+    if (view.single) {
+      const a = view.anchor();
+      i = a ? b.pages.findIndex((p) => p.name === a.name) : -1;
+      f = a?.f ?? 0.5;
+    } else ({ i, f } = at(s, ctx.main.scrollTop + ctx.main.clientHeight / 2));
+    const page = b.pages[i],
+      kind = page && pageKind(page);
+    if (!page || kind === 'audio') return null;
+    return {
+      b,
+      page,
+      f,
+      player: kind === 'video' ? ctx.player?.list().find((p) => p.book === b && p.page === page) : null,
+    };
+  }
+  // 以当前画面作封面：图片按封面比例、以视窗中心为准截取（与用书签设封面同一套截取，cropFor）；视频取当前帧（播放器还没画面时按它的播放位置从文件截取）。
+  async function setCover(player) {
+    const h = here(player);
+    if (!h) return;
+    const { b, page } = h;
+    let th = null;
+    try {
+      if (pageKind(page) === 'video') {
+        const p = h.player,
+          v = p?.el;
+        if (v && p.state === 'ready' && v.readyState >= 2 && !v.seeking) th = await frameOf(v, { width: 320 });
+        else th = await grabFrame(await ctx.source(b, page), (p && ctx.player.api.time(p)) || 0, { width: 320 });
+      } else th = await ctx.makeThumb(await ctx.source(b, page), { width: 320, crop: cropFor(page, h.f) });
+    } catch {}
+    if (!th) {
+      notice('failed');
+      return;
+    }
+    await apply(b, th, null);
   }
   async function reset(b) {
     if (!b.customCover) return;
@@ -143,4 +194,6 @@ export function install(ctx) {
     grid.replaceChildren();
   });
   ctx.pickCover = open;
+  ctx.actions.setCover = setCover;
+  ctx.canSetCover = (player) => !!here(player);
 }

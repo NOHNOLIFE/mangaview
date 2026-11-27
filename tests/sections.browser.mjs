@@ -175,6 +175,13 @@ try {
       await js('document.querySelector(".hold .hold-text").textContent'),
       sec ? 'Keep holding to add a section bookmark' : 'Keep holding to add a bookmark',
     );
+    // 进度环与图标：区段书签用区段配色，普通书签用强调色。
+    assert.deepEqual(
+      await js(
+        'Array.from(document.querySelectorAll(".hold .hold-dial .i, .hold .hold-ring .fill"),e=>getComputedStyle(e)[e.matches(".i")?"color":"stroke"])',
+      ),
+      sec ? ['rgb(90, 180, 255)', 'rgb(90, 180, 255)'] : ['rgb(255, 122, 89)', 'rgb(255, 122, 89)'],
+    );
     await delay(380);
     await key(name, 'keyUp', mods);
   }
@@ -268,8 +275,18 @@ try {
   // ==== 2. 书签面板：「添加区段书签」按钮、成组显示、点哪张跳哪里、悬停一起高亮 ====
   await goto(12, 0.5);
   await menu(300, 400);
-  assert.equal(await js(`document.querySelector('.bm-add').textContent`), 'Add bookmarkHoldF/Enter');
-  assert.equal(await js(`document.querySelector('.bm-sec').textContent`), 'Add section bookmarkHoldShift+F/Enter');
+  assert.deepEqual(
+    await js(
+      `[...document.querySelectorAll('.bm-top button')].map(b=>[b.textContent,b.getAttribute('aria-label'),b.title])`,
+    ),
+    [
+      ['', 'Add bookmark', 'Add bookmark (Hold F / Enter)'],
+      ['', 'Add section bookmark', 'Add section bookmark (Hold Shift+F / Shift+Enter)'],
+      ['', 'Set as cover', 'Set as cover'],
+    ],
+  );
+  // 区段按钮用区段配色（--sec），不是强调色。
+  assert.equal(await js(`getComputedStyle(document.querySelector('.bm-sec')).color`), 'rgb(90, 180, 255)');
   const sec = await rect('.bm-sec');
   await click(sec.x, sec.y);
   await said('Section end updated');
@@ -334,12 +351,17 @@ try {
     '12.svg': 'end@50%',
     '20.svg': 'mark@10%,mark@80%#2',
   });
-  // 角标的图标：起点 / 区段书签 / 普通书签各不相同。
+  // 角标只有一个书签图标：有区段书签（起点或终点）的页为区段配色，普通书签为强调色。
   assert.deepEqual(
     await js(
-      `['2.svg','5.svg','3.svg'].map(n=>document.querySelector('#preview .pv-mk[data-name="'+n+'"] .mk use').getAttribute('href'))`,
+      `['2.svg','5.svg','3.svg','20.svg'].map(n=>{const m=document.querySelector('#preview .pv-mk[data-name="'+n+'"] .mk');return [m.querySelectorAll('svg').length,m.querySelector('use').getAttribute('href'),getComputedStyle(m.querySelector('svg')).color];})`,
     ),
-    ['#i-bm-start', '#i-bm-end', '#i-bookmark'],
+    [
+      [1, '#i-bookmark', 'rgb(90, 180, 255)'],
+      [1, '#i-bookmark', 'rgb(90, 180, 255)'],
+      [1, '#i-bookmark', 'rgb(255, 122, 89)'],
+      [1, '#i-bookmark', 'rgb(255, 122, 89)'],
+    ],
   );
   // 标记层与缩略图同一位置：叠在该页之上，细标记按页内位置。
   await goto(8, 0.5);
@@ -391,9 +413,9 @@ try {
   const ov = (i) => `#overview .ov-item[data-i="${i}"]`;
   assert.deepEqual(
     await js(
-      `[2,3,5,8,12,14,20,1].map(i=>{const m=document.querySelector('${ov('X')}'.replace('X',i)+' .mk');return m?[...m.querySelectorAll('use')].map(u=>u.getAttribute('href').slice(3)).join('+')+(m.querySelector('b')?'#'+m.querySelector('b').textContent:''):'';})`,
+      `[2,3,5,8,12,14,20,1].map(i=>{const m=document.querySelector('${ov('X')}'.replace('X',i)+' .mk');return m?[...m.querySelectorAll('use')].map(u=>u.getAttribute('href').slice(3)+(u.parentNode.classList.contains('sec')?':sec':'')).join('+')+(m.querySelector('b')?'#'+m.querySelector('b').textContent:''):'';})`,
     ),
-    ['bm-start', 'bookmark', 'bm-end', 'bm-start', 'bm-end', 'bookmark', 'bookmark#2', ''],
+    ['bookmark:sec', 'bookmark', 'bookmark:sec', 'bookmark:sec', 'bookmark:sec', 'bookmark', 'bookmark#2', ''],
   );
   // 角标是叠加层：有角标的格子与相邻格子同样大小、同一行对齐。
   const [c1, c2] = await Promise.all([rect(ov(1)), rect(ov(2))]);
