@@ -1,6 +1,6 @@
 // 发布时与 index.html 的 <title> 版本号一起修改；不 skipWaiting，阅读中的窗口保持使用完整旧版本。
 const prefix = 'mangaview-shell:' + self.registration.scope + ':',
-  cacheName = prefix + '2.4.0';
+  cacheName = prefix + '2.5.0';
 const shell = [
     'app.webmanifest',
     'icons/192.png',
