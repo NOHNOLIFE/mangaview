@@ -1,30 +1,39 @@
 import { list } from './list.mjs';
-// 书签面板（右键或快捷键呼出）：添加书签 / 区段书签的按钮和当前书的书签列表，点击跳转。
+// 书签面板（右键或快捷键呼出）：顶部是「添加书签」「添加区段书签」两个图标按钮和小的「设置为封面」按钮，下面是当前书的书签列表，点击跳转。
 export function install(ctx, S) {
   const { main, t, make, icon } = ctx;
   // 面板：右键呼出，“添加书签”按钮正好在鼠标下；点击缩略图才跳转并关闭，点面板外或 Esc 关闭（位置不变）。
+  // 顶部按钮只有图标（区段按钮用区段配色），名称和长按的快捷键在悬停提示里，读屏名称为功能名。
   const panel = make('div', 'bm-panel'),
+    topRow = make('div', 'bm-top'),
     addBtn = make('button', 'bm-add'),
     secBtn = make('button', 'bm-add bm-sec'),
+    coverBtn = make('button', 'icon-btn bm-cover'),
     head = make('div', 'bm-head'),
     grid = make('div', 'bm-grid');
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');
-  addBtn.type = secBtn.type = 'button';
-  panel.append(addBtn, secBtn, head, grid);
+  addBtn.type = secBtn.type = coverBtn.type = 'button';
+  addBtn.append(icon('bookmark-plus'));
+  secBtn.append(icon('bm-start'));
+  coverBtn.append(icon('cover'));
+  topRow.append(addBtn, secBtn, coverBtn);
+  panel.append(topRow, head, grid);
   document.body.append(panel);
   S.mates(grid);
+  function label(b, name, keys) {
+    b.title = keys ? name + ' (' + keys + ')' : name;
+    b.setAttribute('aria-label', name);
+  }
   function render() {
     const book = ctx.current;
     if (!book) return;
     if (S.editing(grid)) return S.later(render); // 正在就地改名：改完再重画
     panel.setAttribute('aria-label', t('bookmarks'));
-    const keys = make('span', 'bm-keys', t('bmHold'));
-    keys.append(make('kbd', '', 'F'), '/', make('kbd', '', 'Enter'));
-    addBtn.replaceChildren(icon('bookmark-plus'), make('span', 'label', t('bmAdd')), keys);
-    const secKeys = make('span', 'bm-keys', t('bmHold'));
-    secKeys.append(make('kbd', '', 'Shift'), '+', make('kbd', '', 'F'), '/', make('kbd', '', 'Enter'));
-    secBtn.replaceChildren(icon('bm-start'), make('span', 'label', t('secAdd')), secKeys);
+    label(addBtn, t('bmAdd'), t('bmHold') + ' F / Enter');
+    label(secBtn, t('secAdd'), t('bmHold') + ' Shift+F / Shift+Enter');
+    label(coverBtn, t('coverHere'));
+    coverBtn.disabled = !ctx.canSetCover?.(); // 视窗中心是音频时没有画面可取
     const items = list(book);
     head.replaceChildren(make('span', '', t('bookmarks')), make('span', 'count', items.length || ''));
     if (!items.length) {
@@ -75,6 +84,12 @@ export function install(ctx, S) {
   panel.addEventListener('contextmenu', (e) => e.preventDefault());
   panel.addEventListener('click', (e) => {
     if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
+    if (e.target.closest('.bm-cover')) {
+      close();
+      ctx.safe(ctx.actions.setCover)();
+      main.focus();
+      return;
+    }
     if (e.target.closest('.bm-sec')) {
       ctx.safe(S.addSection)();
       main.focus();

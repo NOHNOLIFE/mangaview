@@ -266,7 +266,11 @@ try {
     'Page 11',
     'Page 21',
   ]);
-  assert.equal(await js(`document.querySelector('.bm-add').textContent`), 'Add bookmarkHoldF/Enter');
+  // 顶部按钮只有图标：名称在读屏名称里，长按的快捷键在悬停提示里。
+  assert.deepEqual(
+    await js(`(b=>[b.textContent,b.getAttribute('aria-label'),b.title])(document.querySelector('.bm-add'))`),
+    ['', 'Add bookmark', 'Add bookmark (Hold F / Enter)'],
+  );
   await wait(() => js(`[...document.querySelectorAll('.bm-item img')].every(i=>i.complete&&i.naturalWidth===240)`));
   // 紧凑显示：没有文字；缩略图比例跟随视口但限制在 3:4 ~ 4:3，不显示成长条。
   assert.equal(await js(`document.querySelector('.bm-grid').innerText.trim()`), '');

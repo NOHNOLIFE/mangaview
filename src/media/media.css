@@ -98,7 +98,7 @@
   display: block;
 }
 
-/* 缩略图栏、全屏缩略图里的占位小块（类型图标 + 文件名，角标为类型与时长）；书架封面的占位。 */
+/* 缩略图栏、全屏缩略图里的占位小块（视频：类型图标 + 文件名，角标为类型与时长；音频见下）；书架封面的占位。 */
 .mv-tile {
   position: relative;
   display: grid;
@@ -122,21 +122,30 @@
 .mv-tile .mid-name {
   max-width: 100%;
 }
-/* 音频：所在的书有封面时以封面作背景（压暗），文件名在接近不透明的底色上（bookcover.mjs 的 .has-cover / --cover）。 */
-.mv-tile.has-cover {
-  background:
-    linear-gradient(rgba(8, 8, 10, 0.5), rgba(8, 8, 10, 0.5)),
-    var(--cover) center / cover no-repeat;
+/* 音频（art.mjs / art.css）：整块是封面或占位图，不压暗；小音乐图标 + 时长在左上（右上留给书签角标），文件名在最下的深色条上。 */
+.mv-tile.audio {
+  display: block;
+  padding: 0;
 }
-.mv-tile.has-cover > .i {
-  color: rgba(255, 255, 255, 0.88);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+.mv-tile.audio > .mv-badge {
+  left: 4px;
+  top: 4px;
+  right: auto;
+  bottom: auto;
 }
-.mv-tile.has-cover .mid-name {
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: rgba(10, 10, 12, 0.88);
+.mv-tile.audio > .mid-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 6px;
+  background: rgba(10, 10, 12, 0.86);
   color: #fff;
+  line-height: 16px;
+}
+/* 全屏缩略图的页码（overview.css .ov-n）移到文件名条上方，不盖住文件名。 */
+.ov-item:has(> .ov-img > .mv-tile.audio) > .ov-n {
+  bottom: 23px;
 }
 .mv-badge {
   position: absolute;

@@ -1,0 +1,34 @@
+/* 音频的图（art.mjs）：音频卡片的小图、音频书签、缩略图里的音频小块共用。有封面时铺满封面（.has-cover / --cover，bookcover.mjs），
+   否则是按文件名配色（--art-h 色相、--art-d 另一端的偏移、--art-a 方向）的浅色渐变 + 音符。不设定位与尺寸，由所在的容器决定；要盖过容器自己的底色，所以排在 bookmarks.css、media.css 之后。 */
+.mv-art {
+  --art-h: 210;
+  --art-d: 36;
+  --art-a: 135deg;
+  overflow: hidden;
+  background: linear-gradient(var(--art-a), hsl(var(--art-h) 80% 88%), hsl(calc(var(--art-h) + var(--art-d)) 70% 72%));
+}
+.mv-art > .mv-note {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: auto;
+  max-width: 64%;
+  height: 46%;
+  max-height: 72px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  fill: hsl(var(--art-h) 45% 32% / 0.6);
+  stroke: hsl(var(--art-h) 45% 32% / 0.6);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.mv-art > .mv-note path {
+  fill: none;
+}
+.mv-art.has-cover {
+  background: var(--cover) center / cover no-repeat;
+}
+.mv-art.has-cover > .mv-note {
+  display: none;
+}

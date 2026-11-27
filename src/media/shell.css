@@ -255,7 +255,8 @@
   color: var(--text);
 }
 
-/* 音频：固定高度（model.mjs AUDIO_H）的卡片，横向占满阅读区（两侧留边距），不设最大宽度；类型图标 / 音柱 + 文件名、3 行字幕区、壳。 */
+/* 音频：固定高度（model.mjs AUDIO_H）的卡片，横向占满阅读区（两侧留边距），不设最大宽度；纯色底。
+   左列是类型图标 / 音柱 + 文件名、3 行字幕区，右侧是与这两行等高的方形小图（像内嵌的专辑图，art.mjs）；壳在最下，占满整行。 */
 .page.media.audio {
   padding: 8px 12px;
   background: transparent;
@@ -266,9 +267,10 @@
 }
 .mv-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
   grid-template-rows: 22px auto 40px;
   align-content: center;
-  gap: 6px;
+  gap: 6px 12px;
   width: 100%;
   height: 100%;
   padding: 10px 14px 8px;
@@ -280,28 +282,30 @@
     border-color 0.2s,
     box-shadow 0.2s;
 }
-/* 播放中：底色提亮、描边带强调色（另有音柱、强调色的播放键与进度条）。有无封面都用分开的属性写，互不覆盖。 */
+.mv-card > .mv-head,
+.mv-card > .mv-subs {
+  grid-column: 1;
+}
+/* 小图：高度等于文件名行 + 间距 + 字幕区（22 + 6 + 60），正方形。 */
+.mv-card > .mv-art {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 88px;
+  height: 88px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.mv-card > .mv-shell {
+  grid-column: 1 / -1;
+}
+/* 播放中：底色提亮、描边带强调色（另有音柱、强调色的播放键与进度条）。 */
 .media.audio.playing .mv-card {
   border-color: rgba(255, 122, 89, 0.6);
   background-color: #2b2a31;
 }
 .media.audio.current .mv-card {
   box-shadow: 0 0 0 2px var(--accent);
-}
-/* 书有封面时以封面作背景（像内嵌的专辑图，bookcover.mjs 的 .has-cover / --cover），压暗以保证文字对比度：
-   按背后是白色的最坏情况，未播放压暗 0.78、播放中 0.66（提亮），封面上的文字用 --text，对比度都在 4.5:1 以上。 */
-.mv-card.has-cover {
-  background-image: linear-gradient(rgba(12, 12, 15, 0.78), rgba(12, 12, 15, 0.78)), var(--cover);
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-.media.audio.playing .mv-card.has-cover {
-  background-image: linear-gradient(rgba(12, 12, 15, 0.66), rgba(12, 12, 15, 0.66)), var(--cover);
-}
-.mv-card.has-cover .mv-head,
-.mv-card.has-cover .mv-time {
-  color: var(--text);
 }
 .mv-head {
   display: flex;

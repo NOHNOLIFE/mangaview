@@ -18,41 +18,48 @@
   user-select: none;
   animation: bm-pop 0.16s var(--ease);
 }
-.bm-add {
+/* 顶部：「添加书签」「添加区段书签」两个等宽的中等图标按钮（区段按钮用区段配色），右边一个小的「设置为封面」按钮。 */
+.bm-top {
+  display: flex;
   flex: none;
-  justify-content: flex-start;
-  gap: 10px;
-  height: 44px;
-  padding: 0 10px 0 12px;
+  align-items: center;
+  gap: 6px;
+}
+.bm-add {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
   border-color: transparent;
   background: var(--accent-soft);
   color: var(--accent);
-  font-weight: 600;
 }
 .bm-add:not(:disabled):hover {
   background: rgba(255, 122, 89, 0.24);
   border-color: transparent;
   color: var(--accent-hi);
 }
-.bm-add .label {
-  flex: 1;
-  overflow: hidden;
-  text-align: start;
-  text-overflow: ellipsis;
+.bm-add .i {
+  width: 22px;
+  height: 22px;
 }
-.bm-keys {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
+.bm-sec {
+  background: color-mix(in srgb, var(--sec) 15%, transparent);
+  color: var(--sec);
 }
-.bm-keys kbd {
-  height: 20px;
-  min-width: 20px;
-  padding: 0 5px;
-  font-size: 11px;
+.bm-sec:not(:disabled):hover {
+  background: color-mix(in srgb, var(--sec) 26%, transparent);
+  color: color-mix(in srgb, var(--sec) 70%, #fff);
+}
+.bm-cover {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.bm-cover .i {
+  width: 18px;
+  height: 18px;
 }
 .bm-head {
   display: flex;
@@ -97,8 +104,7 @@
   height: 100%;
   object-fit: cover;
 }
-/* 媒体书签：还没有画面的视频、音频是占位小块（类型图标），名称叠在下沿（.bm-name），时间点在类型角标（.bm-type）里。
-   音频所在的书有封面时以封面作背景（压暗，bookcover.mjs 的 .has-cover / --cover）。 */
+/* 媒体书签：还没有画面的视频是占位小块（类型图标），音频是音频的图（封面或占位图）；名称叠在下沿（.bm-name），时间点在类型角标（.bm-type）里。 */
 .bm-ph {
   position: absolute;
   inset: 0;
@@ -119,14 +125,12 @@
   height: 26px;
   color: var(--faint);
 }
-.bm-ph.has-cover {
-  background:
-    linear-gradient(rgba(8, 8, 10, 0.5), rgba(8, 8, 10, 0.5)),
-    var(--cover) center / cover no-repeat;
+/* 音频书签：整格是音频的图（media/art.css），不压暗；占位图的音符避开下沿的名称和时间角标。 */
+.bm-ph.mv-art {
+  padding: 0;
 }
-.bm-ph.has-cover .i {
-  color: rgba(255, 255, 255, 0.88);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+.bm-ph.mv-art > .mv-note {
+  top: 40%;
 }
 .bm-thumb .bm-type,
 .ov-mark .bm-type,
@@ -159,7 +163,7 @@
 .ov-mark.named > .ov-n {
   bottom: 24px;
 }
-.named > .bm-ph {
+.named > .bm-ph:not(.mv-art) {
   padding-bottom: 44px; /* 图标居中在名称和类型角标之上，不被盖住 */
 }
 /* 全屏书架书签：页码在左下角，类型角标在右下角，铅笔按钮在右上角。 */
@@ -388,30 +392,8 @@ body.shelfmarks {
   outline: none;
 }
 
-/* 「添加区段书签」：紧跟在「添加书签」下面，次要样式。 */
-.bm-sec {
-  background: transparent;
-  border-color: var(--line2);
-  color: var(--text);
-}
-.bm-sec .i {
-  color: var(--accent);
-}
-.bm-sec .label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-height: 1.2;
-  white-space: normal;
-} /* 较长的语言折成两行，不挤掉按键提示 */
-.bm-sec:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: var(--text);
-}
-
-/* 区段书签（bookmarks.mjs 的 i-bm-start / i-bm-end）：列表里起点和终点是前后紧挨、同样大小的两项，左上角各带一个互相呼应的标记，
-   缩略图描一圈区段配色（--sec），与普通书签明显区分。 */
+/* 区段书签（bookmarks.mjs 的 i-bm-start / i-bm-end）：列表里起点和终点是前后紧挨、同样大小的两项，左上角各带一个互相呼应的区段配色标记；
+   平时不描边，悬停 / 选中任意一项时两项一起以区段配色高亮（.mate），作为最近书签（.active）时只高亮那一项。 */
 .bm-mk {
   position: absolute;
   z-index: 1;
@@ -431,16 +413,6 @@ body.shelfmarks {
   height: 14px;
   stroke-width: 2;
 }
-:is(.bm-item.sec-start, .bm-item.sec-end) .bm-thumb::after,
-.ov-mark:is(.sec-start, .sec-end)::after {
-  content: '';
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sec) 70%, transparent);
-  pointer-events: none;
-}
 /* 全屏书架书签：选中区段的一项时两项一起高亮（区段配色）。 */
 .ov-mark:is(.sec-start, .sec-end):is(.sel, .mate) {
   box-shadow:
@@ -455,7 +427,7 @@ body.shelfmarks {
   opacity: 0.4;
 }
 
-/* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，bookmarks.mjs 的 badge）：标记种类的图标，多个书签时带数量。 */
+/* 缩略图上的书签角标（缩略图栏、全屏缩略图共用，pagemarks.mjs 的 badge）：一个书签图标（有区段书签时为区段配色），多个书签时带数量。 */
 .mk {
   position: absolute;
   z-index: 2;
