@@ -1,32 +1,28 @@
-// 文件栏：总控栏里三区那一行上方的一行（行容器是 ctx.controlBar.fileRow，与总控栏一起弹出 / 收起、同宽），作用于当前文件
+// 文件栏：总控栏里三区那一行上方的两行（行容器是 ctx.controlBar.fileRow，与总控栏一起弹出 / 收起、同宽），作用于当前文件
 // （ctx.media.target()：选中的媒体，否则视窗中心所在的页，规则见 core/selection.mjs；书签快捷键、长按 A / D、Z 作用于同一个对象）。
-// - 左：文件名，只显示最末一段（中间省略，完整路径在悬停提示里，可选中复制）；名称列宽度固定（约 24 字），长短不推动其他控件。
-// - 中：播放 / 暂停（等同媒体自己的播放键）、进度条（书签与区段标记，media/marks.mjs；可点击、拖动）、当前时间 / 总时长；图片时留空（占位不变）。
-// - 右：固定的按钮位（core/filebar.mjs SLOTS：字幕、添加书签、添加区段书签、设置为封面、全屏），只有图标，靠右对齐；这种文件没有的按钮留空位，
-//   按钮位置不随文件类型跳动。字幕、添加书签、添加区段书签沿用 ctx.player.add 的登记（与音频卡片上的同一份），设置为封面是 ctx.actions.setCover，
-//   全屏是 ctx.media.fullscreen。
-// - 任何宽度都是一行、不溢出：先缩短文件名，再缩短进度条（CSS 的收缩权重，filebar.css），仍放不下时把次要按钮收进「⋯」（core/filebar.mjs fitLevel）。
+// - 上行（标题行）：文件名（只显示最末一段、不带扩展名，过长省略中间；完整路径在悬停提示里，可选中复制），右端是标题行按钮区（.fb-head-tools）。
+//   往标题行右端加按钮：ctx.fileBar.addHead({id, icon, label(文案 key), click(当前文件), state?(当前文件)→{disabled,pressed,icon,label}})，
+//   按登记顺序排在文件名后面、行的右端；当前文件为 {book, page, i, kind, player}（没有为 null），文件变了或播放状态变了时重新取 state。
+// - 下行：播放 / 暂停（等同媒体自己的播放键）、进度条（书签与区段标记，media/marks.mjs；可点击、拖动）、当前时间 / 总时长，右侧按钮；
+//   图片时播放键、进度条、时间留空（占位不变）。时间处悬停或键盘聚焦时原位换成「快退」「快进」（media/shell.mjs makeTime，与音频卡片共用）。
+// - 右侧按钮：三个固定的按钮位（core/filebar.mjs arrange）：直接显示「添加书签」「添加区段书签」，其余收进第三个位上的「⋯」
+//   （悬停展开，ui/hoverpop.mjs），按钮总数不超过 3 个时全部直接显示；这种文件没有的位置留空，按钮位置不随文件类型跳动。
+//   添加书签、添加区段书签沿用 ctx.player.add 的登记（与音频卡片上的同一份），设置为封面是 ctx.actions.setCover，全屏是 ctx.media.fullscreen。
+//   字幕按钮在总控栏右区（controlbar.mjs）。
+// - 任何宽度都不横向溢出：先缩短文件名（标题行），下行由进度条让出宽度（filebar.css）。
 // - 只在总控栏显示时更新：显示时取一次，之后随 'media' 事件（'current' 当前文件变了、'state' 播放 / 暂停、'time' 时间）更新；收起后不做任何工作。
 import { extend } from '../core/lang.mjs';
-import { shownName } from '../core/model.mjs';
-import { SLOTS, slotsOf, arrange, fitLevel } from '../core/filebar.mjs';
+import { shownName, stem } from '../core/model.mjs';
+import { BUTTONS, buttonsOf, arrange } from '../core/filebar.mjs';
 import { make, icon } from '../ui/dom.mjs';
+import { morePop } from '../ui/hoverpop.mjs';
 import { midName } from './view.mjs';
 
 extend({
   fbBar: ['File bar', '文件栏', 'ファイルバー', '파일 바'],
 });
-// 宽度预算（像素，与 filebar.css / controlbar.css 一致）：按钮 36，按钮间距 2，栏内间距 6（#filebar 的 gap），中区内间距 4，
-// 文件名、进度条缩到最小时的宽度 NAME_MIN、BAR_MIN。
-const BTN = 36,
-  GAP = 2,
-  ROW_GAP = 6,
-  MID_GAP = 4,
-  NAME_MIN = 56,
-  BAR_MIN = 56;
-// 各按钮位的图标与文案（字幕、书签两项的文案和状态来自登记的按钮）。
+// 各按钮的图标与文案。
 const LOOK = {
-  subs: { icon: 'subtitles', label: 'mvSubs' },
   bookmark: { icon: 'bookmark-plus', label: 'bmAdd' },
   section: { icon: 'bm-start', label: 'secAdd' },
   cover: { icon: 'cover', label: 'coverHere' },
@@ -53,46 +49,37 @@ export function install(ctx) {
     const b = make('button', 'cb-btn ' + cls);
     b.type = 'button';
     b.append(icon(name));
-    b.addEventListener('click', action);
+    if (action) b.addEventListener('click', action);
     return b;
   }
-  const name = make('div', 'fb-name');
-  const mid = make('div', 'fb-mid'),
+  // 上行：文件名 + 标题行按钮区。
+  const head = make('div', 'fb-head'),
+    name = make('div', 'fb-name'),
+    headTools = make('div', 'fb-head-tools');
+  head.append(name, headTools);
+  // 下行：播放键、进度条、时间（悬停换成快退 / 快进），右侧三个按钮位。
+  const line = make('div', 'fb-line'),
+    mid = make('div', 'fb-mid'),
     play = btn('fb-play', 'play', () => {
       const p = player();
       if (p) M().press(p.node);
     }),
     seek = P().seekBar(() => (showing() ? player() : null)),
-    time = make('span', 'fb-time');
-  mid.append(play, seek.bar, time);
+    time = P().timeBox(() => (showing() ? player() : null), 'fb-time');
+  mid.append(play, seek.bar, time.box);
   const tools = make('div', 'fb-tools'),
     slots = {};
-  for (const id of SLOTS) {
-    const b = btn('fb-x', LOOK[id].icon, (e) => click(id, b, e));
+  for (const id of BUTTONS) {
+    const b = btn('fb-x', LOOK[id].icon, () => click(id, b));
     b.dataset.slot = id;
-    if (id === 'subs') b.dataset.control = 'subs'; // 字幕菜单按 [data-control="subs"] 判断是否点在同一个按钮上（再点一次即收起）
     slots[id] = b;
   }
   const more = btn('cb-more fb-more', 'more', null),
-    pop = make('div', 'cb-pop cb-more-pop fb-more-pop');
-  pop.popover = 'auto';
-  more.popoverTargetElement = pop;
-  more.setAttribute('aria-haspopup', 'true');
-  pop.addEventListener('click', (e) => {
-    if (e.target.closest('button')?.parentElement === pop) pop.hidePopover();
-  });
-  // 打开前（同步）定位在总控栏上方、按钮居中、夹在窗口内：弹出层是一行固定尺寸的按钮。
-  pop.addEventListener('beforetoggle', (e) => {
-    more.setAttribute('aria-expanded', String(e.newState === 'open'));
-    if (e.newState !== 'open') return;
-    const n = [...pop.children].filter((c) => !c.classList.contains('fb-void')).length,
-      r = more.getBoundingClientRect(),
-      w = n * BTN + Math.max(0, n - 1) * GAP + 14,
-      top = document.getElementById('controlbar').getBoundingClientRect().top;
-    pop.style.left = Math.round(Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2))) + 'px';
-    pop.style.top = Math.round(Math.max(4, top - BTN - 14 - 8)) + 'px';
-  });
-  row.append(name, mid, tools);
+    pop = make('div', 'cb-pop fb-more-pop'),
+    moreH = morePop(more, pop),
+    voids = Array.from({ length: 3 }, () => make('span', 'fb-place fb-void'));
+  line.append(mid, tools);
+  row.append(head, line, pop);
   row.hidden = false;
 
   // ---- 按钮的动作：媒体传入它的播放器；图片不传（书签、封面按视窗中心处）。
@@ -107,31 +94,51 @@ export function install(ctx) {
     else control(id)?.click?.(p ?? undefined, P().api, b);
     later();
   }
+  // ---- 标题行右端的按钮（ctx.fileBar.addHead）。
+  const heads = [];
+  function addHead(spec) {
+    const b = btn('fb-h', spec.icon, () => {
+      spec.click?.(tg);
+      later();
+    });
+    b.dataset.head = spec.id;
+    heads.push({ spec, b });
+    headTools.append(b);
+    if (showing()) states();
+    return b;
+  }
 
   // ---- 状态显示
   let shownPage = null,
-    drawn = null, // 书签标记按哪个播放器、哪个时长画的：{p, d}
-    level = -1;
-  const has = () => slotsOf(tg?.kind);
+    shownKind = undefined,
+    drawn = null; // 书签标记按哪个播放器、哪个时长画的：{p, d}
   function refresh() {
     tg = M()?.target() ?? null;
-    const p = player(),
-      kinds = has();
+    const p = player();
     row.dataset.kind = tg?.kind ?? '';
     if (tg?.page !== shownPage) {
       shownPage = tg?.page ?? null;
       if (shownPage) {
         const full = shownName(shownPage),
-          n = midName(full.slice(full.lastIndexOf('/') + 1));
+          n = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
         n.title = full;
         n.dataset.nodrag = '';
         name.replaceChildren(n);
       } else name.replaceChildren();
     }
     mid.classList.toggle('fb-void', !p);
-    for (const id of SLOTS) slots[id].classList.toggle('fb-void', !kinds.has(id));
+    place(tg?.kind);
     states();
     progress();
+  }
+  // 三个按钮位：按文件类型放按钮、「⋯」或空位（位置固定）。
+  function place(kind) {
+    if (kind === shownKind) return;
+    shownKind = kind;
+    moreH.hide();
+    const { row: places, more: inMore } = arrange(kind);
+    tools.replaceChildren(...places.map((id, i) => (id === 'more' ? more : id ? slots[id] : voids[i])));
+    pop.replaceChildren(...inMore.map((id) => slots[id]));
   }
   function states() {
     const p = player(),
@@ -141,13 +148,15 @@ export function install(ctx) {
     setIcon(play, on ? 'pause' : 'play');
     setLabel(play, t(on ? 'mvPause' : 'mvPlay'));
     play.disabled = !p || failed;
+    time.sync(p);
     mid.classList.toggle('playing', on);
     mid.classList.toggle('sec-only', !!p?.node.classList.contains('sec-only'));
-    for (const id of SLOTS) {
+    const has = new Set(buttonsOf(tg?.kind));
+    for (const id of BUTTONS) {
       const b = slots[id],
         c = control(id);
       let s = {};
-      if (id === 'subs') s = p && c?.state ? (c.state(p, api, b) ?? {}) : { disabled: true };
+      if (!has.has(id)) s = { disabled: true };
       else if (id === 'cover') s = { disabled: failed || !ctx.canSetCover?.(p ?? undefined) };
       else if (id === 'full') {
         const full = !!M().isFull?.(p);
@@ -161,44 +170,35 @@ export function install(ctx) {
       b.disabled = !!s.disabled;
       if (s.pressed != null) b.setAttribute('aria-pressed', String(!!s.pressed));
       else b.removeAttribute('aria-pressed');
-      if (s.icon) setIcon(b, s.icon);
+      setIcon(b, s.icon ?? LOOK[id].icon);
       setLabel(b, t(s.label ?? LOOK[id].label));
     }
+    more.disabled = !tg || failed;
     setLabel(more, t('cbMore'));
+    for (const { spec, b } of heads) {
+      const s = spec.state?.(tg) ?? {};
+      b.disabled = !!s.disabled;
+      if (s.pressed != null) b.setAttribute('aria-pressed', String(!!s.pressed));
+      else b.removeAttribute('aria-pressed');
+      setIcon(b, s.icon ?? spec.icon);
+      setLabel(b, t(s.label ?? spec.label));
+    }
     row.setAttribute('aria-label', t('fbBar'));
   }
   // 进度与时间；时长变了（读到元数据）时按位数重设时间的宽度、重画书签标记。
   function progress() {
     const p = player(),
       text = P().paintBar(seek, p);
-    time.textContent = p ? text : '';
+    time.text.textContent = p ? text : '';
     const d = p ? P().api.duration(p) : null;
     if (drawn?.p !== p || drawn.d !== d) {
       drawn = { p, d };
-      const w = P().timeWidth(d) + 'ch';
-      if (time.style.width !== w) {
-        time.style.width = w;
-        fit();
-      }
+      time.size(d);
       marks();
     }
   }
   function marks() {
     P().drawMarks?.(seek.bar, player());
-  }
-
-  // ---- 窄时：先缩短文件名、再缩短进度条（CSS），仍放不下时把次要按钮收进「⋯」。
-  function fit() {
-    if (!showing()) return;
-    const base = NAME_MIN + ROW_GAP + BTN + MID_GAP + BAR_MIN + MID_GAP + time.offsetWidth + ROW_GAP,
-      n = fitLevel(row.clientWidth, { base, slot: BTN, gap: GAP });
-    if (n === level) return;
-    level = n;
-    if (pop.matches(':popover-open')) pop.hidePopover();
-    const { row: inRow, more: inMore } = arrange(n);
-    tools.replaceChildren(...inRow.map((id) => (id === 'more' ? more : slots[id])), ...(inMore.length ? [pop] : []));
-    pop.replaceChildren(...inMore.map((id) => slots[id]));
-    row.classList.toggle('compact', n > 0);
   }
 
   // ---- 更新：只在显示时
@@ -211,10 +211,8 @@ export function install(ctx) {
       });
   }
   ctx.on('controlbar', (on) => {
-    if (on) {
-      refresh();
-      fit();
-    } else if (pop.matches(':popover-open')) pop.hidePopover();
+    if (on) refresh();
+    else moreH.hide();
   });
   ctx.on('media', (key) => {
     if (!showing()) return;
@@ -229,10 +227,9 @@ export function install(ctx) {
   ctx.on('synced', (book, keys) => keys.includes('bookmarks') && redraw(book));
   ctx.on('lang', () => {
     if (!showing()) return;
-    level = -1;
     refresh();
-    fit();
   });
-  new ResizeObserver(() => fit()).observe(row);
   refresh();
+  // addHead：往标题行右端加按钮（见文件开头）；refresh()：立即按当前文件重画。
+  ctx.fileBar = { addHead, refresh: later };
 }

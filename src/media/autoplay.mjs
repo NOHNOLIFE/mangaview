@@ -8,6 +8,8 @@
 // 未运行时（手动浏览）：漫画模式下任何媒体都不自动播放；混合、影音模式下只有视频在滚动停稳时自动播放，
 // 音频只在点击音频书签、播放顺序 / 循环切到它、运行中轮到它时开始。运行中由总控的驱动器决定播放什么，这里不插手。
 // 翻屏对齐（align，keys.mjs 的 A / D / ← / →）：翻过去之后有视频进入播放范围时，直接落在该视频居中处（漫画模式、自动播放关闭时不对齐）。
+// 视窗中心所在的视频带 .mv-center（未选中的视频压得更暗，它恢复到普通的压暗程度，shell.css）：滚动、重画时每帧至多更新一次，
+// 只按页的累计高度二分查找（centerIndex），不遍历页、不读布局。
 import { extend } from '../core/lang.mjs';
 import { pageKind, at } from '../core/model.mjs';
 import { turnTo } from '../core/engine.mjs';
@@ -141,9 +143,27 @@ export function install(ctx, S) {
       to = turnTo({ top, d, step, viewH: main.clientHeight, max, videos });
     return Math.abs(to - Math.min(max, Math.max(0, top + d * step))) < 0.5 ? null : to;
   }
+  // 视窗中心所在的视频（.mv-center）。
+  let centered = null,
+    centerFrame = 0;
+  function markCenter() {
+    centerFrame = 0;
+    const book = ctx.current,
+      i = centerIndex(),
+      page = i >= 0 ? book.pages[i] : null,
+      node = (page && pageKind(page) === 'video' && ctx.view.panes?.[0]?.slots?.get(i)) || null;
+    if (node === centered) return;
+    centered?.classList.remove('mv-center');
+    centered = node;
+    node?.classList.add('mv-center');
+  }
+  const centerSoon = () => {
+    if (!centerFrame) centerFrame = requestAnimationFrame(markCenter);
+  };
   main.addEventListener(
     'scroll',
     () => {
+      centerSoon();
       watch();
       clearTimeout(settleTimer);
       settleTimer = setTimeout(settled, SETTLE);
@@ -176,5 +196,5 @@ export function install(ctx, S) {
     get: () => get('autoplay', true),
     set: (v) => put('autoplay', v),
   });
-  Object.assign(S, { inView, current, target, pick, select, release, align });
+  Object.assign(S, { inView, current, target, pick, select, release, align, centerSoon });
 }

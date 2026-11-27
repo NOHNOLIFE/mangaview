@@ -97,10 +97,10 @@ extend({
   ],
   // 鼠标：按键是“小图标 + 文字”的图例；阅读区示意的边缘标注是位置信息，说明在提示框里。
   hkMouseL: [
-    'Turn screens (left / right half), on media: play / pause, drag: scroll',
-    '翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动',
-    '画面送り（左／右半分）、メディアは再生／一時停止、ドラッグでスクロール',
-    '화면 넘기기 (왼쪽 / 오른쪽 절반), 미디어: 재생 / 일시 정지, 드래그: 스크롤',
+    'Turn screens (left / right half), on media: play / pause, drag: scroll (sideways on media: seek)',
+    '翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动（在媒体上横向拖动定位）',
+    '画面送り（左／右半分）、メディアは再生／一時停止、ドラッグでスクロール（メディア上の横ドラッグで再生位置を移動）',
+    '화면 넘기기 (왼쪽 / 오른쪽 절반), 미디어: 재생 / 일시 정지, 드래그: 스크롤 (미디어에서 가로 드래그: 위치 이동)',
   ],
   hkMouseW: [
     'Scroll, middle click: auto-scroll',

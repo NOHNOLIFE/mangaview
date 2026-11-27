@@ -303,7 +303,7 @@ try {
     await Q.js(
       `[node('02 clip.webm').classList.contains('selected'),filebar.querySelector('.fb-name').textContent,filebar.querySelector('.fb-play').getAttribute('aria-label'),filebar.querySelector('[data-slot="full"]').disabled]`,
     ),
-    [true, '02 clip.webm', 'Pause', false],
+    [true, '02 clip', 'Pause', false],
     'File bar on the media playing in the new window',
   );
   const vs = popoutSize(

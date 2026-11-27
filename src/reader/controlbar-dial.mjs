@@ -1,67 +1,7 @@
-// 总控栏上悬停弹出的小面板：速率、音量（dial）与播放模式。指针悬停或键盘聚焦按钮时在按钮上方弹出（hoverPop），
-// 移开（或焦点离开）后收起；同一时间只显示一个。小面板用 popover（top layer），位置按按钮计算、夹在窗口内；
-// 与按钮之间的空隙由面板下方的透明延伸区（.cb-hover::after）补上，指针经过时不会收起。
-// dial：按钮显示数字或图标，面板是滑杆 + 常用档位（音量另有静音）；在按钮上滚轮、按方向键直接逐档调整；点击按钮由调用方决定（速率回到 1.0×，音量静音）。
+// 总控栏上悬停弹出的小面板：速率、音量（dial）。悬停 / 聚焦弹出、定位与收起见 ui/hoverpop.mjs（播放模式、「⋯」同样用它）。
+// dial：按钮显示数字或图标，面板是滑杆 + 常用档位（音量另有静音）；在按钮上滚轮、按方向键直接逐档调整；点击按钮由调用方决定（速率回到 1.0，音量静音）。
 import { make } from '../ui/dom.mjs';
-
-const CLOSE = 220; // 指针离开后多久收起（毫秒）
-let shown = null; // 同一时间只显示一个小面板
-
-// 悬停 / 聚焦弹出：btn 与 pop（已设 popover="manual"）。onShow 在弹出后调用（重画内容）。返回 {show, hide, open}。
-export function hoverPop(btn, pop, onShow) {
-  pop.popover = 'manual';
-  pop.classList.add('cb-hover');
-  let timer = 0;
-  const open = () => pop.matches(':popover-open');
-  function show() {
-    clearTimeout(timer);
-    if (btn.disabled || open() || !btn.isConnected) return;
-    if (shown && shown !== hide) shown();
-    shown = hide;
-    pop.showPopover();
-    place();
-    onShow?.();
-  }
-  function hide() {
-    clearTimeout(timer);
-    if (shown === hide) shown = null;
-    if (open()) pop.hidePopover();
-  }
-  function leaveSoon() {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (!btn.matches(':hover') && !pop.matches(':hover') && !within()) hide();
-    }, CLOSE);
-  }
-  const within = () => {
-    const a = document.activeElement;
-    return (a === btn && btn.matches(':focus-visible')) || pop.contains(a);
-  };
-  function place() {
-    const r = btn.getBoundingClientRect(),
-      w = pop.offsetWidth,
-      h = pop.offsetHeight;
-    pop.style.left = Math.round(Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2))) + 'px';
-    pop.style.top = Math.round(Math.max(4, r.top - h - 8)) + 'px';
-  }
-  for (const el of [btn, pop]) {
-    el.addEventListener('pointerenter', (e) => {
-      if (e.pointerType === 'mouse') show();
-    });
-    el.addEventListener('pointerleave', (e) => {
-      if (e.pointerType === 'mouse') leaveSoon();
-    });
-    el.addEventListener('focusout', () => queueMicrotask(() => !within() && leaveSoon()));
-  }
-  btn.addEventListener('focus', () => {
-    if (btn.matches(':focus-visible')) show();
-  });
-  pop.addEventListener('focusin', () => clearTimeout(timer));
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hide();
-  });
-  return { show, hide, open };
-}
+import { hoverPop } from '../ui/hoverpop.mjs';
 
 // 方向键逐档：上 / 右加，下 / 左减（不滚动正文）。
 export function arrows(btn, nudge) {
@@ -77,7 +17,7 @@ export function arrows(btn, nudge) {
 // opt：{id, cls, label()（文案）, face(按钮)（画按钮上的数字或图标）, click(), nudge(d)（逐档，d 为 ±1）,
 //   slider:{min,max,step,get(),set(v),text(v)}, presets:[{value,text}], extra?（面板最前面的元素，如静音按钮）}
 export function dial(opt) {
-  const btn = make('button', 'cb-btn cb-dial ' + (opt.cls ?? ''));
+  const btn = make('button', 'cb-btn cb-dial keep-pop ' + (opt.cls ?? ''));
   btn.type = 'button';
   btn.dataset.id = opt.id;
   const pop = make('div', 'cb-pop dial-pop'),

@@ -1,18 +1,24 @@
-// 单个文件的播放面板（壳）：正文里每个媒体页的 DOM（build）、音频卡片上的控件与宽度不够时的「更多」弹出层、进度条（makeBar，文件栏共用），
-// 以及状态显示（render：播放键、登记的按钮、进度与时间）、书签标记等装饰（decorate）的重画、视频全屏（fullscreen）。
-// 视频画面内没有控件，只有字幕和未选中时的大播放键；它的文件名、播放键、进度条、字幕等按钮在文件栏（reader/filebar.mjs）。
-// 音频卡片的控件常显：播放 / 暂停、进度条（含书签标记）、时间、登记的按钮（字幕、添加书签、添加区段书签），与文件栏同时存在、状态同步；
-// 音量、播放顺序、循环、只播区段、新窗口播放等列表级控制在总控栏（reader/controlbar.mjs）。
-// 外观（视频、音频统一）：未选中（见 core/selection.mjs）压暗并在中央显示大播放键（点它等同点击画面）；选中不压暗、不描边；
+// 单个文件的播放面板（壳）：正文里每个媒体页的 DOM（build）、音频卡片上的控件与宽度不够时的「⋯」弹出层、进度条（makeBar）与时间
+// （makeTime：悬停 / 聚焦时原位换成快退 / 快进；这两样文件栏共用），以及状态显示（render：播放键、登记的按钮、进度与时间）、
+// 书签标记等装饰（decorate）的重画、视频全屏（fullscreen）。
+// 视频画面内没有控件，只有字幕和未选中时的大播放键；它的文件名、播放键、进度条等按钮在文件栏（reader/filebar.mjs）。
+// 音频卡片的控件常显：播放 / 暂停、进度条（含书签标记）、时间、登记的按钮（添加书签、添加区段书签；登记时 card: false 的只在栏上，如字幕），
+// 与文件栏同时存在、状态同步；「⋯」悬停展开（ui/hoverpop.mjs）。卡片的标题只显示最末一段、不带扩展名。
+// 音量、播放顺序、循环、只播区段、字幕、新窗口播放等在总控栏（reader/controlbar.mjs）。
+// 外观：未选中（见 core/selection.mjs）压暗并在中央显示大播放键（点它等同点击画面）；视频压得更暗，视窗中心所在的（.mv-center，autoplay.mjs）、
+// 悬停或键盘聚焦的视频恢复到音频的压暗程度；选中不压暗、不描边。
 // 播放与暂停只在播放键图标、进度条颜色和音频的跳动音柱上有区别。播放不了的不显示大播放键。
-// 字幕容器 .mv-subs 由这里建好并留空（aria-live="off"）：视频叠在画面底部；音频是卡片里始终占位、可容 3 行的区域。
+// 字幕容器 .mv-subs 由这里建好（aria-live="off"）：视频叠在画面底部；音频是卡片里始终占位、可容 3 行的区域，里面另有阶梯音柱（.mv-bars），
+// 没有字幕可显示（.mv-nosubs，subtitles.mjs）的音频选中时显示，播放中跳动（纯 CSS，不分析音频）。
 // 只有按钮、进度条、可选中的文件名带 data-nodrag，面板的空白处可以拖动滚动正文。
 // 音频卡片：纯色底，右侧一张方形小图（像内嵌的专辑图，art.mjs：书的当前封面，没有封面时按文件名配色的占位图；封面换了已显示的卡片跟着变）。
-// 视频全屏：整个页面进入全屏（已在全屏时不再请求），该视频成为选中媒体并铺满窗口（.mv-full），其余照常：鼠标到底缘弹出文件栏和总控栏，快捷键、字幕照常；
+// 视频全屏：整个页面进入全屏（已在全屏时不再请求），该视频成为选中媒体、在正文里居中（窗口尺寸变化时仍在虚拟列表的可见范围里），
+// 并铺满窗口居中显示（.mv-full：不受正文里的宽度上限影响，盖住其他页），其余照常：鼠标到底缘弹出文件栏和总控栏，快捷键、字幕照常；
 // 全屏期间滚轮不滚动正文，退出后回到进入前的阅读位置。
 import { extend } from '../core/lang.mjs';
-import { shownName, clock } from '../core/model.mjs';
+import { shownName, stem, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
+import { morePop } from '../ui/hoverpop.mjs';
 import { audioArt } from './art.mjs';
 
 extend({
@@ -22,12 +28,16 @@ extend({
   mvFull: ['Fullscreen', '全屏', '全画面', '전체 화면'],
   mvExitFull: ['Exit fullscreen', '退出全屏', '全画面を終了', '전체 화면 종료'],
   mvMore: ['More controls', '更多控件', 'その他の操作', '더 보기'],
+  mvBack: ['Rewind', '快退', '巻き戻し', '되감기'],
+  mvFwd: ['Fast-forward', '快进', '早送り', '빨리 감기'],
 });
-// 壳的宽度预算（像素，与 shell.css 一致）：放不下全部控件时，次要控件收进「更多」弹出层。
+// 壳的宽度预算（像素，与 shell.css 一致）：放不下全部控件时，次要控件收进「⋯」弹出层。
+// BARS：阶梯音柱的根数。
 const BTN = 32,
   GAP = 2,
   PAD = 12,
-  BAR_MIN = 120;
+  BAR_MIN = 120,
+  BARS = 24;
 
 export function install(ctx, S) {
   const { t, make, icon } = ctx,
@@ -92,9 +102,9 @@ export function install(ctx, S) {
     if (kind === 'video') node.replaceChildren(el, p.subs, p.big);
     else {
       shell(p);
-      // 文件名只显示最末一段（不带路径），完整路径放悬停提示；可选中复制。
+      // 文件名只显示最末一段（不带路径和扩展名），完整路径放悬停提示；可选中复制。
       const full = shownName(page),
-        name = midName(full.slice(full.lastIndexOf('/') + 1));
+        name = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
       name.title = full;
       name.dataset.nodrag = '';
       const card = make('div', 'mv-card'),
@@ -104,6 +114,11 @@ export function install(ctx, S) {
       eq.append(make('i'), make('i'), make('i'), make('i'));
       head.append(icon('music'), eq, name);
       const art = audioArt(ctx, make('span'), book, page); // 不存进页记录，每次建卡片时取当前封面
+      // 字幕区里的阶梯音柱：没有字幕可显示时，选中即显示、播放中跳动（shell.css）。
+      const bars = make('span', 'mv-bars');
+      bars.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < BARS; i++) bars.append(make('i'));
+      p.subs.append(bars);
       card.append(head, art, p.subs, p.shell);
       node.replaceChildren(card, el, p.big);
     }
@@ -121,25 +136,19 @@ export function install(ctx, S) {
     render(p);
     return p;
   }
-  // 音频卡片上的一行控件（视频没有）：播放键、进度条、时间、登记的按钮、「更多」。
+  // 音频卡片上的一行控件（视频没有）：播放键、进度条、时间（悬停换成快退 / 快进）、登记的按钮、「⋯」。
   function shell(p) {
     const s = make('div', 'mv-shell'),
       { bar, fill, knob } = makeBar(() => p),
-      timeEl = make('span', 'mv-time');
+      clockEl = makeTime(() => p, 'mv-time');
     const play = button('play', t('mvPlay'), () => press(p), 'mv-play');
     const more = button('more', t('mvMore'), () => {}, 'mv-more'),
       pop = make('div', 'mv-pop');
-    pop.popover = 'auto';
     pop.dataset.nodrag = '';
     more.hidden = true;
-    more.popoverTargetElement = pop;
-    more.setAttribute('aria-haspopup', 'true'); // 由浏览器开关：再点一次即收起，点别处也收起
-    pop.addEventListener('toggle', (e) => {
-      more.setAttribute('aria-expanded', String(e.newState === 'open'));
-      if (e.newState === 'open') placePop(p);
-    });
-    Object.assign(p, { shell: s, bar, fill, knob, timeEl, play, more, pop });
-    s.append(play, bar, timeEl, more, pop);
+    const moreH = morePop(more, pop);
+    Object.assign(p, { shell: s, bar, fill, knob, timeEl: clockEl.box, clockEl, play, more, pop, moreH });
+    s.append(play, bar, clockEl.box, more, pop);
     layoutControls(p);
   }
   // 登记的按钮（ctx.player.add）在这个播放器上的那一个：点击、状态都带上按钮本身（字幕菜单按它定位）。
@@ -156,7 +165,7 @@ export function install(ctx, S) {
   function secondary(p) {
     const list = [];
     for (const c of controls)
-      if (!c.kinds || c.kinds.includes(p.kind)) {
+      if (c.card !== false && (!c.kinds || c.kinds.includes(p.kind))) {
         const b = extraButton(p, c);
         if (c.secondary === false) continue;
         list.push({ node: b, w: BTN, order: c.order ?? 50 });
@@ -165,7 +174,7 @@ export function install(ctx, S) {
   }
   function primaryExtra(p) {
     return controls
-      .filter((c) => c.secondary === false && (!c.kinds || c.kinds.includes(p.kind)))
+      .filter((c) => c.secondary === false && c.card !== false && (!c.kinds || c.kinds.includes(p.kind)))
       .map((c) => p.extra.get(c))
       .filter(Boolean);
   }
@@ -184,7 +193,7 @@ export function install(ctx, S) {
     } else {
       p.more.before(...sec.map((x) => x.node));
       p.more.hidden = true;
-      if (p.pop.matches(':popover-open')) p.pop.hidePopover();
+      p.moreH.hide();
     }
     p.narrow = narrow;
     p.shell.classList.toggle('narrow', narrow);
@@ -196,15 +205,6 @@ export function install(ctx, S) {
       if (p) layoutControls(p);
     }
   });
-  function placePop(p) {
-    const r = p.more.getBoundingClientRect();
-    Object.assign(p.pop.style, {
-      left: 'auto',
-      top: 'auto',
-      right: Math.max(4, innerWidth - r.right) + 'px',
-      bottom: Math.max(4, innerHeight - r.top + 6) + 'px',
-    });
-  }
   // 进度条（音频卡片、文件栏共用）：可点击、拖动、方向键定位；get() 为它当前作用的播放器（没有时为 null，不响应）。
   // 上面有一层 .mv-marks（书签标记，marks.mjs），进度由 paintBar 画。
   function makeBar(get) {
@@ -278,18 +278,66 @@ export function install(ctx, S) {
   }
   // 时间显示的宽度（ch）：按总时长的位数预留，播放中数字变化不推动其他控件。
   const timeWidth = (d) => (clock(d || 0) + ' / ' + clock(d || 0)).length;
+  // 时间（音频卡片、文件栏共用）：当前 / 总时长；悬停或键盘聚焦时原位换成「快退」「快进」两个按钮（宽度不变，shell.css .mv-tbox）：
+  // 点按一次 2 秒，长按与长按 A / D 的递增步长一致（同一份逻辑 S.hold，keys.mjs），显示同样的提示浮层；键盘按一次 2 秒。
+  // get() 为它作用的播放器（没有时为 null，不响应）。返回 {box, text（时间文字）, sync(播放器)（按钮可用与否）,
+  // size(时长)（按位数设宽度，变了返回 true）, labels()（换语言）}。
+  function makeTime(get, cls) {
+    const box = make('span', 'mv-tbox ' + cls),
+      text = make('span', 'mv-clock'),
+      steps = make('span', 'mv-steps');
+    function step(name, label, d) {
+      const b = button(name, t(label), () => {}, 'mv-step');
+      b.dataset.d = d;
+      let held = false;
+      const end = () => {
+        if (!held) return;
+        held = false;
+        S.hold.stop();
+      };
+      b.addEventListener('pointerdown', (e) => {
+        const p = get();
+        if (e.button !== 0 || !p || b.disabled) return;
+        b.setPointerCapture?.(e.pointerId);
+        held = S.hold.start(p, d);
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(type, end);
+      // 指针的点按已在按下 / 松开时处理；键盘（Enter / 空格）每按一次 2 秒。
+      b.addEventListener('click', (e) => {
+        const p = get();
+        if (!e.detail && p && S.hold.start(p, d)) S.hold.stop();
+      });
+      return b;
+    }
+    const back = step('rewind', 'mvBack', -1),
+      fwd = step('fast-forward', 'mvFwd', 1);
+    steps.append(back, fwd);
+    box.append(text, steps);
+    return {
+      box,
+      text,
+      sync(p) {
+        back.disabled = fwd.disabled = !p || p.state === 'failed';
+      },
+      size(d) {
+        const w = String(timeWidth(d));
+        if (box.dataset.w === w) return false;
+        box.dataset.w = w;
+        box.style.width = w + 'ch';
+        return true;
+      },
+      labels() {
+        setLabel(back, t('mvBack'));
+        setLabel(fwd, t('mvFwd'));
+      },
+    };
+  }
   // 时间显示按总时长的位数预留宽度：播放中数字变化不推动其他控件。
   function sizeTime(p) {
-    if (!p.timeEl) return;
-    const w = timeWidth(api.duration(p));
-    if (p.timeEl.dataset.w !== String(w)) {
-      p.timeEl.dataset.w = w;
-      p.timeEl.style.width = w + 'ch';
-      layoutControls(p);
-    }
+    if (p.clockEl?.size(api.duration(p))) layoutControls(p);
   }
   function progress(p, at) {
-    if (p.bar) p.timeEl.textContent = paintBar(p, p, at);
+    if (p.bar) p.clockEl.text.textContent = paintBar(p, p, at);
   }
   function renderControls(p) {
     for (const [c, b] of p.extra) {
@@ -307,6 +355,7 @@ export function install(ctx, S) {
       setLabel(p.play, t(on ? 'mvPause' : 'mvPlay'));
     }
     p.node.classList.toggle('playing', on);
+    p.clockEl?.sync(p);
     renderControls(p);
     progress(p);
   }
@@ -320,6 +369,9 @@ export function install(ctx, S) {
     if (p.kind !== 'video' || p.state === 'failed') return;
     back = ctx.view.anchor();
     S.select(p, 'press'); // 全屏的视频即选中媒体（不压暗、没有大播放键）
+    // 先在正文里居中：窗口变成全屏尺寸、正文重排后它仍在虚拟列表的可见范围里（不被卸载），退出时回到 back。
+    const i = p.book === ctx.current ? p.book.pages.indexOf(p.page) : -1;
+    if (i >= 0) ctx.view.jump({ i, f: 0.5 });
     S.full = p;
     p.node.classList.add('mv-full');
     document.body.classList.add('mv-fullvideo');
@@ -409,6 +461,7 @@ export function install(ctx, S) {
       if (p.bar) {
         p.bar.setAttribute('aria-label', t('mvSeek'));
         setLabel(p.more, t('mvMore'));
+        p.clockEl.labels();
       }
       render(p);
     }
@@ -421,6 +474,7 @@ export function install(ctx, S) {
     layoutControls,
     fitter,
     makeBar,
+    makeTime,
     paintBar,
     timeWidth,
     sizeTime,

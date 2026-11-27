@@ -133,7 +133,8 @@ try {
     window.el=name=>node(name)?.querySelector('video,audio');
     window.cue=name=>{const c=node(name)?.querySelector('.mv-subs .mv-cue');return c&&!c.hidden?c.textContent:null;};
     // 字幕按钮：视频的在文件栏（作用于当前文件），音频的在卡片上。
-    window.btn=name=>{const n=node(name);return !n?null:n.classList.contains('video')?document.querySelector('#filebar [data-slot="subs"]'):n.querySelector('[data-control="subs"]');};
+    // 字幕按钮在总控栏，作用于文件栏显示的媒体：文件栏显示的是 name 时取这个按钮（总控栏显示时才更新）。
+    window.btn=name=>!controlbar.hidden&&filebar.querySelector('.fb-name .mid-name')?.title===name?document.querySelector('#controlbar [data-id="subs"]'):null;
     window.toPage=async name=>{let from=0;for(let i=0;i<300;i++){const n=node(name);if(!n){reader.scrollTop=from;from+=300;await frame();continue;}
       const want=n.offsetTop+n.offsetHeight/2-reader.clientHeight/2;if(Math.abs(reader.scrollTop-Math.max(0,Math.min(want,reader.scrollHeight-reader.clientHeight)))<1&&i>2){await frame();if(Math.abs(n.offsetTop+n.offsetHeight/2-reader.clientHeight/2-want)<1)return true;}
       reader.scrollTop=want;await frame();}return false;};
@@ -201,10 +202,7 @@ try {
   await js(`el('01 clip.webm').pause()`);
   await js(`seekTo('01 clip.webm',0)`);
   await key('t', 'KeyT', 84);
-  await wait(
-    () => js(`!controlbar.hidden&&filebar.querySelector('.fb-name').textContent==='01 clip.webm'`),
-    'file bar on the clip',
-  );
+  await wait(() => js(`!controlbar.hidden&&!!btn('01 clip.webm')`), 'file bar on the clip');
   assert.deepEqual(
     await js(
       `(()=>{const b=btn('01 clip.webm');return [!!b,b.disabled,b.getAttribute('aria-pressed'),b.getAttribute('aria-haspopup'),b.getAttribute('aria-label')];})()`,
@@ -248,7 +246,7 @@ try {
   await js(`el('01 clip.webm').pause()`);
 
   // ---- 多个字幕：按钮弹出菜单（关闭 + 各个字幕），选中的记在书目记录里；GBK 编码的也能读出。
-  await tap('#filebar [data-slot="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop')?.matches(':popover-open')`), 'menu open');
   assert.deepEqual(
     await js(
@@ -267,11 +265,11 @@ try {
   assert.deepEqual(pop, [true, true, true], 'The menu opens above the button, inside the window');
   await shot('subs-menu');
   // 再点一次按钮即收起。
-  await tap('#filebar [data-slot="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`!document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu closed by the button');
   await delay(150);
   assert.equal(await js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), false);
-  await tap('#filebar [data-slot="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu open again');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='01 clip.zh.srt').click()`);
   await wait(() => js(`cue('01 clip.webm')==='你好世界'`), 'GBK subtitle decoded');
@@ -279,13 +277,13 @@ try {
   await wait(async () => (await record()).subPick?.[0]?.f === '01 clip.zh.srt', 'choice saved');
   assert.deepEqual((await record()).subPick, [{ id: '01 clip.webm', f: '01 clip.zh.srt' }]);
   // 关闭：全局记住，所有媒体都不显示。
-  await tap('#filebar [data-slot="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='Off').click()`);
   await wait(() => js(`cue('01 clip.webm')===null&&btn('01 clip.webm').getAttribute('aria-pressed')==='false'`), 'off');
   assert.equal(await js(`localStorage.getItem('mv2:subs')`), 'false');
   // 不重复读：选回之前的字幕、离开视窗再回来，都只核对元数据。
-  await tap('#filebar [data-slot="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`), 'menu');
   await js(`[...document.querySelectorAll('.mv-subs-pop .sp-item')].find(b=>b.textContent==='01 clip.srt').click()`);
   await js(`seekTo('01 clip.webm',0.5)`);
@@ -293,10 +291,13 @@ try {
   assert.equal(await js(`localStorage.getItem('mv2:subs')`), 'true');
   await reads(); // 缓存命中：不再读
 
-  // ---- 音频：显示在卡片里；只有一个字幕时按钮直接开 / 关；没有字幕的媒体按钮禁用。
-  await key('t', 'KeyT', 84);
-  await wait(() => js(`controlbar.hidden`), 'control bar hidden');
+  // ---- 音频：显示在卡片里；只有一个字幕时按钮直接开 / 关；没有字幕的媒体按钮禁用。卡片上没有字幕按钮。
   assert.ok(await js(`toPage('02 song.wav')`));
+  assert.equal(
+    await js(`!!node('02 song.wav').querySelector('[data-control="subs"]')`),
+    false,
+    'No subtitles button on the card',
+  );
   await wait(() => js(`el('02 song.wav')?.readyState>=1`), 'song loaded');
   await wait(() => js(`cue('02 song.wav')==='Lyric one'`), 'lyric');
   await js(`seekTo('02 song.wav',2.5)`);
@@ -322,19 +323,35 @@ try {
   await js(`seekTo('02 song.wav',2.5)`);
   assert.equal(await js(`cue('02 song.wav')`), 'Lyric two');
   await shot('subs-audio');
+  // 有字幕时选中播放不显示音柱（字幕区显示字幕）；关闭字幕后显示音柱。
+  const barsShown = () => js(`getComputedStyle(node('02 song.wav').querySelector('.mv-bars')).display`);
+  await tap('#reader .page[data-name="02 song.wav"] .mv-card .mv-play');
+  await wait(
+    () => js(`node('02 song.wav').classList.contains('selected')&&!el('02 song.wav').paused`),
+    'song selected and playing',
+  );
+  await wait(() => js(`!!btn('02 song.wav')`), 'file bar on the song');
   assert.equal(await js(`btn('02 song.wav').hasAttribute('aria-haspopup')`), false);
-  await tap('#reader .page[data-name="02 song.wav"] [data-control="subs"]');
+  assert.equal(await barsShown(), 'none', 'No bars while a subtitle shows');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`cue('02 song.wav')===null&&localStorage.getItem('mv2:subs')==='false'`), 'toggled off');
+  assert.equal(await barsShown(), 'flex', 'Bars once subtitles are off');
+  await js(`el('02 song.wav').pause()`);
+  await js(`seekTo('02 song.wav',2.5)`);
   assert.equal((await audioBox()).card, oneLine.card, 'The card keeps its height without subtitles');
   assert.equal(
     await js(`document.querySelector('.mv-subs-pop').matches(':popover-open')`),
     false,
     'No menu for one subtitle',
   );
-  await tap('#reader .page[data-name="02 song.wav"] [data-control="subs"]');
+  await tap('#controlbar [data-id="subs"]');
   await wait(() => js(`cue('02 song.wav')==='Lyric two'`), 'toggled on');
+  assert.equal(await barsShown(), 'none');
   assert.ok(await js(`toPage('03 bare.wav')`));
+  // 选中的歌仍在视窗内，文件栏仍显示它：选中这个音频。
+  await tap('#reader .page[data-name="03 bare.wav"] .mv-card .mv-play');
   await wait(() => js(`!!btn('03 bare.wav')`), 'bare player');
+  await js(`el('03 bare.wav').pause()`);
   assert.deepEqual(await js(`[btn('03 bare.wav').disabled,btn('03 bare.wav').getAttribute('aria-label')]`), [
     true,
     'No subtitles',
@@ -362,9 +379,15 @@ try {
     throw Error(e.message + ' / ' + JSON.stringify({ subs: subsOf(await record()), errors }));
   });
   assert.ok(await js(`toPage('03 bare.wav')`));
+  // 指针点过卡片后总控栏已随之收起：按 T 重新显示。
+  if (await js('controlbar.hidden')) await key('t', 'KeyT', 84);
   await wait(() => js(`btn('03 bare.wav')?.disabled===false`), 'button enabled after refresh');
   await wait(() => js(`cue('03 bare.wav')==='Bare now'`), 'new subtitle shown');
-  assert.equal(await js(`btn('02 song.wav')?.disabled??true`), true, 'Removed subtitle disables the button');
+  assert.ok(await js(`toPage('02 song.wav')`));
+  await tap('#reader .page[data-name="02 song.wav"] .mv-card .mv-play');
+  await js(`el('02 song.wav').pause()`);
+  if (await js('controlbar.hidden')) await key('t', 'KeyT', 84);
+  await wait(() => js(`btn('02 song.wav')?.disabled===true`), 'Removed subtitle disables the button');
 
   // ---- 散图图集：与媒体一起选入的字幕按主文件名配对并保存句柄；之后单独加入的字幕也配上已有的媒体。
   await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Loose',{create:true});
@@ -458,7 +481,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: subtitle matching on scan (not pages, nothing read), video overlay at the bottom following time (seek, playback), tags stripped, 3-line limit, menu for several subtitles (choice saved per media, GBK decoded), global on/off, audio card, disabled without subtitles, read once and cached across unload, refresh adds/removes subtitles, loose atlas pairing with stored handles and subtitles added later, backup export/import, subtitles through the add dialog (folder, files with media, added later) and drops',
+    'PASS: subtitle matching on scan (not pages, nothing read), video overlay at the bottom following time (seek, playback), tags stripped, 3-line limit, menu for several subtitles (choice saved per media, GBK decoded), global on/off, audio card (no bars while a subtitle shows), button in the control bar for the shown media, disabled without subtitles, read once and cached across unload, refresh adds/removes subtitles, loose atlas pairing with stored handles and subtitles added later, backup export/import, subtitles through the add dialog (folder, files with media, added later) and drops',
   );
 } finally {
   if (ws?.readyState === 1) {

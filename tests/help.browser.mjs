@@ -348,7 +348,7 @@ try {
   assert.deepEqual(
     await js('[...document.querySelectorAll("#helpBody .hk-btn")].map(e=>[e.textContent,e.hasAttribute("data-tip")])'),
     [
-      ['翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动', false],
+      ['翻屏（左 / 右半屏），点媒体播放 / 暂停，拖动滚动（在媒体上横向拖动定位）', false],
       ['滚动，中键自动滚动', false],
       ['书签面板', false],
     ],

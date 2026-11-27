@@ -1,4 +1,6 @@
-// 外挂字幕的显示：字幕按钮（开关、多个字幕时的选择菜单；登记在 ctx.player.add，按钮在音频卡片和文件栏上，菜单按所点的按钮定位）、读取与缓存、随播放时间更新。
+// 外挂字幕的显示：字幕按钮（开关、多个字幕时的选择菜单；登记在 ctx.player.add，card: false：按钮只在总控栏右区（reader/controlbar.mjs），
+// 作用于文件栏显示的那个媒体，菜单按所点的按钮定位）、读取与缓存、随播放时间更新。
+// 没有字幕可显示（没有字幕文件，或字幕关着）的媒体页带 .mv-nosubs：音频卡片的字幕区改为显示阶梯音柱（shell.css）。
 // - 配对只看文件名，在导入、刷新列目录时顺带完成（sources.mjs，记在 page.subs）；解析在 core/subtitles.mjs。
 // - 只在该媒体第一次要显示字幕时（字幕开着、播放器挂上源）读字幕文件，解析结果在会话内缓存（CACHE 条），
 //   之后每次挂上源只取文件的大小和修改时间，变了才重读；读不到时简短提示，不影响播放。
@@ -119,6 +121,7 @@ export function install(ctx) {
   async function show(p) {
     const s = setup(p);
     if (!s) return;
+    p.node.classList.toggle('mv-nosubs', !(on && chosen(p)));
     const file = on && p.state === 'ready' ? chosen(p) : null;
     if (!file) {
       s.cues = null;
@@ -262,6 +265,7 @@ export function install(ctx) {
     icon: 'subtitles',
     label: 'mvSubs',
     order: 20,
+    card: false,
     click(p, api, b) {
       const list = subsOf(p.page);
       if (!list.length || !b) return;
