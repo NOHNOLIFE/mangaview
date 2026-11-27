@@ -27,10 +27,15 @@ export function following({ shuffle = false, loop = false, list = [], cur, playe
 // 循环范围（设置类偏好 'playScope'）：'file' 单文件 | 'book' 本书（默认）| 'books' 跨书，都循环；不认识的值读作本书。
 export const SCOPES = ['file', 'book', 'books'];
 export const scopeOf = (v) => (SCOPES.includes(v) ? v : 'book');
+// 循环范围按钮（画中画窗口）：点击按 SCOPES 的顺序轮换。
+export const nextScope = (v) => SCOPES[(SCOPES.indexOf(scopeOf(v)) + 1) % SCOPES.length];
 // 类型开关（设置类偏好 'playTypes'）：音频、视频，可多选，全不选即不限；读入时只留认识的值，按固定顺序。
 export const KINDS = ['audio', 'video'];
 export const typesOf = (v) => (Array.isArray(v) ? KINDS.filter((k) => v.includes(k)) : []);
 export const typeOk = (types, kind) => !types.length || types.includes(kind);
+// 类型开关（画中画窗口的音频、视频两个按钮）：切换其中一种，结果按固定顺序。
+export const toggleType = (types, kind) =>
+  typesOf(typesOf(types).includes(kind) ? typesOf(types).filter((k) => k !== kind) : [...typesOf(types), kind]);
 // 列表内容：kinds 为书里各页的类型（'image' | 'video' | 'audio'），skip(i) 为不列入的页（播不了的、本次移除的）；返回按页序的页序号。
 export function queueOf(kinds, types = [], skip = () => false) {
   const out = [];

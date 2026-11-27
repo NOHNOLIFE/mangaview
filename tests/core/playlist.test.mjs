@@ -5,6 +5,8 @@ import {
   sectionStart,
   sectionStep,
   scopeOf,
+  nextScope,
+  toggleType,
   typesOf,
   typeOk,
   queueOf,
@@ -23,11 +25,13 @@ test('接续：一个媒体播完之后播哪个（按页序或随机，循环�
       'SCOPES',
       'afterEnd',
       'following',
+      'nextScope',
       'queueOf',
       'scopeOf',
       'sectionStart',
       'sectionStep',
       'stepIn',
+      'toggleType',
       'typeOk',
       'typesOf',
     ],
@@ -170,4 +174,16 @@ test('上一项 / 下一项：按页序，两端相接；不在列表里时取�
   assert.equal(stepIn(list, 3, -1), 2);
   assert.equal(stepIn([2], 2, 1), null, 'Only itself');
   assert.equal(stepIn([], 2, 1), null);
+});
+
+test('画中画窗口的循环范围按钮轮换（单文件 → 本书 → 跨书 → 单文件），类型开关逐个切换、结果按固定顺序', () => {
+  assert.equal(nextScope('file'), 'book');
+  assert.equal(nextScope('book'), 'books');
+  assert.equal(nextScope('books'), 'file');
+  assert.equal(nextScope('junk'), 'books', 'An unknown value reads as this book');
+  assert.deepEqual(toggleType([], 'video'), ['video']);
+  assert.deepEqual(toggleType(['video'], 'audio'), ['audio', 'video']);
+  assert.deepEqual(toggleType(['audio', 'video'], 'audio'), ['video']);
+  assert.deepEqual(toggleType(['video'], 'video'), [], 'Neither: no limit');
+  assert.deepEqual(toggleType(null, 'audio'), ['audio']);
 });

@@ -1,4 +1,5 @@
 // 全应用统一的鼠标拖动滚动与惯性：在 document 上委托，按下时分别找横向、纵向最近的可滚动祖先，新界面无需另接。
+// 另一个文档（画中画窗口）里的界面不经主文档的委托：对它的窗口调用 install(那个窗口) 接上同样的行为。
 // 只对鼠标主键；位移超过 SLOP 像素才算拖动，拖动后这一下不再触发点击（click 在捕获阶段被拦下，包括正文的点击翻屏和列表项的点击）；没有拖动的点击不受影响。
 // 不参与拖动（按下处，或从它到滚动容器之间的元素）：
 // - 需要自己按住拖动或输入的控件：输入框、下拉框、可编辑区、滑杆、进度条、分隔条（调宽手柄）及其他 resize 光标的元素、带 data-nodrag 的元素；
@@ -45,19 +46,21 @@ export function sideways(handler) {
 // 停止惯性滑行（程序性跳转、切书前调用）。
 export function stop() {
   if (!flight) return;
-  cancelAnimationFrame(flight.frame);
+  flight.win.cancelAnimationFrame(flight.frame);
   flight = null;
 }
 const isMoving = () => !!flight && Math.hypot(flight.vx, flight.vy) >= START;
 // 正在拖动或惯性滑行（缩略图据此推迟补齐尺寸的重排，见 reader/view.mjs）。
 export const dragging = () => !!flight || !!gesture?.moved;
 
+// 元素所在窗口的计算样式（元素可以在别的文档里，如画中画窗口）。
+const css = (el) => el.ownerDocument.defaultView.getComputedStyle(el);
 // 从 el 往上分别找纵向、横向可滚动的最近祖先。
 function scrollers(el) {
   let x = null,
     y = null;
-  for (; el && el !== document.documentElement && !(x && y); el = el.parentElement) {
-    const s = getComputedStyle(el);
+  for (; el && el !== el.ownerDocument.documentElement && !(x && y); el = el.parentElement) {
+    const s = css(el);
     if (!y && SCROLLS.test(s.overflowY) && el.scrollHeight - el.clientHeight > 1) y = el;
     if (!x && SCROLLS.test(s.overflowX) && el.scrollWidth - el.clientWidth > 1) x = el;
   }
@@ -65,7 +68,7 @@ function scrollers(el) {
 }
 // 按在滚动容器自己的滚动条（或边框）上。
 function onScrollbar(el, x, y) {
-  const s = getComputedStyle(el);
+  const s = css(el);
   if (!SCROLLS.test(s.overflowX) && !SCROLLS.test(s.overflowY)) return false;
   const r = el.getBoundingClientRect(),
     left = r.left + el.clientLeft,
@@ -75,7 +78,7 @@ function onScrollbar(el, x, y) {
 // 文字是否可选：从元素往上第一个不是 auto 的 user-select 决定。
 function selectable(el) {
   for (; el; el = el.parentElement) {
-    const s = getComputedStyle(el),
+    const s = css(el),
       u = s.userSelect || s.webkitUserSelect;
     if (u && u !== 'auto') return u !== 'none';
   }
@@ -85,7 +88,7 @@ function selectable(el) {
 function onText(el, x, y) {
   const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.data.trim());
   if (!texts.length || !selectable(el)) return false;
-  const range = document.createRange();
+  const range = el.ownerDocument.createRange();
   return texts.some((n) => {
     range.selectNodeContents(n);
     return [...range.getClientRects()].some((b) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom);
@@ -94,12 +97,12 @@ function onText(el, x, y) {
 // 这次按下能否开始拖动；能则返回要滚动的容器。
 function start(e) {
   const t = e.target;
-  if (!(t instanceof Element) || t.closest(BLOCK)) return null;
+  if (t?.nodeType !== 1 || t.closest(BLOCK)) return null;
   const { x, y } = scrollers(t);
   if (!x && !y) return null;
   const outer = x && y ? (x.contains(y) ? x : y) : x || y;
   for (let el = t; el && el !== outer.parentElement; el = el.parentElement) {
-    if (el.draggable || /resize$/.test(getComputedStyle(el).cursor)) return null;
+    if (el.draggable || /resize$/.test(css(el).cursor)) return null;
   }
   if (onScrollbar(t, e.clientX, e.clientY) || onText(t, e.clientX, e.clientY)) return null;
   return { x, y };
@@ -114,8 +117,8 @@ function scroll(el, prop, d, carry, key) {
   carry[key] = Math.abs(want - got) < 1 ? want - got : 0;
   return got;
 }
-// 拖动之后的这次 click 不再派发（拖动、按下只为停住惯性）。
-function swallowClick() {
+// 拖动之后的这次 click 不再派发（拖动、按下只为停住惯性）。win 为拖动所在的窗口。
+function swallowClick(win) {
   const kill = (e) => {
       e.stopImmediatePropagation();
       e.preventDefault();
@@ -123,16 +126,17 @@ function swallowClick() {
     },
     off = () => {
       clearTimeout(timer);
-      window.removeEventListener('click', kill, true);
+      win.removeEventListener('click', kill, true);
     },
     timer = setTimeout(off, 0);
-  window.addEventListener('click', kill, true);
+  win.addEventListener('click', kill, true);
 }
 function fling(g, now) {
   stop();
   const v = velocity(g.samples, now),
     prev = caught && now - caught.t <= CHAIN ? caught : null,
     f = {
+      win: g.win,
       x: g.x,
       y: g.y,
       vx: g.x ? stack(prev?.x === g.x ? prev.vx : 0, -v.x) : 0,
@@ -146,7 +150,7 @@ function fling(g, now) {
   if (Math.hypot(f.vx, f.vy) < START) return false;
   // 拖动还没写入的位移并进第一帧，这一帧只写一次。
   if (g.frame) {
-    cancelAnimationFrame(g.frame);
+    g.win.cancelAnimationFrame(g.frame);
     g.frame = 0;
     f.pend = { x: g.dx, y: g.dy };
   }
@@ -177,10 +181,10 @@ function fling(g, now) {
       if (Math.abs(f[key]) < END) f[key] = 0;
     }
     if (!f.vx && !f.vy) flight = null;
-    else f.frame = requestAnimationFrame(tick);
+    else f.frame = f.win.requestAnimationFrame(tick);
   };
   flight = f;
-  f.frame = requestAnimationFrame(tick);
+  f.frame = f.win.requestAnimationFrame(tick);
   return true;
 }
 // commit：横向定位松手时是否定位（指针取消、丢了捕获时不定位）。
@@ -189,9 +193,9 @@ function end(e, glideOn, commit = glideOn) {
   gesture = null;
   if (!g.moved || !glideOn) caught = null; // 按住后没有再甩（点按、移出窗口松开）：不再叠加
   if (!g.moved) return;
-  document.documentElement.classList.remove('dragscroll');
+  g.win.document.documentElement.classList.remove('dragscroll');
   if (g.held?.hasPointerCapture(g.id)) g.held.releasePointerCapture(g.id);
-  swallowClick();
+  swallowClick(g.win);
   if (g.mode === 'seek') {
     if (!g.cancelled) commit ? g.side.end() : g.side.cancel();
     return;
@@ -220,23 +224,25 @@ export function tap(el, fn) {
   });
 }
 
-export function install() {
+// win：接上拖动滚动的窗口（默认主窗口；画中画窗口打开时对它再调用一次）。
+export function install(win = window) {
+  const doc = win.document;
   // 任何按下、滚轮、按键都先停住惯性（按下时记下剩下的速度，供同方向再甩叠加）；滑行较快时按在滑行的列表里，这一下不触发点击。
-  window.addEventListener(
+  win.addEventListener(
     'pointerdown',
     (e) => {
       if (!flight) return;
       caught = { x: flight.x, y: flight.y, vx: flight.vx, vy: flight.vy, t: e.timeStamp };
       const box = [flight.x, flight.y].filter(Boolean);
       if (isMoving() && box.some((el) => el.contains(e.target)))
-        window.addEventListener('pointerup', swallowClick, { capture: true, once: true });
+        win.addEventListener('pointerup', () => swallowClick(win), { capture: true, once: true });
       stop();
     },
     true,
   );
-  for (const type of ['wheel', 'keydown']) window.addEventListener(type, stop, { capture: true, passive: true });
+  for (const type of ['wheel', 'keydown']) win.addEventListener(type, stop, { capture: true, passive: true });
   // 横向定位中按 Esc：取消这次定位（本次手势余下的移动都不再生效，松手也不触发点击）。
-  window.addEventListener(
+  win.addEventListener(
     'keydown',
     (e) => {
       const g = gesture;
@@ -248,14 +254,14 @@ export function install() {
     },
     true,
   );
-  document.addEventListener('pointerdown', (e) => {
+  doc.addEventListener('pointerdown', (e) => {
     if (gesture || e.pointerType !== 'mouse' || e.button !== 0 || !e.isPrimary || e.defaultPrevented) return;
     const s = start(e);
     let side = null;
-    if (!(e.target instanceof Element) || !e.target.closest(BLOCK))
-      for (const h of sides) if ((side = h.grab(e))) break;
+    if (e.target?.nodeType !== 1 || !e.target.closest(BLOCK)) for (const h of sides) if ((side = h.grab(e))) break;
     if (!s && !side) return;
     gesture = {
+      win,
       id: e.pointerId,
       x: s?.x ?? null,
       y: s?.y ?? null,
@@ -280,7 +286,7 @@ export function install() {
     g.dx += g.lx - e.clientX;
     g.dy += g.ly - e.clientY;
     if (!g.frame)
-      g.frame = requestAnimationFrame(() => {
+      g.frame = win.requestAnimationFrame(() => {
         g.frame = 0;
         scroll(g.x, 'scrollLeft', g.dx, g.carry, 'x');
         scroll(g.y, 'scrollTop', g.dy, g.carry, 'y');
@@ -306,8 +312,8 @@ export function install() {
       // 选中文字在拖动期间关掉（style.css 的 .dragscroll）。
       g.held = g.side ? g.side.el : scroller(g);
       g.held.setPointerCapture(g.id);
-      document.documentElement.classList.add('dragscroll');
-      getSelection()?.removeAllRanges();
+      doc.documentElement.classList.add('dragscroll');
+      win.getSelection()?.removeAllRanges();
     }
     if (g.side && !g.mode) {
       const dir = direction(dx, dy);
@@ -317,7 +323,7 @@ export function install() {
         const el = scroller(g);
         if (!el) {
           // 没有可滚动的容器：与没有接手者时一样，这次按下不是拖动。
-          document.documentElement.classList.remove('dragscroll');
+          doc.documentElement.classList.remove('dragscroll');
           if (g.held.hasPointerCapture(g.id)) g.held.releasePointerCapture(g.id);
           gesture = null;
           return;
@@ -333,8 +339,8 @@ export function install() {
     if (g.mode === 'idle') return;
     follow(g, e);
   };
-  window.addEventListener('pointermove', move, true);
-  window.addEventListener(
+  win.addEventListener('pointermove', move, true);
+  win.addEventListener(
     'pointerup',
     (e) => {
       const g = gesture;
@@ -344,7 +350,7 @@ export function install() {
     },
     true,
   );
-  window.addEventListener(
+  win.addEventListener(
     'pointercancel',
     (e) => {
       if (gesture && e.pointerId === gesture.id) end(e, false);
@@ -352,7 +358,7 @@ export function install() {
     true,
   );
   // 滚动容器被移除、隐藏等原因丢了捕获：结束拖动，不滑行。
-  document.addEventListener(
+  doc.addEventListener(
     'lostpointercapture',
     (e) => {
       if (gesture?.moved && e.pointerId === gesture.id && e.target === gesture.held) end(e, false);

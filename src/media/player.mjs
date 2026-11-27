@@ -255,9 +255,11 @@ export function install(ctx, S) {
   }
   // 开始播放：源还没挂上时先挂上，读到元数据后再播。浏览器拦截自动出声时不提示（等用户自己点）。
   // 开启「只播放书签区段」且这个媒体有区段时，从当前时间之后的第一个区段起点开始（playlist.mjs sectionStart）。
+  // 同一时间只播一个：别的媒体等着挂上源再播的请求（wantPlay）一并取消，快速连续切换时先请求的那个不会在源挂上后又抢回来。
   function start(p) {
     p.userPaused = false;
     p.done = false;
+    for (const q of S.all()) if (q !== p) q.wantPlay = false;
     if (p.state === 'ready') {
       const rs = S.only ? rangesOf(p) : [];
       if (rs.length) {

@@ -252,7 +252,7 @@ try {
   await toPageReady('03 long.wav');
   assert.deepEqual(
     await js(`[...node('03 long.wav').querySelectorAll('[data-control]')].map(b=>b.dataset.control).sort()`),
-    ['bookmark', 'section'],
+    ['bookmark', 'pip', 'section'],
   );
   // 没有「播放顺序」按钮；循环是总控栏的三态按钮（见 controlbar.browser.mjs），别的窗口改了即时应用。
   assert.equal(await js(`!${bar('order')}`), true, 'No play order button');
