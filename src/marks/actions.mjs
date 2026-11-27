@@ -4,7 +4,7 @@ import { starts as startsBefore } from '../core/sections.mjs';
 import { line, recent } from '../core/recent.mjs';
 import { isMedia, key, endKey, list, coord, coords } from './list.mjs';
 // 书签的数据操作：按阅读位置添加书签与区段书签（先在「选择起点」里选起点，startpick.mjs；规则见 core/sections.mjs）、删除、
-// 跳转（F / Enter 短按、长按添加；跨书开关关闭时只在本书内），以及最近书签（规则见 core/recent.mjs）。
+// 跳转（F / Enter 短按、长按添加；总控栏的循环不是跨书循环时只在本书内），以及最近书签（规则见 core/recent.mjs）。
 const SHOW = 150,
   ADD = 550,
   NEAR = 2; // NEAR：同一媒体这么多秒内已有书签即视为已存在
@@ -274,8 +274,8 @@ export function install(ctx, S) {
       if (!press || e.code !== press.code) return;
       const p = press;
       cancel();
-      // 跨书（总控栏的开关）关闭时只在本书的书签之间跳；开启时书架书签常驻则跨书跳（dock.mjs nextShelf）。
-      if (!p.done) (S.pinned() && ctx.transport?.crossBook ? S.nextShelf : next)(p.d);
+      // 总控栏的循环是跨书循环、且书架书签常驻时跨书跳（dock.mjs nextShelf）；其余只在本书的书签之间跳。
+      if (!p.done) (S.pinned() && ctx.transport?.loop === 'books' ? S.nextShelf : next)(p.d);
     },
     blur() {
       cancel();

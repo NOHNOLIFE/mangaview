@@ -17,6 +17,8 @@ import {
   pageInterval,
   pagePlan,
   pageAfter,
+  imageRuns,
+  intersect,
 } from '../../src/core/engine.mjs';
 
 test('scroll speed: 1.0× scrolls 10% of the view per second, by real frame time', () => {
@@ -204,12 +206,20 @@ test('single file mode: one page every 5 s at 1.0×, interval = 5 s ÷ scroll sp
   assert.equal(pageInterval(0), 5000);
 });
 
-test('single file mode: comic passes every page (media too), mixed stops at media to play them', () => {
-  // 漫画模式：没有停靠的媒体，每页都按间隔显示
-  const comic = pagePlan({ n: 4 });
-  assert.deepEqual(comic, ['show', 'show', 'show', 'show']);
-  assert.deepEqual(pageAfter(comic, 0), { type: 'show', i: 1 });
-  assert.deepEqual(pageAfter(comic, 3), { type: 'end' });
+test('single file mode: comic passes the images and skips media pages, mixed stops at media to play them', () => {
+  // 没有停靠的媒体、没有要跳过的页：每页都按间隔显示
+  const all = pagePlan({ n: 4 });
+  assert.deepEqual(all, ['show', 'show', 'show', 'show']);
+  assert.deepEqual(pageAfter(all, 0), { type: 'show', i: 1 });
+  assert.deepEqual(pageAfter(all, 3), { type: 'end' });
+  // 漫画模式：第 1、2 页是视频、音频，换页时跳过
+  const comic = pagePlan({ n: 5, away: new Set([1, 2]) });
+  assert.deepEqual(comic, ['show', null, null, 'show', 'show']);
+  assert.deepEqual(pageAfter(comic, 0), { type: 'show', i: 3 });
+  assert.deepEqual(pageAfter(pagePlan({ n: 3, away: new Set([2]) }), 1), { type: 'end' }, 'A media page at the end');
+  // 与只播区段一起：只经过区段内的图片
+  const sec = [{ a: { i: 0, f: 0.5 }, b: { i: 3, f: 0.5 } }];
+  assert.deepEqual(pagePlan({ n: 5, spans: sec, away: new Set([1]) }), ['show', null, 'show', 'show', null]);
   // 混合模式：第 1、3 页是应播的媒体
   const mixed = pagePlan({ n: 5, stops: new Set([1, 3]) });
   assert.deepEqual(mixed, ['show', 'play', 'show', 'play', 'show']);
@@ -251,4 +261,81 @@ test('mixed mode: a media page right after the one that finished is positioned d
   // 最后一个媒体之后：照常（书末由 next 处理）
   assert.equal(chained(stops, 6), null);
   assert.equal(chained([], 0), null);
+});
+
+test('comic mode runs: consecutive images form a run from its top at the view top to its bottom at the view bottom', () => {
+  // 页：0 图 0–1000、1 图 1000–2000、2 视频 2000–2500、3 图 2500–2800（比视窗短）、4 音频 2800–3000、5 图 3000–5000
+  const starts = [0, 1000, 2000, 2500, 2800, 3000, 5000],
+    kinds = ['i', 'i', 'v', 'i', 'a', 'i'],
+    H = 800,
+    lo = 400,
+    hi = 4600;
+  const runs = imageRuns({ starts, image: (i) => kinds[i] === 'i', H, lo, hi });
+  assert.deepEqual(runs, [
+    { a: 400, b: 1600 }, // 第 0–1 页：段尾 2000 到达视窗底时中线 1600
+    { a: 2900, b: 2900, hold: 300 }, // 第 3 页比视窗短：段首在视窗顶，停留 300 像素的时间
+    { a: 3400, b: 4600 },
+  ]);
+  // 没有图片 / 全是图片
+  assert.deepEqual(imageRuns({ starts: [0, 500, 900], image: () => false, H, lo, hi: 500 }), []);
+  assert.deepEqual(imageRuns({ starts: [0, 500, 3000], image: () => true, H, lo, hi: 2600 }), [{ a: 400, b: 2600 }]);
+  // 书尾的短段：夹在中线的范围内
+  assert.deepEqual(imageRuns({ starts: [0, 2000, 2300], image: (i) => i === 1, H, lo, hi: 1900 }), [
+    { a: 1900, b: 1900, hold: 300 },
+  ]);
+});
+
+test('comic mode: scroll inside a run, jump over media to the next run, hold on a short run, end after the last', () => {
+  const spans = [
+    { a: 400, b: 1600 },
+    { a: 2900, b: 2900, hold: 300 },
+    { a: 3400, b: 4600 },
+  ];
+  const base = { lo: 400, hi: 4600, spans };
+  assert.deepEqual(next({ ...base, c: 400, d: 10 }), { type: 'scroll', to: 410 });
+  assert.deepEqual(next({ ...base, c: 1585, d: 10 }), { type: 'scroll', to: 1595 });
+  assert.deepEqual(
+    next({ ...base, c: 1595, d: 10 }),
+    { type: 'jump', to: 2900 },
+    'This frame reaches the end of the run',
+  );
+  // 段尾到达视窗底：直接跳到下一段（短段）的开头
+  assert.deepEqual(next({ ...base, c: 1600, d: 10 }), { type: 'jump', to: 2900 });
+  // 在短段上原地停留，累计到段高后跳到下一段
+  assert.deepEqual(next({ ...base, c: 2900, d: 10 }), { type: 'hold' });
+  assert.deepEqual(next({ ...base, c: 2900.4, d: 10, held: 290 }), { type: 'hold' }, 'Rounded scroll position');
+  assert.deepEqual(next({ ...base, c: 2899.6, d: 10, held: 300 }), { type: 'jump', to: 3400 });
+  // 停在媒体上（开始运行时）：跳到后面最近的一段
+  assert.deepEqual(next({ ...base, c: 2200, d: 10 }), { type: 'jump', to: 2900 });
+  // 最后一段的尽头
+  assert.deepEqual(next({ ...base, c: 4600, d: 10 }), { type: 'end' });
+  assert.deepEqual(next({ lo: 400, hi: 4600, spans: [], c: 400, d: 10 }), { type: 'end' }, 'No images');
+});
+
+test('comic mode with sections only: intersect the image runs with the sections', () => {
+  const runs = [
+    { a: 400, b: 1600 },
+    { a: 2900, b: 2900, hold: 300 },
+    { a: 3400, b: 4600 },
+  ];
+  // 区段 1000–3000 盖住第一段的后半、短段与视频；区段 4000–4200
+  assert.deepEqual(
+    intersect(runs, [
+      { a: 1000, b: 3000 },
+      { a: 4000, b: 4200 },
+    ]),
+    [
+      { a: 1000, b: 1600 },
+      { a: 2900, b: 2900, hold: 300 },
+      { a: 4000, b: 4200 },
+    ],
+  );
+  // 区段不盖住短段：短段不经过；区段落在媒体上：没有交集
+  assert.deepEqual(intersect(runs, [{ a: 2000, b: 2500 }]), []);
+  assert.deepEqual(intersect(runs, []), []);
+  // 交换次序结果相同
+  assert.deepEqual(intersect([{ a: 1000, b: 3000 }], runs), [
+    { a: 1000, b: 1600 },
+    { a: 2900, b: 2900, hold: 300 },
+  ]);
 });

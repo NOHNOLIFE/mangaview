@@ -1,15 +1,16 @@
-// 总控栏：取代原来的底部操作栏。鼠标贴近底缘稍作停留即弹出、移开后收起（设置里可关闭底缘弹出），按 T 与顶部工具栏一起显示 / 收起；
-// 新窗口播放的窗口里同样有。默认一行，分三区（排布见 core/control.mjs 的 ZONES，左右对称）：
-// - 左（阅读）：上一本、书首、书尾、下一本（书架有筛选时带小圆点，只在筛选结果内切换）│ 跨书开关、滚动速率。
-// - 中（运行）：播放模式（二级按钮：图标是当前模式，悬停 / 聚焦在上方弹出三种模式，点击轮换）、只播区段、大的播放 / 暂停（唯一的主按钮，= 空格）、
-//   单文件模式、循环。
-// - 右（媒体）：上一个媒体、下一个媒体、播放顺序 │ 播放速率、音量、新窗口播放、字幕（作用于文件栏显示的那个媒体：开 / 关，
+// 总控栏：取代原来的底部操作栏。鼠标贴近底缘稍作停留即弹出、移开后收起（设置里可关闭底缘弹出），按 T 与顶部工具栏一起显示 / 收起。
+// 默认一行，分三区（排布见 core/control.mjs 的 ZONES，左右对称，大按钮在正中）：
+// - 左（阅读）：上一本、书首、书尾、下一本（书架有筛选时带小圆点，只在筛选结果内切换）│ 滚动速率。
+// - 中（运行）：播放模式（二级按钮：图标是当前模式，悬停 / 聚焦在上方弹出三种模式，点击轮换）、只播区段、
+//   「自动滚动」（唯一的主按钮，= 空格；运行中显示暂停图标，再按停止；漫画模式下书里没有图片、影音模式下没有媒体时禁用，提示里写明原因）、
+//   单文件模式、循环（三态：单文件 / 本书 / 跨书，图标与提示随当前态，点击轮换，ctx.transport.loop）。
+// - 右（媒体）：上一个媒体、下一个媒体 │ 播放速率、音量、字幕（作用于文件栏显示的那个媒体：开 / 关，
 //   多个字幕时弹出选择菜单，菜单与开关在 media/subtitles.mjs；没有字幕或不是媒体时变灰）。
 // 速率按钮只显示一位小数的数字（不带「×」，与其他图标按钮同宽），提示与小面板里带「×」。
 // 二级按钮（播放模式、速率、音量、「⋯」）悬停或键盘聚焦即在按钮正上方弹出，移开收起（ui/hoverpop.mjs）。
 // 书名与阅读进度在顶部工具栏下方的名称区（toolbar.mjs）。三区那一行的上方是文件栏的行容器（#filebar，内容由文件栏模块放入；
 // 空时 hidden、不占高度），与总控栏一起显示 / 收起、同宽：经 ctx.controlBar.fileRow 取得，显示 / 收起时派发 'controlbar'（是否显示）。
-// 状态在 ctx.transport（transport.mjs）与 ctx.media（media/driver.mjs）；禁用规则在 core/control.mjs（与当前模式无关的变暗禁用，不隐藏、不移动）。
+// 状态在 ctx.transport（transport.mjs）与 ctx.media（media/driver.mjs）；禁用规则在 core/control.mjs（变暗禁用，不隐藏、不移动）。
 // 位置稳定：速率的数字宽度固定（一位小数），按钮禁用只变暗。窄窗口：先把左、右区的次要按钮收进本区末尾的「⋯」弹出层（.compact，仍是一行），
 // 仍放不下时分两行（.stacked：中区一行，左、右区并排一行）；总控栏自身最多两行，任何宽度都不横向溢出。
 import { extend } from '../core/lang.mjs';
@@ -24,10 +25,11 @@ import {
   MODES,
   arrange,
   nextMode,
+  nextLoop,
 } from '../core/control.mjs';
 import { nudge } from '../core/model.mjs';
 import { make, icon } from '../ui/dom.mjs';
-import { ORDER_ICON, ORDER_LABEL } from '../media/order.mjs';
+import { hasImages } from './transport.mjs';
 import { DWELL, LEAVE } from './toolbar.mjs';
 import { hoverPop, morePop } from '../ui/hoverpop.mjs';
 import { dial, arrows } from './controlbar-dial.mjs';
@@ -45,7 +47,6 @@ extend({
     '本棚の絞り込み結果の中だけで切り替え',
     '책장 필터 결과 안에서만 전환',
   ],
-  cbCrossBook: ['Continue across books', '跨书', '本をまたいで続ける', '책을 넘어 계속'],
   cbScrollRate: ['Scroll speed', '滚动速率', 'スクロール速度', '스크롤 속도'],
   cbPlayRate: ['Playback speed', '播放速率', '再生速度', '재생 속도'],
   cbSingle: ['Single file', '单文件模式', '1 ファイルずつ表示', '한 파일씩 보기'],
@@ -59,12 +60,24 @@ extend({
   cbMute: ['Mute', '静音', 'ミュート', '음소거'],
   cbUnmute: ['Unmute', '取消静音', 'ミュート解除', '음소거 해제'],
   cbMore: ['More', '更多', 'その他', '더 보기'],
-  cbLoopBook: ['Loop: the whole book', '循环：整本', 'ループ：本全体', '반복: 책 전체'],
-  cbLoopList: ['Loop: the whole reading list', '循环：整个阅读列表', 'ループ：読書リスト全体', '반복: 읽기 목록 전체'],
+  cbAutoScroll: ['Auto-scroll', '自动滚动', '自動スクロール', '자동 스크롤'],
+  cbAutoScrollStop: ['Stop auto-scroll', '停止自动滚动', '自動スクロールを停止', '자동 스크롤 중지'],
+  cbNoImages: ['no images in this book', '本书没有图片', 'この本に画像がありません', '이 책에 이미지 없음'],
+  cbNoMedia: [
+    'no videos or audio in this book',
+    '本书没有视频、音频',
+    'この本に動画・音声がありません',
+    '이 책에 동영상·오디오 없음',
+  ],
+  cbLoopFile: ['Loop: single file', '循环：单文件', 'ループ：1 ファイル', '반복: 파일 하나'],
+  cbLoopBook: ['Loop: this book', '循环：本书', 'ループ：この本', '반복: 이 책'],
+  cbLoopBooks: ['Loop: across books', '循环：跨书', 'ループ：本をまたぐ', '반복: 책 넘어'],
 });
 
 const MODE_ICON = { comic: 'mode-comic', mixed: 'mode-mixed', media: 'mode-media' },
-  MODE_LABEL = { comic: 'cbComic', mixed: 'cbMixed', media: 'cbMedia' };
+  MODE_LABEL = { comic: 'cbComic', mixed: 'cbMixed', media: 'cbMedia' },
+  LOOP_ICON = { file: 'loop-file', book: 'loop-book', books: 'loop-books' },
+  LOOP_LABEL = { file: 'cbLoopFile', book: 'cbLoopBook', books: 'cbLoopBooks' };
 
 export function install(ctx) {
   const { main, t } = ctx;
@@ -129,7 +142,6 @@ export function install(ctx) {
     toStart = btn('toStart', 'to-top', 'toTop', null),
     toEnd = btn('toEnd', 'to-end', 'toEnd', null),
     nextBook = btn('nextBook', 'book-next', 'next', null, 'cb-book'),
-    cross = btn('crossBook', 'cross-book', 'cbCrossBook', () => T().setCrossBook(!T().crossBook), 'cb-toggle'),
     moreL = more('moreLeft');
   prevBook.dataset.act = 'prev';
   nextBook.dataset.act = 'next';
@@ -175,14 +187,13 @@ export function install(ctx) {
   const modeHover = hoverPop(modeBtn, modePop);
   arrows(modeBtn, (d) => T().setMode(nextMode(T().mode, d)));
   const sections = btn('sections', 'sections', 'mvSections', () => T().setSectionsOnly(!T().sectionsOnly), 'cb-toggle'),
-    play = btn('play', 'play', 'mvPlay', () => T().toggle(), 'cb-play'),
+    play = btn('play', 'autoscroll', 'cbAutoScroll', () => T().toggle(), 'cb-play'),
     single = btn('single', 'single-file', 'cbSingle', () => T().setSingle(!T().single), 'cb-toggle'),
-    loop = btn('loop', 'repeat', 'mvLoop', () => M()?.toggleLoop(), 'cb-toggle');
+    loop = btn('loop', 'loop-book', 'cbLoopBook', () => T().setLoop(nextLoop(T().loop)), 'cb-loop');
 
   // 右区
   const mediaPrev = btn('mediaPrev', 'skip-back', 'cbMediaPrev', () => M()?.step(-1)),
     mediaNext = btn('mediaNext', 'skip-forward', 'cbMediaNext', () => M()?.step(1)),
-    order = btn('order', 'order-list', 'mvOrderList', () => M()?.cycleOrder()),
     moreR = more('moreRight');
   const playDial = dial({
     id: 'playRate',
@@ -232,7 +243,6 @@ export function install(ctx) {
     extra: muteBtn,
   });
   btns.volume = volDial.button;
-  const popout = btn('popout', 'popout', 'mvPopout', () => M()?.popout());
   // 字幕：作用于文件栏显示的那个媒体（ctx.media.target()），开关与选择菜单用字幕模块登记的同一份控件（ctx.player.add 的 'subs'）。
   const subsControl = () => ctx.player?.controls().find((x) => x.id === 'subs');
   const subsTarget = () => {
@@ -280,7 +290,8 @@ export function install(ctx) {
   // ---- 状态显示
   const showing = () => ctx.showing(bar);
   const others = () => !!ctx.current && ctx.readingList(ctx.current).some((b) => b !== ctx.current);
-  let hasMedia = false;
+  let hasMedia = false,
+    images = true;
   function texts() {
     bar.setAttribute('aria-label', t('controlBar'));
     modePop.setAttribute('aria-label', t('cbMode'));
@@ -303,10 +314,9 @@ export function install(ctx) {
   }
   function syncSteps() {
     if (!showing()) return; // 要逐页查找，只在显示时计算
-    const off = disabledControls({ mode: T().mode, hasMedia });
+    const off = disabledControls({ mode: T().mode, hasMedia, hasImages: images });
     mediaPrev.disabled = off.has('mediaPrev') || !M()?.canStep(-1);
     mediaNext.disabled = off.has('mediaNext') || !M()?.canStep(1);
-    popout.disabled = off.has('popout') || !M()?.canPopout();
     syncSubs();
   }
   function syncSubs() {
@@ -321,22 +331,25 @@ export function install(ctx) {
   }
   function syncTransport() {
     hasMedia = !!M()?.hasMedia(ctx.current);
+    images = !ctx.current || hasImages(ctx.current);
     const tr = T(),
-      off = disabledControls({ mode: tr.mode, hasMedia });
-    pressed(cross, tr.crossBook);
+      off = disabledControls({ mode: tr.mode, hasMedia, hasImages: images });
     pressed(sections, tr.sectionsOnly);
     pressed(single, tr.single);
-    setIcon(play, tr.running ? 'pause' : 'play');
-    play.label = tr.running ? 'mvPause' : 'mvPlay';
-    setLabel(play, t(play.label));
-    pressed(play, tr.running);
+    // 自动滚动：运行中是暂停图标（再按停止）；禁用时提示里写明原因。
+    setIcon(play, tr.running ? 'pause' : 'autoscroll');
+    play.label = tr.running ? 'cbAutoScrollStop' : 'cbAutoScroll';
     play.disabled = off.has('play');
+    setLabel(play, t(play.label) + (play.disabled ? ' · ' + t(tr.mode === 'comic' ? 'cbNoImages' : 'cbNoMedia') : ''));
+    pressed(play, tr.running);
     setIcon(modeBtn, MODE_ICON[tr.mode]);
     setLabel(modeBtn, labelOf(modeBtn));
     for (const b of modePop.children) b.setAttribute('aria-checked', String(b.dataset.mode === tr.mode));
-    for (const id of ['scrollRate', 'order', 'loop', 'playRate', 'volume']) btns[id].disabled = off.has(id);
-    // 循环在漫画、混合模式下是整本循环（跨书开启时是整个阅读列表），提示里写明。
-    loop.label = tr.mode === 'media' ? 'mvLoop' : tr.crossBook ? 'cbLoopList' : 'cbLoopBook';
+    for (const id of ['scrollRate', 'playRate', 'volume']) btns[id].disabled = off.has(id);
+    // 循环：三态各一个图标，提示写明当前态。
+    setIcon(loop, LOOP_ICON[tr.loop]);
+    loop.label = LOOP_LABEL[tr.loop];
+    loop.dataset.loop = tr.loop;
     setLabel(loop, t(loop.label));
     for (const d of dials) d.sync();
     bar.dataset.mode = tr.mode;
@@ -344,12 +357,6 @@ export function install(ctx) {
   }
   function syncMedia() {
     const m = M();
-    if (m) {
-      setIcon(order, ORDER_ICON[m.order]);
-      order.label = ORDER_LABEL[m.order];
-      setLabel(order, t(order.label));
-      pressed(loop, m.loop);
-    }
     volDial.sync();
     setIcon(muteBtn, m?.muted ? 'volume' : 'volume-x');
     setLabel(muteBtn, t(m?.muted ? 'cbUnmute' : 'cbMute'));

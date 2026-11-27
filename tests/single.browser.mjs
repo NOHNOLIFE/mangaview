@@ -146,7 +146,7 @@ try {
     cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await size(800, 900);
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});`,
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});localStorage.setItem('mv2:autoplay','true');`, // 自动播放默认关闭，这里测开启时的行为
   });
   await cdp('Page.navigate', { url: origin });
   await wait(() => js('document.querySelector("#empty")?.hidden===false'));

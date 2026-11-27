@@ -99,7 +99,7 @@ export function install(c) {
       if (!e.repeat) step(['w', 'arrowup'].includes(k) ? -1 : 1);
       return;
     }
-    // S / ↓ 向下、W / ↑ 向上：按住持续滚动；单文件模式下是下一个 / 上一个文件，按住按间隔连续翻页。空格（含 Shift）是总控栏的大播放键（media/keys.mjs），任何书里都有效，不滚动。
+    // S / ↓ 向下、W / ↑ 向上：按住持续滚动；单文件模式下是下一个 / 上一个文件，按住按间隔连续翻页。空格（含 Shift）是总控栏的「自动滚动」（media/keys.mjs），任何书里都有效，不滚动。
     if (['s', 'arrowdown', 'w', 'arrowup'].includes(k)) {
       e.preventDefault();
       const d = ['w', 'arrowup'].includes(k) ? -1 : 1;

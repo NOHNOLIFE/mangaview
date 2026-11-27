@@ -139,9 +139,11 @@ try {
   await wait(async () => (await playing()).join() === '03 v.webm', 'then the video right after it');
   const [a, v] = await js(`[mid('02 a.wav'),mid('03 v.webm')]`);
   await wait(async () => (await playing()).join() === '05 c.wav', 'then the audio after the image');
-  await wait(async () => !(await running()), 'stops at the end');
-  const c = await js(`mid('05 c.wav')`),
-    centres = await js('recOn=false,rec'),
+  const c = await js(`mid('05 c.wav')`);
+  await wait(async () => (await playing()).join() === '02 a.wav', 'book loop: back to the first audio');
+  await key(' ', 'Space', 32);
+  await wait(async () => !(await running()), 'stopped by hand');
+  const centres = await js('recOn=false,rec'),
     lo = await js('reader.clientHeight/2'),
     hi = await js('reader.scrollHeight-reader.clientHeight/2'),
     clamp = (x) => Math.min(hi, Math.max(lo, x));

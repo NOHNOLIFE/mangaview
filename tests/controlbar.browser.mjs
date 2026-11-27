@@ -148,6 +148,7 @@ try {
     await mvMedia.write(dir,'06.svg',svg(600,900,'purple'));
     const nest=await (await root.getDirectoryHandle('Nest',{create:true})).getDirectoryHandle('x',{create:true});await mvMedia.write(nest,'07 deep.wav',mvMedia.wav({seconds:3}));await mvMedia.write(await (await root.getDirectoryHandle('Nest')).getDirectoryHandle('y',{create:true}),'08.svg',svg(600,900,'#543'));
     const pics=await root.getDirectoryHandle('Pics',{create:true});for(let i=0;i<4;i++)await mvMedia.write(pics,i+'.svg',svg(600,900,'#345'));
+    await mvMedia.write(await root.getDirectoryHandle('Tunes',{create:true}),'t.wav',mvMedia.wav({seconds:2}));
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js(`bookTitle.textContent==='Deck'`), 'book');
   await js('reader.focus()');
@@ -178,8 +179,9 @@ try {
   const pressed = (id) => js(`${B(id)}.getAttribute('aria-pressed')`);
   const disabled = (ids) =>
     js(`${JSON.stringify(ids)}.filter(id=>document.querySelector('#controlbar [data-id="'+id+'"]').disabled)`);
-  // 右区除字幕外只对媒体有意义（字幕按文件栏显示的文件变灰，见下）；中区的播放模式、只播区段、单文件、循环任何模式、有无媒体都可用。
-  const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout'],
+  // 右区除字幕外只对媒体有意义（书里没有媒体时禁用，不随播放模式禁用；字幕按文件栏显示的文件变灰，见下）；
+  // 中区的播放模式、只播区段、单文件、循环任何模式、有无媒体都可用。
+  const RIGHT = ['mediaPrev', 'mediaNext', 'playRate', 'volume'],
     MEDIA_ONLY = RIGHT;
   const label = (id) => js(`${B(id)}.title`);
   // 栏里每个可见控件与分隔线的位置和尺寸（不含弹出层里的）。
@@ -195,7 +197,7 @@ try {
     );
   const text = (id) => js(`${B(id)}.textContent`);
 
-  // ---- 布局。三区默认一行（约 44px，上方另有文件栏两行），三区并排：左 6、中 5、右 7（末尾是字幕），组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
+  // ---- 布局。三区默认一行（约 44px，上方另有文件栏两行），三区并排：左 5、中 5、右 5（末尾是字幕），组之间是分隔线；中区（自动滚动大按钮）正中，阅读区底部居中；默认混合模式。
   // 总控栏下面不再有状态文字行（书名与进度在顶部名称区，当前媒体的文件名与时间在文件栏）。
   await js(
     `window.cbEvents=[];import('./src/core/events.mjs').then(m=>{(m.listeners.controlbar??=[]).push(v=>cbEvents.push(v));return true;})`,
@@ -209,9 +211,9 @@ try {
     return {h:b.height,zh:controlbar.querySelector('.cb-zones').getBoundingClientRect().height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,row:new Set(z.map(r=>Math.round(r.top))).size,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
   assert.ok(geo.zh >= 40 && geo.zh <= 48, 'One row of zones: ' + geo.zh);
   assert.ok(geo.h >= 118 && geo.h <= 140, 'File bar (two rows) + one row, about 130px high: ' + geo.h);
-  // 大播放键居中（右区暂时比左区多一个按钮：字幕与新窗口播放并存，放不下 1fr 时偏几像素）。
+  // 大按钮正中（左右两区按钮数相同）。
   assert.ok(
-    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 10 && !geo.compact && geo.fits,
+    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 1 && !geo.compact && geo.fits,
     JSON.stringify(geo),
   );
   assert.deepEqual(
@@ -219,11 +221,16 @@ try {
       `[...controlbar.querySelectorAll('.cb-zone')].map(z=>[...z.children].filter(e=>!e.matches('.cb-pop')).map(e=>e.dataset.id||(e.matches('.cb-sep')?'|':e.className)))`,
     ),
     [
-      ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
+      ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'scrollRate'],
       ['mode', 'sections', 'play', 'single', 'loop'],
-      ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout', 'subs'],
+      ['mediaPrev', 'mediaNext', '|', 'playRate', 'volume', 'subs'],
     ],
-    'Left 6, middle 5, right 7',
+    'Left 5, middle 5, right 5',
+  );
+  // 大按钮叫「自动滚动」，图标表达自动滚动；运行中换成暂停图标（见下）。
+  assert.deepEqual(
+    [await js(`${B('play')}.querySelector('use').getAttribute('href')`), await label('play')],
+    ['#i-autoscroll', 'Auto-scroll'],
   );
   assert.equal(
     await js('controlbar.querySelectorAll(".cb-info,.cb-pos,.cb-now,.cb-modes").length'),
@@ -320,27 +327,40 @@ try {
   }
   await openBar();
 
-  // ---- 位置稳定。切换模式、数字位数变化、按钮禁用，所有控件的位置和尺寸不变；与模式无关的控件变暗禁用。
+  // ---- 位置稳定。切换模式、数字位数变化、按钮禁用，所有控件的位置和尺寸不变；右区不随模式禁用，影音模式下滚动速率禁用。
   const base = await rects();
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(
     await disabled([...RIGHT, 'scrollRate', 'mode', 'sections', 'play', 'single', 'loop']),
-    MEDIA_ONLY,
-    'Comic: the whole right zone',
+    [],
+    'Comic: the right zone stays available',
   );
-  assert.equal(await label('loop'), 'Loop: the whole book', 'Comic: loop is the whole book');
   assert.equal(await rects(), base, 'Comic mode moves nothing');
   await js(`${B('mode-media')}.click()`);
   assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play', 'loop']), ['scrollRate'], 'Media: scroll speed');
-  assert.equal(await label('loop'), 'Loop');
   assert.equal(await rects(), base, 'Media mode moves nothing');
   await js(`${B('mode-mixed')}.click()`);
-  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play', 'loop']), ['order'], 'Mixed: play order');
-  assert.equal(await label('loop'), 'Loop: the whole book', 'Mixed: loop is the whole book');
-  await js(`${B('crossBook')}.click()`);
-  assert.equal(await label('loop'), 'Loop: the whole reading list', 'Mixed, across books: the whole reading list');
-  await js(`${B('crossBook')}.click()`);
-  assert.equal(await rects(), base);
+  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play', 'loop']), [], 'Mixed: nothing');
+  // 循环：一个三态按钮（单文件 / 本书〔默认〕/ 跨书），点击轮换，每态一个图标，提示写明当前态；没有"不循环"。
+  const loopState = () =>
+    js(`[${B('loop')}.querySelector('use').getAttribute('href'),${B('loop')}.title,${B('loop')}.dataset.loop]`);
+  assert.deepEqual(await loopState(), ['#i-loop-book', 'Loop: this book', 'book'], 'Default: this book');
+  const loops = [];
+  for (let k = 0; k < 3; k++) {
+    await js(`${B('loop')}.click()`);
+    loops.push(await loopState());
+    assert.equal(await rects(), base, 'Switching the loop moves nothing');
+  }
+  assert.deepEqual(
+    loops,
+    [
+      ['#i-loop-books', 'Loop: across books', 'books'],
+      ['#i-loop-file', 'Loop: single file', 'file'],
+      ['#i-loop-book', 'Loop: this book', 'book'],
+    ],
+    'Three states, one icon each',
+  );
+  assert.equal(await js(`localStorage.getItem('mv2:loopMode')`), '"book"', 'Saved');
   // 滑杆按 0.1 一档：任意位置都落在 0.1 档上，显示一位小数即真实值。
   assert.equal(await js(`${pop('scrollRate')}.querySelector('input').step`), '0.1');
   for (const [v, shown] of [
@@ -449,7 +469,7 @@ try {
   // ---- 偏好：全部登记为设置类（「还原默认设置」重置），持久化，别的窗口改动即时生效。
   assert.equal(
     await js(
-      `import('./src/core/prefs.mjs').then(m=>['playMode','scrollRate','playRate','singleFile','crossBook','sectionsOnly'].every(k=>m.prefs.has(k)))`,
+      `import('./src/core/prefs.mjs').then(m=>['playMode','scrollRate','playRate','singleFile','loopMode','sectionsOnly'].every(k=>m.prefs.has(k))&&!m.prefs.has('crossBook'))`,
     ),
     true,
   );
@@ -459,39 +479,57 @@ try {
     );
   await storage('playMode', 'media');
   await storage('scrollRate', 2);
-  await storage('crossBook', true);
+  await storage('loopMode', 'file');
   await storage('singleFile', true);
   await storage('sectionsOnly', true);
   await storage('playRate', 0.75); // 旧版本的档位：读入时取整到 0.1
   const state = () =>
     js(
-      `[${B('mode-media')}.getAttribute('aria-checked'),${B('scrollRate')}.textContent,${B('crossBook')}.getAttribute('aria-pressed'),${B('single')}.getAttribute('aria-pressed'),${B('sections')}.getAttribute('aria-pressed'),${B('playRate')}.textContent,el('03 b.wav').playbackRate]`,
+      `[${B('mode-media')}.getAttribute('aria-checked'),${B('scrollRate')}.textContent,${B('loop')}.dataset.loop,${B('single')}.getAttribute('aria-pressed'),${B('sections')}.getAttribute('aria-pressed'),${B('playRate')}.textContent,el('03 b.wav').playbackRate]`,
     );
-  assert.deepEqual(await state(), ['true', '2.0', 'true', 'true', 'true', '0.8', 0.8], 'Synced from another window');
+  assert.deepEqual(await state(), ['true', '2.0', 'file', 'true', 'true', '0.8', 0.8], 'Synced from another window');
+  // 旧偏好：开着「跨书」的读作跨书循环；旧的跨书、循环、播放顺序键读入后删除，不报错。
+  await js(
+    `localStorage.removeItem('mv2:loopMode');localStorage.setItem('mv2:crossBook','true');localStorage.setItem('mv2:playLoop','true');localStorage.setItem('mv2:playOrder','"shuffle"')`,
+  );
   await cdp('Page.reload');
   await wait(() => js(`bookTitle.textContent==='Deck'`), 'reloaded');
   await js(MEDIA_FIXTURES);
   await js(helpers);
   assert.ok(await js(`toPage('03 b.wav')`));
   await wait(() => js(`el('03 b.wav')?.readyState>=1`));
-  assert.deepEqual(await state(), ['true', '2.0', 'true', 'true', 'true', '0.8', 0.8], 'Remembered after reloading');
-  for (const k of ['playMode', 'scrollRate', 'crossBook', 'singleFile', 'sectionsOnly', 'playRate'])
+  assert.deepEqual(
+    await state(),
+    ['true', '2.0', 'books', 'true', 'true', '0.8', 0.8],
+    'Remembered after reloading; the old cross-book switch reads as the cross-book loop',
+  );
+  assert.deepEqual(
+    await js(`['loopMode','crossBook','playLoop','playOrder'].map(k=>localStorage.getItem('mv2:'+k))`),
+    ['"books"', null, null, null],
+    'Old keys replaced',
+  );
+  for (const k of ['playMode', 'scrollRate', 'loopMode', 'singleFile', 'sectionsOnly', 'playRate'])
     await storage(k, null);
-  assert.deepEqual(await state(), ['false', '1.0', 'false', 'false', 'false', '1.0', 1], 'Back to the defaults');
+  assert.deepEqual(await state(), ['false', '1.0', 'book', 'false', 'false', '1.0', 1], 'Back to the defaults');
   await js('reader.focus()');
 
-  // ---- 空格 = 大播放键；影音模式下运行状态与实际播放一致（漫画、混合模式的运行见 transport.browser.mjs）。
+  // ---- 空格 = 自动滚动；影音模式下运行状态与实际播放一致（漫画、混合模式的自动滚动见 transport.browser.mjs）。
   const running = () => pressed('play');
   await js(`${B('mode-media')}.click()`);
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '03 b.wav', 'space plays the current media');
   assert.equal(await running(), 'true');
+  assert.deepEqual(
+    [await js(`${B('play')}.querySelector('use').getAttribute('href')`), await label('play')],
+    ['#i-pause', 'Stop auto-scroll'],
+    'Running: a pause icon',
+  );
   const top1 = await js('reader.scrollTop');
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length, 'space pauses');
   await wait(async () => (await running()) === 'false', 'not running');
   assert.equal(await js('reader.scrollTop'), top1, 'Space does not scroll');
-  // 单个媒体自己的播放键：等同大播放键，并把它设为选中媒体（不在视窗中央的也是）。
+  // 单个媒体自己的播放键：等同自动滚动，并把它设为选中媒体（不在视窗中央的也是）。
   await tap('#reader .page[data-name="02 a.wav"] .mv-play');
   await wait(async () => (await playing()).join() === '02 a.wav', 'own play button');
   assert.deepEqual(
@@ -504,7 +542,7 @@ try {
   await wait(async () => !(await playing()).length, 'space pauses the chosen media');
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '02 a.wav', 'and plays it again');
-  // 播完按「播放顺序 × 循环」切到下一个；列表播完、不再继续时运行停止。
+  // 播完按页序切到下一个；本书循环（默认）：最后一个播完回到第一个，一直运行到手动停止。
   await js(`el('02 a.wav').currentTime=5.7`);
   await wait(
     async () => (await playing()).join() === '03 b.wav' && (await centred('03 b.wav')),
@@ -518,7 +556,13 @@ try {
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '05 clip.webm');
   await js(`el('05 clip.webm').currentTime=1.2`);
-  await wait(async () => (await running()) === 'false', 'running stops after the last media');
+  await wait(
+    async () => (await playing()).join() === '02 a.wav' && (await centred('02 a.wav')),
+    'book loop: back to the first media',
+  );
+  assert.equal(await running(), 'true');
+  await key(' ', 'Space', 32);
+  await wait(async () => (await running()) === 'false', 'stops by hand');
   assert.deepEqual(await playing(), []);
   // 视窗里没有媒体：取其后最近的媒体，滚到居中再播放。
   await js('reader.scrollTop=0');
@@ -622,21 +666,21 @@ try {
     assert.deepEqual(await playing(), []);
   }
 
-  // ---- 上一个 / 下一个媒体按播放顺序找，滚到居中；未运行时只定位，运行中接着播放。
+  // ---- 上一个 / 下一个媒体按页序找（两端相接），滚到居中；未运行时只定位，运行中接着播放。
   await js(`${B('mode-media')}.click()`);
   assert.ok(await js(`toPage('02 a.wav')`));
   await openBar();
-  assert.deepEqual(
-    await disabled(['mediaPrev', 'mediaNext']),
-    ['mediaPrev'],
-    'No previous media before the first (loop off)',
-  );
+  assert.deepEqual(await disabled(['mediaPrev', 'mediaNext']), [], 'Both ends wrap around');
   await js(`${B('mediaNext')}.click()`);
   await wait(() => centred('03 b.wav'), 'next media centred');
   assert.deepEqual(await playing(), [], 'Not running: only moves');
   await wait(() => js(`node('03 b.wav').classList.contains('selected')`), 'switched-to media is selected');
   await js(`${B('mediaPrev')}.click()`);
   await wait(() => centred('02 a.wav'), 'previous media centred');
+  await js(`${B('mediaPrev')}.click()`);
+  await wait(() => centred('05 clip.webm'), 'previous before the first: the last media');
+  await js(`${B('mediaNext')}.click()`);
+  await wait(() => centred('02 a.wav'), 'next after the last: the first media');
   await key(' ', 'Space', 32);
   await wait(async () => (await playing()).join() === '02 a.wav');
   await js(`${B('mediaNext')}.click()`);
@@ -644,23 +688,10 @@ try {
     const p = await playing();
     return p.join() === '03 b.wav' && (await centred('03 b.wav'));
   }, 'running: plays the next one');
-  // 随机：下一个是本轮没播过的，上一个回到刚才播过的那个。
-  await js(`${B('order')}.click()`);
-  assert.equal(await js(`${B('order')}.querySelector('use').getAttribute('href')`), '#i-order-shuffle');
-  await js(`${B('mediaNext')}.click()`);
-  const shuffled = await wait(async () => {
-    const p = await playing();
-    return p.length === 1 && p[0] !== '03 b.wav' && p[0];
-  }, 'shuffle next');
-  await js(`${B('mediaPrev')}.click()`);
-  await wait(async () => (await playing()).join() === '03 b.wav', 'shuffle previous returns from ' + shuffled);
-  await js(`${B('order')}.click()`);
-  await js(`${B('order')}.click()`);
-  assert.equal(await js(`localStorage.getItem('mv2:playOrder')`), '"list"');
   await key(' ', 'Space', 32);
   await wait(async () => !(await playing()).length);
 
-  // ---- 漫画模式下单个媒体的播放键只播这一个文件，播完即停（不按播放顺序切换）。
+  // ---- 漫画模式下单个媒体的播放键只播这一个文件，播完即停（不切到下一个）。
   await js(`${B('mode-comic')}.click()`);
   assert.ok(await js(`toPage('04 c.wav')`));
   await tap('#reader .page[data-name="04 c.wav"] .mv-play');
@@ -679,22 +710,23 @@ try {
         tier:controlbar.classList.contains('stacked')?'stacked':controlbar.classList.contains('compact')?'compact':'row',rows:new Set(z).size,midOnTop:z[1]<z[0]&&z[0]===z[2],h:Math.round(controlbar.querySelector('.cb-zones').getBoundingClientRect().height),
         left:ids('.cb-left'),right:ids('.cb-right'),moreL:pop('moreLeft'),moreR:pop('moreRight')};})()`);
   const FULL = {
-      left: ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
-      right: ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout', 'subs'],
+      left: ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'scrollRate'],
+      right: ['mediaPrev', 'mediaNext', '|', 'playRate', 'volume', 'subs'],
       moreL: [],
       moreR: [],
     },
     COMPACT = {
       left: ['prevBook', 'nextBook', 'moreLeft'],
       right: ['mediaNext', 'volume', 'moreRight'],
-      moreL: ['toStart', 'toEnd', 'crossBook', 'scrollRate'],
-      moreR: ['mediaPrev', 'order', 'playRate', 'popout', 'subs'],
+      moreL: ['toStart', 'toEnd', 'scrollRate'],
+      moreR: ['mediaPrev', 'playRate', 'subs'],
     };
   for (const [w, tier] of [
     [1280, 'row'],
     [900, 'row'],
-    [700, 'compact'],
+    [700, 'row'],
     [560, 'compact'],
+    [480, 'compact'],
     [420, 'stacked'],
     [360, 'stacked'],
   ]) {
@@ -770,7 +802,7 @@ try {
   await wide();
   await closeBar().catch(() => {});
 
-  // ---- 只有图片的书：右区除循环外全部禁用，影音模式下大播放键也禁用、空格没有效果；混合模式下空格开始滚动。循环仍可切换（整本循环）。
+  // ---- 只有图片的书：右区（字幕除外）全部禁用，影音模式下大按钮也禁用、空格没有效果；混合模式下空格开始滚动。循环仍可切换。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),pics=await root.getDirectoryHandle('Pics');window.showDirectoryPicker=async()=>pics;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
   );
@@ -788,14 +820,16 @@ try {
     'Subtitles greyed out on an image',
   );
   await js(`${B('mode-comic')}.click()`);
-  assert.deepEqual(await disabled(['loop']), [], 'Comic mode without media: loop still works');
+  assert.deepEqual(await disabled(['loop', 'play']), [], 'Comic mode without media: loop and auto-scroll work');
   await js(`${B('loop')}.click()`);
-  assert.equal(await pressed('loop'), 'true', 'Loop turns on in a book of images');
+  assert.equal(await js(`${B('loop')}.dataset.loop`), 'books', 'Loop switches in a book of images');
   await js(`${B('loop')}.click()`);
-  assert.equal(await pressed('loop'), 'false');
+  await js(`${B('loop')}.click()`);
+  assert.equal(await js(`${B('loop')}.dataset.loop`), 'book');
   await js(`${B('mode-mixed')}.click()`);
   await js(`${B('mode-media')}.click()`);
-  assert.deepEqual(await disabled(['play']), ['play'], 'No media in media mode: the big play button too');
+  assert.deepEqual(await disabled(['play']), ['play'], 'No media in media mode: the big button too');
+  assert.equal(await label('play'), 'Auto-scroll · no videos or audio in this book', 'The tooltip says why');
   await js('reader.focus()');
   await key(' ', 'Space', 32);
   await delay(300);
@@ -810,6 +844,28 @@ try {
   );
   await key(' ', 'Space', 32);
   await wait(async () => (await running()) === 'false');
+  // 只有音频的书：漫画模式只滚图片，大按钮禁用并在提示里写明；空格提示、不开始。混合模式照常可用。
+  await js(
+    `(async()=>{const root=await navigator.storage.getDirectory(),tunes=await root.getDirectoryHandle('Tunes');window.showDirectoryPicker=async()=>tunes;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`,
+  );
+  await wait(() => js(`bookTitle.textContent==='Tunes'`), 'audio book');
+  await openBar();
+  await js(`${B('mode-comic')}.click()`);
+  assert.deepEqual(
+    await disabled(['play', 'playRate', 'volume']),
+    ['play'],
+    'Comic mode without images: the big button',
+  );
+  assert.equal(await label('play'), 'Auto-scroll · no images in this book');
+  await js('reader.focus()');
+  await key(' ', 'Space', 32);
+  await wait(
+    () => js(`document.getElementById('notice').textContent==='This book has no images to scroll in Comic mode'`),
+    'Space: hint',
+  );
+  assert.equal(await running(), 'false');
+  await js(`${B('mode-mixed')}.click()`);
+  assert.deepEqual(await disabled(['play']), [], 'Mixed mode: available');
   // 文件名只显示最末一段（不带路径和扩展名），完整路径在悬停提示：添加为单个作品时页名带卷的路径。
   await js(
     `(async()=>{const root=await navigator.storage.getDirectory(),nest=await root.getDirectoryHandle('Nest');window.showDirectoryPicker=async()=>nest;document.querySelector('#bar [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addOne.click();})()`,
@@ -826,7 +882,7 @@ try {
   await js('reader.focus()');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: control bar layout (one row, left 6 / middle 5 / right 7 with subtitles, rate buttons as wide as icons, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when hidden, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, ⋯ pop-ups right above on hover, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (selected not dimmed and no outline, unselected dimmed, playing accent progress, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
+    'PASS: control bar layout (one row, left 5 / middle 5 / right 5 with subtitles, rate buttons as wide as icons, auto-scroll button centred, icons with tooltips, no status lines), file bar row (above, same width, no height when hidden, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), disabling (right zone only without media, scroll speed in media mode, auto-scroll without images in comic mode / without media in media mode, with the reason in the tooltip), three-state loop button (icons, tooltips, saved, old cross-book preference), narrow windows (1280 / 900 / 700 one row, 560 / 480 ⋯ pop-ups, 420 / 360 two rows, ⋯ pop-ups right above on hover, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive auto-scroll, running follows playback, book loop in media mode, next media after the view, previous / next media (page order, wrapping), comic mode plays one file, panel states (selected not dimmed and no outline, unselected dimmed, playing accent progress, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
   );
 } finally {
   if (ws?.readyState === 1) {

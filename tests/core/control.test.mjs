@@ -1,4 +1,4 @@
-// 总控栏的纯逻辑（src/core/control.mjs）：模式归一化、速率的范围 / 档位 / 显示、各模式下的禁用规则。
+// 总控栏的纯逻辑（src/core/control.mjs）：模式归一化、速率的范围 / 档位 / 显示、循环的三态、各模式下的禁用规则。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -17,6 +17,9 @@ import {
   KEEP,
   arrange,
   nextMode,
+  LOOPS,
+  loopOf,
+  nextLoop,
 } from '../../src/core/control.mjs';
 
 test('模式：三种，默认（及读到坏值时）为混合', () => {
@@ -82,16 +85,19 @@ test('速率的显示：一位小数、不带单位；提示与面板里带「×
       assert.equal(rateText(v).length, 3, k + ' ' + v + ': the same width for every value');
 });
 
-test('禁用规则：漫画模式右区（字幕除外）全部；影音模式滚动速率；混合模式播放顺序；没有媒体时右区（字幕除外）全部，影音模式下大播放键也禁用', () => {
-  const off = (mode, hasMedia) => [...disabledControls({ mode, hasMedia })].sort();
-  assert.deepEqual(MEDIA_ONLY, ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout']);
+test('禁用规则：右区不随模式禁用，书里没有媒体时右区（字幕除外）全部；影音模式滚动速率，没有媒体时连同大按钮；漫画模式没有图片时大按钮', () => {
+  const off = (mode, hasMedia, hasImages = true) => [...disabledControls({ mode, hasMedia, hasImages })].sort();
+  assert.deepEqual(MEDIA_ONLY, ['mediaPrev', 'mediaNext', 'playRate', 'volume']);
   assert.deepEqual(RIGHT, [...MEDIA_ONLY, 'subs']);
-  assert.deepEqual(off('comic', true), [...MEDIA_ONLY].sort());
-  assert.deepEqual(off('mixed', true), ['order']);
+  assert.deepEqual(off('comic', true), []);
+  assert.deepEqual(off('mixed', true), []);
   assert.deepEqual(off('media', true), ['scrollRate']);
   assert.deepEqual(off('mixed', false), [...MEDIA_ONLY].sort());
   assert.deepEqual(off('media', false), [...MEDIA_ONLY, 'play', 'scrollRate'].sort());
   assert.deepEqual(off('comic', false), [...MEDIA_ONLY].sort());
+  assert.deepEqual(off('comic', true, false), ['play'], 'Comic mode without images: nothing to scroll');
+  assert.deepEqual(off('mixed', true, false), [], 'Mixed mode without images still plays the media');
+  assert.deepEqual(off('media', true, false), ['scrollRate']);
   // 中区的开关（播放模式、只播区段、单文件、循环）任何模式、有无媒体都可用
   for (const mode of ['comic', 'mixed', 'media'])
     for (const hasMedia of [true, false])
@@ -99,27 +105,43 @@ test('禁用规则：漫画模式右区（字幕除外）全部；影音模式�
         assert.ok(!disabledControls({ mode, hasMedia }).has(id), mode + ' ' + id);
 });
 
-test('三区排布：左 6、中 5、右 7（字幕在右区末尾）；循环在中区', () => {
+test('循环：单文件 / 本书（默认）/ 跨书三态轮换；旧偏好「跨书」开着读作跨书循环，其余为本书循环', () => {
+  assert.deepEqual(LOOPS, ['file', 'book', 'books']);
+  for (const v of LOOPS) assert.equal(loopOf(v), v);
+  for (const v of [null, undefined, '', 'none', true, 3]) assert.equal(loopOf(v), 'book');
+  assert.equal(loopOf(null, true), 'books', 'Old cross-book on');
+  assert.equal(loopOf(null, false), 'book');
+  assert.equal(loopOf(undefined, 'yes'), 'book');
+  assert.equal(loopOf('file', true), 'file', 'A saved loop mode wins over the old key');
+  assert.equal(nextLoop('file'), 'book');
+  assert.equal(nextLoop('book'), 'books');
+  assert.equal(nextLoop('books'), 'file');
+  assert.equal(nextLoop('bogus'), 'books', 'A bad value counts as the book loop');
+});
+
+test('三区排布：左 5、中 5、右 5（字幕在右区末尾），左右对称；循环在中区', () => {
   const ids = (z) => ZONES[z].filter((id) => id !== '|');
-  assert.deepEqual(ids('left'), ['prevBook', 'toStart', 'toEnd', 'nextBook', 'crossBook', 'scrollRate']);
+  assert.deepEqual(ids('left'), ['prevBook', 'toStart', 'toEnd', 'nextBook', 'scrollRate']);
   assert.deepEqual(ZONES.mid, ['mode', 'sections', 'play', 'single', 'loop']);
-  assert.deepEqual(ids('right'), ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout', 'subs']);
+  assert.deepEqual(ids('right'), ['mediaPrev', 'mediaNext', 'playRate', 'volume', 'subs']);
   assert.equal(ZONES.left.indexOf('|'), 4);
-  assert.equal(ZONES.right.indexOf('|'), 3);
-  assert.equal(ids('left').length + ZONES.mid.length + ids('right').length, 18);
+  assert.equal(ZONES.right.indexOf('|'), 2);
+  assert.equal(ids('left').length, ids('right').length, 'Symmetric');
+  assert.equal(ids('left').length + ZONES.mid.length + ids('right').length, 15);
   const every = [...ids('left'), ...ZONES.mid, ...ids('right')];
   assert.equal(new Set(every).size, every.length, 'Each control appears once');
+  for (const gone of ['crossBook', 'order', 'popout']) assert.ok(!every.includes(gone), gone + ' removed');
 });
 
 test('窄窗口：左区留上一本 / 下一本，右区留下一个媒体 / 音量，其余收进本区的「⋯」；中区不收', () => {
   assert.deepEqual(arrange('left', false), { row: ZONES.left, more: [] });
   assert.deepEqual(arrange('left', true), {
     row: ['prevBook', 'nextBook', 'more'],
-    more: ['toStart', 'toEnd', 'crossBook', 'scrollRate'],
+    more: ['toStart', 'toEnd', 'scrollRate'],
   });
   assert.deepEqual(arrange('right', true), {
     row: ['mediaNext', 'volume', 'more'],
-    more: ['mediaPrev', 'order', 'playRate', 'popout', 'subs'],
+    more: ['mediaPrev', 'playRate', 'subs'],
   });
   assert.deepEqual(arrange('mid', true), { row: ZONES.mid, more: [] });
   assert.deepEqual(KEEP, { left: ['prevBook', 'nextBook'], right: ['mediaNext', 'volume'] });

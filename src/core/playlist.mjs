@@ -1,13 +1,11 @@
-// 播放顺序与循环、只播放书签区段、新窗口播放的地址与窗口大小的纯逻辑，不碰界面和存储（media.mjs 调用，tests/core/playlist.test.mjs 覆盖）。
-// 播放顺序：'list' 列表（默认）、'single' 单集、'shuffle' 随机；壳上的按钮按 ORDERS 的次序轮换。
-export const ORDERS = ['list', 'shuffle', 'single'];
-export const orderOf = (v) => (ORDERS.includes(v) ? v : 'list');
-// 一个媒体播完之后播哪个：list 为当前书里可播放的媒体的页序号（按页序），cur 为刚播完的页序号；
-// played 为本轮随机已播过的页序号（含 cur），random 返回 [0,1) 的随机数。
-// 返回 {next, played}：next 为下一个的页序号（等于 cur 即重复播放当前媒体，null 即停下）；played 为更新后的本轮集合。
-export function following({ order = 'list', loop = false, list = [], cur, played = new Set(), random = Math.random }) {
-  if (order === 'single') return { next: loop ? cur : null, played };
-  if (order === 'shuffle') {
+// 媒体的接续与只播放书签区段的纯逻辑，不碰界面和存储（media/ 调用，tests/core/playlist.test.mjs 覆盖）。
+// ---- 接续：一个媒体播完之后播哪个。list 为可播放的媒体的页序号（按页序），cur 为刚播完的页序号；
+// shuffle 为真时随机：played 为本轮已播过的页序号（含 cur），不重复地播完一轮，random 返回 [0,1) 的随机数；否则按页序。
+// loop 为真时到列表末尾（随机时一轮播完）从头接着（重新洗牌，刚播完的不紧接着重复），否则为 null（由调用方决定：停下，或跨书循环进入下一本）。
+// 单文件循环不经过这里（调用方直接重播当前媒体）。返回 {next, played}：next 为下一个的页序号（等于 cur 即只有它自己），played 为更新后的本轮集合。
+// 影音模式的自动滚动按页序（shuffle 为假）；随机留给播放列表使用。
+export function following({ shuffle = false, loop = false, list = [], cur, played = new Set(), random = Math.random }) {
+  if (shuffle) {
     let round = new Set(played);
     round.add(cur);
     let pool = list.filter((i) => !round.has(i));
@@ -46,41 +44,4 @@ export function sectionStep(ranges, t, k) {
   if (r && t >= r.a - EPS) return { k };
   const i = ranges.findIndex((x) => x.a <= t && t < x.b - EPS);
   return { k: i < 0 ? null : i };
-}
-
-// ---- 新窗口播放：新窗口的地址带上书的 id、页名和时间点（秒），新窗口启动时据此定位并从该处播放（media.mjs、app.mjs）。
-export function popoutUrl(path, { book, name, t }) {
-  return (
-    path +
-    '?' +
-    new URLSearchParams({
-      play: book,
-      page: name,
-      t: String(Number.isFinite(t) && t > 0 ? Math.round(t * 1000) / 1000 : 0),
-    })
-  );
-}
-// 读地址里的目标：{book,name,t}，不是新窗口播放时为 null。
-export function popoutTarget(search) {
-  const q = new URLSearchParams(search),
-    book = q.get('play'),
-    name = q.get('page');
-  if (!book || name == null) return null;
-  const t = Number(q.get('t'));
-  return { book, name, t: Number.isFinite(t) && t > 0 ? t : 0 };
-}
-// 新窗口的大小：默认开成较小的窗口。宽约为屏幕可用宽度的 45%（480–960）；视频按画面比例（未知时 16:9）定高，过高时按屏幕高度收窄；音频是一条横条，窗口矮一些。
-export function popoutSize(kind, page, screen = {}) {
-  const aw = screen.availWidth || 1280,
-    ah = screen.availHeight || 800,
-    top = Math.round(ah * 0.85);
-  let w = Math.round(Math.min(960, Math.max(480, aw * 0.45)));
-  if (kind === 'audio') return { width: w, height: Math.min(top, 360) };
-  const r = page?.w > 0 && page?.h > 0 ? page.h / page.w : 9 / 16;
-  let h = Math.round(w * r);
-  if (h > top) {
-    h = top;
-    w = Math.max(320, Math.round(h / r));
-  }
-  return { width: w, height: Math.max(240, h) };
 }

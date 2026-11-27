@@ -397,7 +397,18 @@ try {
     'controls back inline',
   );
 
-  // 自动播放：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
+  // 自动播放默认关闭：没有设置过时，设置里的开关是关的。
+  assert.equal(await js(`localStorage.getItem('mv2:autoplay')`), null);
+  await js(`document.querySelector('#bar [data-act="settings"]').click()`);
+  await wait(() => js(`!!document.querySelector('#settings [data-id="autoplay"] [role=switch]')`));
+  assert.equal(
+    await js(`document.querySelector('#settings [data-id="autoplay"] [role=switch]').getAttribute('aria-checked')`),
+    'false',
+    'Autoplay is off by default',
+  );
+  await js(`document.querySelector('#settings').close()`);
+  // 打开自动播放后：重新打开后没有用户操作时不自动播放；有过操作后，滚动停稳就播放离视窗中心最近的视频，音频不会；中线离开视窗即暂停；手动暂停的不再自动播放。
+  await js(`localStorage.setItem('mv2:autoplay','true')`);
   await cdp('Page.navigate', { url: 'about:blank' });
   await wait(() => js(`location.href==='about:blank'`));
   await cdp('Page.navigate', { url: origin });

@@ -21,19 +21,13 @@ extend({
     '지금은 이 파일을 읽을 수 없습니다',
   ],
   mvRetry: ['Retry', '重试', '再試行', '다시 시도'],
-  mvSoundBlocked: [
-    'The browser blocked playback with sound — click to play',
-    '浏览器拦截了自动出声，点击即可播放',
-    'ブラウザーが音声付きの自動再生をブロックしました。クリックすると再生します',
-    '브라우저가 소리 있는 자동 재생을 차단했습니다. 클릭하면 재생됩니다',
-  ],
 });
 // 读取元数据的上限 META 毫秒（超时按失败处理，不记录）。
 const META = 20000;
 
 export function install(ctx, S) {
   const { t, make, icon } = ctx,
-    { players, times, rounds, failedPages, fitter } = S;
+    { players, times, failedPages, fitter } = S;
   const progress = (...a) => S.progress(...a),
     render = (...a) => S.render(...a),
     sizeTime = (...a) => S.sizeTime(...a),
@@ -99,15 +93,7 @@ export function install(ctx, S) {
       p.done = false;
       p.userPaused = false;
       p.auto = false;
-      p.popped = false;
       render(p);
-      if (p.blocked) {
-        p.blocked = false;
-        ctx.notice(null, '', 1);
-      } // 点击后开始播放：收起「点击即可播放」的提示
-      let r = rounds.get(p.book);
-      if (!r) rounds.set(p.book, (r = new Set()));
-      r.add(page.name);
       clearInterval(p.posEvery);
       p.posEvery = setInterval(() => {
         if (p.state === 'ready' && !el.paused) remember(p, el.currentTime);
@@ -250,10 +236,9 @@ export function install(ctx, S) {
     if (p.auto) {
       p.auto = false;
       finished(p);
-    } // 按播放顺序切到的媒体播不了：跳过它，接着找下一个
+    } // 自动切到的媒体播不了：跳过它，接着找下一个
   }
-  // 开始播放：源还没挂上时先挂上，读到元数据后再播。浏览器拦截自动出声时不提示（等用户自己点）；
-  // 只有新窗口播放接手的媒体（p.popped）提示一次「点击即可播放」，停在该处等待点击。
+  // 开始播放：源还没挂上时先挂上，读到元数据后再播。浏览器拦截自动出声时不提示（等用户自己点）。
   // 开启「只播放书签区段」且这个媒体有区段时，从当前时间之后的第一个区段起点开始（playlist.mjs sectionStart）。
   function start(p) {
     p.userPaused = false;
@@ -270,12 +255,7 @@ export function install(ctx, S) {
       // 同一时间只播一个：调用时就暂停其他媒体。只靠 play 事件的话，连续快速开始两个时先到的事件会把后开始的那个暂停。
       for (const q of players.values()) if (q !== p && q.state === 'ready' && !q.el.paused) q.el.pause();
       p.el.play().catch((e) => {
-        if (e.name === 'NotAllowedError' && p.popped) {
-          p.popped = false;
-          p.blocked = true;
-          render(p);
-          ctx.notice(null, t('mvSoundBlocked'), 20000);
-        } else if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.warn(e);
+        if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.warn(e);
       });
     } else if (p.state !== 'failed') {
       p.wantPlay = true;
