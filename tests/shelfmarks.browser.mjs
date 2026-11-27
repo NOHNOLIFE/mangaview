@@ -398,8 +398,9 @@ try {
   await goto(8, 0.75);
   await wait(async () => (await marked()) === 'Alpha · Page 9');
   assert.equal(await listTop(), top, 'Reading does not scroll the list');
+  // 最近书签是阅读位置之前的一个（1.svg 的 0.25 处在后面，不算）。
   await goto(1, 0.2);
-  await wait(async () => /^(hidden )?Alpha · Page 2$/.test(await marked()));
+  await wait(async () => /^(hidden )?Alpha · Page 1$/.test(await marked()));
   await nav('next');
   await wait(async () => (await marked()) === 'Beta · Page 4' && (await listTop()) > 0); // 切到 Beta：滚到它离阅读位置最近的书签
   await shot('shelfmarks-locate');
@@ -418,12 +419,9 @@ try {
   await wait(() => js(`bookTitle.textContent==='Beta'`));
   await nav('prev');
   await wait(async () => /^Alpha · Page \d+$/.test(await marked()));
-  // 没有书签的书：列表不动。
-  top = await listTop();
+  // 没有书签的书：最近书签是列表里前面一本书（Beta）的最后一个，高亮并滚到它。
   await book('Gamma', false);
-  await delay(300);
-  assert.equal(await listTop(), top, 'Book without bookmarks leaves the list alone');
-  assert.equal(await js(`document.querySelectorAll('#shelfmarks .bm-item.active').length`), 0);
+  await wait(async () => (await marked()) === 'Beta · Page 10', 'The last bookmark of the book before');
   await js(`(async()=>{const {library}=await import('./src/core/store.mjs');const all=await library('getAll'),keep=new Map(${JSON.stringify(original)});
     for(const b of all){if(b.title==='Gamma')await library('delete',b.id);else{b.bookmarks=keep.get(b.id);await library('put',b);}}
     localStorage.setItem('mv2:last',JSON.stringify(all.find(b=>b.title==='Alpha').id));})()`);
@@ -540,7 +538,7 @@ try {
       `[...document.querySelectorAll('#shelfmarks .sm-book.current .bm-item.active')].map(a=>a.getAttribute('aria-label')).join()`,
     );
   await wait(async () => (await looseMarked()) === 'Loose images · Page 4');
-  await goto(1, 0.4);
+  await goto(1, 0.6);
   await wait(async () => (await looseMarked()) === 'Loose images · Page 2');
   await js('reader.scrollTop=0');
   await tap();

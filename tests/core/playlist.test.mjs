@@ -10,6 +10,7 @@ import {
   popoutTarget,
   popoutSize,
 } from '../../src/core/playlist.mjs';
+import { union } from '../../src/core/sections.mjs';
 
 test('播放顺序与循环：一个媒体播完之后播哪个', () => {
   assert.deepEqual(ORDERS, ['list', 'shuffle', 'single']);
@@ -71,6 +72,24 @@ test('只播放书签区段：从哪里开始、何时跳到下一个区段', ()
   assert.deepEqual(sectionStep(rs, 14, 1), { k: null, done: true }, 'The last section ends the media');
   assert.deepEqual(sectionStep(rs, 10, null), { k: null }, 'Dragged outside the sections: play on normally');
   assert.deepEqual(sectionStep(rs, 12.5, null), { k: 1 }, 'Reaching a later section resumes section jumps');
+});
+
+test('只播放书签区段：嵌套、交叉的区段按并集播放，重叠的部分只播一次', () => {
+  // 5–9 包含 6–8，8.5–12 与 5–9 交叉，15–16 单独：并集为 5–12、15–16。
+  const rs = union([
+    { id: 'a', a: 5, b: 9 },
+    { id: 'b', a: 6, b: 8 },
+    { id: 'c', a: 8.5, b: 12 },
+    { id: 'd', a: 15, b: 16 },
+  ]);
+  assert.deepEqual(rs, [
+    { a: 5, b: 12 },
+    { a: 15, b: 16 },
+  ]);
+  assert.equal(sectionStart(rs, 0), 5);
+  assert.deepEqual(sectionStep(rs, 9.5, 0), { k: 0 }, 'No jump at the end of an inner or crossing section');
+  assert.deepEqual(sectionStep(rs, 12, 0), { k: 1, seek: 15 });
+  assert.deepEqual(sectionStep(rs, 16, 1), { k: null, done: true });
 });
 
 test('新窗口播放：地址带上书、页名和时间点，读回一致；不是新窗口播放时为空；窗口开得比屏幕小，视频按画面比例', () => {

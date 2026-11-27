@@ -6,6 +6,7 @@ import { install as rename } from './rename.mjs';
 import { install as snaps } from './snap.mjs';
 import { install as panel } from './panel.mjs';
 import { install as actions } from './actions.mjs';
+import { install as startPick } from './startpick.mjs';
 import { install as dock } from './dock.mjs';
 import { install as playerMarks } from '../media/marks.mjs';
 import { install as pageMarkers } from './pagemarks.mjs';
@@ -111,6 +112,7 @@ export function install(ctx) {
   snaps(ctx, S);
   panel(ctx, S);
   actions(ctx, S);
+  startPick(ctx, S);
   ctx.on('select', () => {
     S.cancel();
     S.close();

@@ -4,6 +4,7 @@
 import { extend } from '../core/lang.mjs';
 import { sectionStep } from '../core/playlist.mjs';
 import { imageSpans, covered } from '../core/engine.mjs';
+import { union } from '../core/sections.mjs';
 
 extend({
   mvSections: ['Play bookmark sections only', '只播放书签区段', 'しおり区間だけ再生', '책갈피 구간만 재생'],
@@ -30,8 +31,9 @@ export function install(ctx, S) {
     refreshAll();
     if (local && S.only && ctx.current && !sectionMap(ctx.current)) ctx.notice(null, t('mvNoSections'));
   });
-  // ---- 只播放书签区段：一个媒体内只播放它的区段（ctx.marks.ranges，秒），区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
-  const rangesOf = (p) => (p.ranges ??= ctx.marks?.ranges?.(p.book, p.page) ?? []);
+  // ---- 只播放书签区段：一个媒体内只播放它的区段（ctx.marks.ranges，秒）的并集（嵌套、交叉的合并成一段，不重复播放），
+  // 区段末尾跳到下一个区段，最后一个播完视为该媒体播完。
+  const rangesOf = (p) => (p.ranges ??= union(ctx.marks?.ranges?.(p.book, p.page) ?? []));
   function sectionTick(p) {
     if (p.el.paused || p.el.seeking || p.state !== 'ready') return;
     const rs = rangesOf(p);

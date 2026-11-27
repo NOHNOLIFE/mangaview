@@ -146,6 +146,7 @@ try {
     '/': ['Slash', 191, '/'],
     Enter: ['Enter', 13, '\r'],
     Escape: ['Escape', 27, ''],
+    ArrowLeft: ['ArrowLeft', 37, ''],
     ArrowRight: ['ArrowRight', 39, ''],
     ArrowDown: ['ArrowDown', 40, ''],
   };
@@ -208,57 +209,94 @@ try {
     await wait(() => js('document.querySelector(".bm-panel").hidden'));
   };
 
-  // ==== 1. 区段书签的添加规则 ====
-  // 前面没有书签：提示，不添加。
+  // ==== 1. 区段书签的添加规则：先弹出「选择起点」，列出这里之前的书签，默认选中最近的一个 ====
+  const picker = () => js(`!!document.querySelector('.start-pick')?.open`);
+  const options = () =>
+    js(
+      `[[...document.querySelectorAll('.start-pick .stp-item')].map(b=>b.getAttribute('aria-label')),document.querySelector('.start-pick .stp-item.sel')?.getAttribute('aria-label'),document.querySelector('.start-pick .stp-info').textContent]`,
+    );
+  // 长按 Shift+F，等「选择起点」打开，再按 keys（默认回车确认）。
+  async function holdSec(keys = ['Enter']) {
+    await hold(true);
+    await wait(picker);
+    for (const k of keys) await tap(k);
+  }
+  // 前面没有书签：提示，不弹出、不添加。
   await goto(3, 0.5);
   await hold(true);
   await said('No bookmark before this point to pair with — add a bookmark first');
+  assert.equal(await picker(), false);
   assert.deepEqual((await record()).bookmarks, []);
-  // 以前面最近的普通书签为起点新建区段；区段书签有自己的缩略图。
+  // 选前面的普通书签作起点：新建区段；区段书签有自己的缩略图。
   await goto(2, 0.5);
   await hold();
   await said('Bookmark added');
   await goto(4, 0.5);
   await hold(true);
+  await wait(picker);
+  assert.equal(await js(`document.querySelector('.start-pick h2').textContent`), 'Choose the section start');
+  assert.deepEqual(await options(), [['Page 3'], 'Page 3', 'Page 3']);
+  await tap('Enter');
   await said('Section bookmark added');
+  assert.equal(await picker(), false);
   assert.deepEqual(await marks(), [['2.svg', 0.5, ['4.svg', 0.5]]]);
   const id1 = (await record()).bookmarks[0].id,
     book = await record();
   await wait(async () => (await thumbKeys()).includes(book.id + ':bm:' + id1 + ':end'));
   assert.ok(await js('document.querySelector(".hold").classList.contains("done")'), 'Completion state is shown');
-  // 前面最近的是区段：延长终点；当前位置在区段内：终点更新到这里（可缩短）。
+  // 所选起点已有区段：把它的终点移到这里（可延长，也可缩短），列表里标明。
   await goto(6, 0.5);
   await hold(true);
+  await wait(picker);
+  assert.deepEqual(await options(), [
+    ['Page 3 · Already has a section — its end moves here'],
+    'Page 3 · Already has a section — its end moves here',
+    'Page 3 · Already has a section — its end moves here',
+  ]);
+  await tap('Enter');
   await said('Section end updated');
   assert.deepEqual(await marks(), [['2.svg', 0.5, ['6.svg', 0.5]]]);
   await goto(3, 0.5);
-  await hold(true);
+  await holdSec();
   await said('Section end updated');
   assert.deepEqual(await marks(), [['2.svg', 0.5, ['3.svg', 0.5]]]);
-  // 区段内可以照常添加普通书签，它不参与配对：之后在区段后面添加区段书签，延长的仍是这个区段。
+  // 区段内可以照常添加普通书签；默认选中最近的（区段内的这个），方向键改选前一个，延长原来的区段。区段书签（终点）不在可选之列。
   await goto(3, 0.2);
   await hold();
   await said('Bookmark added');
   await goto(5, 0.5);
   await hold(true);
+  await wait(picker);
+  assert.deepEqual((await options()).slice(0, 2), [
+    ['Page 3 · Already has a section — its end moves here', 'Page 4'],
+    'Page 4',
+  ]);
+  await tap('ArrowLeft');
+  assert.equal((await options())[1], 'Page 3 · Already has a section — its end moves here');
+  await tap('Enter');
   await said('Section end updated');
   assert.deepEqual(await marks(), [
     ['2.svg', 0.5, ['5.svg', 0.5]],
     ['3.svg', 0.2],
   ]);
-  // 区段之后的普通书签：以它为起点新建第二个区段；第二个区段内再按：更新它的终点；离起点不到半屏：按“这里已有书签”处理。
+  // 区段之后的普通书签：默认选中它，新建第二个区段；再按一次移动它的终点；离起点不到半屏：按“这里已有书签”处理；Esc 取消、不改动。
   await goto(8, 0.5);
   await hold();
   await said('Bookmark added');
   await goto(10, 0.5);
-  await hold(true);
+  await holdSec();
   await said('Section bookmark added');
   await goto(9, 0.5);
-  await hold(true);
+  await holdSec();
   await said('Section end updated');
   await goto(8, 0.6);
-  await hold(true);
+  await holdSec();
   await said('There is already a bookmark here');
+  await goto(11, 0.5);
+  await holdSec(['Escape']);
+  await wait(async () => !(await picker()));
+  await delay(200);
+  assert.equal(await text(), '', 'Cancelling adds nothing and says nothing');
   assert.deepEqual(await marks(), [
     ['2.svg', 0.5, ['5.svg', 0.5]],
     ['3.svg', 0.2],
@@ -289,7 +327,11 @@ try {
   assert.equal(await js(`getComputedStyle(document.querySelector('.bm-sec')).color`), 'rgb(90, 180, 255)');
   const sec = await rect('.bm-sec');
   await click(sec.x, sec.y);
+  await wait(picker);
+  assert.equal(await js('document.querySelector(".bm-panel").hidden'), true, 'The panel gives way to the picker');
+  await js(`document.querySelector('.start-pick .stp-ok').click()`);
   await said('Section end updated');
+  await menu(300, 400);
   assert.deepEqual((await marks())[2], ['8.svg', 0.5, ['12.svg', 0.5]]);
   await wait(() => js(`document.querySelectorAll('.bm-item').length===7`));
   // 区段书签不计入书签数量；起点和终点是前后紧挨的两项。
@@ -636,7 +678,7 @@ try {
 
   // ==== 7. 页序改变使区段书签排到起点前：区段暂不生效（不画标记、小图变灰），数据保留；排回来后恢复 ====
   await goto(10, 0.5);
-  await hold(true);
+  await holdSec();
   await said('Section bookmark added');
   assert.deepEqual((await marks())[1], ['8.svg', 0.5, ['10.svg', 0.5]]);
   const sortBy = async (mode) => {
@@ -793,7 +835,110 @@ try {
   await js('shelf.close()');
   await wait(() => js('!shelf.open'));
 
-  // ==== 9. 备份：区段书签与自定义封面随书目和缩略图导出，替换导入后恢复 ====
+  // ==== 9. 区段可以嵌套、交叉：缩略图栏的细标记、全屏缩略图的区段范围按嵌套层级向内缩进 ====
+  await wait(() => js(`!!bookTitle.textContent`));
+  if ((await js('bookTitle.textContent')) !== 'Sections') {
+    await js(`document.querySelector('[data-act="shelf"]').click()`);
+    await wait(() => js('shelf.open'));
+    await wait(() => js(`!!${card('Sections')}`));
+    await js(`${card('Sections')}.querySelector('.pick').click()`);
+    await wait(() => js(`!shelf.open&&bookTitle.textContent==='Sections'`));
+  }
+  await goto(0, 0.5);
+  await wait(() => js(`document.querySelector('#reader [data-name="0.svg"] img')?.naturalHeight===1120`));
+  await js('reader.focus()');
+  assert.deepEqual(await marks(), [
+    ['3.svg', 0.2],
+    ['8.svg', 0.5, ['10.svg', 0.5]],
+    ['14.svg', 0.5],
+    ['20.svg', 0.1],
+    ['20.svg', 0.8],
+  ]);
+  // 点格子改选（悬停不改选），点「确定」确认：3.svg 起到 13.svg，包含 8.svg–10.svg 的区段。
+  await goto(13, 0.5);
+  await hold(true);
+  await wait(picker);
+  assert.deepEqual((await options()).slice(0, 2), [
+    ['Page 4', 'Page 9 · Already has a section — its end moves here'],
+    'Page 9 · Already has a section — its end moves here',
+  ]);
+  p = await rect('.start-pick .stp-item:first-child');
+  await mouse('mouseMoved', p.x, p.y);
+  await delay(100);
+  assert.equal((await options())[1], 'Page 9 · Already has a section — its end moves here', 'Hovering does not select');
+  await click(p.x, p.y);
+  assert.equal((await options())[1], 'Page 4');
+  await shot('start-pick');
+  p = await rect('.start-pick .stp-ok');
+  await click(p.x, p.y);
+  await said('Section bookmark added');
+  // 第三层：9.svg–10.svg 在两个区段之内。
+  await goto(9, 0.2);
+  await hold();
+  await said('Bookmark added');
+  await goto(10, 0.2);
+  await holdSec();
+  await said('Section bookmark added');
+  assert.deepEqual(
+    (await marks()).slice(0, 3).map((m) => [m[0], m[2]?.[0]]),
+    [
+      ['3.svg', '13.svg'],
+      ['8.svg', '10.svg'],
+      ['9.svg', '10.svg'],
+    ],
+  );
+  // 每页的方括号细标记离缩略图左缘的距离（kind@距离，按位置排序）。
+  const tickLeft = (name) =>
+    js(
+      `(()=>{const m=document.querySelector('#preview .pv-mk[data-name="${name}"]');return [...m.querySelectorAll('.tick.start,.tick.end')].sort((a,b)=>parseFloat(a.style.top)-parseFloat(b.style.top)).map(t=>t.classList[1]+'@'+Math.round(t.getBoundingClientRect().left-m.getBoundingClientRect().left)).join();})()`,
+    );
+  await goto(8, 0.5);
+  await delay(300);
+  await wait(async () => (await tickLeft('9.svg')) === 'start@10');
+  assert.deepEqual(
+    await Promise.all(['3.svg', '8.svg', '9.svg', '10.svg', '13.svg'].map(tickLeft)),
+    ['start@0', 'start@5', 'start@10', 'end@10,end@5', 'end@0'],
+    'Nested sections are indented one step per level',
+  );
+  await shot('sections-nested-bar');
+  // 交叉：把 8.svg 的区段终点移到 15.svg（跨过 13.svg 的终点），方向键改选。交叉的错开一层。
+  await goto(15, 0.5);
+  await hold(true);
+  await wait(picker);
+  assert.equal((await options())[1], 'Page 15');
+  await tap('ArrowLeft');
+  await tap('ArrowLeft');
+  assert.equal((await options())[1], 'Page 9 · Already has a section — its end moves here');
+  await tap('Enter');
+  await said('Section end updated');
+  await goto(8, 0.5);
+  await delay(300);
+  await wait(async () => (await tickLeft('15.svg')) === 'end@5');
+  assert.deepEqual(await Promise.all(['8.svg', '9.svg', '13.svg'].map(tickLeft)), ['start@5', 'start@10', 'end@0']);
+  // 全屏缩略图：选中区段的一端，覆盖的页各画一圈，嵌套的向内缩进。
+  await tap('v');
+  await wait(() => sheetOpen('overview'));
+  await delay(250);
+  await js(`document.querySelector('#overview .ov-scroll').scrollTop=0`);
+  await delay(150);
+  const rings = (i) =>
+    js(
+      `(()=>{const n=document.querySelector('${ov(i)}'),r=n.getBoundingClientRect();return [...n.querySelectorAll('.ov-ring')].map(g=>Math.round(g.getBoundingClientRect().left-r.left)+(g.classList.contains('end')?'e':''));})()`,
+    );
+  await hover(9);
+  assert.equal(await spanOf(), '9,10|9,10');
+  assert.deepEqual(await rings(10), ['12e'], 'The innermost section is indented two steps');
+  await hover(3);
+  assert.equal(await spanOf(), '3,4,5,6,7,8,9,10,11,12,13|3,13');
+  assert.deepEqual(await rings(5), ['0']);
+  await hover(8);
+  assert.equal(await spanOf(), '8,9,10,11,12,13,14,15|8,15');
+  assert.deepEqual(await rings(15), ['6e'], 'The crossing section sits one step in');
+  await shot('sections-nested-overview');
+  await tap('Escape');
+  await wait(async () => !(await js(`document.getElementById('overview').open`)));
+
+  // ==== 10. 备份：区段书签与自定义封面随书目和缩略图导出，替换导入后恢复 ====
   await js(`document.querySelector('[data-act="settings"]').click()`);
   await wait(() => js('document.getElementById("settings").open'));
   await js(
@@ -801,8 +946,8 @@ try {
   );
   const data = JSON.parse(await wait(() => js('window.savedDone&&window.saved.text()')));
   const sb = data.books.find((b) => b.title === 'Sections'),
-    endMark = sb.bookmarks.find((m) => m.end);
-  assert.deepEqual([endMark.name, endMark.end.name], ['8.svg', '10.svg']);
+    endMark = sb.bookmarks.find((m) => m.name === '8.svg');
+  assert.deepEqual([endMark.name, endMark.end.name], ['8.svg', '15.svg']);
   assert.ok(sb.customCover?.bm);
   const dkeys = data.thumbs.map((x) => x.key);
   assert.ok(
@@ -821,7 +966,7 @@ try {
   await wait(() => js('!window.before&&document.readyState==="complete"'));
   await wait(async () => {
     const b = await record();
-    return b && b.customCover && b.bookmarks.some((m) => m.end?.name === '10.svg');
+    return b && b.customCover && b.bookmarks.some((m) => m.end?.name === '15.svg');
   });
   const back = await thumbKeys();
   assert.ok(
@@ -831,7 +976,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: section bookmarks (hold Shift+F / panel button, pairing rules: new / extend / inside / too close / nothing before, normal bookmarks inside sections, start and end as two adjacent items with paired marks, jump to either end, delete rules, inactive after re-sorting), thumbnail strip badges and in-page ticks (only the changed page redrawn, pair highlight), full-screen thumbnail badges and section ranges, full-screen search (/, Ctrl+F, Esc clears first, no-match hint with clear, results-only navigation, cleared on close), shelf bookmark search by title / file name, custom cover (bookmark picker, reset, crop at bookmark, no fingerprint change, one card updated, survives bookmark deletion, no-bookmark hint), backup export / replace import',
+    'PASS: section bookmarks (hold Shift+F / panel button open the start picker: default to the nearest earlier bookmark, arrows / click to change, Enter / OK to confirm, Esc to cancel, a start with a section moves its end, too close, nothing before; normal bookmarks inside sections, start and end as two adjacent items with paired marks, jump to either end, delete rules, inactive after re-sorting), thumbnail strip badges and in-page ticks (only the changed page redrawn, pair highlight), full-screen thumbnail badges and section ranges, full-screen search (/, Ctrl+F, Esc clears first, no-match hint with clear, results-only navigation, cleared on close), shelf bookmark search by title / file name, custom cover (bookmark picker, reset, crop at bookmark, no fingerprint change, one card updated, survives bookmark deletion, no-bookmark hint), backup export / replace import, nested and crossing sections indented by level in the strip ticks and full-screen ranges',
   );
 } finally {
   if (ws?.readyState === 1) {

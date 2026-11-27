@@ -163,7 +163,13 @@ try {
     });
     await js('notice.textContent=""');
   };
-  const codes = { f: ['KeyF', 70, 'f'], F: ['KeyF', 70, 'F'], c: ['KeyC', 67, 'c'], Escape: ['Escape', 27, ''] };
+  const codes = {
+    f: ['KeyF', 70, 'f'],
+    F: ['KeyF', 70, 'F'],
+    c: ['KeyC', 67, 'c'],
+    Escape: ['Escape', 27, ''],
+    Enter: ['Enter', 13, '\r'],
+  };
   async function press(name, type, mods = 0) {
     const [code, vk, t] = codes[name];
     await cdp('Input.dispatchKeyEvent', {
@@ -186,6 +192,11 @@ try {
     await press(n, 'keyDown', m);
     await delay(700);
     await press(n, 'keyUp', m);
+  };
+  // 添加区段书签先弹出「选择起点」：等它打开后回车确认默认选中的（最近的）起点。
+  const confirmStart = async () => {
+    await wait(() => js(`!!document.querySelector('.start-pick')?.open`), 'start picker');
+    await tapKey('Enter');
   };
   const ctl = (name, id) => `node(${JSON.stringify(name)}).querySelector('[data-control="${id}"]')`;
   const bar = (id) => `document.querySelector('#controlbar [data-id="${id}"]')`; // 总控栏上的按钮
@@ -327,7 +338,7 @@ try {
   // 进度条上按时间位置画出标记点，悬停提示时间，点击跳到该时间。
   const dots = () =>
     js(
-      `[...node('03 long.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>[b.className.replace('mv-mk ',''),Math.round(parseFloat(b.style.left)),b.title])`,
+      `[...node('03 long.wav').querySelectorAll('.mv-marks .mv-mk')].map(b=>[b.className.replace('mv-mk ','').replace(' hot',''),Math.round(parseFloat(b.style.left)),b.getAttribute('aria-label')])`,
     );
   // 媒体书签的名称：<文件名>-书签N（文件名不含扩展名）。
   assert.deepEqual(await dots(), [
@@ -356,6 +367,7 @@ try {
   await toPageReady('03 long.wav');
   await at('03 long.wav', 9);
   await hold(true);
+  await confirmStart();
   await said('Section bookmark added');
   assert.deepEqual(await mediaMarks(), [
     ['02 clip.webm', 1],
@@ -384,12 +396,21 @@ try {
     async () => (await js(`getComputedStyle(node('03 long.wav').querySelector('.mv-span')).opacity`)) === '1',
     'section shown',
   );
-  assert.match(await js(`node('03 long.wav').querySelector('.mv-mk.start').title`), /^Section start 0:05 – 0:09/);
+  assert.match(
+    await js(`node('03 long.wav').querySelector('.mv-mk.start').getAttribute('aria-label')`),
+    /^Section start 0:05 – 0:09/,
+  );
+  assert.match(
+    await js(`document.querySelector('.mv-tip:popover-open')?.textContent`),
+    /^Section start 0:05 – 0:09/,
+    'The tooltip gives both ends',
+  );
   await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 400, y: 200 }); // 移开（不靠近四边，免得弹出侧栏）
   await wait(() => js(`!node('03 long.wav').querySelector('.mv-span.hot')`), 'highlight cleared');
   // 延长：在区段之后、下一个普通书签之前添加，延长这个区段。
   await at('03 long.wav', 10);
   await hold(true);
+  await confirmStart();
   await said('Section end updated');
   assert.deepEqual(
     (await mediaMarks()).find((m) => m[1] === 5),
@@ -543,6 +564,7 @@ try {
   await toPageReady('03 long.wav');
   await at('03 long.wav', 14);
   await hold(true);
+  await confirmStart();
   await said('Section bookmark added');
   await toPageReady('06 tail.wav');
   await at('06 tail.wav', 2);
@@ -550,6 +572,7 @@ try {
   await said('Bookmark added');
   await at('06 tail.wav', 4);
   await js(`${ctl('06 tail.wav', 'section')}.click()`);
+  await confirmStart();
   await said('Section bookmark added');
   await toPageReady('03 long.wav');
   await js(`${bar('sections')}.click()`);

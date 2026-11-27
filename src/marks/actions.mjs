@@ -1,8 +1,10 @@
 import { at, point, pageKind } from '../core/model.mjs';
 import { forget } from '../reader/thumbs.mjs';
-import { pair } from '../core/sections.mjs';
+import { starts as startsBefore } from '../core/sections.mjs';
+import { line, recent } from '../core/recent.mjs';
 import { isMedia, key, endKey, list, coord, coords } from './list.mjs';
-// 书签的数据操作：按阅读位置添加书签与区段书签（区段配对见 sections.mjs）、删除、跳转（F / Enter 短按、长按添加；跨书开关关闭时只在本书内），以及离阅读位置最近的书签。
+// 书签的数据操作：按阅读位置添加书签与区段书签（先在「选择起点」里选起点，startpick.mjs；规则见 core/sections.mjs）、删除、
+// 跳转（F / Enter 短按、长按添加；跨书开关关闭时只在本书内），以及最近书签（规则见 core/recent.mjs）。
 const SHOW = 150,
   ADD = 550,
   NEAR = 2; // NEAR：同一媒体这么多秒内已有书签即视为已存在
@@ -132,19 +134,25 @@ export function install(ctx, S) {
     else S.snap(book, bm, page, p, main.clientWidth, main.clientHeight).catch((e) => console.warn(e)); // 读图失败只缺缩略图，书签照常可用
     return true;
   }
-  // 添加区段书签：取屏幕中央的位置，按 sections.mjs 的规则配给前面的一个区段（更新终点）或普通书签（新建区段）。
-  // 返回 'added' | 'updated'，没有添加时为 false。终点离起点不到半屏（同一张图内）按“这里已有书签”处理。
-  // 媒体：只在同一个文件内按时间配对（当前媒体的当前时间）；离起点不到 NEAR 秒按“这里已有书签”处理。
+  // 添加区段书签：终点取触发这一刻的位置（屏幕中央的图片位置，或当前媒体的当前时间，之后媒体照常播放），再弹出「选择起点」（startpick.mjs）：
+  // 图片列出本书这里之前的图片书签，媒体列出同一文件里这个时间之前的书签（core/sections.mjs 的 starts），默认选中最近的一个。
+  // 所选起点已有区段时把它的终点移到这里；区段可以嵌套、交叉。前面没有可选的书签时只提示、不弹出。
+  // 返回 'added' | 'updated'，没有添加（取消、太近）时为 false。终点离起点不到半屏（同一张图内）、媒体不到 NEAR 秒按“这里已有书签”处理。
+  // 图片书签与媒体书签互不配对。
   async function addSection(player) {
     const book = ctx.current,
       p = target(player);
     if (!book || !p) return false;
-    const r = pair(coords(list(book), p.player ? p.i : -1), p.player ? p.t : coord(p.i, p));
-    if (!r) {
+    const opts = startsBefore(coords(list(book), p.player ? p.i : -1), p.player ? p.t : coord(p.i, p));
+    if (!opts.length) {
       notice(null, t('secNone'));
       return false;
     }
-    const bm = book.bookmarks.find((b) => b.id === r.id);
+    S.close(); // 从书签面板打开时先收起面板
+    ctx.ring.hide(); // 长按 Shift+F 时的进度环让位给对话框，确认后再显示完成
+    const id = await S.pickStart(book, opts, p),
+      bm = id && ctx.books.has(book.id) ? book.bookmarks.find((b) => b.id === id) : null;
+    if (!bm) return false;
     if (
       p.player ? Math.abs(bm.t - p.t) < NEAR : bm.name === p.name && Math.abs(bm.f - p.f) * p.h < main.clientHeight / 2
     ) {
@@ -199,29 +207,38 @@ export function install(ctx, S) {
     S.markDock();
     S.reveal();
   }
-  // 离屏幕中心最近的有效书签；刚跳到的书签被夹在书首 / 书尾时仍是它。还没有版面时返回 null。
-  function nearest(book) {
-    if (repeat(book)) return S.last.id;
-    const s = starts();
+  // 阅读位置（最近书签用）：视窗中心所在的页与页内位置，这一页是视频、音频时取它的当前播放时间（还没有播放器时为 0）。
+  // 容差：图片加 2 像素，媒体加半秒；单文件模式下这一页上的图片书签都算。还没有版面时为 null。
+  function reading() {
+    const s = starts(),
+      book = ctx.current;
     if (!s) return null;
-    const items = list(book).filter((x) => x.i >= 0),
-      m = book === ctx.current ? mediaNow() : null;
-    // 当前媒体里有书签：取播放时间之前最近的一个（还没到第一个时取第一个）。
-    if (m) {
-      const own = items.filter((x) => x.i === m.i && isMedia(x.bm));
-      if (own.length) return (own.findLast((x) => x.bm.t <= m.t + 0.5) ?? own[0]).bm.id;
+    let i, f, h;
+    if (view.single) {
+      const a = view.anchor();
+      i = a ? book.pages.findIndex((p) => p.name === a.name) : -1;
+      if (i < 0) return null;
+    } else {
+      ({ i, f } = at(s, main.scrollTop + main.clientHeight / 2));
+      h = s[i + 1] - s[i];
     }
-    const y = main.scrollTop + main.clientHeight / 2;
-    let best = null,
-      gap = Infinity;
-    for (const x of items) {
-      const d = Math.abs(point(s, { i: x.i, f: isMedia(x.bm) ? 0.5 : x.bm.f }) - y);
-      if (d < gap) {
-        gap = d;
-        best = x.bm.id;
-      }
+    const page = book.pages[i];
+    if (pageKind(page) !== 'image') {
+      const p = ctx.player?.list().find((q) => q.book === book && q.page === page);
+      return { i, v: (p ? ctx.player.api.time(p) || 0 : 0) + 0.5 };
     }
-    return best;
+    return { i, v: view.single ? Infinity : f + 2 / Math.max(1, h) };
+  }
+  const entries = (book) => (book.bookmarks?.length ? line(list(book)) : []);
+  // 最近书签（core/recent.mjs）：当前阅读位置之前最近的一项（区段的起点、终点各算一项），本书前面没有时取 books 里前面最近一本有书签的书的最后一项。
+  // books：参与的书，按阅读列表的顺序（书签面板只有当前书）。刚跳到的书签被夹在书首 / 书尾（滚动位置没变）时仍是它。
+  // 返回 {book, id, end}（end：是区段书签那一项），没有或还没有版面时为 null。
+  function nearest(books = [ctx.current]) {
+    const book = ctx.current;
+    if (!book) return null;
+    if (repeat(book)) return { book, id: S.last.id, end: false };
+    const here = reading();
+    return here && recent(books, book, entries, here);
   }
   // F / Enter：短按跳到下一个书签（按住 Shift 为上一个）；长按 150ms 后显示进度环，满 550ms 添加书签，按住 Shift 时添加区段书签。
   let press = null;

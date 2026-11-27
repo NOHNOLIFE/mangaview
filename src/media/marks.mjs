@@ -1,32 +1,39 @@
 import { clock } from '../core/model.mjs';
+import { union, layers } from '../core/sections.mjs';
 import { list, isMedia } from '../marks/list.mjs';
 // 播放器上的书签：进度条上的书签标记与区段、壳上的「添加书签」「添加区段书签」按钮。由 marks/bookmarks.mjs 安装（S 为书签模块的共享对象）。
+// 进度条标记只依赖进度条元素本身（drawBar / wireBar：给一个进度条和它的书、页、时长、定位函数就能画、能交互），不依赖它所在的面板。
+const NEAR = 9; // 指针离标记这么多像素以内算指向它（挤在一起时取最近的）
 export function install(ctx, S) {
   const { t, make } = ctx;
-  // ---- 播放器上的书签（media.mjs 的 ctx.player）：壳上的「添加书签」「添加区段书签」按钮；进度条上按时间位置画出该文件全部书签的标记。
-  // 普通书签是圆点，起点与区段书签是一对方括号；悬停或聚焦一对中的任意一个，两者之间的区段高亮，提示两端的时间与名称；点击跳到该标记的时间。
-  // 区段在开启「只播放书签区段」时常显，区段以外的部分变暗（.sec-only，media.mjs）。
-  function drawPlayer(p) {
-    const d = ctx.player.api.duration(p),
-      book = p.book,
-      items =
-        d && book.bookmarks?.length
-          ? list(book).filter((x) => x.i >= 0 && isMedia(x.bm) && x.bm.name === p.page.name)
-          : [];
+  // ---- 进度条上的书签：按时间位置画出该文件的全部书签。普通书签是轨道上的圆点；区段画成一对方括号连着一道顶线（┌──┐），
+  // 按嵌套深度分层（core/sections.mjs 的 layers，最多 3 层，外层的顶线最高，嵌套的在里面）。
+  // 指针指向某个标记（标记挤在一起时取离指针最近的）：只高亮它这一对，提示两端的时间与名称；点击跳到该标记的时间。键盘聚焦标记同样。
+  // 开启「只播放书签区段」时（.sec-only，shell.mjs），所有区段的并集以外变暗。
+  function drawBar(bar, book, page, d, seek) {
+    let layer = bar.querySelector(':scope>.mv-marks');
+    if (!layer) bar.append((layer = make('div', 'mv-marks')));
+    wireBar(bar, layer);
+    layer._seek = seek;
+    const items =
+      d && book.bookmarks?.length ? list(book).filter((x) => x.i >= 0 && isMedia(x.bm) && x.bm.name === page.name) : [];
     const sig =
       d + '|' + items.map((x) => [x.bm.id, x.bm.t, x.live ? x.bm.end.t : '', S.name(book, x.bm)].join(',')).join(';');
-    if (p.marks._sig === sig) return;
-    p.marks._sig = sig;
+    if (layer._sig === sig) return;
+    layer._sig = sig;
+    hot(layer, null);
     const pct = (s) => Math.min(100, Math.max(0, (s / d) * 100)) + '%',
       out = [],
-      spans = items.filter((x) => x.live).map((x) => [x.bm.t, x.bm.end.t]);
-    // 变暗：区段以外的部分（没有区段时不画）。
+      marks = [],
+      secs = items.filter((x) => x.live),
+      lvs = layers(secs.map((x) => ({ a: x.bm.t, b: x.bm.end.t })));
+    // 变暗：所有区段的并集以外的部分（没有区段时不画）。
     let from = 0;
-    for (const [a, b] of spans) {
-      if (a > from) out.push(dim(from, a));
-      from = Math.max(from, b);
+    for (const s of union(secs.map((x) => ({ a: x.bm.t, b: x.bm.end.t })))) {
+      if (s.a > from) out.push(dim(from, s.a));
+      from = s.b;
     }
-    if (spans.length && from < d) out.push(dim(from, d));
+    if (secs.length && from < d) out.push(dim(from, d));
     function dim(a, b) {
       const el = make('i', 'mv-dim');
       el.style.left = pct(a);
@@ -35,74 +42,140 @@ export function install(ctx, S) {
     }
     const name = (x) => (S.name(book, x.bm) ? ' · ' + S.name(book, x.bm) : '');
     for (const x of items) {
-      if (x.live) {
-        const tip = t('secStart') + ' ' + clock(x.bm.t) + ' – ' + clock(x.bm.end.t) + name(x),
-          span = make('i', 'mv-span');
-        span.dataset.sec = x.bm.id;
-        span.style.left = pct(x.bm.t);
-        span.style.width = ((x.bm.end.t - x.bm.t) / d) * 100 + '%';
-        out.push(
-          span,
-          marker(p, x.bm.t, 'start', tip, x.bm.id),
-          marker(
-            p,
-            x.bm.end.t,
-            'end',
-            t('secEnd') + ' ' + clock(x.bm.end.t) + ' · ' + t('secStart') + ' ' + clock(x.bm.t) + name(x),
-            x.bm.id,
-          ),
-        );
-      } else out.push(marker(p, x.bm.t, 'mark', clock(x.bm.t) + name(x)));
+      if (!x.live) {
+        const tip = clock(x.bm.t) + name(x);
+        out.push(marker(x.bm.t, 'mark', tip));
+        continue;
+      }
+      const lv = lvs[secs.indexOf(x)],
+        tip = t('secStart') + ' ' + clock(x.bm.t) + ' – ' + clock(x.bm.end.t) + name(x),
+        span = make('i', 'mv-span');
+      span.dataset.sec = x.bm.id;
+      span.style.setProperty('--lv', lv);
+      span.style.left = pct(x.bm.t);
+      span.style.width = ((x.bm.end.t - x.bm.t) / d) * 100 + '%';
+      out.push(
+        span,
+        marker(x.bm.t, 'start', tip, x.bm.id, lv),
+        marker(
+          x.bm.end.t,
+          'end',
+          t('secEnd') + ' ' + clock(x.bm.end.t) + ' · ' + t('secStart') + ' ' + clock(x.bm.t) + name(x),
+          x.bm.id,
+          lv,
+        ),
+      );
     }
-    p.marks.replaceChildren(...out);
+    function marker(s, kind, tip, sec, lv = 0) {
+      const b = make('button', 'mv-mk ' + kind);
+      b.type = 'button';
+      b.setAttribute('aria-label', tip);
+      b.style.left = pct(s);
+      b.dataset.t = s;
+      b.dataset.tip = tip;
+      if (sec) {
+        b.dataset.sec = sec;
+        b.style.setProperty('--lv', lv);
+      }
+      marks.push(b);
+      return b;
+    }
+    layer.replaceChildren(...out);
+    layer._marks = marks;
   }
-  function marker(p, s, kind, tip, sec) {
-    const b = make('button', 'mv-mk ' + kind);
-    b.type = 'button';
-    b.title = tip;
-    b.setAttribute('aria-label', tip);
-    b.style.left = Math.min(100, Math.max(0, (s / ctx.player.api.duration(p)) * 100)) + '%';
-    b.dataset.t = s;
-    if (sec) b.dataset.sec = sec;
-    return b;
+  // 提示：一个浮在最上层（popover）的小条，跟着指向 / 聚焦的标记，不受面板裁切（视频全屏时也在最上层）。
+  let tipEl = null;
+  function tip(b) {
+    if (!tipEl) {
+      tipEl = make('div', 'mv-tip');
+      tipEl.popover = 'manual';
+      tipEl.setAttribute('aria-hidden', 'true');
+      document.body.append(tipEl);
+    }
+    if (!b) {
+      if (tipEl.matches(':popover-open')) tipEl.hidePopover();
+      return;
+    }
+    tipEl.textContent = b.dataset.tip;
+    if (!tipEl.matches(':popover-open')) tipEl.showPopover();
+    const r = b.getBoundingClientRect(),
+      w = tipEl.offsetWidth,
+      h = tipEl.offsetHeight;
+    tipEl.style.left = Math.round(Math.min(innerWidth - w - 4, Math.max(4, r.left + r.width / 2 - w / 2))) + 'px';
+    tipEl.style.top = Math.round(r.top - h - 6 < 4 ? r.bottom + 6 : r.top - h - 6) + 'px';
   }
-  // 标记层里的事件：按下不触发进度条的拖动定位，点击跳到标记的时间；悬停 / 聚焦一对中的任意一个，两者及区段一起高亮。
-  function hotPair(layer, id) {
-    for (const el of layer.querySelectorAll('[data-sec]')) el.classList.toggle('hot', el.dataset.sec === id);
+  // 指向 / 聚焦的标记（null 为没有）：区段的一对（两个方括号和顶线）一起高亮，普通书签只高亮它自己。
+  function hot(layer, b) {
+    if (layer._hot === b) return;
+    layer._hot = b;
+    const id = b?.dataset.sec ?? null;
+    for (const el of layer.children)
+      el.classList.toggle('hot', !!b && (el === b || (id != null && el.dataset.sec === id)));
+    tip(b);
   }
-  function wire(p) {
-    const layer = p.marks;
+  // 离指针最近的标记：圆点按到它的距离，方括号按到它那一竖的距离；NEAR 像素以外为 null。
+  function nearest(layer, e) {
+    let best = null,
+      gap = NEAR;
+    const box = layer.getBoundingClientRect();
+    for (const b of layer._marks ?? []) {
+      const r = b.getBoundingClientRect(),
+        cx = box.left + (parseFloat(b.style.left) / 100) * box.width, // 标记所在的时间点（方括号那一竖、圆点的中心）
+        dy = e.clientY < r.top ? r.top - e.clientY : e.clientY > r.bottom ? e.clientY - r.bottom : 0,
+        g = Math.hypot(e.clientX - cx, dy);
+      if (g < gap) {
+        gap = g;
+        best = b;
+      }
+    }
+    return best;
+  }
+  // 交互接在进度条上（标记本身不接收指针）：指向标记时按下不触发进度条的拖动定位，点击跳到该标记的时间；键盘聚焦标记时同样高亮和提示。
+  function wireBar(bar, layer) {
     if (layer._wired) return;
     layer._wired = true;
-    layer.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.mv-mk')) {
-        e.stopPropagation();
+    let down = null;
+    bar.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'touch' && !e.buttons) hot(layer, nearest(layer, e));
+    });
+    bar.addEventListener('pointerleave', () => {
+      const f = document.activeElement;
+      hot(layer, layer.contains(f) ? f : null);
+    });
+    bar.addEventListener(
+      'pointerdown',
+      (e) => {
+        down = e.button === 0 ? nearest(layer, e) : null;
+        if (!down) return;
+        e.stopImmediatePropagation();
         e.preventDefault();
-      }
-    });
-    layer.addEventListener('click', (e) => {
-      const b = e.target.closest('.mv-mk');
-      if (!b) return;
-      e.stopPropagation();
-      ctx.player.api.seek(p, +b.dataset.t);
-    });
-    layer.addEventListener('pointerover', (e) => {
-      const b = e.target.closest('.mv-mk');
-      hotPair(layer, b?.dataset.sec ?? null);
-    });
-    layer.addEventListener('pointerleave', () =>
-      hotPair(layer, layer.contains(document.activeElement) ? (document.activeElement.dataset.sec ?? null) : null),
+        hot(layer, down);
+      },
+      true,
     );
-    layer.addEventListener('focusin', (e) => hotPair(layer, e.target.dataset?.sec ?? null));
-    layer.addEventListener('focusout', () => hotPair(layer, null));
+    bar.addEventListener(
+      'click',
+      (e) => {
+        const b = e.target.closest('.mv-mk') ?? down;
+        down = null;
+        if (!b || !layer.contains(b)) return;
+        e.stopPropagation();
+        layer._seek?.(+b.dataset.t);
+      },
+      true,
+    );
+    layer.addEventListener('focusin', (e) => hot(layer, e.target.closest('.mv-mk')));
+    layer.addEventListener('focusout', (e) => {
+      if (!layer.contains(e.relatedTarget)) hot(layer, null);
+    });
   }
+  // 播放器（media.mjs 的 ctx.player）的进度条。
+  const drawPlayer = (p) =>
+    drawBar(p.bar, p.book, p.page, ctx.player.api.duration(p), (s) => ctx.player.api.seek(p, s));
   // media.mjs 在 bookmarks.mjs 之后安装：等安装完再登记到播放器。
   queueMicrotask(() => {
     if (!ctx.player) return;
-    ctx.player.decorate((p) => {
-      wire(p);
-      drawPlayer(p);
-    });
+    ctx.player.decorate(drawPlayer);
     ctx.player.add({
       id: 'bookmark',
       icon: 'bookmark-plus',
@@ -118,5 +191,5 @@ export function install(ctx, S) {
       click: (p) => ctx.safe(S.addSection)(p),
     });
   });
-  S.drawPlayer = drawPlayer;
+  Object.assign(S, { drawPlayer, drawBar });
 }

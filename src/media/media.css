@@ -1,30 +1,31 @@
 /* 视频、音频的其他样式：进度条上的书签标记（marks.mjs）、缩略图栏 / 全屏缩略图 / 书架封面里的占位（tile.mjs）、提示浮层（hud.mjs）。壳的样式在 shell.css。 */
-/* 进度条上的书签标记（bookmarks.mjs drawPlayer）：普通书签是圆点，起点与区段书签是一对方括号；浮在进度条之上，不改变壳的布局。
-   区段（.mv-span）在悬停 / 聚焦一对中的任意一个时高亮，开启「只播放书签区段」时常显，区段以外的部分变暗（.mv-dim）。 */
+/* 进度条上的书签标记（marks.mjs drawBar）：普通书签是轨道上的圆点；区段是一对方括号连着一道顶线（┌──┐），按嵌套层级（--lv，0–2）分层：
+   外层的顶线最高，嵌套的在里面（--r：顶线离轨道中线的距离）。浮在进度条之上，不改变壳的布局；标记本身不接收指针
+   （指向哪一个由 marks.mjs 按离指针的距离判断），可以用键盘聚焦。指向 / 聚焦的一对高亮（.hot），提示在 .mv-tip；
+   开启「只播放书签区段」时所有区段的并集以外变暗（.mv-dim）。 */
 .mv-mk {
   position: absolute;
   top: 50%;
   z-index: 1;
-  width: 14px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   min-width: 0;
-  margin: -10px 0 0 -7px;
+  margin: -6px 0 0 -6px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 3px;
   background: none;
-  cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
 }
 .mv-mk::before {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
   box-sizing: border-box;
   filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
 }
 .mv-mk.mark::before {
+  left: 50%;
+  top: 50%;
   width: 8px;
   height: 8px;
   margin: -4px 0 0 -4px;
@@ -32,35 +33,42 @@
   background: var(--accent);
   border: 1.5px solid #fff;
 }
+.mv-mk.start,
+.mv-mk.end,
+.mv-span {
+  --r: calc(13px - var(--lv, 0) * 4px);
+}
+.mv-mk.start,
+.mv-mk.end {
+  top: calc(50% - var(--r));
+  width: 7px;
+  height: calc(var(--r) + 2px);
+  margin: 0 0 0 -1px;
+}
+.mv-mk.end {
+  margin-left: -6px;
+}
 .mv-mk.start::before,
 .mv-mk.end::before {
-  width: 6px;
-  height: 14px;
-  margin: -7px 0 0 -1px;
+  inset: 0;
   border: 0 solid var(--sec);
-  border-width: 3px 0 3px 3px;
+  border-width: 2px 0 0 2px;
 }
 .mv-mk.end::before {
-  margin-left: -5px;
-  border-width: 3px 3px 3px 0;
+  border-width: 2px 2px 0 0;
 }
-.mv-mk:hover::before,
-.mv-mk:focus-visible::before,
 .mv-mk.hot::before {
   border-color: #fff;
-  filter: drop-shadow(0 0 3px var(--accent));
-}
-:is(.mv-mk.start, .mv-mk.end):is(:hover, :focus-visible, .hot)::before {
   filter: drop-shadow(0 0 3px var(--sec));
 }
-.mv-mk.mark:hover::before,
-.mv-mk.mark:focus-visible::before {
+.mv-mk.mark.hot::before {
   background: #fff;
   border-color: var(--accent);
+  filter: drop-shadow(0 0 3px var(--accent));
 }
 .mv-mk:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 0;
+  outline-offset: 1px;
 }
 :is(.mv-mk.start, .mv-mk.end):focus-visible {
   outline-color: var(--sec);
@@ -77,18 +85,18 @@
   margin-top: -2px;
   pointer-events: none;
 }
-/* 区段用区段配色（--sec）：悬停 / 聚焦一对标记时实色，「只播放书签区段」常显时半透明。 */
+/* 区段的顶线：区段配色（--sec），平时半透明，指向 / 聚焦这一对时实色。 */
 .mv-span {
-  border-radius: 2px;
+  top: calc(50% - var(--r));
+  height: 2px;
+  margin: 0;
   background: var(--sec);
-  opacity: 0;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
   transition: opacity 0.12s;
 }
 .mv-span.hot {
   opacity: 1;
-}
-.sec-only .mv-span:not(.hot) {
-  opacity: 0.6;
 }
 .mv-dim {
   display: none;
@@ -96,6 +104,23 @@
 }
 .sec-only .mv-dim {
   display: block;
+}
+/* 标记的提示（popover，浮在最上层，不受面板裁切）。 */
+.mv-tip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(12, 12, 14, 0.94);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
 /* 缩略图栏、全屏缩略图里的占位小块（视频：类型图标 + 文件名，角标为类型与时长；音频见下）；书架封面的占位。 */

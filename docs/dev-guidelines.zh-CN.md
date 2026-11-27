@@ -137,14 +137,15 @@
     - `normalize.mjs`：旧记录读入时的归一化。
     - `playlist.mjs`：播放顺序与循环、只播区段、新窗口播放地址的纯逻辑。
     - `prefs.mjs`：偏好的登记、读写与跨窗口同步，还原默认设置（`resetPrefs`）。
-    - `sections.mjs`：区段书签的配对规则。
+    - `recent.mjs`：最近书签的规则：书签排成一条线，取阅读位置之前最近的一项。
+    - `sections.mjs`：区段书签的规则：可选的起点、区段的并集、嵌套与交叉的分层。
     - `sources.mjs`：目录扫描与文件访问：书的源、散图图集、句柄限时（`timed`）与探测（`probe`）、.pbf 与字幕的配对记录。
     - `status.mjs`：书的可用状态：过期、缺卷、缺页，启动 / 刷新前的句柄探测。
     - `store.mjs`：IndexedDB 存储（书目、缩略图）与写入通知。
     - `subtitles.mjs`：外挂字幕的解码与解析。
     - `windows.mjs`：多窗口协调：写入通知的转发、后台磁盘任务锁（`ctx.disk`）。
   - `src/marks/`：书签
-    - `actions.mjs`：书签的数据操作与跳转：添加书签 / 区段书签、删除、F / Enter 跳转、离阅读位置最近的书签。
+    - `actions.mjs`：书签的数据操作与跳转：添加书签 / 区段书签、删除、F / Enter 跳转、最近书签。
     - `bookmarks.css`：书签面板、书签列表项与书架书签栏的样式。
     - `bookmarks.mjs`：书签入口：数据格式说明、图标、按顺序装配各子模块（共享对象 `S`）。
     - `dock.mjs`：书架书签栏（左侧，常驻或左缘弹出），提供 `ctx.shelfmarks`。
@@ -155,6 +156,8 @@
     - `pbf.mjs`：PotPlayer 书签（.pbf）的导入与跟随。
     - `rename.mjs`：书签的就地重命名（铅笔按钮 / F2）。
     - `snap.mjs`：书签缩略图：截取、绘制、视频画面的懒生成。
+    - `startpick.css`：「选择起点」对话框的样式。
+    - `startpick.mjs`：「选择起点」对话框：添加区段书签时选起点。
     - `tile.mjs`：书签列表项的绘制（书签面板、书架书签栏、全屏书签、设置封面共用）。
   - `src/media/`：视频、音频播放器
     - `art.css`：音频的图（封面或按文件名配色的占位图）的样式。

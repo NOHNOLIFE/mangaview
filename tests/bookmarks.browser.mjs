@@ -235,12 +235,20 @@ try {
   await tap('F', true);
   await wait(async () => (await center())[0] === 10);
   assert.deepEqual(await center(), [10, 0.25]);
-  // 长按 Shift+F 同样添加书签（这里已有书签，提示重复）。
+  // 长按 Shift+F 添加区段书签：弹出「选择起点」，只列出这里之前的书签（正好在这里的不算）；Esc 取消，什么都不改。
   await js('notice.textContent=""');
   await key('F', 'keyDown', true);
   await delay(700);
   await key('F', 'keyUp', true);
-  await wait(async () => (await text()) === 'There is already a bookmark here');
+  await wait(() => js(`!!document.querySelector('.start-pick')?.open`));
+  assert.deepEqual(
+    await js(`[...document.querySelectorAll('.start-pick .stp-item')].map(b=>b.getAttribute('aria-label'))`),
+    ['Page 4'],
+  );
+  await key('Escape', 'keyDown');
+  await key('Escape', 'keyUp');
+  await wait(() => js(`!document.querySelector('.start-pick').open`));
+  assert.equal(await text(), '');
 
   // 右键在鼠标处打开面板，“添加书签”按钮正好在鼠标下。
   const mouse = (type, x, y, button = 'none') =>

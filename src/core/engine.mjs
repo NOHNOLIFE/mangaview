@@ -1,6 +1,7 @@
 // 总控运行引擎的纯逻辑，不碰界面和存储（reader/engine.mjs、reader/autoscroll.mjs、media/ 调用，tests/core/engine.test.mjs 覆盖）：
 // 滚动速率换算成每帧位移、自动运行的下一步（滚动 / 停下播放 / 跳到下一个区段 / 到书末）、单文件模式下按页推进、只播区段时的图片区段、跨书时的下一本、翻屏时对齐视频。
 // 坐标都是正文内容里的像素；「中线」指视窗中线（scrollTop + 视窗高度 / 2），停靠点、区段都用中线坐标表示。
+import { union } from './sections.mjs';
 
 // ---- 滚动速率：1.0× = 每秒滚过视窗高度的 10%。按帧间实际时间推进，帧间隔超过 MAX_DT 按 MAX_DT 算（卡顿、从后台回来时不跳一大段）。
 export const BASE = 0.1,
@@ -71,14 +72,17 @@ export function pageAfter(plan, i) {
   return { type: 'end' };
 }
 
-// ---- 只播区段：书签列表（marks/list.mjs 的 list 结果）里生效的图片区段 [{a:{i,f}, b:{i,f}}]，按起点排序。
+// ---- 只播区段：书签列表（marks/list.mjs 的 list 结果）里生效的图片区段的并集 [{a:{i,f}, b:{i,f}}]，按起点排序、互不重叠：
+// 区段可以嵌套、交叉，重叠的合并成一段（core/sections.mjs 的 union），运行时不重复经过。
 // 图片书签的位置是添加时的视窗中线，所以区段换成中线坐标即为 [point(a), point(b)]。
 const media = (m) => Number.isFinite(m?.t);
 export const imageSpans = (items) =>
-  items
-    .filter((x) => x.live && !media(x.bm))
-    .map((x) => ({ a: { i: x.i, f: x.bm.f }, b: { i: x.e, f: x.bm.end.f } }))
-    .sort((p, q) => p.a.i + p.a.f - (q.a.i + q.a.f));
+  union(
+    items
+      .filter((x) => x.live && !media(x.bm))
+      .map((x) => ({ a: { i: x.i, f: x.bm.f }, b: { i: x.e, f: x.bm.end.f } })),
+    (p) => p.i + p.f,
+  );
 // 第 i 页（媒体）是否整个处在某个图片区段之内（此时没有自己的区段也整段播放）。
 export const covered = (spans, i) => spans.some((s) => s.a.i + s.a.f <= i + 1e-9 && s.b.i + s.b.f >= i + 1 - 1e-9);
 // 本书有没有任何生效的区段（图片或媒体）。

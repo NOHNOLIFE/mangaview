@@ -1,5 +1,6 @@
-// 书签列表的纯逻辑（不操作界面，可在 Node 里测试）：排序与区段是否生效、配对坐标、媒体区段、每页的标记汇总、缩略图键。
+// 书签列表的纯逻辑（不操作界面，可在 Node 里测试）：排序与区段是否生效、配对坐标、媒体区段、每页的标记汇总（含区段的嵌套层级）、缩略图键。
 // 书签的数据格式见 bookmarks.mjs 开头的说明。
+import { layers } from '../core/sections.mjs';
 export const isMedia = (m) => Number.isFinite(m?.t),
   spot = (m) => (isMedia(m) ? m.t : m?.f);
 export const key = (book, bm) => book.id + ':bm:' + bm.id,
@@ -50,26 +51,48 @@ export function mediaRanges(book) {
   for (const r of out.values()) r.sort((a, b) => a.a - b.a);
   return out;
 }
-// 每页一份：n 为书签数（起点和普通书签，区段书签不计数）；mark / start / end 表示这一页出现的标记种类；
-// ticks 为页内位置的细标记 [{f,kind,id}]（只在缩略图栏画，媒体页不画位置标记）。暂不生效的区段，起点按普通书签显示，区段书签不画。
-export function pageMarks(book) {
+// 生效的图片区段的嵌套层级（core/sections.mjs 的 layers，按「页序 + 页内位置」）与媒体区段的层级（每个文件按时间各自分层）：起点书签 id → 层（0 起，最多 3 层）。
+function levels(items) {
   const out = new Map(),
+    groups = new Map();
+  for (const x of items)
+    if (x.live) {
+      const g = isMedia(x.bm) ? x.i : -1;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(x);
+    }
+  for (const [g, xs] of groups) {
+    const lv = layers(
+      xs.map((x) => (g < 0 ? { a: coord(x.i, x.bm), b: coord(x.e, x.bm.end) } : { a: x.bm.t, b: x.bm.end.t })),
+    );
+    xs.forEach((x, k) => out.set(x.bm.id, lv[k]));
+  }
+  return out;
+}
+// 每页一份：n 为书签数（起点和普通书签，区段书签不计数）；mark / start / end 表示这一页出现的标记种类；
+// ticks 为页内位置的细标记 [{f,kind,id,lv}]（只在缩略图栏画，媒体页不画位置标记；lv 为区段的嵌套层级，嵌套的向内缩进）。
+// 暂不生效的区段，起点按普通书签显示，区段书签不画。
+export function pageMarks(book) {
+  const items = list(book),
+    lvs = levels(items),
+    out = new Map(),
     at = (i) => {
       let m = out.get(i);
       if (!m) out.set(i, (m = { n: 0, mark: false, start: false, end: false, ticks: [] }));
       return m;
     };
-  for (const x of list(book)) {
+  for (const x of items) {
     if (x.i < 0) continue;
     const m = at(x.i);
     m.n++;
     const media = isMedia(x.bm);
     if (x.live) {
       m.start = true;
-      if (!media) m.ticks.push({ f: x.bm.f, kind: 'start', id: x.bm.id });
+      const lv = lvs.get(x.bm.id) ?? 0;
+      if (!media) m.ticks.push({ f: x.bm.f, kind: 'start', id: x.bm.id, lv });
       const e = at(x.e);
       e.end = true;
-      if (!media) e.ticks.push({ f: x.bm.end.f, kind: 'end', id: x.bm.id });
+      if (!media) e.ticks.push({ f: x.bm.end.f, kind: 'end', id: x.bm.id, lv });
     } else {
       m.mark = true;
       if (!media) m.ticks.push({ f: x.bm.f, kind: 'mark', id: x.bm.id });
@@ -77,9 +100,11 @@ export function pageMarks(book) {
   }
   return out;
 }
-export const sig = (m) => [m.n, m.mark, m.start, m.end, ...m.ticks.map((t) => t.kind + t.f + t.id)].join('|');
-// 生效的区段覆盖的页：[{id,a,b}]（a 起点页，b 区段书签所在页），全屏缩略图悬停 / 聚焦时标出范围。
-export const spans = (book) =>
-  list(book)
-    .filter((x) => x.live)
-    .map((x) => ({ id: x.bm.id, a: x.i, b: x.e }));
+export const sig = (m) =>
+  [m.n, m.mark, m.start, m.end, ...m.ticks.map((t) => t.kind + t.f + t.id + ':' + (t.lv ?? ''))].join('|');
+// 生效的区段覆盖的页：[{id,a,b,lv}]（a 起点页，b 区段书签所在页，lv 嵌套层级），全屏缩略图悬停 / 聚焦时标出范围，嵌套的向内缩进。
+export function spans(book) {
+  const items = list(book),
+    lvs = levels(items);
+  return items.filter((x) => x.live).map((x) => ({ id: x.bm.id, a: x.i, b: x.e, lv: lvs.get(x.bm.id) ?? 0 }));
+}
