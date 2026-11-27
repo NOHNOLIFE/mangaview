@@ -80,9 +80,13 @@ export function install(c) {
     }
     if (e.key.toLowerCase() === 't') {
       e.preventDefault();
+      // T：顶部工具栏与底部总控栏（含文件栏）一起开关：任一个没显示时两者都显示，否则都收起。没有打开的书时只有工具栏。
       if (!e.repeat) {
-        showBar(!showing(bar));
-        (showing(bar) ? bar.querySelector('button') : main).focus();
+        const cb = current ? ctx.controlBar : null,
+          open = !showing(bar) || (!!cb && !cb.showing());
+        showBar(open);
+        cb?.show(open);
+        (open ? bar.querySelector('button') : main).focus();
       }
       return;
     }

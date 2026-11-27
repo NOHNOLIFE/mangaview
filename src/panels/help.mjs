@@ -76,6 +76,7 @@ extend({
   hkTipThumbs: ['Full-screen thumbnails', '全屏缩略图', '全画面サムネイル', '전체 화면 미리보기'],
   hkTipShelf: ['Shelf', '书架', '本棚', '책장'],
   hkTipTools: ['Toolbar', '工具栏', 'ツール', '도구'],
+  hkTipBars: ['Toolbar and control bar', '工具栏与总控栏', 'ツールとコントロールバー', '도구와 컨트롤 바'],
   hkTipStart: [
     'Start of book, again: previous book',
     '书首，再按上一本',
@@ -202,7 +203,7 @@ export const KEYS = {
   C: marks,
   V: thumbs,
   B: { tip: 'hkTipShelf' },
-  T: { tip: 'hkTipTools' },
+  T: { tip: 'hkTipBars' },
   Q: volDown,
   E: volUp,
   Z: popout,

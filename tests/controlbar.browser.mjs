@@ -178,13 +178,13 @@ try {
   const pressed = (id) => js(`${B(id)}.getAttribute('aria-pressed')`);
   const disabled = (ids) =>
     js(`${JSON.stringify(ids)}.filter(id=>document.querySelector('#controlbar [data-id="'+id+'"]').disabled)`);
-  const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'loop', 'playRate', 'volume', 'popout'],
-    MEDIA_ONLY = RIGHT.filter((id) => id !== 'loop'); // 循环任何模式、有无媒体都可用
+  const RIGHT = ['mediaPrev', 'mediaNext', 'order', 'playRate', 'volume', 'popout'],
+    MEDIA_ONLY = RIGHT; // 右区全部只对媒体有意义；中区的播放模式、只播区段、单文件、循环任何模式、有无媒体都可用
   const label = (id) => js(`${B(id)}.title`);
-  // 栏里每个可见控件与页码的位置和尺寸（不含弹出层里的；右区第二行的文件名随当前媒体变化，靠右对齐，不推动别的元素）。
+  // 栏里每个可见控件与分隔线的位置和尺寸（不含弹出层里的）。
   const rects = () =>
     js(
-      `JSON.stringify([...controlbar.querySelectorAll('.cb-btn,.cb-pos,.cb-modes')].filter(e=>!e.closest('.cb-pop')&&!e.hidden).map(e=>{const r=e.getBoundingClientRect();return [e.dataset.id||e.className,Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join(' ');}))`,
+      `JSON.stringify([...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')&&!e.hidden).map(e=>{const r=e.getBoundingClientRect();return [e.dataset.id||e.className,Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join(' ');}))`,
     );
   const playing = () =>
     js(`[...reader.querySelectorAll('video,audio')].filter(m=>!m.paused).map(m=>m.closest('.page').dataset.name)`);
@@ -194,19 +194,41 @@ try {
     );
   const text = (id) => js(`${B(id)}.textContent`);
 
-  // ---- 布局。三区并排，高度约 84px，中区居中，阅读区底部居中；默认混合模式。
+  // ---- 布局。默认一行（约 58px），三区并排：左 6、中 5、右 6，组之间是分隔线；中区（大播放键）居中，阅读区底部居中；默认混合模式。
+  // 总控栏下面不再有状态文字行（书名与进度在顶部名称区，当前媒体的文件名与时间在文件栏）。
+  await js(
+    `window.cbEvents=[];import('./src/core/events.mjs').then(m=>{(m.listeners.controlbar??=[]).push(v=>cbEvents.push(v));return true;})`,
+  );
   assert.ok(await js(`toPage('03 b.wav')`));
   await wait(() => js(`el('03 b.wav')?.readyState>=1&&el('02 a.wav')?.readyState>=1`), 'audio loaded');
   await openBar();
+  assert.deepEqual(await js('cbEvents'), [true], "Showing dispatches 'controlbar' (true)");
   const geo =
     await js(`(()=>{const b=controlbar.getBoundingClientRect(),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>e.getBoundingClientRect()),p=document.querySelector('#controlbar [data-id="play"]').getBoundingClientRect(),R=reader.getBoundingClientRect();
-    return {h:b.height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
-  assert.ok(geo.h >= 78 && geo.h <= 92, 'About 84px high: ' + geo.h);
+    return {h:b.height,bottom:innerHeight-b.bottom,centre:Math.abs(b.left+b.width/2-(R.left+R.width/2)),order:z[0].right<=z[1].left&&z[1].right<=z[2].left,row:new Set(z.map(r=>Math.round(r.top))).size,play:Math.abs(p.left+p.width/2-(b.left+b.width/2)),compact:controlbar.classList.contains('compact'),fits:controlbar.scrollWidth<=controlbar.clientWidth};})()`);
+  assert.ok(geo.h >= 52 && geo.h <= 64, 'One row, about 58px high: ' + geo.h);
   assert.ok(
-    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.play <= 1 && !geo.compact && geo.fits,
+    geo.bottom >= 8 && geo.centre <= 1 && geo.order && geo.row === 1 && geo.play <= 1 && !geo.compact && geo.fits,
     JSON.stringify(geo),
   );
+  assert.deepEqual(
+    await js(
+      `[...controlbar.querySelectorAll('.cb-zone')].map(z=>[...z.children].filter(e=>!e.matches('.cb-pop')).map(e=>e.dataset.id||(e.matches('.cb-sep')?'|':e.className)))`,
+    ),
+    [
+      ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
+      ['mode', 'sections', 'play', 'single', 'loop'],
+      ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout'],
+    ],
+    'Left 6, middle 5, right 6',
+  );
+  assert.equal(
+    await js('controlbar.querySelectorAll(".cb-info,.cb-pos,.cb-now,.cb-modes").length'),
+    0,
+    'No status lines',
+  );
   assert.equal(await js(`${B('mode-mixed')}.getAttribute('aria-checked')`), 'true', 'Mixed by default');
+  assert.equal(await js(`${B('mode')}.querySelector('use').getAttribute('href')`), '#i-mode-mixed', 'Mode icon');
   assert.equal(
     await js(
       `[...controlbar.querySelectorAll('.cb-btn')].filter(b=>!b.closest('.cb-pop')).every(b=>!b.textContent.trim()||b.matches('.cb-rate'))`,
@@ -219,26 +241,81 @@ try {
     true,
     'Every button has a tooltip and a name',
   );
-  assert.equal(await js(`document.querySelector('#controlbar .cb-now .cb-name').textContent`), '03 b.wav');
-  assert.match(await js(`controlbar.querySelector('.cb-pos').textContent`), /^\d+ \/ 6 · \d+%$/);
+  // 文件栏的行容器：在三区那一行的上方、同宽；空时 hidden、不占高度；有内容时栏变高，三区那一行不动。
+  const fileRow = () =>
+    js(
+      `(()=>{const f=filebar.getBoundingClientRect(),z=controlbar.querySelector('.cb-zones').getBoundingClientRect(),b=controlbar.getBoundingClientRect();return {inBar:filebar.parentElement===controlbar&&filebar.nextElementSibling===controlbar.querySelector('.cb-zones'),hidden:filebar.hidden,h:Math.round(f.height),above:f.bottom<=z.top,same:Math.abs(f.left-z.left)<=1&&Math.abs(f.width-z.width)<=1,bar:Math.round(b.height),zones:[Math.round(z.left),Math.round(z.width),Math.round(innerHeight-z.bottom)].join()};})()`,
+    );
+  const f0 = await fileRow();
+  assert.deepEqual([f0.inBar, f0.hidden, f0.h], [true, true, 0], 'Empty file bar row takes no height');
+  await js(`filebar.append(Object.assign(document.createElement('span'),{textContent:'file'}));filebar.hidden=false`);
+  const f1 = await fileRow();
+  assert.ok(
+    f1.above && f1.same && f1.h >= 30 && f1.bar > f0.bar + 30,
+    'File bar row above, same width: ' + JSON.stringify(f1),
+  );
+  assert.equal(f1.zones, f0.zones, 'The three zones stay put');
+  await shot('controlbar-filebar');
+  await js(`filebar.replaceChildren();filebar.hidden=true`);
+  assert.equal((await fileRow()).bar, f0.bar);
   await shot('controlbar-800');
+  await closeBar();
+  assert.deepEqual(await js('cbEvents'), [true, false], "Hiding dispatches 'controlbar' (false)");
+  assert.equal(await js('controlbar.contains(filebar)'), true, 'The file bar row hides with the control bar');
+  await openBar();
+
+  // ---- 播放模式：二级按钮。悬停在上方弹出漫画、混合、影音三项（当前一项选中），点一项切换；点击按钮轮换，方向键逐个切换。
+  {
+    const mp = `document.querySelector('.mode-pop[data-for="mode"]')`,
+      modeOpen = () => js(`${mp}.matches(':popover-open')`);
+    const [x, y] = await center('#controlbar [data-id="mode"]');
+    await move(x, y);
+    await wait(modeOpen, 'mode pop opens');
+    assert.deepEqual(
+      await js(
+        `(()=>{const p=${mp}.getBoundingClientRect(),b=${B('mode')}.getBoundingClientRect();return {above:p.bottom<=b.top,inside:p.left>=0&&p.right<=innerWidth,items:[...${mp}.children].map(e=>e.dataset.id+':'+e.getAttribute('aria-checked'))};})()`,
+      ),
+      { above: true, inside: true, items: ['mode-comic:false', 'mode-mixed:true', 'mode-media:false'] },
+    );
+    await shot('controlbar-mode');
+    await tap('#controlbar [data-id="mode-media"]');
+    assert.equal(await js(`${B('mode')}.querySelector('use').getAttribute('href')`), '#i-mode-media');
+    assert.match(await label('mode'), /Media$/, 'The tooltip names the current mode');
+    await js(`${B('mode')}.click()`);
+    assert.equal(await js(`${B('mode-comic')}.getAttribute('aria-checked')`), 'true', 'Click: media → comic');
+    await js(`${B('mode')}.click()`);
+    assert.equal(await js(`${B('mode-mixed')}.getAttribute('aria-checked')`), 'true', 'Click: comic → mixed');
+    await move(x, y - 300);
+    await wait(async () => !(await modeOpen()), 'mode pop closes');
+    await key('Shift', 'ShiftLeft', 16);
+    await js(`${B('mode')}.focus()`);
+    await wait(modeOpen, 'keyboard focus opens the mode pop');
+    await key('ArrowLeft', 'ArrowLeft', 37);
+    assert.equal(await js(`${B('mode-comic')}.getAttribute('aria-checked')`), 'true', 'Arrow left: previous mode');
+    await key('ArrowRight', 'ArrowRight', 39);
+    assert.equal(await js(`${B('mode-mixed')}.getAttribute('aria-checked')`), 'true');
+    await key('Escape', 'Escape', 27);
+    await wait(async () => !(await modeOpen()), 'Esc closes');
+    await js('reader.focus()');
+  }
+  await openBar();
 
   // ---- 位置稳定。切换模式、数字位数变化、按钮禁用，所有控件的位置和尺寸不变；与模式无关的控件变暗禁用。
   const base = await rects();
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(
-    await disabled([...RIGHT, 'scrollRate', 'sections', 'play', 'single']),
+    await disabled([...RIGHT, 'scrollRate', 'mode', 'sections', 'play', 'single', 'loop']),
     MEDIA_ONLY,
-    'Comic: the right zone except loop',
+    'Comic: the whole right zone',
   );
   assert.equal(await label('loop'), 'Loop: the whole book', 'Comic: loop is the whole book');
   assert.equal(await rects(), base, 'Comic mode moves nothing');
   await js(`${B('mode-media')}.click()`);
-  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play']), ['scrollRate'], 'Media: scroll speed');
+  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play', 'loop']), ['scrollRate'], 'Media: scroll speed');
   assert.equal(await label('loop'), 'Loop');
   assert.equal(await rects(), base, 'Media mode moves nothing');
   await js(`${B('mode-mixed')}.click()`);
-  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play']), ['order'], 'Mixed: play order');
+  assert.deepEqual(await disabled([...RIGHT, 'scrollRate', 'play', 'loop']), ['order'], 'Mixed: play order');
   assert.equal(await label('loop'), 'Loop: the whole book', 'Mixed: loop is the whole book');
   await js(`${B('crossBook')}.click()`);
   assert.equal(await label('loop'), 'Loop: the whole reading list', 'Mixed, across books: the whole reading list');
@@ -569,37 +646,90 @@ try {
   assert.deepEqual(await playing(), [], 'Comic mode: stops after this file');
   await js(`${B('mode-mixed')}.click()`);
 
-  // ---- 窄窗口：次要按钮收进「⋯」，再窄时分行；约 360px 不溢出，控件都在栏内。
-  for (const w of [560, 360]) {
+  // ---- 窄窗口：一行 → 左、右区各自把次要按钮收进本区末尾的「⋯」（仍一行；左区留上一本 / 下一本，右区留下一个媒体 / 音量）→ 两行
+  // （中区一行，左、右区并排一行）。任何宽度都不超过两行、不横向溢出，控件都在栏内。
+  const layoutAt = () =>
+    js(`(()=>{const b=controlbar.getBoundingClientRect(),items=[...controlbar.querySelectorAll('.cb-btn,.cb-sep')].filter(e=>!e.closest('.cb-pop')),z=[...controlbar.querySelectorAll('.cb-zone')].map(e=>Math.round(e.getBoundingClientRect().top)),ids=s=>[...controlbar.querySelector(s).children].filter(e=>!e.matches('.cb-pop')).map(e=>e.dataset.id||'|'),pop=id=>[...(document.querySelector('#controlbar [data-id="'+id+'"]')?.popoverTargetElement?.children??[])].filter(e=>e.matches('.cb-btn')).map(e=>e.dataset.id);
+      return {inWindow:b.left>=0&&b.right<=innerWidth&&b.top>=0&&b.bottom<=innerHeight,fits:controlbar.scrollWidth<=controlbar.clientWidth&&controlbar.querySelector('.cb-zones').scrollWidth<=controlbar.querySelector('.cb-zones').clientWidth,inside:items.every(e=>{const r=e.getBoundingClientRect();return r.left>=b.left-.5&&r.right<=b.right+.5&&r.top>=b.top-.5&&r.bottom<=b.bottom+.5;}),
+        tier:controlbar.classList.contains('stacked')?'stacked':controlbar.classList.contains('compact')?'compact':'row',rows:new Set(z).size,midOnTop:z[1]<z[0]&&z[0]===z[2],h:Math.round(b.height),
+        left:ids('.cb-left'),right:ids('.cb-right'),moreL:pop('moreLeft'),moreR:pop('moreRight')};})()`);
+  const FULL = {
+      left: ['prevBook', 'toStart', 'toEnd', 'nextBook', '|', 'crossBook', 'scrollRate'],
+      right: ['mediaPrev', 'mediaNext', 'order', '|', 'playRate', 'volume', 'popout'],
+      moreL: [],
+      moreR: [],
+    },
+    COMPACT = {
+      left: ['prevBook', 'nextBook', 'moreLeft'],
+      right: ['mediaNext', 'volume', 'moreRight'],
+      moreL: ['toStart', 'toEnd', 'crossBook', 'scrollRate'],
+      moreR: ['mediaPrev', 'order', 'playRate', 'popout'],
+    };
+  for (const [w, tier] of [
+    [1280, 'row'],
+    [900, 'row'],
+    [700, 'compact'],
+    [560, 'compact'],
+    [420, 'stacked'],
+    [360, 'stacked'],
+  ]) {
     await cdp('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: false });
     await wait(async () => (await W()) === w);
     await closeBar().catch(() => {});
     await openBar();
-    const f =
-      await js(`(()=>{const b=controlbar.getBoundingClientRect(),items=[...controlbar.querySelectorAll('.cb-btn,.cb-info,.cb-modes')].filter(e=>!e.closest('.cb-pop')&&!e.hidden);
-      return {inWindow:b.left>=0&&b.right<=innerWidth&&b.top>=0&&b.bottom<=innerHeight,fits:controlbar.scrollWidth<=controlbar.clientWidth,inside:items.every(e=>{const r=e.getBoundingClientRect();return r.left>=b.left-.5&&r.right<=b.right+.5&&r.top>=b.top-.5&&r.bottom<=b.bottom+.5;}),compact:controlbar.classList.contains('compact'),
-        moreL:[...document.querySelector('#controlbar [data-id="moreLeft"]').popoverTargetElement.children].map(e=>e.dataset.id),moreR:[...document.querySelector('#controlbar [data-id="moreRight"]').popoverTargetElement.children].map(e=>e.dataset.id)};})()`);
+    const f = await layoutAt();
+    const one = tier !== 'stacked';
     assert.deepEqual(
-      f,
-      {
-        inWindow: true,
-        fits: true,
-        inside: true,
-        compact: true,
-        moreL: ['toStart', 'toEnd'],
-        moreR: ['order', 'loop', 'popout'],
-      },
-      w + 'px',
+      [f.inWindow, f.fits, f.inside, f.tier, f.rows, f.left, f.right, f.moreL, f.moreR],
+      [true, true, true, tier, one ? 1 : 2, ...Object.values(tier === 'row' ? FULL : COMPACT)],
+      w + 'px: ' + JSON.stringify(f),
     );
+    assert.ok(one ? f.h <= 64 : f.midOnTop && f.h <= 112, w + 'px rows: ' + JSON.stringify(f));
+    await shot('controlbar-' + w);
+    if (tier === 'row') continue;
     await tap('#controlbar [data-id="moreRight"]');
     const more = `document.querySelector('#controlbar [data-id="moreRight"]').popoverTargetElement`;
     await wait(() => js(`${more}.matches(':popover-open')`), 'more opens');
     assert.equal(
-      await js(`(()=>{const r=${more}.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0;})()`),
+      await js(
+        `(()=>{const r=${more}.getBoundingClientRect(),b=document.querySelector('#controlbar [data-id="moreRight"]').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=b.top;})()`,
+      ),
       true,
+      w + 'px: the ⋯ pop-up sits above its button inside the window',
     );
-    await shot('controlbar-' + w);
+    await shot('controlbar-' + w + '-more');
     await key('Escape', 'Escape', 27);
+  }
+  // 「⋯」里的速率按钮照常使用：悬停弹出小面板（在「⋯」上方），点档位不收起「⋯」。
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 560, height: 800, deviceScaleFactor: 1, mobile: false });
+  await wait(async () => (await W()) === 560);
+  await closeBar().catch(() => {});
+  await openBar();
+  {
+    await tap('#controlbar [data-id="moreLeft"]');
+    const more = `document.querySelector('#controlbar [data-id="moreLeft"]').popoverTargetElement`;
+    await wait(() => js(`${more}.matches(':popover-open')`), 'left ⋯ opens');
+    const [x, y] = await center('#controlbar [data-id="scrollRate"]');
+    await move(x, y);
+    await wait(() => isOpen('scrollRate'), 'rate panel from the ⋯ pop-up');
+    assert.equal(
+      await js(`${pop('scrollRate')}.getBoundingClientRect().bottom<=${more}.getBoundingClientRect().top`),
+      true,
+      'The rate panel sits above the ⋯ pop-up',
+    );
+    await shot('controlbar-more-dial');
+    const [px, py] = await center('.dial-pop[data-for="scrollRate"] .dial-preset[data-value="1.5"]');
+    await move(x, y - 30);
+    await click(px, py);
+    assert.equal(await text('scrollRate'), '1.5×');
+    assert.equal(await js(`${more}.matches(':popover-open')`), true, 'Choosing a preset keeps the ⋯ pop-up open');
+    await js(`${B('scrollRate')}.click()`);
+    assert.equal(await text('scrollRate'), '1.0×');
+    await key('Escape', 'Escape', 27);
+    await wait(
+      async () => !(await js(`${more}.matches(':popover-open')`)) && !(await isOpen('scrollRate')),
+      'Esc closes both',
+    );
   }
   await wide();
   await closeBar().catch(() => {});
@@ -611,7 +741,11 @@ try {
   await wait(() => js(`bookTitle.textContent==='Pics'`), 'image book');
   await js('reader.focus();reader.scrollTop=300');
   await openBar();
-  assert.deepEqual(await disabled([...RIGHT, 'play']), MEDIA_ONLY, 'No media: the right zone except loop is disabled');
+  assert.deepEqual(
+    await disabled([...RIGHT, 'play', 'loop']),
+    MEDIA_ONLY,
+    'No media: the whole right zone is disabled',
+  );
   await js(`${B('mode-comic')}.click()`);
   assert.deepEqual(await disabled(['loop']), [], 'Comic mode without media: loop still works');
   await js(`${B('loop')}.click()`);
@@ -651,7 +785,7 @@ try {
   await js('reader.focus()');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: control bar layout (three zones, about 84px, centred, icons with tooltips), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (⋯ pop-ups, rows, 360px), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (current outline, playing accent, brighter card, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
+    'PASS: control bar layout (one row, left 6 / middle 5 / right 6, centred, icons with tooltips, no status lines), file bar row (above, same width, no height when empty, shows and hides with the bar, controlbar event), play mode button (hover pop-up, click cycles, arrow keys), stable positions (modes, number widths, disabled buttons), mode-dependent disabling, narrow windows (1280 / 900 one row, 700 / 560 ⋯ pop-ups, 420 / 360 two rows, rate panel inside ⋯), rate / volume panels (hover, gap, focus, one at a time, wheel, arrow keys, Esc, click to reset / mute), playback speed for all media incl. later ones, synced and remembered preferences, Space and own play buttons drive the transport, running follows playback, next media after the view, previous / next media (list, shuffle), comic mode plays one file, panel states (current outline, playing accent, brighter card, equaliser, reduced motion), subtitle containers, last path segment as the file name, blank panel areas drag-scroll',
   );
 } finally {
   if (ws?.readyState === 1) {

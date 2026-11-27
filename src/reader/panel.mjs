@@ -25,8 +25,8 @@ export function togglePinned() {
   put('preview', pinned);
   preview(pinned);
 }
-// 四边的边缘触发区统一为 EDGE 像素（ctx.atEdge）：顶缘工具栏（toolbar.mjs）、底缘总控栏（controlbar.mjs）、左缘书架书签（bookmarks.mjs）、右缘缩略图栏（这里）。
-// 改距离只改 app.mjs 的 EDGE；各自的停留延迟（DWELL）用来防误触，可以不同。
+// 边缘触发区（ctx.atEdge）：顶缘工具栏（toolbar.mjs）、左缘书架书签（bookmarks.mjs）、右缘缩略图栏（这里）同为 EDGE 像素，底缘总控栏（controlbar.mjs）为 EDGE_BOTTOM。
+// 改距离只改 app.mjs 的 EDGE / EDGE_BOTTOM；各自的停留延迟（DWELL）用来防误触，可以不同。
 // 鼠标贴近右缘停留 SIDE_DWELL 毫秒即弹出缩略图栏，离开后自动收起；左侧书架书签相同。两侧栏拖宽度的下限也统一为 SIDE_MIN。
 const SIDE_DWELL = 150,
   SIDE_MIN = 160;

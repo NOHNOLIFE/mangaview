@@ -1,6 +1,6 @@
 /* 顶部工具栏：收起时不占任何位置（鼠标移到顶缘或按 T 唤出）；展开为阅读区顶部居中的图标行（文字只给读屏和悬停提示），浮在正文之上，
-   窗口窄时自动换行，不会超出阅读区。书名行在工具栏下方居中。
-   #toolbar 是横跨阅读区顶部、不接收鼠标的纵向容器，工具栏和书名行在其中依次居中排列。
+   窗口窄时自动换行，不会超出阅读区。名称区（书名与进度）在工具栏下方居中。
+   #toolbar 是横跨阅读区顶部、不接收鼠标的纵向容器，工具栏和名称区在其中依次居中排列。
    底部的总控栏见 controlbar.css。 */
 #toolbar {
   position: fixed;
@@ -123,13 +123,14 @@
   width: 22px;
   height: 22px;
 }
-/* 书名行：工具栏展开时显示在工具栏下方、阅读区居中，单行省略；只有书名接收鼠标（悬停看完整书名、可选中复制），其余部分不接收。 */
+/* 名称区：工具栏展开时显示在工具栏下方、阅读区居中，一行「书名 · 当前页 / 总页数 · 进度」，最小约 320px 宽，过长省略书名末尾。
+   整块是按钮（打开书架页），悬停提亮；书名可选中复制（完整书名在悬停提示）。页码按位数预留宽度（::after 占位串），滚动中不推动书名。 */
 #toolbar > #barTitle {
   position: relative;
-  order: 1;
   display: none;
   align-items: baseline;
-  gap: 10px;
+  justify-content: center;
+  min-width: min(320px, 100%);
   max-width: min(640px, 100%);
   padding: 7px 16px 9px;
   overflow: hidden;
@@ -139,11 +140,19 @@
   backdrop-filter: blur(22px) saturate(1.5);
   box-shadow: var(--shadow);
   line-height: 1.3;
-  pointer-events: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
   animation: title-in 0.22s var(--ease);
 }
 #toolbar.open > #barTitle {
   display: flex;
+}
+#barTitle:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(30, 32, 38, 0.96);
 }
 #bookTitle {
   min-width: 0;
@@ -152,14 +161,30 @@
   font-weight: 650;
   white-space: nowrap;
   text-overflow: ellipsis;
-  pointer-events: auto;
+  cursor: text;
+  -webkit-user-select: text;
   user-select: text;
 }
 #bookMeta {
+  position: relative;
+  display: inline-flex;
   flex: none;
+  flex-direction: column;
+  margin-left: 17px;
   color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+#bookMeta::before {
+  content: '·';
+  position: absolute;
+  left: -11px;
+}
+#bookMeta::after {
+  content: attr(data-room);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
 }
 #bookMeta:empty {
   display: none;

@@ -55,8 +55,10 @@ import { install as controlBar } from './reader/controlbar.mjs';
 import { install as mediaPlayer } from './media/media.mjs';
 import { install as pbfImport } from './marks/pbf.mjs';
 
-// 边缘触发区（像素）：四边同一个值，见下方 atEdge。inset：顶缘从窗口控件覆盖区（--top）以下算起。
-const EDGE = 32;
+// 边缘触发区（像素），见下方 atEdge：顶、左、右三边同为 EDGE；底缘（总控栏）为 EDGE_BOTTOM，宽一些，容易唤出。
+// inset：顶缘从窗口控件覆盖区（--top）以下算起。
+const EDGE = 32,
+  EDGE_BOTTOM = 48;
 const atEdge = (side, e, inset = 0) =>
   side === 'left'
     ? e.clientX < EDGE
@@ -64,7 +66,7 @@ const atEdge = (side, e, inset = 0) =>
       ? innerWidth - e.clientX <= EDGE
       : side === 'top'
         ? e.clientY - inset < EDGE
-        : innerHeight - e.clientY <= EDGE;
+        : innerHeight - e.clientY <= EDGE_BOTTOM;
 localize();
 const ring = holdRing();
 createView();

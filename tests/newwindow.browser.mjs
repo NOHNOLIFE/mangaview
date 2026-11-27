@@ -293,10 +293,10 @@ try {
   );
   assert.ok(await Q.js(`centred('02 clip.webm')`));
   await openBar(Q);
-  assert.equal(
-    await Q.js(`document.querySelector('#controlbar .cb-now .cb-name').textContent`),
-    '02 clip.webm',
-    'The new window has the control bar too',
+  assert.deepEqual(
+    await Q.js(`[!controlbar.hidden,controlbar.contains(filebar),!!controlbar.querySelector('[data-id="play"]')]`),
+    [true, true, true],
+    'The new window has the control bar too (with the file bar row)',
   );
   const vs = popoutSize(
     'video',
