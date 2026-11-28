@@ -2,10 +2,10 @@
 // 自动化测试也把它装进普通容器。它不是另一套播放：曲目、进度、播放列表都是 ctx.media.queue 的同一份，这里只是显示和操作。
 // - 自上而下：内容区（当前曲目的画面经 ctx.media.stage.take 搬进来：视频按画面比例显示，音频是它的图（art.mjs），字幕照常）、文件名、
 //   播放 / 暂停 + 进度条（书签与区段标记，可点击拖动）+ 时间（悬停换成快退 / 快进，与文件栏同一份控件）、一行按钮（上一个、下一个、定位、
-//   循环范围（三态轮换，图标随状态）、随机、音频 / 视频类型开关、停止），其下是播放列表。按钮只有图标，文字在 tooltip 与 aria-label；
+//   循环范围（三态轮换，图标随状态）、音频 / 视频类型开关），其下是播放列表。按钮只有图标，文字在 tooltip 与 aria-label；
 //   状态随 'media' / 'queue' 事件同步（偏好在别的窗口改了也一样，queue.mjs 转发）。
 // - 内容区的画面不在这里时（在页内播放、没有曲目）显示占位：说明正在主窗口播放 + 「在画中画显示」按钮（stage.take 收进来）；没有曲目时是一句说明。
-// - 播放列表：只显示文件名（最末一段、不带扩展名），当前曲目高亮；固定行高、只渲染可视范围（core/pip.mjs span），数百项也不卡；
+// - 播放列表：只显示文件名（最末一段、不带扩展名），当前曲目高亮，被过滤的项带 .filtered；固定行高、只渲染可视范围（core/pip.mjs span），数百项也不卡；
 //   装好时滚到当前曲目，之后当前曲目变了且用户没在列表上悬停、刚滚动过时才跟过去。点击只播放（queue.play，主窗口不跳转）；
 //   每项的「定位」「移除」只在悬停 / 选中的项上显示，位置固定。悬停 / 聚焦显示文件详情框（ctx.fileCard.within(窗口)，放不下时退回 title）。
 // - 按键（装在 keys 上：画中画窗口是它的 window，普通容器是容器本身；处理过的按键不再冒泡，不会作用到主窗口的全局快捷键）：
@@ -35,7 +35,7 @@ extend({
     '재생 중인 미디어가 없습니다. 리더에서 동영상이나 오디오를 클릭하면 재생됩니다.',
   ],
   pipList: ['Play list', '播放列表', '再生リスト', '재생 목록'],
-  pipShuffle: ['Shuffle', '随机播放', 'シャッフル再生', '무작위 재생'],
+  pipLoopList: ['Loop: play list', '循环：列表', 'ループ：リスト', '반복: 목록'],
   pipAudio: ['Type: audio', '类型：音频', '種類：音声', '유형: 오디오'],
   pipVideo: ['Type: video', '类型：视频', '種類：動画', '유형: 동영상'],
   pipRemove: ['Remove from the list', '从列表移除', 'リストから外す', '목록에서 제거'],
@@ -52,8 +52,8 @@ const STYLES = [
 ];
 const ROW = 32, // 列表的行高（与 pipview.css 一致）
   FOLLOW = 3000; // 手动滚动列表后这么久之内，当前曲目变了也不把列表滚过去
-const SCOPE_ICON = { file: 'loop-file', book: 'loop-book', books: 'loop-books' },
-  SCOPE_LABEL = { file: 'cbLoopFile', book: 'cbLoopBook', books: 'cbLoopBooks' };
+const SCOPE_ICON = { file: 'loop-file', list: 'loop-book', books: 'loop-books' },
+  SCOPE_LABEL = { file: 'cbLoopFile', list: 'pipLoopList', books: 'cbLoopBooks' };
 
 // 文档里还没有的样式表补上，返回全部载入（或失败、超时）的 Promise。
 function styles(doc) {
@@ -155,11 +155,9 @@ export function install(ctx) {
       prev: btn('prev', 'skip-back', 'cbMediaPrev', () => Q().prev()),
       next: btn('next', 'skip-forward', 'cbMediaNext', () => Q().next()),
       locate: btn('locate', 'locate', 'fbLocate', () => Q().locate()),
-      scope: btn('scope', 'loop-book', 'cbLoopBook', () => Q().setScope(nextScope(Q().scope))),
-      shuffle: btn('shuffle', 'shuffle', 'pipShuffle', () => Q().setShuffle(!Q().shuffle)),
+      scope: btn('scope', 'loop-book', 'pipLoopList', () => Q().setScope(nextScope(Q().scope))),
       audio: btn('audio', 'music', 'pipAudio', () => Q().setTypes(toggleType(Q().types, 'audio'))),
       video: btn('video', 'film', 'pipVideo', () => Q().setTypes(toggleType(Q().types, 'video'))),
-      stop: btn('stop', 'stop', 'fbStop', () => Q().stop()),
     };
     tools.append(...Object.values(B));
     list.tabIndex = 0;
@@ -235,11 +233,10 @@ export function install(ctx) {
       stage.classList.toggle('nosubs', !!p?.node.classList.contains('mv-nosubs'));
       B.prev.disabled = !q.canStep(-1);
       B.next.disabled = !q.canStep(1);
-      B.locate.disabled = B.stop.disabled = !tr;
+      B.locate.disabled = !tr;
       setIcon(B.scope, SCOPE_ICON[q.scope]);
       setLabel(B.scope, SCOPE_LABEL[q.scope]);
       B.scope.dataset.scope = q.scope;
-      press(B.shuffle, q.shuffle);
       press(B.audio, q.types.includes('audio'));
       press(B.video, q.types.includes('video'));
     }
@@ -308,6 +305,7 @@ export function install(ctx) {
         r.dataset.i = String(i);
         r.style.transform = 'translateY(' + i * ROW + 'px)';
         r.classList.toggle('current', it.current);
+        r.classList.toggle('filtered', it.filtered);
         r.classList.toggle('sel', i === sel);
         r.setAttribute('aria-selected', String(it.current));
         used.add(r);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeMarks } from '../../src/panels/backup.mjs';
+import { mergeMarks, unionById } from '../../src/panels/backup.mjs';
 
 test('合并备份：书签取并集，区段书签补缺（嵌套、交叉的也并入），本机的保留', () => {
   const pages = ['0', '1', '2', '3', '4', '5'].map((name) => ({ name }));
@@ -52,4 +52,21 @@ test('合并备份：媒体的区段书签与已有区段嵌套、交叉时照�
     ],
     'Sections may nest and cross, so nothing is dropped',
   );
+});
+test('合并备份：收藏的播放列表按 id 取并集，本机的保留', () => {
+  const mine = JSON.stringify([
+    { id: 'a', name: 'Mine', items: [] },
+    { id: 'b', name: 'B', items: [] },
+  ]);
+  const theirs = JSON.stringify([
+    { id: 'b', name: 'B renamed', items: [{ book: 'x', page: '1.wav' }] },
+    { id: 'c', name: 'C', items: [] },
+  ]);
+  assert.deepEqual(
+    JSON.parse(unionById(mine, theirs)).map((f) => f.id + ':' + f.name),
+    ['a:Mine', 'b:B', 'c:C'],
+  );
+  assert.equal(unionById(null, theirs), theirs, 'Nothing here yet: take the backup');
+  assert.equal(unionById('{bad', theirs), theirs);
+  assert.equal(unionById(mine, 'null'), mine, 'A broken backup value leaves this one alone');
 });

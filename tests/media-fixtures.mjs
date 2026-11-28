@@ -5,6 +5,10 @@
 //   录制按真实时间进行；MediaRecorder 不写时长，生成后补上 Segment Info 的 Duration，浏览器才能读到时长并定位；
 // - mvMedia.withDuration(blob,ms) → Blob：给 MediaRecorder 录出的 WebM 补写时长；
 // - await mvMedia.write(dir,name,blob)：写进 OPFS 目录（测试里的书都放在 OPFS）。
+// CTX_HOOK（注入 Page.addScriptToEvaluateOnNewDocument）：ctx 不暴露到全局，在它被赋上 fileBar 时记为 window.mvCtx（只在测试页里）；
+// window.mvClearQueue() 移除播放列表的全部项（当前曲目不在列表里时先把它所在的书追加进来）：最后移除当前曲目时没有可接续项，停止播放并取消当前曲目。
+export const CTX_HOOK = `Object.defineProperty(Object.prototype,'fileBar',{configurable:true,set(v){Object.defineProperty(this,'fileBar',{value:v,writable:true,configurable:true,enumerable:true});window.mvCtx=this;}});
+window.mvClearQueue=()=>{const q=window.mvCtx.media.queue,tr=q.track();if(tr)q.addBook(tr.book);for(const x of q.items().filter(x=>!x.current))q.remove(x);for(const x of q.items())q.remove(x);};`;
 export const MEDIA_FIXTURES = `(()=>{
   function wav({seconds=1,rate=8000,freq=440}={}){
     const n=Math.round(seconds*rate),buf=new ArrayBuffer(44+n*2),v=new DataView(buf),s=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};

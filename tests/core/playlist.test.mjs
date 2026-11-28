@@ -9,14 +9,24 @@ import {
   toggleType,
   typesOf,
   typeOk,
-  queueOf,
+  markedOf,
+  passes,
+  filtering,
+  markKind,
+  mediaOf,
+  append,
+  nearestOk,
   afterEnd,
+  stepTo,
   stepIn,
+  afterRemove,
+  favoritesOf,
+  defaultName,
 } from '../../src/core/playlist.mjs';
 import * as playlist from '../../src/core/playlist.mjs';
 import { union } from '../../src/core/sections.mjs';
 
-test('接续：一个媒体播完之后播哪个（按页序或随机，循环与否）', () => {
+test('影音模式的接续：按页序，循环与否', () => {
   assert.deepEqual(
     Object.keys(playlist).sort(),
     [
@@ -24,21 +34,30 @@ test('接续：一个媒体播完之后播哪个（按页序或随机，循环�
       'KINDS',
       'SCOPES',
       'afterEnd',
+      'afterRemove',
+      'append',
+      'defaultName',
+      'favoritesOf',
+      'filtering',
       'following',
+      'markKind',
+      'markedOf',
+      'mediaOf',
+      'nearestOk',
       'nextScope',
-      'queueOf',
+      'passes',
       'scopeOf',
       'sectionStart',
       'sectionStep',
       'stepIn',
+      'stepTo',
       'toggleType',
       'typeOk',
       'typesOf',
     ],
-    'No play order, no new window',
+    'No shuffle, no play order',
   );
   const list = [1, 3, 4, 7];
-  // 按页序：按页序播放下一个（图片、无法播放的不在 list 里）；最后一个播完停下，循环开回到第一个。
   assert.equal(following({ list, cur: 3 }).next, 4);
   assert.equal(
     following({ list, cur: 5 }).next,
@@ -49,29 +68,6 @@ test('接续：一个媒体播完之后播哪个（按页序或随机，循环�
   assert.equal(following({ loop: true, list, cur: 7 }).next, 1);
   assert.equal(following({ loop: true, list: [4], cur: 4 }).next, 4, 'A single media loops onto itself');
   assert.equal(following({ list: [], cur: 2 }).next, null);
-  // 随机：不重复，全部播过一遍后停下；循环开则重新洗牌继续，刚播完的不紧接着重复。
-  let played = new Set(),
-    cur = 1,
-    seen = [cur];
-  const rnd = () => 0.6;
-  for (;;) {
-    const r = following({ shuffle: true, list, cur, played, random: rnd });
-    if (r.next == null) break;
-    seen.push(r.next);
-    played = r.played;
-    cur = r.next;
-  }
-  assert.deepEqual(
-    [...seen].sort((a, b) => a - b),
-    list,
-    'Each media once per round',
-  );
-  assert.equal(seen.length, 4);
-  const again = following({ shuffle: true, loop: true, list, cur, played });
-  assert.ok(again.next != null && again.next !== cur, 'Looping starts a new round without repeating the last one');
-  assert.deepEqual([...again.played].sort(), [cur, again.next].sort());
-  assert.equal(following({ shuffle: true, loop: true, list: [4], cur: 4, played: new Set([4]) }).next, 4);
-  assert.equal(following({ shuffle: true, loop: false, list: [4], cur: 4 }).next, null);
 });
 
 test('只播放书签区段：从哪里开始、何时跳到下一个区段', () => {
@@ -110,61 +106,117 @@ test('只播放书签区段：嵌套、交叉的区段按并集播放，重叠�
   assert.deepEqual(sectionStep(rs, 16, 1), { k: null, done: true });
 });
 
-test('播放列表的偏好：循环范围（默认本书）、类型开关（全不选即不限）', () => {
+test('播放列表的偏好：循环范围（默认列表，旧值「本书」读作列表）、过滤（类型全不选即不限、只含书签）', () => {
   assert.equal(scopeOf('file'), 'file');
+  assert.equal(scopeOf('list'), 'list');
   assert.equal(scopeOf('books'), 'books');
-  for (const v of [null, undefined, 'none', true, 3]) assert.equal(scopeOf(v), 'book', String(v));
+  assert.equal(scopeOf('book'), 'list', 'The old "this book" value reads as the list');
+  for (const v of [null, undefined, 'none', true, 3]) assert.equal(scopeOf(v), 'list', String(v));
   assert.deepEqual(typesOf(['video', 'audio', 'image', 'video']), ['audio', 'video'], 'Known kinds only, fixed order');
   assert.deepEqual(typesOf('audio'), []);
   assert.deepEqual(typesOf(null), []);
   assert.equal(typeOk([], 'audio'), true, 'None chosen: no limit');
   assert.equal(typeOk(['video'], 'audio'), false);
   assert.equal(typeOk(['video'], 'video'), true);
+  assert.equal(markedOf(true), true);
+  for (const v of [null, 'true', 1, false]) assert.equal(markedOf(v), false, String(v));
+  assert.equal(passes({}, 'audio'), true);
+  assert.equal(passes({ types: ['video'] }, 'audio', 3), false);
+  assert.equal(passes({ marked: true }, 'audio', 0), false, 'Bookmarked only: needs at least one bookmark');
+  assert.equal(passes({ marked: true, types: ['audio'] }, 'audio', 1), true);
+  assert.equal(filtering({ types: [], marked: false }), false);
+  assert.equal(filtering({ types: ['audio'], marked: false }), true);
+  assert.equal(filtering({ types: [], marked: true }), true);
 });
 
-test('播放列表的内容：本书可播放的视频、音频，按页序；类型开关、播不了的、移除的不列入', () => {
+test('每项的书签情况：没有 / 有书签 / 有区段书签', () => {
+  assert.equal(markKind(undefined), 'none');
+  assert.equal(markKind({ n: 0, mark: false, start: false, end: false }), 'none');
+  assert.equal(markKind({ n: 2, mark: true, start: false, end: false }), 'mark');
+  assert.equal(markKind({ n: 1, mark: false, start: true, end: true }), 'section');
+  assert.equal(markKind({ n: 3, mark: true, start: true, end: true }), 'section', 'A section wins over plain marks');
+});
+
+test('列表的内容：一本书可播放的视频、音频，按页序；追加时不重复', () => {
   const kinds = ['image', 'video', 'audio', 'image', 'audio', 'video'];
-  assert.deepEqual(queueOf(kinds), [1, 2, 4, 5]);
-  assert.deepEqual(queueOf(kinds, ['audio']), [2, 4]);
-  assert.deepEqual(queueOf(kinds, ['video']), [1, 5]);
+  assert.deepEqual(mediaOf(kinds), [1, 2, 4, 5]);
   assert.deepEqual(
-    queueOf(kinds, ['audio', 'video'], (i) => i === 4),
+    mediaOf(kinds, (i) => i === 4),
     [1, 2, 5],
+    'Unplayable ones are left out',
   );
-  assert.deepEqual(queueOf(['image']), []);
+  assert.deepEqual(mediaOf(['image']), []);
+  const key = (x) => x.b + '/' + x.n;
+  const list = [
+    { b: 'A', n: 1 },
+    { b: 'A', n: 2 },
+  ];
+  const r = append(
+    list,
+    [
+      { b: 'A', n: 2 },
+      { b: 'B', n: 1 },
+      { b: 'B', n: 1 },
+      { b: 'B', n: 3 },
+    ],
+    key,
+  );
+  assert.deepEqual(r.list.map(key), ['A/1', 'A/2', 'B/1', 'B/3'], 'Appended at the end in order, without duplicates');
+  assert.equal(r.added, 2);
+  assert.deepEqual(list.length, 2, 'The original list is not changed');
+  assert.equal(append(list, [{ b: 'A', n: 1 }], key).added, 0, 'Everything already there');
 });
 
-test('播完之后：单文件重播、本书循环、跨书进入下一本；随机不重复地播完一轮', () => {
-  const list = [1, 2, 4, 5];
-  assert.equal(afterEnd({ scope: 'file', list, cur: 2 }).type, 'replay');
-  assert.deepEqual(afterEnd({ scope: 'book', list, cur: 2 }), { type: 'next', next: 4, played: new Set() });
-  assert.equal(afterEnd({ scope: 'book', list, cur: 5 }).next, 1, 'Book loop: back to the first');
-  assert.equal(afterEnd({ scope: 'book', list: [3], cur: 3 }).type, 'replay', 'Only itself: replay');
-  assert.equal(afterEnd({ scope: 'book', list: [], cur: 3 }).type, 'stop', 'Nothing to play');
-  assert.deepEqual(afterEnd({ scope: 'books', list, cur: 4 }).next, 5);
-  assert.equal(afterEnd({ scope: 'books', list, cur: 5 }).type, 'onward', 'Books loop: on to the next book');
-  assert.equal(afterEnd({ scope: 'books', list: [], cur: 0 }).type, 'onward');
-  assert.equal(afterEnd({ scope: 'book', list, cur: 3 }).next, 4, 'Not in the list: next in page order');
-  // 随机（本书循环）：一轮里每项只播一次，之后重新洗牌继续。
-  let played = new Set(),
-    cur = 1;
-  const seen = [cur];
-  for (let k = 0; k < 3; k++) {
-    const r = afterEnd({ scope: 'book', shuffle: true, list, cur, played, random: () => 0 });
-    assert.equal(r.type, 'next');
-    played = r.played;
-    cur = r.next;
-    seen.push(cur);
-  }
-  assert.deepEqual([...seen].sort(), [1, 2, 4, 5], 'One round without repeats');
-  const again = afterEnd({ scope: 'book', shuffle: true, list, cur, played, random: () => 0 });
-  assert.equal(again.type, 'next');
-  assert.notEqual(again.next, cur, 'A new round does not repeat the one just played');
-  // 随机（跨书）：一轮播完进入下一本。
-  assert.equal(afterEnd({ scope: 'books', shuffle: true, list, cur, played, random: () => 0 }).type, 'onward');
+test('在列表里找可接续的项：跳过被过滤的，位置可以在两项之间', () => {
+  const ok = [true, false, true, false, true];
+  assert.equal(nearestOk(ok, 0, 1), 2);
+  assert.equal(nearestOk(ok, 2, -1), 0);
+  assert.equal(nearestOk(ok, 4, 1), null);
+  assert.equal(nearestOk(ok, 0, -1), null);
+  assert.equal(nearestOk(ok, 1.5, 1), 2, 'Between items 1 and 2');
+  assert.equal(nearestOk(ok, 1.5, -1), 0);
+  assert.equal(nearestOk(ok, -1, 1), 0, 'From the start');
+  assert.equal(nearestOk(ok, ok.length, -1), 4, 'From the end');
 });
 
-test('上一项 / 下一项：按页序，两端相接；不在列表里时取页序上的前后', () => {
+test('播完之后：单文件重播、列表循环、跨书进入下一本；跳过被过滤的项', () => {
+  const ok = [true, true, false, true];
+  assert.deepEqual(afterEnd({ scope: 'file', ok, cur: 1 }), { type: 'replay' });
+  assert.deepEqual(afterEnd({ scope: 'list', ok, cur: 1 }), { type: 'next', next: 3 }, 'Skips the filtered item');
+  assert.deepEqual(afterEnd({ scope: 'list', ok, cur: 3 }), { type: 'next', next: 0 }, 'List loop: back to the first');
+  assert.deepEqual(
+    afterEnd({ scope: 'list', ok, cur: 2 }),
+    { type: 'next', next: 3 },
+    'A filtered item played by hand',
+  );
+  assert.deepEqual(afterEnd({ scope: 'list', ok: [false, true], cur: 1 }), { type: 'replay' }, 'Only itself');
+  assert.deepEqual(afterEnd({ scope: 'list', ok: [false, false], cur: 0 }), { type: 'stop' }, 'Nothing to play');
+  assert.deepEqual(afterEnd({ scope: 'books', ok, cur: 1 }), { type: 'next', next: 3 });
+  assert.deepEqual(afterEnd({ scope: 'books', ok, cur: 3 }), { type: 'onward' }, 'Across books: on to the next book');
+  assert.deepEqual(afterEnd({ scope: 'books', ok: [], cur: -0.5 }), { type: 'onward' });
+  assert.deepEqual(
+    afterEnd({ scope: 'list', ok, cur: 1.5 }),
+    { type: 'next', next: 3 },
+    'Not in the list: what follows it',
+  );
+});
+
+test('上一个 / 下一个：按列表顺序跳过被过滤的项；两端在单文件、列表范围首尾相接，跨书范围进入上一本 / 下一本', () => {
+  const ok = [true, false, true, true, false];
+  assert.deepEqual(stepTo({ ok, cur: 0, d: 1 }), { type: 'item', i: 2 });
+  assert.deepEqual(stepTo({ ok, cur: 2, d: -1 }), { type: 'item', i: 0 });
+  assert.deepEqual(stepTo({ ok, cur: 3, d: 1 }), { type: 'item', i: 0 }, 'Wraps around at the end');
+  assert.deepEqual(stepTo({ ok, cur: 0, d: -1 }), { type: 'item', i: 3 }, 'Wraps around at the start');
+  assert.deepEqual(stepTo({ scope: 'file', ok, cur: 3, d: 1 }), { type: 'item', i: 0 });
+  assert.deepEqual(stepTo({ scope: 'books', ok, cur: 3, d: 1 }), { type: 'book' }, 'Across books: the next book');
+  assert.deepEqual(stepTo({ scope: 'books', ok, cur: 0, d: -1 }), { type: 'book' }, 'Across books: the previous book');
+  assert.deepEqual(stepTo({ scope: 'books', ok, cur: 2, d: 1 }), { type: 'item', i: 3 });
+  assert.deepEqual(stepTo({ ok, cur: 1, d: 1 }), { type: 'item', i: 2 }, 'From a filtered item');
+  assert.equal(stepTo({ ok: [false, true], cur: 1, d: 1 }), null, 'Only itself');
+  assert.equal(stepTo({ ok: [], cur: 0, d: 1 }), null);
+});
+
+test('没有当前曲目时的上一个 / 下一个媒体：按页序，两端相接；不在列表里时取页序上的前后', () => {
   const list = [1, 2, 4, 5];
   assert.equal(stepIn(list, 2, 1), 4);
   assert.equal(stepIn(list, 2, -1), 1);
@@ -176,11 +228,42 @@ test('上一项 / 下一项：按页序，两端相接；不在列表里时取�
   assert.equal(stepIn([], 2, 1), null);
 });
 
-test('画中画窗口的循环范围按钮轮换（单文件 → 本书 → 跨书 → 单文件），类型开关逐个切换、结果按固定顺序', () => {
-  assert.equal(nextScope('file'), 'book');
-  assert.equal(nextScope('book'), 'books');
+test('移除当前曲目之后：后面最近的可接续项，后面没有时从头找，都没有为 null', () => {
+  // 移除之后的列表：原来的第 2 项被移除。
+  assert.equal(afterRemove([true, false, false, true], 2), 3);
+  assert.equal(afterRemove([true, false, false], 2), 0, 'Nothing after it: from the start');
+  assert.equal(afterRemove([false, false], 1), null, 'Nothing to go on with');
+  assert.equal(afterRemove([], 0), null);
+});
+
+test('收藏列表：读入时只留格式正确的；默认名与已有的重名时加序号', () => {
+  assert.deepEqual(favoritesOf(null), []);
+  assert.deepEqual(favoritesOf('x'), []);
+  assert.deepEqual(
+    favoritesOf([
+      { id: 'a', name: 'A', items: [{ book: 'b1', page: '01.wav' }, { book: '', page: 'x' }, null, { book: 'b2' }] },
+      { id: '', name: 'B', items: [] },
+      { id: 'c', name: 3, items: [] },
+      { id: 'd', name: 'D' },
+      null,
+      { id: 'e', name: '', items: [], extra: 1 },
+    ]),
+    [
+      { id: 'a', name: 'A', items: [{ book: 'b1', page: '01.wav' }] },
+      { id: 'e', name: '', items: [] },
+    ],
+  );
+  assert.equal(defaultName('Alpha', []), 'Alpha');
+  assert.equal(defaultName('Alpha', ['Alpha']), 'Alpha (2)');
+  assert.equal(defaultName('Alpha', ['Alpha', 'Alpha (2)', 'Beta']), 'Alpha (3)');
+});
+
+test('画中画窗口的循环范围按钮轮换（单文件 → 列表 → 跨书 → 单文件），类型开关逐个切换、结果按固定顺序', () => {
+  assert.equal(nextScope('file'), 'list');
+  assert.equal(nextScope('list'), 'books');
   assert.equal(nextScope('books'), 'file');
-  assert.equal(nextScope('junk'), 'books', 'An unknown value reads as this book');
+  assert.equal(nextScope('book'), 'books', 'The old value reads as the list');
+  assert.equal(nextScope('junk'), 'books', 'An unknown value reads as the list');
   assert.deepEqual(toggleType([], 'video'), ['video']);
   assert.deepEqual(toggleType(['video'], 'audio'), ['audio', 'video']);
   assert.deepEqual(toggleType(['audio', 'video'], 'audio'), ['video']);

@@ -9,7 +9,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+import { MEDIA_FIXTURES, CTX_HOOK } from './media-fixtures.mjs';
 const binary = process.argv[2];
 if (!binary) throw Error('Usage: node tests/filebar.browser.mjs <chrome-or-edge-executable>');
 const profile = await mkdtemp(join(process.env.MV_TEST_TEMP || tmpdir(), 'mv-filebar-'));
@@ -123,7 +123,7 @@ try {
     cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await size(1280);
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});localStorage.setItem('mv2:autoplay','false');`,
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});localStorage.setItem('mv2:autoplay','false');${CTX_HOOK}`,
   });
   await cdp('Page.navigate', { url: origin });
   await wait(() => js('document.querySelector("#empty")?.hidden===false'));
@@ -342,7 +342,7 @@ try {
   );
   assert.equal(await js(`el('03 song.wav')?.currentTime??0`), 0, 'The centre audio is untouched');
   assert.equal(await js(`fb().name`), STEM);
-  // 中线离开视窗：仍是当前曲目（后台播放），文件栏仍显示它；「停止」后取消，文件栏回到视窗中心所在的页。
+  // 中线离开视窗：仍是当前曲目（后台播放），文件栏仍显示它；移除播放列表的全部项后取消，文件栏回到视窗中心所在的页。
   await js(`toPage('03 song.wav',0.95)`);
   await delay(300);
   assert.deepEqual(
@@ -350,8 +350,8 @@ try {
     [STEM, true],
     'The track stays selected and in the file bar when its midline leaves',
   );
-  await js(`filebar.querySelector('[data-head="stop"]').click()`);
-  await wait(() => js(`!look(${JSON.stringify(LONG)}).selected`), 'deselected by Stop');
+  await js(`mvClearQueue()`);
+  await wait(() => js(`!look(${JSON.stringify(LONG)}).selected`), 'deselected once the list is emptied');
   await wait(() => js(`fb().name==='03 song'`), 'file bar follows the centre page again');
   // 不在视窗中心的未选中视频压得更暗；悬停时恢复到普通的压暗程度。
   await js(`toPage('03 song.wav')`);
@@ -495,8 +495,8 @@ try {
   }
 
   // ---- 播放不了的媒体：没有大播放键，文件栏的播放键变灰。
-  // 当前曲目离开视窗后仍在文件栏：先停止它，文件栏才回到视窗中心的文件。
-  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  // 当前曲目离开视窗后仍在文件栏：先清空播放列表（取消当前曲目），文件栏才回到视窗中心的文件。
+  await js(`mvClearQueue()`);
   await js(`toPage('04 broken.mp4',0.9)`);
   await wait(() => js(`node('04 broken.mp4').classList.contains('mv-failed')`), 'broken media fails');
   await wait(() => js(`fb().name==='04 broken'`), 'file bar on the broken media');
@@ -534,7 +534,7 @@ try {
     const bad=pts.filter(([x,y])=>{const e=document.elementFromPoint(x,y);return !(n.contains(e)||controlbar.contains(e)||!!e?.closest('#toolbar'));}),ok=pts.length-bad.length,miss=bad.map(([x,y])=>{const e=document.elementFromPoint(x,y);return Math.round(x)+','+Math.round(y)+':'+(e?.id||e?.className||e?.tagName);});
     return {r:[r.left,r.top,r.width,r.height],win:[innerWidth,innerHeight],centre:[Math.round(v.left+v.width/2),Math.round(v.top+v.height/2)],bar:controlbar.contains(hit),covered:ok+'/'+pts.length,miss,selected:n.classList.contains('selected'),label:filebar.querySelector('[data-slot="full"]').getAttribute('aria-label')};})()`);
   const enterFull = async (name) => {
-    await js(`document.querySelector('#filebar [data-head="stop"]').click()`); // 上一个全屏的视频仍是当前曲目，文件栏显示它：先停止
+    await js(`mvClearQueue()`); // 上一个全屏的视频仍是当前曲目，文件栏显示它：先清空播放列表
     await js(`toPage(${JSON.stringify(name)})`);
     await wait(
       () =>
@@ -591,7 +591,7 @@ try {
   await wait(() => js(`!document.body.classList.contains('docked')`), 'thumbnails undocked');
 
   // ---- 各宽度下不溢出：标题行先缩短文件名（中间省略），播放行由进度条让出宽度；三个按钮位始终都在。
-  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  await js(`mvClearQueue()`);
   await js(`toPage(${JSON.stringify(LONG)})`);
   await wait(() => js(`fb().name===${JSON.stringify(STEM)}`));
   const widths = [1280, 900, 700, 560, 420, 360];
@@ -620,13 +620,13 @@ try {
   }
   await size(1280);
 
-  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：「定位」「画中画」「停止」（按 order 排列；定位与停止同时可用或禁用）；与文件名同在一行。
+  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：「定位」「画中画」（按 order 排列，没有「停止」）；与文件名同在一行。
   await showBar();
   assert.deepEqual(
     await js(
-      `(()=>{const h=filebar.querySelector('.fb-head-tools'),r=h.getBoundingClientRect(),n=filebar.querySelector('.fb-name').getBoundingClientRect();return [h.parentElement.matches('.fb-head'),h.previousElementSibling.matches('.fb-name'),[...h.children].map(b=>b.dataset.head+':'+b.getAttribute('aria-label')),h.children[0].disabled===h.children[2].disabled,Math.abs((r.top+r.bottom)/2-(n.top+n.bottom)/2)<2,r.right<=filebar.getBoundingClientRect().right];})()`,
+      `(()=>{const h=filebar.querySelector('.fb-head-tools'),r=h.getBoundingClientRect(),n=filebar.querySelector('.fb-name').getBoundingClientRect();return [h.parentElement.matches('.fb-head'),h.previousElementSibling.matches('.fb-name'),[...h.children].map(b=>b.dataset.head+':'+b.getAttribute('aria-label')),Math.abs((r.top+r.bottom)/2-(n.top+n.bottom)/2)<2,r.right<=filebar.getBoundingClientRect().right];})()`,
     ),
-    [true, true, ['locate:Locate', 'pip:Picture-in-picture', 'stop:Stop'], true, true, true],
+    [true, true, ['locate:Locate', 'pip:Picture-in-picture'], true, true],
   );
 
   // ---- 不显示时不更新：收起后时间不再跟着走，显示时立即取当前值。

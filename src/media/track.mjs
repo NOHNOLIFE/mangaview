@@ -1,6 +1,6 @@
 // 当前曲目（选中媒体，规则见 core/selection.mjs）、它的画面的显示位置（ctx.media.stage），以及当前文件与书签作用的对象。
 // - 当前曲目 S.track：带 .selected 类（不压暗、没有大播放键，shell.css）。select(播放器, 原因, {stay}) 换成别的，release(播放器) 被释放或打不开、
-//   stop() 结束后台播放时取消；离开视窗、切书都不取消（由自动播放开始、用户尚未接手的除外，见 autoplay.mjs）。变化时派发 ctx.emit('media', 'track')。
+//   stop() 结束后台播放（播放列表没有可接续的项时，queue.mjs）时取消；离开视窗、切书都不取消（由自动播放开始、用户尚未接手的除外，见 autoplay.mjs）。变化时派发 ctx.emit('media', 'track')。
 // - 后台播放：当前曲目的播放器脱离正文的虚拟列表存活。正文回收它所在的页时（view.mjs release → letGo）不释放，而是把页的内容收进一个
 //   不在文档里的节点（unhost），媒体元素移到主文档里隐藏的停放处（#mv-park），继续播放、保持源；该页再出现在正文里时（hooks.media → host）
 //   把内容和媒体元素放回页里，不重新加载、不中断。其余播放器照旧：离开视窗卸载源，页被回收即释放（dispose）。

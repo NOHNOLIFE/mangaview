@@ -7,7 +7,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+import { MEDIA_FIXTURES, CTX_HOOK } from './media-fixtures.mjs';
 const binary = process.argv[2];
 if (!binary) throw Error('Usage: node tests/subtitles.browser.mjs <chrome-or-edge-executable>');
 const profile = await mkdtemp(join(process.env.MV_TEST_TEMP || tmpdir(), 'mv-subs-'));
@@ -120,7 +120,7 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 900, deviceScaleFactor: 1, mobile: false });
   // 记下读取了哪些字幕文件的内容（arrayBuffer）和元数据（getFile）：验证一个字幕文件只读一次内容。
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});${CTX_HOOK}
     window.subReads=[];window.subStats=[];const isSub=n=>/\\.(srt|vtt|ass|ssa|lrc)$/i.test(n||'');
     const ab=Blob.prototype.arrayBuffer;Blob.prototype.arrayBuffer=function(){if(isSub(this.name))subReads.push(this.name);return ab.call(this);};
     const gf=FileSystemFileHandle.prototype.getFile;FileSystemFileHandle.prototype.getFile=function(){if(isSub(this.name))subStats.push(this.name);return gf.call(this);};`,
@@ -358,8 +358,8 @@ try {
   ]);
   // 回到视频：缓存命中，只核对元数据，不读内容；按媒体记住的选择仍在。
   const stats = await js('subStats.length');
-  // 前面点音频的播放键是后台播放，它作为当前曲目会一直保留：先停止，再滚走。
-  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  // 前面点音频的播放键是后台播放，它作为当前曲目会一直保留：先清空播放列表（取消当前曲目），再滚走。
+  await js(`mvClearQueue()`);
   await js('reader.scrollTop=reader.scrollHeight');
   await wait(() => js(`!el('01 clip.webm')||el('01 clip.webm').readyState===0`), 'clip unloaded');
   assert.ok(await js(`toPage('01 clip.webm')`));
@@ -390,7 +390,7 @@ try {
   await js(`el('02 song.wav').pause()`);
   if (await js('controlbar.hidden')) await key('t', 'KeyT', 84);
   await wait(() => js(`btn('02 song.wav')?.disabled===true`), 'Removed subtitle disables the button');
-  await js(`document.querySelector('#filebar [data-head="stop"]').click()`); // 当前曲目跨书保留：停止它，文件栏才回到新书视窗中心的文件
+  await js(`mvClearQueue()`); // 当前曲目跨书保留：清空播放列表取消它，文件栏才回到新书视窗中心的文件
 
   // ---- 散图图集：与媒体一起选入的字幕按主文件名配对并保存句柄；之后单独加入的字幕也配上已有的媒体。
   await js(`(async()=>{const root=await navigator.storage.getDirectory(),dir=await root.getDirectoryHandle('Loose',{create:true});
