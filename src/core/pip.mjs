@@ -1,4 +1,5 @@
-// 画中画窗口的纯规则（media/pip.mjs、media/pipview.mjs 调用，tests/core/pip.test.mjs 覆盖）：入口的作用、播放列表的可见范围与滚动位置、内容区的画面比例。
+// 画中画窗口的纯规则（media/pip.mjs、media/pipview.mjs、media/piplist.mjs 调用，tests/core/pip.test.mjs 覆盖）：入口的作用、
+// 播放列表的行（书名小标题）、可见范围与滚动位置。
 // 入口（文件栏标题行的「画中画」、音频卡片上的同一个按钮、Z 键）按作用的文件与窗口的状态决定做什么（entry）：
 // - 视频、音频：它是当前曲目且画面已在画中画窗口里 → 'close' 关闭窗口；否则 'show'：它成为当前曲目、开始播放（已在播放的不中断），
 //   画面搬进窗口（没开就打开）；
@@ -29,10 +30,19 @@ export function revealTop(i, row, top, height) {
   if (b > top + height) return Math.max(0, b - height);
   return top;
 }
-// 内容区的画面比例（高 / 宽）：帧尺寸已知用它，否则 16:9；夹在 [MIN_RATIO, MAX_RATIO]，极端比例时内容区不至于过扁或过高。
-export const MIN_RATIO = 0.25,
-  MAX_RATIO = 1.5;
-export function ratio(w, h) {
-  const r = w > 0 && h > 0 ? h / w : 9 / 16;
-  return Math.min(MAX_RATIO, Math.max(MIN_RATIO, r));
+// 播放列表的行：列表跨多本书时，每段连续的同一本书的项前加一行书名小标题（与项同样的行高，虚拟列表按行计算）；只有一本书时不加。
+// items 为列表的项，bookOf(项) 取它所在的书。返回 {rows, at}：rows 为 {head: 书} 或 {item: 项, i: 项的序号}，at[i] 为第 i 项所在的行号。
+export function listRows(items, bookOf = (it) => it.book) {
+  const many = new Set(items.map(bookOf)).size > 1,
+    rows = [],
+    at = [];
+  let last;
+  items.forEach((item, i) => {
+    const b = bookOf(item);
+    if (many && (i === 0 || b !== last)) rows.push({ head: b });
+    last = b;
+    at.push(rows.length);
+    rows.push({ item, i });
+  });
+  return { rows, at };
 }

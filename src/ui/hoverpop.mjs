@@ -1,4 +1,5 @@
-// 悬停 / 聚焦弹出的浮层：总控栏的速率、音量、播放模式小面板与「⋯」，文件栏与音频卡片的「⋯」共用。
+// 悬停 / 聚焦弹出的浮层：总控栏的速率、音量、播放模式小面板与「⋯」，文件栏与音频卡片的「⋯」，画中画窗口的「过滤」共用。
+// 按钮可以在别的文档里（画中画窗口）：焦点、窗口尺寸、Esc 都取按钮所在的文档与窗口（浮层须与按钮在同一个文档里）。
 // - 指针悬停或键盘聚焦按钮时在按钮正上方弹出（水平居中、夹在窗口内，placeAbove），移开（或焦点离开）后稍等收起。
 // - 同一时间只显示一组：弹出一个时收起其他的；嵌套的除外（「⋯」里的速率按钮弹出自己的小面板时「⋯」保持打开，
 //   指针停在里层面板上外层不收起，里层收起后外层再按指针位置决定是否收起）。Esc 全部收起。
@@ -12,7 +13,8 @@ const open = []; // 打开着的浮层（外层在前）：{btn, pop, hide, chec
 
 // 定位：按钮正上方 8px，水平居中，夹在窗口内（浮层已显示，尺寸可读）。
 export function placeAbove(btn, pop) {
-  const r = btn.getBoundingClientRect(),
+  const { innerWidth } = btn.ownerDocument.defaultView,
+    r = btn.getBoundingClientRect(),
     w = pop.offsetWidth,
     h = pop.offsetHeight;
   pop.style.left = Math.round(Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2))) + 'px';
@@ -23,22 +25,23 @@ export function hoverPop(btn, pop, onShow) {
   pop.popover = 'manual';
   pop.classList.add('hover-pop');
   let timer = 0;
-  const isOpen = () => pop.matches(':popover-open');
+  const isOpen = () => pop.matches(':popover-open'),
+    active = () => btn.ownerDocument.activeElement;
   const me = { btn, pop, hide, check };
   // 里层：按钮在这个浮层里的、打开着的浮层。
   const inner = () => open.filter((o) => o !== me && pop.contains(o.btn));
   const hovered = (o) => o.btn.matches(':hover') || o.pop.matches(':hover');
   const within = () => {
-    const a = document.activeElement;
+    const a = active();
     return (a === btn && btn.matches(':focus-visible')) || pop.contains(a);
   };
-  const busy = () =>
-    hovered(me) || within() || inner().some((o) => hovered(o) || o.pop.contains(document.activeElement));
+  const busy = () => hovered(me) || within() || inner().some((o) => hovered(o) || o.pop.contains(active()));
   function show() {
     clearTimeout(timer);
     if (btn.disabled || isOpen() || !btn.isConnected) return;
     for (const o of [...open].reverse()) if (!o.pop.contains(btn)) o.hide();
     open.push(me);
+    escOn(btn.ownerDocument.defaultView);
     pop.showPopover();
     placeAbove(btn, pop);
     onShow?.();
@@ -80,9 +83,16 @@ export function hoverPop(btn, pop, onShow) {
   pop.addEventListener('toggle', (e) => {
     if (e.newState === 'closed' && open.includes(me)) hide();
   });
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hide();
-  });
+  // Esc 收起：按钮所在的窗口（弹出时接上，每个窗口一次）。
+  const wins = new WeakSet();
+  function escOn(win) {
+    if (wins.has(win)) return;
+    wins.add(win);
+    win.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hide();
+    });
+  }
+  escOn(window);
   return { show, hide, open: isOpen };
 }
 

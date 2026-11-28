@@ -14,11 +14,13 @@
 // - show(el, {book, page, mark?})：为 el 弹出（列表自己管理选中项时用，如全屏界面里键盘移动的选中）；内容相同时不重画。
 // - hide()：收起。
 // - current()：当前所指的元素，没有为 null。
-// - within(窗口)：另一个窗口（画中画）里的详情框，接口同上（popover 建在那个文档里，按那个窗口的大小摆放）；窗口小到放不下时不弹出，
-//   退回元素上的 title 提示（完整路径）。
+// - within(窗口, {thumb?})：另一个窗口（画中画）里的详情框，接口同上（popover 建在那个文档里，按那个窗口的大小摆放）；窗口小到放不下时不弹出，
+//   退回元素上的 title 提示（完整路径）。thumb 为真时（只有画中画的播放列表用）详情框顶部另有一张缩略图：视频是缩略图栏的同一张画面
+//   （ctx.frames：已有的直接用，没有时按它的规则在空闲时生成，本次会话每个文件只请求一次），音频是它的图（art.mjs）。其他详情框不带图。
 import { extend } from '../core/lang.mjs';
 import { shownName, pageKind, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
+import { audioArt } from './art.mjs';
 
 extend({
   fcPlaying: ['Playing', '正在播放', '再生中', '재생 중'],
@@ -31,10 +33,13 @@ const isMedia = (page) => !!page && pageKind(page) !== 'image';
 export function install(ctx) {
   const { t, make, icon } = ctx;
   const live = new Set(); // 各窗口的详情框（主窗口一份，画中画窗口各一份）
+  const asked = new WeakSet(); // 本次会话已请求生成画面的视频页（带图的详情框用，不重复排队）
   // 一个窗口里的详情框。fallback：窗口小到放不下（会盖住所指的元素或超出窗口）时不弹出，改在元素上设 title（画中画窗口用）。
-  function instance(win, fallback = false) {
+  // thumb：顶部带缩略图（画中画的播放列表）。
+  function instance(win, fallback = false, thumb = false) {
     const doc = win.document;
     let card = null,
+      pic = null,
       head = null,
       meta = null,
       parts = null,
@@ -53,6 +58,7 @@ export function install(ctx) {
       meta = make('div', 'fc-meta');
       parts = ctx.player?.seekBar(() => null) ?? null;
       note = make('div', 'fc-mark');
+      if (thumb) card.append((pic = make('div', 'fc-thumb')));
       card.append(head, meta);
       if (parts) {
         parts.bar.tabIndex = -1;
@@ -116,6 +122,7 @@ export function install(ctx) {
         pos = ctx.player?.position?.(book, page) ?? { t: 0, d: page.d ?? null, playing: false },
         d = Number.isFinite(pos.d) && pos.d > 0 ? pos.d : null,
         now = Math.max(0, pos.t || 0);
+      if (full && pic) picture(book, page, kind);
       if (full) {
         const name = shownName(page);
         head.replaceChildren(icon(kind === 'audio' ? 'music' : 'film'), midName(name.slice(name.lastIndexOf('/') + 1)));
@@ -154,6 +161,27 @@ export function install(ctx) {
           make('span', '', (mark.end ? t('secEnd') : t('bmWord')) + ' ' + clock(at) + (name ? ' · ' + name : '')),
         );
       }
+    }
+    // 缩略图：视频用缩略图栏的同一张画面（没有时先显示类型图标，按 ctx.frames 的规则在空闲时生成），音频用它的图。
+    function picture(book, page, kind) {
+      if (kind === 'audio') return pic.replaceChildren(audioArt(ctx, make('span', 'fc-art'), book, page));
+      pic.replaceChildren(icon('film'));
+      const put = (th) => {
+        if (!th?.url || cur?.page !== page) return th;
+        const img = make('img', 'fc-frame');
+        img.alt = '';
+        img.src = th.url;
+        pic.replaceChildren(img);
+        return th;
+      };
+      Promise.resolve(ctx.frames?.cached?.(book, page))
+        .then(put)
+        .then((th) => {
+          if (th || !ctx.frames?.get || asked.has(page)) return;
+          asked.add(page);
+          return ctx.frames.get(book, page).then((r) => r && Promise.resolve(ctx.frames.cached(book, page)).then(put));
+        })
+        .catch(() => {});
     }
     // 放在格子旁边，不挡住它：右侧放得下放右侧，否则左侧，再否则下方、上方；夹在窗口内。返回是否放得下（不挡住它、不超出窗口）。
     function place() {
@@ -249,11 +277,11 @@ export function install(ctx) {
     show: main.show,
     hide: main.hide,
     current: main.current,
-    // 另一个窗口（画中画）里的详情框：同样的接口，放不下时退回 title 提示。
-    within(win) {
+    // 另一个窗口（画中画）里的详情框：同样的接口，放不下时退回 title 提示；thumb 为真时带缩略图（第一次取用时决定）。
+    within(win, { thumb = false } = {}) {
       if (win === window) return main;
       let it = others.get(win);
-      if (!it) others.set(win, (it = instance(win, true)));
+      if (!it) others.set(win, (it = instance(win, true, thumb)));
       return it;
     },
   };

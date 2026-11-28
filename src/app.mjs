@@ -58,17 +58,17 @@ import { install as pictureInPicture } from './media/pip.mjs';
 import { install as pbfImport } from './marks/pbf.mjs';
 
 // 边缘触发区（像素），见下方 atEdge：顶、左、右三边同为 EDGE；底缘（总控栏）为 EDGE_BOTTOM，宽一些，容易唤出。
-// inset：顶缘从窗口控件覆盖区（--top）以下算起。
+// inset：顶缘从窗口控件覆盖区（--top）以下算起。box：按这个矩形（如画中画面板）而不是主窗口的四边算。
 const EDGE = 32,
   EDGE_BOTTOM = 48;
-const atEdge = (side, e, inset = 0) =>
+const atEdge = (side, e, inset = 0, box = null) =>
   side === 'left'
-    ? e.clientX < EDGE
+    ? e.clientX - (box?.left ?? 0) < EDGE
     : side === 'right'
-      ? innerWidth - e.clientX <= EDGE
+      ? (box?.right ?? innerWidth) - e.clientX <= EDGE
       : side === 'top'
-        ? e.clientY - inset < EDGE
-        : innerHeight - e.clientY <= EDGE_BOTTOM;
+        ? e.clientY - (box?.top ?? 0) - inset < EDGE
+        : (box?.bottom ?? innerHeight) - e.clientY <= EDGE_BOTTOM;
 localize();
 const ring = holdRing();
 createView();

@@ -845,6 +845,12 @@ button.tag[aria-pressed='true'] {
   width: 16px;
   height: 16px;
 }
+/* 「添加到播放列表」（含视频、音频的书）：在四个固定按钮下方、靠右，不改变它们的位置。 */
+.book .actions .queue-add {
+  position: absolute;
+  top: 34px;
+  right: 0;
+}
 .shelf-empty {
   display: grid;
   place-items: center;

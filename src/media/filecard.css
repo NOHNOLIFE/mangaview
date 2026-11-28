@@ -16,6 +16,35 @@
   line-height: 18px;
   pointer-events: none;
 }
+/* 顶部的缩略图（只有画中画的播放列表的详情框带，filecard.mjs thumb）：固定高度，视频画面完整显示在黑底上，音频的图为方形居中；
+   还没有画面时是类型图标。 */
+.fc-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 128px;
+  margin: -1px -4px 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+  color: var(--faint);
+}
+.fc-thumb > .i {
+  width: 28px;
+  height: 28px;
+}
+.fc-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.fc-art {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 1;
+}
 .fc-name {
   display: flex;
   align-items: center;

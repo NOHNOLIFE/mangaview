@@ -1,28 +1,32 @@
 // 画中画窗口里的播放器面板：可以装进任意文档里的任意容器（mount），真实的画中画窗口（pip.mjs）只是其中一种宿主，
 // 自动化测试也把它装进普通容器。它不是另一套播放：曲目、进度、播放列表都是 ctx.media.queue 的同一份，这里只是显示和操作。
-// - 自上而下：内容区（当前曲目的画面经 ctx.media.stage.take 搬进来：视频按画面比例显示，音频是它的图（art.mjs），字幕照常）、文件名、
-//   播放 / 暂停 + 进度条（书签与区段标记，可点击拖动）+ 时间（悬停换成快退 / 快进，与文件栏同一份控件）、一行按钮（上一个、下一个、定位、
-//   循环范围（三态轮换，图标随状态）、音频 / 视频类型开关），其下是播放列表。按钮只有图标，文字在 tooltip 与 aria-label；
-//   状态随 'media' / 'queue' 事件同步（偏好在别的窗口改了也一样，queue.mjs 转发）。
+// - 自上而下：内容区（当前曲目的画面经 ctx.media.stage.take 搬进来：视频按画面比例完整显示，音频是它的图（art.mjs），字幕照常）、
+//   标题行（文件名，末尾依次是「固定操作面板」「播放列表」「收藏列表」三个按钮）、操作面板（播放 / 暂停 + 进度条（书签与区段标记，
+//   可点击拖动）+ 时间（悬停换成快退 / 快进，与文件栏同一份控件）；按钮行：上一个、下一个、循环范围（三态轮换，图标随状态）、
+//   过滤（悬停 / 聚焦 / 点击弹出二级按钮：音频、视频、只含书签；有任何过滤生效时显示为按下）、只播放书签区段（与总控栏的开关是同一个偏好，
+//   图标、说明相同），「定位」在最右）。播放列表在窗口右侧（piplist.mjs），收藏列表的菜单见 pipfav.mjs。
+//   按钮只有图标，文字在 tooltip 与 aria-label；状态随 'media' / 'queue' / 'transport' 事件同步（偏好在别的窗口改了也一样）。
+// - 操作面板的固定（布局类偏好 'pipDock'，默认固定）：固定时标题行与操作面板常显在内容区下方；不固定时两者收起、内容区占满，
+//   鼠标移到面板下部（它们原来所在的高度）稍停即浮在内容区上弹出，移开淡出（键盘聚焦其中、过滤或收藏菜单开着时不淡出）。
 // - 内容区的画面不在这里时（在页内播放、没有曲目）显示占位：说明正在主窗口播放 + 「在画中画显示」按钮（stage.take 收进来）；没有曲目时是一句说明。
-// - 播放列表：只显示文件名（最末一段、不带扩展名），当前曲目高亮，被过滤的项带 .filtered；固定行高、只渲染可视范围（core/pip.mjs span），数百项也不卡；
-//   装好时滚到当前曲目，之后当前曲目变了且用户没在列表上悬停、刚滚动过时才跟过去。点击只播放（queue.play，主窗口不跳转）；
-//   每项的「定位」「移除」只在悬停 / 选中的项上显示，位置固定。悬停 / 聚焦显示文件详情框（ctx.fileCard.within(窗口)，放不下时退回 title）。
+// - 内容区上按住横向拖动即快进 / 快退当前曲目（media/scrub.mjs 的 ctx.media.scrubArea，与主窗口同一套判定与换算），提示显示在面板自己的浮层里。
 // - 按键（装在 keys 上：画中画窗口是它的 window，普通容器是容器本身；处理过的按键不再冒泡，不会作用到主窗口的全局快捷键）：
 //   空格 播放 / 暂停；← → / A D 点按 2 秒、按住递增快退 / 快进（ctx.pageHold，与长按 A / D 同一份逻辑）；↑ ↓ 在列表里移动选中项，Enter 播放它；
-//   Q / ; 、E / ' 音量。焦点在按钮上时空格、Enter 交给按钮。
+//   Q / ; 、E / ' 音量。焦点在按钮上时空格、Enter 交给按钮；菜单、输入框里的按键不在这里处理。
 // - 装进别的文档时自带所需的样式表（STYLES）、图标 sprite、lang 属性，并对那个窗口接上拖动滚动（ui/dragscroll.mjs install）；
-//   主文档上靠 document 委托的东西（悬停弹层、全局点击分派、快捷键）在那里不生效，面板里只用元素自己的事件。
-// - 尺寸：容器是 size 查询容器；内容区的高度按宽度和画面比例，窗口变矮时先压缩列表区（flex-basis 0），再压缩内容区（画面 object-fit 保持比例），
-//   任何尺寸都不溢出容器；很窄时时间收起（pipview.css）。
+//   主文档上靠 document 委托的东西（全局点击分派、快捷键）在那里不生效，面板里只用元素自己的事件（悬停弹层 ui/hoverpop.mjs 按按钮所在的文档工作）。
+// - 尺寸：容器是 size 查询容器（pip）；内容区占去其余高度（画面 object-fit 保持比例），窗口变矮时依次收起按钮行、标题行，
+//   变窄时收起时间、固定的播放列表改为浮出，任何尺寸都不溢出容器（pipview.css）。
 // mount(容器, {keys}) → {root, screen（交给 stage.take 的容器）, ready（样式表载入完成的 Promise）, destroy()}；destroy 时画面若在这里，先收回页内。
 import { extend } from '../core/lang.mjs';
 import { shownName, stem, nudge } from '../core/model.mjs';
 import { nextScope, toggleType } from '../core/playlist.mjs';
-import { span, centerTop, revealTop, ratio } from '../core/pip.mjs';
 import { install as dragScroll } from '../ui/dragscroll.mjs';
+import { morePop } from '../ui/hoverpop.mjs';
 import { midName } from '../reader/view.mjs';
 import { audioArt } from './art.mjs';
+import { playlist } from './piplist.mjs';
+import { favorites } from './pipfav.mjs';
 
 extend({
   pipPanel: ['Picture-in-picture', '画中画', 'ピクチャーインピクチャー', 'PIP 화면'],
@@ -35,10 +39,13 @@ extend({
     '재생 중인 미디어가 없습니다. 리더에서 동영상이나 오디오를 클릭하면 재생됩니다.',
   ],
   pipList: ['Play list', '播放列表', '再生リスト', '재생 목록'],
+  pipFav: ['Saved play lists', '收藏列表', '保存したリスト', '저장된 목록'],
+  pipDock: ['Pin the controls', '固定操作面板', 'コントロールを固定', '컨트롤 고정'],
   pipLoopList: ['Loop: play list', '循环：列表', 'ループ：リスト', '반복: 목록'],
+  pipFilter: ['Filter', '过滤', 'フィルター', '필터'],
   pipAudio: ['Type: audio', '类型：音频', '種類：音声', '유형: 오디오'],
   pipVideo: ['Type: video', '类型：视频', '種類：動画', '유형: 동영상'],
-  pipRemove: ['Remove from the list', '从列表移除', 'リストから外す', '목록에서 제거'],
+  pipMarked: ['Only files with bookmarks', '只含书签', 'しおりのあるファイルだけ', '책갈피가 있는 파일만'],
 });
 // 装进别的文档时链接的样式表（相对本文件）：全局样式与深色主题变量、播放器（进度条、时间、字幕容器）、书签标记、音频的图、字幕、文件详情框、本面板。
 const STYLES = [
@@ -49,11 +56,14 @@ const STYLES = [
   './subtitles.css',
   './filecard.css',
   './pipview.css',
+  './piplist.css',
+  './pipfav.css',
 ];
-const ROW = 32, // 列表的行高（与 pipview.css 一致）
-  FOLLOW = 3000; // 手动滚动列表后这么久之内，当前曲目变了也不把列表滚过去
 const SCOPE_ICON = { file: 'loop-file', list: 'loop-book', books: 'loop-books' },
   SCOPE_LABEL = { file: 'cbLoopFile', list: 'pipLoopList', books: 'cbLoopBooks' };
+const DOCK = 'pipDock',
+  DWELL = 150, // 浮出前的停留（毫秒），防误触
+  LEAVE = 400; // 指针离开后多久淡出
 
 // 文档里还没有的样式表补上，返回全部载入（或失败、超时）的 Promise。
 function styles(doc) {
@@ -80,22 +90,17 @@ export function install(ctx) {
   const { t, make, icon } = ctx;
   const Q = () => ctx.media.queue,
     M = () => ctx.media;
+  ctx.prefs.add(DOCK);
   const views = new Set();
-  ctx.on('media', (key) => {
-    for (const v of views) v.media(key);
-  });
-  ctx.on('queue', (key) => {
-    for (const v of views) v.queue(key);
-  });
-  ctx.on('marks', (book) => {
-    for (const v of views) v.marks(book);
-  });
-  ctx.on('synced', (book, keys) => {
-    if (keys.includes('bookmarks')) for (const v of views) v.marks(book);
-  });
-  ctx.on('lang', () => {
-    for (const v of views) v.lang();
-  });
+  const each = (fn) => {
+    for (const v of views) fn(v);
+  };
+  ctx.on('media', (key) => each((v) => v.media(key)));
+  ctx.on('queue', (key) => each((v) => v.queue(key)));
+  ctx.on('transport', (field) => field === 'sectionsOnly' && each((v) => v.states()));
+  ctx.on('marks', (book) => each((v) => v.marks(book)));
+  ctx.on('synced', (book, keys) => keys.includes('bookmarks') && each((v) => v.marks(book)));
+  ctx.on('lang', () => each((v) => v.lang()));
   const wired = new WeakSet(); // 已接上拖动滚动的窗口
 
   return function mount(box, { keys = box } = {}) {
@@ -134,16 +139,17 @@ export function install(ctx) {
     };
     const press = (b, on) => b.setAttribute('aria-pressed', String(!!on));
     const root = make('div', 'pip'),
+      body = make('div', 'pip-body'),
       stage = make('div', 'pip-stage'),
       art = make('div', 'pip-art-box'),
       screen = make('div', 'pip-screen'),
       idle = make('div', 'pip-idle'),
       hud = make('div', 'pip-hud'),
+      dock = make('div', 'pip-dock'),
+      head = make('div', 'pip-head'),
       name = make('div', 'pip-name'),
       line = make('div', 'pip-line'),
-      tools = make('div', 'pip-tools'),
-      list = make('div', 'pip-list'),
-      rows = make('div', 'pip-rows');
+      tools = make('div', 'pip-tools');
     hud.hidden = true;
     hud.setAttribute('aria-hidden', 'true');
     stage.append(art, screen, idle, hud);
@@ -151,20 +157,98 @@ export function install(ctx) {
       seek = ctx.player.seekBar(() => tp()),
       time = ctx.player.timeBox(() => tp(), 'pip-time');
     line.append(play, seek.bar, time.box);
+    const H = {
+      dock: btn('dock', 'pin', 'pipDock', () => pinDock(!dockPinned), 'pip-hb'),
+      list: btn('list', 'playlist', 'pipList', () => {}, 'pip-hb'),
+      fav: btn('fav', 'star', 'pipFav', () => {}, 'pip-hb'),
+    };
+    head.append(name, ...Object.values(H));
     const B = {
       prev: btn('prev', 'skip-back', 'cbMediaPrev', () => Q().prev()),
       next: btn('next', 'skip-forward', 'cbMediaNext', () => Q().next()),
-      locate: btn('locate', 'locate', 'fbLocate', () => Q().locate()),
       scope: btn('scope', 'loop-book', 'pipLoopList', () => Q().setScope(nextScope(Q().scope))),
-      audio: btn('audio', 'music', 'pipAudio', () => Q().setTypes(toggleType(Q().types, 'audio'))),
-      video: btn('video', 'film', 'pipVideo', () => Q().setTypes(toggleType(Q().types, 'video'))),
+      filter: btn('filter', 'filter', 'pipFilter', () => {}),
+      sections: btn('sections', 'sections', 'mvSections', () =>
+        ctx.transport.setSectionsOnly(!ctx.transport.sectionsOnly),
+      ),
+      locate: btn('locate', 'locate', 'fbLocate', () => Q().locate(), 'pip-locate'),
     };
     tools.append(...Object.values(B));
-    list.tabIndex = 0;
-    list.setAttribute('role', 'listbox');
-    list.append(rows);
-    root.append(stage, name, line, tools, list);
+    // 过滤的二级按钮：弹出层里的开关，点了不收起（keep-pop）。
+    const pop = make('div', 'pip-pop'),
+      F = {
+        audio: btn('audio', 'music', 'pipAudio', () => Q().setTypes(toggleType(Q().types, 'audio')), 'keep-pop'),
+        video: btn('video', 'film', 'pipVideo', () => Q().setTypes(toggleType(Q().types, 'video')), 'keep-pop'),
+        marked: btn('marked', 'bookmark', 'pipMarked', () => Q().setMarked(!Q().marked), 'keep-pop'),
+      };
+    pop.append(...Object.values(F));
+    dock.append(head, line, tools);
+    body.append(stage, dock);
+    root.append(body);
     box.append(root);
+    root.append(pop); // 弹出层与按钮在同一个文档里（hoverpop 按按钮所在的文档定位）
+    const filterPop = morePop(B.filter, pop);
+
+    // ---- 浮出：操作面板（不固定时）与播放列表（不固定时）。want(是否显示, 延迟)；busy() 为真时不收起（check() 在它变化后补收起）。
+    function peeker(cls, busy) {
+      let target = false,
+        timer = 0;
+      const shown = () => root.classList.contains(cls);
+      const apply = () => {
+        timer = 0;
+        if (!target && busy()) return;
+        root.classList.toggle(cls, target);
+      };
+      return {
+        shown,
+        want(v, ms = v ? DWELL : LEAVE) {
+          if (v === target && (timer || shown() === v)) return;
+          target = v;
+          clearTimeout(timer);
+          timer = 0;
+          if (ms) timer = setTimeout(apply, ms);
+          else apply();
+        },
+        check() {
+          if (!target && !timer && shown() && !busy()) root.classList.remove(cls);
+        },
+      };
+    }
+    let dockPinned = ctx.get(DOCK, true) !== false;
+    const dockBusy = () => dock.matches(':hover') || dock.matches(':focus-within') || filterPop.open() || fav.open();
+    const dockPeek = peeker('dock-peek', dockBusy);
+    function pinDock(on) {
+      dockPinned = on;
+      ctx.put(DOCK, on);
+      root.classList.toggle('dock-pinned', on);
+      press(H.dock, on);
+      // 取消固定时指针就在面板上：保持弹出，移开再淡出。
+      dockPeek.want(!on, 0);
+    }
+    root.classList.toggle('dock-pinned', dockPinned);
+    press(H.dock, dockPinned);
+    const fav = favorites(ctx, { root, button: H.fav, onClose: () => dockPeek.check() });
+    pop.addEventListener('toggle', () => queueMicrotask(() => dockPeek.check()));
+    dock.addEventListener('focusin', () => dockPinned || dockPeek.want(true, 0));
+    dock.addEventListener('focusout', () => queueMicrotask(() => dockPeek.check()));
+    const L = playlist(ctx, { win, root, button: H.list, peeker });
+    root.append(L.side);
+    // 指针在面板上移动：下部（操作面板原来的高度）弹出操作面板；右缘弹出播放列表（piplist.mjs）。
+    root.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      if (!dockPinned) {
+        const b = body.getBoundingClientRect();
+        dockPeek.want(e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.bottom - dock.offsetHeight);
+      }
+      L.hover(e);
+    });
+    root.addEventListener('pointerleave', () => {
+      dockPeek.want(false);
+      L.hide();
+    });
+    // 浮出的操作面板盖在内容区上时，字幕让到它上面（--dock-h）。
+    const dockSize = new win.ResizeObserver(() => root.style.setProperty('--dock-h', dock.offsetHeight + 'px'));
+    dockSize.observe(dock);
 
     // ---- 内容区与状态
     let artPage = null,
@@ -177,7 +261,6 @@ export function install(ctx) {
     }
     function paintStage() {
       const tr = Q().track(),
-        p = tp(),
         shown = here();
       stage.dataset.kind = tr?.kind ?? '';
       stage.classList.toggle('away', !shown);
@@ -191,9 +274,6 @@ export function install(ctx) {
         artPage = null;
         art.replaceChildren();
       }
-      const w = tr?.page.w || p?.el.videoWidth,
-        h = tr?.page.h || p?.el.videoHeight;
-      root.style.setProperty('--ratio', String(tr?.kind === 'video' ? ratio(w, h) : ratio(16, 9)));
       idle.hidden = shown;
       // 占位的内容只在类型、语言变了时重建（不打断键盘焦点）。
       const key = shown ? '' : (tr?.kind ?? 'none') + ':' + ctx.lang;
@@ -237,8 +317,11 @@ export function install(ctx) {
       setIcon(B.scope, SCOPE_ICON[q.scope]);
       setLabel(B.scope, SCOPE_LABEL[q.scope]);
       B.scope.dataset.scope = q.scope;
-      press(B.audio, q.types.includes('audio'));
-      press(B.video, q.types.includes('video'));
+      press(B.filter, q.filtering());
+      press(F.audio, q.types.includes('audio'));
+      press(F.video, q.types.includes('video'));
+      press(F.marked, q.marked);
+      press(B.sections, ctx.transport.sectionsOnly);
     }
     function progress() {
       const p = tp(),
@@ -247,7 +330,7 @@ export function install(ctx) {
       const d = p ? ctx.player.api.duration(p) : null;
       if (drawn?.p !== p || drawn.d !== d) {
         drawn = { p, d };
-        paintStage(); // 读到元数据：视频的画面比例随之确定
+        paintStage();
         time.size(d);
         ctx.player.drawMarks?.(seek.bar, p);
       }
@@ -257,115 +340,22 @@ export function install(ctx) {
       paintName();
       states();
       progress();
-      paintRows();
+      L.paint();
     }
 
-    // ---- 播放列表
-    let items = [],
-      sel = -1, // 选中项（悬停与键盘共用）
-      hovering = false,
-      scrolled = 0; // 用户上次滚动列表的时间
-    const shownRows = new Map(); // 页对象 → 行
-    const card = ctx.fileCard?.within?.(win) ?? null;
-    function row(it) {
-      const r = make('div', 'pip-item'),
-        full = shownName(it.page),
-        n = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
-      r.setAttribute('role', 'option');
-      r.append(icon(it.kind === 'audio' ? 'music' : 'film'), n);
-      const locate = btn('locate', 'locate', 'fbLocate', () => Q().locate(r.item), 'pip-ib'),
-        remove = btn('remove', 'close', 'pipRemove', () => Q().remove(r.item), 'pip-ib');
-      r.append(locate, remove);
-      r.addEventListener('click', (e) => {
-        if (e.target.closest('button')) return;
-        Q().play(r.item);
-      });
-      return r;
-    }
-    function relist() {
-      items = Q().items();
-      const keep = new Set(items.map((it) => it.page));
-      for (const [pg, r] of shownRows)
-        if (!keep.has(pg)) {
-          r.remove();
-          shownRows.delete(pg);
-        }
-      if (sel >= items.length) sel = items.length - 1;
-      rows.style.height = items.length * ROW + 'px';
-      paintRows();
-    }
-    function paintRows() {
-      const [from, to] = span(items.length, ROW, list.scrollTop, list.clientHeight),
-        used = new Set();
-      for (let i = from; i < to; i++) {
-        const it = items[i];
-        let r = shownRows.get(it.page);
-        if (!r) shownRows.set(it.page, (r = row(it)));
-        r.item = it;
-        r.dataset.i = String(i);
-        r.style.transform = 'translateY(' + i * ROW + 'px)';
-        r.classList.toggle('current', it.current);
-        r.classList.toggle('filtered', it.filtered);
-        r.classList.toggle('sel', i === sel);
-        r.setAttribute('aria-selected', String(it.current));
-        used.add(r);
-        if (r.parentNode !== rows) rows.append(r);
-      }
-      for (const [pg, r] of shownRows)
-        if (!used.has(r)) {
-          r.remove();
-          shownRows.delete(pg);
-        }
-      rows.classList.toggle('playing', Q().playing());
-    }
-    const currentIndex = () => items.findIndex((it) => it.current);
-    function reveal(center) {
-      const i = currentIndex();
-      if (i < 0) return;
-      list.scrollTop = center
-        ? centerTop(i, items.length, ROW, list.clientHeight)
-        : revealTop(i, ROW, list.scrollTop, list.clientHeight);
-      paintRows();
-    }
-    function select(i, byKey) {
-      if (!items.length) return;
-      sel = Math.max(0, Math.min(items.length - 1, i));
-      if (byKey) list.scrollTop = revealTop(sel, ROW, list.scrollTop, list.clientHeight);
-      paintRows();
-      const r = shownRows.get(items[sel].page);
-      if (byKey && r && card) card.show(r, { book: items[sel].book, page: items[sel].page });
-    }
-    let scrollFrame = 0;
-    list.addEventListener('scroll', () => {
-      if (!scrollFrame)
-        scrollFrame = win.requestAnimationFrame(() => {
-          scrollFrame = 0;
-          paintRows();
-        });
-    });
-    for (const type of ['wheel', 'pointerdown'])
-      list.addEventListener(type, () => (scrolled = Date.now()), { passive: true });
-    list.addEventListener('pointerover', (e) => {
-      hovering = true;
-      const r = e.target.closest?.('.pip-item');
-      if (r && sel !== +r.dataset.i) select(+r.dataset.i, false);
-    });
-    list.addEventListener('pointerleave', () => (hovering = false));
-    card?.attach(list, (el) => {
-      const r = el.closest('.pip-item');
-      return r?.item && list.contains(r) ? { el: r, book: r.item.book, page: r.item.page } : null;
-    });
-    const sizes = new win.ResizeObserver(() => paintRows());
-    sizes.observe(list);
-
-    // ---- 提示（音量）
+    // ---- 提示（音量、横向拖动定位）：ms 为 0 时常显，直到 hideHud。
     let hudTimer = 0;
-    function showHud(name, text) {
+    function showHud(name, text, ms = 900) {
       hud.replaceChildren(icon(name), make('span', '', text));
       hud.hidden = false;
       clearTimeout(hudTimer);
-      hudTimer = setTimeout(() => (hud.hidden = true), 900);
+      if (ms) hudTimer = setTimeout(() => (hud.hidden = true), ms);
     }
+    function hideHud(ms) {
+      clearTimeout(hudTimer);
+      hudTimer = setTimeout(() => (hud.hidden = true), ms);
+    }
+    const unscrub = M().scrubArea?.(stage, { show: (n, s) => showHud(n, s, 0), hide: hideHud });
 
     // ---- 按键
     let holding = null;
@@ -377,7 +367,7 @@ export function install(ctx) {
     function down(e) {
       if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
       const tg = e.target?.nodeType === 1 ? e.target : null;
-      if (tg?.closest('input,textarea,[contenteditable="true"]')) return;
+      if (tg?.closest('input,textarea,[contenteditable="true"],.pip-menu')) return;
       const k = e.key,
         low = k.toLowerCase();
       if (tg?.closest('button') && (k === ' ' || k === 'Enter')) return e.stopPropagation();
@@ -389,11 +379,9 @@ export function install(ctx) {
           ctx.pageHold?.start(low === 'arrowleft' || low === 'a' ? -1 : 1, tp());
         }
       } else if (low === 'arrowup' || low === 'arrowdown') {
-        const d = low === 'arrowup' ? -1 : 1,
-          base = sel >= 0 ? sel : currentIndex();
-        select(base < 0 ? (d > 0 ? 0 : items.length - 1) : base + d, true);
+        L.move(low === 'arrowup' ? -1 : 1);
       } else if (k === 'Enter') {
-        if (!e.repeat && items[sel]) Q().play(items[sel]);
+        if (!e.repeat) L.enter();
       } else if (
         low === 'q' ||
         low === ';' ||
@@ -429,50 +417,48 @@ export function install(ctx) {
     }
     function labels() {
       for (const b of root.querySelectorAll('button[data-label]')) setLabel(b, b.dataset.label);
-      list.setAttribute('aria-label', t('pipList'));
       root.setAttribute('aria-label', t('pipPanel'));
       seek.bar.setAttribute('aria-label', t('mvSeek'));
       time.labels();
+      L.lang();
       if (own) doc.documentElement.lang = document.documentElement.lang;
     }
-    let lastTrack = Q().track()?.page ?? null;
     const view = {
       media(key) {
         if (key === 'time') return progress();
         if (key === 'state') {
           states();
           progress();
-          return paintRows();
+          return L.paint();
         }
         if (key === 'volume' || key === 'current') return; // 当前文件（主窗口滚动）与面板无关：面板只显示当前曲目
-        if (key === 'track') {
-          const now = Q().track()?.page ?? null;
-          relist();
-          if (now !== lastTrack) {
-            lastTrack = now;
-            if (!hovering && Date.now() - scrolled > FOLLOW) win.requestAnimationFrame(() => reveal(false));
-          }
-        }
+        if (key === 'track') L.track();
         later();
       },
       queue(key) {
-        if (key === 'list') relist();
+        if (key === 'list') {
+          L.relist();
+          fav.refresh();
+        }
+        if (key === 'favorites') fav.refresh();
         states();
       },
+      states,
       marks(book) {
         const p = tp();
         if (p?.book === book) ctx.player.drawMarks?.(seek.bar, p);
       },
       lang() {
         labels();
+        fav.refresh();
         later();
       },
     };
     views.add(view);
     labels();
-    relist();
+    L.relist();
     refresh();
-    ready.then(() => win.requestAnimationFrame(() => reveal(true)));
+    ready.then(() => win.requestAnimationFrame(() => L.reveal(true)));
     return {
       root,
       screen,
@@ -480,8 +466,11 @@ export function install(ctx) {
       destroy() {
         if (!views.delete(view)) return;
         stopHold();
-        card?.hide();
-        sizes.disconnect();
+        L.destroy();
+        filterPop.hide();
+        fav.close();
+        unscrub?.();
+        dockSize.disconnect();
         keys.removeEventListener('keydown', down);
         keys.removeEventListener('keyup', up);
         win.removeEventListener('blur', stopHold);
