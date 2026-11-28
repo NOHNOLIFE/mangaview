@@ -243,7 +243,8 @@ export function install(ctx, S) {
     get muted() {
       return S.muted;
     },
-    setVolume: (v) => S.setVolume(v),
+    // hud：提示浮层（hud.mjs 的实例，画中画面板的按键传入），省略时不显示提示。
+    setVolume: (v, hud = null) => S.setVolume(v, hud),
     setMuted: (b) => S.setMuted(b),
     volIcon: () => S.volIcon(),
     step,

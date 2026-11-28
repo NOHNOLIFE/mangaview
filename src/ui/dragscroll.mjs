@@ -10,7 +10,7 @@
 // 滑行未停时在同一个列表里按住再同方向甩出（CHAIN 毫秒内松手），新速度叠加上被按住时剩下的速度（core/fling.mjs 的 stack）；反方向照常只按新速度。
 // 惯性滑行快时（START 以上）在滑行的列表里按下，这一下只用来停住，不触发点击。
 // 每帧至多写一次滚动位置：拖动的位移先累计，在下一帧写入；松手时还没写入的部分并进惯性的第一帧。
-// 横向定位手势（sideways，媒体的横向拖动快进 / 快退，media/scrub.mjs）：按下处有接手者时，位移超过 core/scrub.mjs 的 DECIDE 后一次判定方向并锁定：
+// 横向定位手势（sideways，媒体画面的横向拖动快进 / 快退，media/surface.mjs）：按下处有接手者时，位移超过 core/scrub.mjs 的 DECIDE 后一次判定方向并锁定：
 // 明显横向交给接手者（不滚动、不触发点击、没有惯性，Esc 取消），否则与普通的拖动滚动完全一样；判定之前不滚动。
 import { SLOP, START, END, velocity, glide, stack } from '../core/fling.mjs';
 import { direction } from '../core/scrub.mjs';
@@ -205,23 +205,33 @@ function end(e, glideOn, commit = glideOn) {
 
 // 容器上的"点按"（正文翻屏、缩略图栏定位）：主键按下后没有拖动就松开，回调收到 click 事件和按下事件（target、pointerType 以按下时为准）。
 // 按在 data-nodrag 区域或滚动条上的不算；拖动、按下只为停住惯性，或按下事件被上层拦下（stopPropagation）时都不触发。
+// el 可以在另一个文档里（画中画窗口：该窗口须已 install）；返回注销函数。
 export function tap(el, fn) {
+  const win = el.ownerDocument.defaultView;
   let down = null;
   // 每次按下先清掉上一次（拖动后的 click 被拦下，记录会留着）；按下被上层拦下时就不会误用旧记录。
-  window.addEventListener('pointerdown', () => (down = null), true);
-  el.addEventListener('pointerdown', (e) => {
+  const reset = () => (down = null);
+  const press = (e) => {
     down =
       e.button === 0 &&
       !e.target.closest?.('[data-nodrag]') &&
       !(e.target === el && onScrollbar(el, e.clientX, e.clientY))
         ? e
         : null;
-  });
-  el.addEventListener('click', (e) => {
+  };
+  const click = (e) => {
     const d = down;
     down = null;
     if (d) fn(e, d);
-  });
+  };
+  win.addEventListener('pointerdown', reset, true);
+  el.addEventListener('pointerdown', press);
+  el.addEventListener('click', click);
+  return () => {
+    win.removeEventListener('pointerdown', reset, true);
+    el.removeEventListener('pointerdown', press);
+    el.removeEventListener('click', click);
+  };
 }
 
 // win：接上拖动滚动的窗口（默认主窗口；画中画窗口打开时对它再调用一次）。

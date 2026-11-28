@@ -532,7 +532,13 @@ try {
   const vol = await js('mvCtx.media.volume');
   await js(`pkey('q','KeyQ')`);
   assert.ok(Math.abs((await js('mvCtx.media.volume')) - (vol - 0.05)) < 0.001, 'Q: volume down');
-  assert.equal(await js(`pq('.pip-hud').hidden`), false, 'Volume hint in the window');
+  assert.deepEqual(
+    await js(
+      `[pq('.pip-stage>.mv-hud').hidden,pq('.pip-stage>.mv-hud .mv-hud-bar').hidden,document.querySelector('body>.mv-hud').hidden]`,
+    ),
+    [false, false, true],
+    'Volume hint with its bar in the window, not in the main window',
+  );
   await js(`pkey('e','KeyE')`);
   assert.ok(Math.abs((await js('mvCtx.media.volume')) - vol) < 0.001, 'E: volume up');
   await js(`pkey('ArrowDown','ArrowDown')`);
@@ -885,9 +891,9 @@ try {
   });
   for (let x = 100; x <= 180; x += 20)
     await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: 8 + x, y: 8 + 151 });
-  await wait(() => js(`!${bq('.pip-hud')}.hidden`), 'hint in the panel');
+  await wait(() => js(`!${bq('.pip-stage>.mv-hud')}.hidden`), 'hint in the panel');
   assert.deepEqual(
-    await js(`[${bq('.pip-hud')}.textContent,document.querySelector('.mv-hud')?.hidden??true]`),
+    await js(`[${bq('.pip-stage>.mv-hud')}.textContent,document.querySelector('body>.mv-hud').hidden]`),
     ['+0:01 → 0:02', true],
     'The hint shows in the panel, not in the main window',
   );

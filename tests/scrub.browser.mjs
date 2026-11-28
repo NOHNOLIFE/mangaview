@@ -1,4 +1,4 @@
-// 横向拖动快进 / 快退（src/media/scrub.mjs、src/core/scrub.mjs，经 src/ui/dragscroll.mjs 接入）：视频画面、音频卡片的字幕区上横向拖动，
+// 横向拖动快进 / 快退（src/media/surface.mjs、src/core/scrub.mjs，经 src/ui/dragscroll.mjs 接入；画中画内容区的见 pipstage.browser.mjs）：视频画面、音频卡片的字幕区上横向拖动，
 // 松手定位、拖动中显示整秒的偏移与目标时间、不滚动不触发点击、Esc 取消、超出时长时截断；竖向拖动照常滚动；全屏的视频竖向拖动什么也不做。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';

@@ -177,7 +177,8 @@
   height: 11px;
 }
 
-/* 提示浮层：调音量、长按快进 / 快退。 */
+/* 提示浮层（hud.mjs）：调音量、快进 / 快退。主窗口在阅读区中部；画中画面板里的是同一个组件、同一套样式，只按内容区缩小字号
+   （pipview.css），所以内部尺寸都按 em 写（字号 14px 时即 10px 间距、16px 边距、20px 图标、96px 音量条）。 */
 .mv-hud {
   position: fixed;
   z-index: 8;
@@ -185,10 +186,10 @@
   top: 20%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 0.715em;
+  padding: 0.715em 1.143em;
   border: 1px solid var(--line2);
-  border-radius: 14px;
+  border-radius: 1em;
   background: rgba(24, 25, 29, 0.96);
   box-shadow: var(--shadow);
   font-size: 14px;
@@ -203,11 +204,14 @@
   left: 50%;
 }
 .mv-hud .i {
+  width: 1.43em;
+  height: 1.43em;
   color: var(--accent);
 }
 .mv-hud-bar {
-  width: 96px;
-  height: 4px;
-  border-radius: 2px;
+  flex: none;
+  width: 6.86em;
+  height: 0.286em;
+  border-radius: 0.143em;
   background: linear-gradient(90deg, var(--accent) calc(var(--v, 0) * 100%), rgba(255, 255, 255, 0.2) 0);
 }

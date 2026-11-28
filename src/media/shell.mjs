@@ -290,9 +290,9 @@ export function install(ctx, S) {
   const timeWidth = (d) => (clock(d || 0) + ' / ' + clock(d || 0)).length;
   // 时间（音频卡片、文件栏共用）：当前 / 总时长；悬停或键盘聚焦时原位换成「快退」「快进」两个按钮（宽度不变，shell.css .mv-tbox）：
   // 点按一次 2 秒，长按与长按 A / D 的递增步长一致（同一份逻辑 S.hold，keys.mjs），显示同样的提示浮层；键盘按一次 2 秒。
-  // get() 为它作用的播放器（没有时为 null，不响应）。返回 {box, text（时间文字）, sync(播放器)（按钮可用与否）,
+  // get() 为它作用的播放器（没有时为 null，不响应）；hud 为提示显示在哪个浮层（hud.mjs，省略为主窗口的；画中画面板传入自己的）。返回 {box, text（时间文字）, sync(播放器)（按钮可用与否）,
   // size(时长)（按位数设宽度，变了返回 true）, labels()（换语言）}。
-  function makeTime(get, cls) {
+  function makeTime(get, cls, hud = S.hud) {
     const box = make('span', 'mv-tbox ' + cls),
       text = make('span', 'mv-clock'),
       steps = make('span', 'mv-steps');
@@ -309,13 +309,13 @@ export function install(ctx, S) {
         const p = get();
         if (e.button !== 0 || !p || b.disabled) return;
         b.setPointerCapture?.(e.pointerId);
-        held = S.hold.start(p, d);
+        held = S.hold.start(p, d, hud);
       });
       for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(type, end);
       // 指针的点按已在按下 / 松开时处理；键盘（Enter / 空格）每按一次 2 秒。
       b.addEventListener('click', (e) => {
         const p = get();
-        if (!e.detail && p && S.hold.start(p, d)) S.hold.stop();
+        if (!e.detail && p && S.hold.start(p, d, hud)) S.hold.stop();
       });
       return b;
     }
