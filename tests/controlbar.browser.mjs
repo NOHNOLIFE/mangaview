@@ -9,7 +9,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+import { MEDIA_FIXTURES, CTX_HOOK } from './media-fixtures.mjs';
 const binary = process.argv[2];
 if (!binary) throw Error('Usage: node tests/controlbar.browser.mjs <chrome-or-edge-executable>');
 const profile = await mkdtemp(join(process.env.MV_TEST_TEMP || tmpdir(), 'mv-controlbar-'));
@@ -124,7 +124,7 @@ try {
   await wide();
   // 记录每次给媒体元素挂源（探测）的是哪一页：验证「播不了的文件不重复探测」「只有可见的媒体持有源」。
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});${CTX_HOOK}
     window.srcLog=[];const d=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'src');
     Object.defineProperty(HTMLMediaElement.prototype,'src',{get(){return d.get.call(this);},set(v){window.srcLog.push(this.closest('.page')?.dataset.name);d.set.call(this,v);},configurable:true});`,
   });
@@ -516,7 +516,7 @@ try {
   // ---- Shift+空格 = 自动滚动；影音模式下运行状态与它播放的媒体一致（漫画、混合模式的自动滚动见 transport.browser.mjs）。
   // 空格：运行中即停止；否则文件栏显示的是媒体就只播放 / 暂停它（后台播放，见 background.browser.mjs）。
   const running = () => pressed('play');
-  const stopTrack = () => js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  const stopTrack = () => js(`mvClearQueue()`);
   await js(`${B('mode-media')}.click()`);
   await key(' ', 'Space', 32, { modifiers: 8 });
   await wait(async () => (await playing()).join() === '03 b.wav', 'Shift+Space starts with the media in view');

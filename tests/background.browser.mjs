@@ -1,5 +1,5 @@
 // 后台播放（media/track.mjs、queue.mjs、driver.mjs）：当前曲目离开视窗、切书继续播放，播完按播放列表接续且主窗口不滚动、不跳转，
-// 回到视窗时画面无缝回到页里；同一时间只有一个媒体在播放；文件栏的「定位」「停止」；画面交给外部容器与收回（ctx.media.stage）；
+// 回到视窗时画面无缝回到页里；同一时间只有一个媒体在播放；文件栏的「定位」；移除到没有可接续项时停止；播放列表的模型（跨书的项、追加、过滤、两端跨书、收藏列表）；画面交给外部容器与收回（ctx.media.stage）；
 // 播放列表的类型、移除、循环范围（单文件、跨书）；点击媒体不启动自动滚动、空格的智能规则；自动播放的视频离开视窗即暂停并取消。
 // 独立临时配置 + OPFS 测试数据；音频、视频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
@@ -143,6 +143,9 @@ try {
     window.elOf=name=>P(name)?.el??null;
     window.on=()=>[...document.querySelectorAll('video,audio')].filter(m=>!m.paused);
     window.track=()=>mvCtx.media.queue.track()?.page.name??null;
+    window.bookOf=t=>[...mvCtx.books.values()].find(b=>b.title===t);
+    window.names=()=>mvCtx.media.queue.items().map(x=>x.book.title+':'+x.page.name);
+    window.mvClearQueue=()=>{const q=mvCtx.media.queue,tr=q.track();if(tr)q.addBook(tr.book);for(const x of q.items().filter(x=>!x.current))q.remove(x);for(const x of q.items())q.remove(x);};
     window.open=async t=>{const s=await import('./src/reader/session.mjs'),{books}=await import('./src/core/books.mjs');s.select([...books.values()].find(b=>b.title===t));};
     window.toPage=async name=>{let from=0;for(let i=0;i<300;i++){const n=node(name);if(!n){reader.scrollTop=from;from+=300;await frame();continue;}
       const want=n.offsetTop+n.offsetHeight/2-reader.clientHeight/2;if(Math.abs(reader.scrollTop-Math.max(0,Math.min(want,reader.scrollHeight-reader.clientHeight)))<1&&i>2){await frame();if(Math.abs(n.offsetTop+n.offsetHeight/2-reader.clientHeight/2-want)<1)return true;}
@@ -200,7 +203,7 @@ try {
   );
   await showBar();
   await wait(async () => (await fbName()) === '02 song', 'file bar shows the track');
-  assert.equal(await js(`${H('stop')}.disabled||${H('locate')}.disabled`), false, 'Locate and stop enabled');
+  assert.equal(await js(`${H('locate')}.disabled`), false, 'Locate enabled');
   await onlyOne('song away');
   // ---- 播完按列表接续：下一项（视频）在停放处播放，主窗口不滚动、不跳转。
   const top = await js('reader.scrollTop');
@@ -243,14 +246,14 @@ try {
     'locate centres the file',
   );
   assert.equal(await js(`!elOf('05 b.wav').paused`), true, 'Locating does not interrupt');
-  // ---- 「停止」：停止播放、清空列表、取消当前曲目，文件栏回到视窗中心所在的页。
-  await js(`${H('stop')}.click()`);
+  // ---- 移除列表的全部项：最后移除当前曲目时没有可接续项，停止播放、取消当前曲目，文件栏回到视窗中心所在的页。
+  await js(`mvClearQueue()`);
   await wait(() => js(`on().length===0&&track()===null`), 'stopped');
   assert.deepEqual(
     await js(
-      `[mvCtx.media.queue.items().length,!!reader.querySelector('.page.media.selected'),${H('stop')}.disabled,${H('locate')}.disabled]`,
+      `[mvCtx.media.queue.items().length,!!reader.querySelector('.page.media.selected'),${H('locate')}.disabled]`,
     ),
-    [0, false, true, true],
+    [0, false, true],
   );
   await showBar();
   await wait(async () => (await fbName()) === '05 b', 'file bar back to the centre page');
@@ -310,31 +313,32 @@ try {
     null,
     0,
   ]);
-  await js(`mvCtx.media.queue.stop()`);
+  await js(`mvClearQueue()`);
   await wait(() => js('on().length===0'), 'stopped');
 
-  // ---- 播放列表：类型开关、移除、单文件循环、跨书接续。
+  // ---- 播放列表：过滤（留在列表里）、移除、单文件循环、跨书接续。
   assert.ok(await js(`toPage('02 song.wav')`));
   await tap('#reader .page[data-name="02 song.wav"] .mv-head');
   await wait(() => js(`track()==='02 song.wav'&&!elOf('02 song.wav').paused`), 'song');
   await js(`window.qev=[];mvCtx.on('queue',k=>qev.push(k));mvCtx.media.queue.setTypes(['audio'])`);
-  assert.deepEqual(await js(`mvCtx.media.queue.items().map(x=>x.page.name)`), ['02 song.wav', '05 b.wav']);
-  assert.deepEqual(await js(`[localStorage.getItem('mv2:playTypes'),qev.includes('types'),qev.includes('list')]`), [
-    '["audio"]',
-    true,
-    true,
-  ]);
-  await js(`mvCtx.media.queue.remove(mvCtx.media.queue.items()[1])`);
   assert.deepEqual(
-    await js(`mvCtx.media.queue.items().map(x=>x.page.name)`),
-    ['02 song.wav'],
-    'Removed for this list only',
+    await js(`mvCtx.media.queue.items().map(x=>x.page.name+':'+x.filtered)`),
+    ['02 song.wav:false', '04 clip.webm:true', '05 b.wav:false'],
+    'Filtered items stay in the list, marked as filtered',
   );
+  assert.deepEqual(
+    await js(
+      `[localStorage.getItem('mv2:playTypes'),qev.includes('types'),qev.includes('list'),mvCtx.media.queue.filtering()]`,
+    ),
+    ['["audio"]', true, true, true],
+  );
+  await js(`mvCtx.media.queue.remove(mvCtx.media.queue.items()[1])`);
+  assert.deepEqual(await js(`mvCtx.media.queue.items().map(x=>x.page.name)`), ['02 song.wav', '05 b.wav'], 'Removed');
   await js(`mvCtx.media.queue.setTypes([])`);
   assert.deepEqual(
     await js(`mvCtx.media.queue.items().map(x=>x.page.name)`),
-    ['02 song.wav', '04 clip.webm', '05 b.wav'],
-    'Changing the types rebuilds the list',
+    ['02 song.wav', '05 b.wav'],
+    'Changing the filter does not change the list',
   );
   await js(`mvCtx.media.queue.setScope('file');window.ends=0;elOf('02 song.wav').addEventListener('ended',()=>ends++)`);
   await wait(
@@ -342,15 +346,13 @@ try {
     'single file loop: replays after the end',
   );
   assert.equal(await js('track()'), '02 song.wav', 'Single file: replays itself');
-  // 跨书：本书的列表播完进入阅读列表里下一本有媒体的书（跳过 Gamma），主窗口不切书。
-  await js(`mvCtx.media.queue.setScope('books');mvCtx.media.queue.play(mvCtx.media.queue.items()[2],{time:1.2})`);
+  // 跨书：列表播完进入阅读列表里末项所在书的下一本有媒体的书（跳过 Gamma），它不在列表里：列表换成那本，主窗口不切书。
+  await js(`mvCtx.media.queue.setScope('books');mvCtx.media.queue.play(mvCtx.media.queue.items()[1],{time:1.2})`);
   await wait(() => js(`track()==='05 b.wav'&&!elOf('05 b.wav').paused`), 'last item');
   await wait(() => js(`track()==='02 tune.wav'&&!elOf('02 tune.wav').paused`), 'cross-book: on to Beta');
   assert.deepEqual(
-    await js(
-      `[bookTitle.textContent,mvCtx.media.queue.book().title,mvCtx.media.queue.items().map(x=>x.page.name).join()]`,
-    ),
-    ['Alpha', 'Beta', '02 tune.wav'],
+    await js(`[bookTitle.textContent,names().join()]`),
+    ['Alpha', 'Beta:02 tune.wav'],
     'The list is now Beta; the main window stays in Alpha',
   );
   await onlyOne('cross-book');
@@ -359,8 +361,143 @@ try {
   await wait(() => js(`bookTitle.textContent==='Gamma'`), 'Gamma');
   await showBar();
   assert.equal(await js(`${B('volume')}.disabled`), false, 'A track keeps the media zone enabled');
-  await js(`mvCtx.media.queue.stop();mvCtx.media.queue.setScope('book')`);
+  await js(`mvClearQueue();mvCtx.media.queue.setScope('list')`);
   await wait(() => js(`${B('volume')}.disabled&&${B('mediaNext')}.disabled`), 'no media, no track: disabled');
+
+  // ---- 播放列表的模型：跨书的项与追加、点已在列表里的文件不改列表、两端的跨书、只含书签与书签情况、收藏列表、移除到没有可接续项。
+  await js(`open('Alpha')`);
+  await wait(() => js(`bookTitle.textContent==='Alpha'`), 'Alpha for the model');
+  assert.ok(await js(`toPage('02 song.wav')`));
+  await tap('#reader .page[data-name="02 song.wav"] .mv-head');
+  await wait(() => js(`track()==='02 song.wav'&&!elOf('02 song.wav').paused`), 'song for the model');
+  await js(`mvCtx.media.queue.toggle()`);
+  await wait(() => js(`elOf('02 song.wav').paused`), 'paused');
+  assert.deepEqual(
+    await js(
+      `[mvCtx.media.queue.addBook(bookOf('Beta')),mvCtx.media.queue.addBook(bookOf('Beta')),mvCtx.media.queue.addBook(bookOf('Gamma'))]`,
+    ),
+    [1, 0, 0],
+    'addBook returns how many were appended',
+  );
+  assert.deepEqual(
+    await js(`[names(),track(),elOf('02 song.wav').paused]`),
+    [['Alpha:02 song.wav', 'Alpha:04 clip.webm', 'Alpha:05 b.wav', 'Beta:02 tune.wav'], '02 song.wav', true],
+    'Appended at the end; nothing plays, the track stays',
+  );
+  // 点一个已在列表里的文件本体：不改列表。
+  assert.ok(await js(`toPage('04 clip.webm')`));
+  await tap('#reader .page[data-name="04 clip.webm"]');
+  await wait(() => js(`track()==='04 clip.webm'&&!elOf('04 clip.webm').paused`), 'clip from the list');
+  await js(`mvCtx.media.queue.toggle()`);
+  await wait(() => js(`elOf('04 clip.webm').paused`), 'clip paused');
+  assert.equal(await js(`names().length`), 4, 'Playing a file already in the list keeps the list');
+  // 过滤：上一个 / 下一个跳过被过滤的项；列表范围在两端首尾相接；保持暂停。
+  await js(`mvCtx.media.queue.setTypes(['audio'])`);
+  const steps = async (...ds) => {
+    const out = [];
+    for (const d of ds) {
+      await js(`mvCtx.media.queue.step(${d})`);
+      out.push(await js(`(mvCtx.media.queue.track()?.book.title??'')+':'+track()`));
+    }
+    return out;
+  };
+  assert.deepEqual(
+    await steps(1, 1, 1),
+    ['Alpha:05 b.wav', 'Beta:02 tune.wav', 'Alpha:02 song.wav'],
+    'Next skips the filtered, wraps',
+  );
+  assert.deepEqual(await steps(-1, -1), ['Beta:02 tune.wav', 'Alpha:05 b.wav']);
+  assert.equal(await js('mvCtx.media.queue.playing()'), false, 'Stepping keeps it paused');
+  // 跨书范围：在两端进入上一本 / 下一本；已在列表里就跳到它的项，不替换；不在列表里时列表换成那本书。
+  await js(`mvCtx.media.queue.setScope('books')`);
+  assert.deepEqual(
+    await steps(-1, -1),
+    ['Alpha:02 song.wav', 'Beta:02 tune.wav'],
+    'At the start: the previous book, already in the list',
+  );
+  assert.deepEqual(await steps(1), ['Alpha:02 song.wav'], 'At the end: the next book with media, already in the list');
+  assert.equal(await js(`names().length`), 4, 'The list stays');
+  await js(`mvCtx.media.queue.remove(mvCtx.media.queue.items()[3])`);
+  assert.deepEqual(await steps(-1), ['Beta:02 tune.wav'], 'At the start: the previous book, not in the list');
+  assert.deepEqual(
+    await js(`[names().join(),bookTitle.textContent]`),
+    ['Beta:02 tune.wav', 'Alpha'],
+    'Beta replaces the list',
+  );
+  assert.deepEqual(await steps(-1), ['Alpha:05 b.wav'], 'The previous book: its last item that can go on');
+  assert.deepEqual(await js(`names().join()`), 'Alpha:02 song.wav,Alpha:04 clip.webm,Alpha:05 b.wav');
+  await js(`mvCtx.media.queue.setTypes([]);mvCtx.media.queue.setScope('list')`);
+  // 只含书签与每项的书签情况（书签、区段书签）。
+  await js(`mvCtx.media.queue.setMarked(true)`);
+  assert.deepEqual(
+    await js(
+      `[mvCtx.media.queue.items().every(x=>x.filtered),localStorage.getItem('mv2:playMarked'),mvCtx.media.queue.filtering()]`,
+    ),
+    [true, 'true', true],
+    'Bookmarked only: no bookmarks yet',
+  );
+  await js(
+    `(async()=>{const b=bookOf('Alpha');window.oldMarks=b.bookmarks;b.bookmarks=[{id:'qm1',name:'05 b.wav',t:0.5,at:1,label:'x'},{id:'qm2',name:'02 song.wav',t:0.2,at:2,label:'y',end:{name:'02 song.wav',t:1,at:3,label:'z'}}];qev=[];(await import('./src/core/events.mjs')).emit('marks',b);})()`,
+  );
+  assert.deepEqual(
+    await js(`[mvCtx.media.queue.items().map(x=>x.page.name+':'+x.marks+':'+x.filtered),qev.includes('list')]`),
+    [['02 song.wav:section:false', '04 clip.webm:none:true', '05 b.wav:mark:false'], true],
+    'Marks per item; bookmarked ones pass the filter',
+  );
+  await js(`mvCtx.media.queue.setMarked(false)`);
+  // 收藏列表：只存没有被过滤的项，默认名为第一项所在的书名（跨书时注明本数）；改名、删除；别的窗口的改动经 storage 事件同步。
+  await js(`mvCtx.media.queue.addBook(bookOf('Beta'));mvCtx.media.queue.setTypes(['audio']);qev=[]`);
+  const fav = await js(
+    `(()=>{const f=mvCtx.media.queue.favorites,d=f.defaultName(),a=f.save(),b=f.save('  Mine  ');return {d,a,b,list:f.list(),stored:JSON.parse(localStorage.getItem('mv2:playlists')).map(x=>x.items.map(i=>i.page).join())};})()`,
+  );
+  assert.equal(fav.d, 'Alpha and more (2 books)');
+  assert.deepEqual(
+    [fav.a.name, fav.a.count, fav.b.name, fav.b.count],
+    ['Alpha and more (2 books)', 3, 'Mine', 3],
+    'Only items that are not filtered are saved',
+  );
+  assert.deepEqual(fav.stored, ['02 song.wav,05 b.wav,02 tune.wav', '02 song.wav,05 b.wav,02 tune.wav']);
+  assert.equal(
+    await js(`mvCtx.media.queue.favorites.defaultName()`),
+    'Alpha and more (2 books) (2)',
+    'A taken name gets a number',
+  );
+  await js(`mvCtx.media.queue.setTypes([])`);
+  assert.deepEqual(
+    await js(
+      `(()=>{const f=mvCtx.media.queue.favorites;return [f.rename('${fav.b.id}','Renamed'),f.rename('${fav.b.id}','  '),f.remove('${fav.b.id}'),f.remove('${fav.b.id}'),f.list().map(x=>x.name+':'+x.count),qev.filter(k=>k==='favorites').length];})()`,
+    ),
+    [true, false, true, false, ['Alpha and more (2 books):3'], 4],
+  );
+  await js(
+    `(()=>{const v=JSON.stringify([...JSON.parse(localStorage.getItem('mv2:playlists')),{id:'gone',name:'Gone',items:[{book:'nope',page:'1.wav'},{book:bookOf('Alpha').id,page:'missing.wav'}]}]);localStorage.setItem('mv2:playlists',v);qev=[];dispatchEvent(new StorageEvent('storage',{key:'mv2:playlists',newValue:v,storageArea:localStorage}));})()`,
+  );
+  assert.deepEqual(
+    await js(`[qev.includes('favorites'),mvCtx.media.queue.favorites.list().map(x=>x.name).join()]`),
+    [true, 'Alpha and more (2 books),Gone'],
+    'Changes from another window',
+  );
+  assert.deepEqual(
+    await js(`[mvCtx.media.queue.favorites.load('gone'),names().length,document.querySelector('#notice').textContent]`),
+    [false, 4, 'None of the files in this list can be found'],
+    'Nothing found: a hint, the list stays',
+  );
+  // 载入：列表换成收藏的内容，从第一项开始播放。
+  await js(`mvCtx.media.queue.favorites.load('${fav.a.id}')`);
+  await wait(() => js(`track()==='02 song.wav'&&!elOf('02 song.wav').paused`), 'loading plays the first item');
+  assert.deepEqual(await js(`names()`), ['Alpha:02 song.wav', 'Alpha:05 b.wav', 'Beta:02 tune.wav']);
+  // 在阅读区开始播放一个不在列表里的文件：列表换成它所在的书。
+  assert.ok(await js(`toPage('04 clip.webm')`));
+  await tap('#reader .page[data-name="04 clip.webm"]');
+  await wait(() => js(`track()==='04 clip.webm'&&!elOf('04 clip.webm').paused`), 'clip not in the list');
+  assert.deepEqual(await js(`names()`), ['Alpha:02 song.wav', 'Alpha:04 clip.webm', 'Alpha:05 b.wav']);
+  // 移除当前曲目、没有可接续的项（其余的都被过滤）：停止播放、取消当前曲目；列表里其余的项留着。
+  await js(`mvCtx.media.queue.setTypes(['video']);mvCtx.media.queue.remove(mvCtx.media.queue.items()[1])`);
+  await wait(() => js(`track()===null&&on().length===0`), 'removing the track with nothing to go on stops');
+  assert.deepEqual(await js(`names()`), ['Alpha:02 song.wav', 'Alpha:05 b.wav']);
+  await js(
+    `(async()=>{const b=bookOf('Alpha');b.bookmarks=oldMarks;(await import('./src/core/events.mjs')).emit('marks',b);mvCtx.media.queue.setTypes([]);localStorage.removeItem('mv2:playlists');})()`,
+  );
 
   // ---- 自动滚动与后台播放：后台曲目在漫画模式的自动滚动中照常播放；运行中空格只停止自动滚动；
   // 没有当前曲目时上一个 / 下一个媒体只定位、不播放。
@@ -380,7 +517,7 @@ try {
   await key(' ', 'Space', 32);
   await wait(() => js(`elOf('02 song.wav').paused`), 'Space pauses the file bar media');
   assert.equal(await running(), false);
-  await js(`mvCtx.media.queue.stop();${B('mode-mixed')}.click()`);
+  await js(`mvClearQueue();${B('mode-mixed')}.click()`);
   assert.ok(await js(`toPage('01.svg')`));
   const at0 = await js('reader.scrollTop');
   await js(`${B('mediaNext')}.click()`);
@@ -405,7 +542,7 @@ try {
     [null, '02 song.wav'],
     'Bookmarks: the centre page; file bar: the track',
   );
-  await js(`mvCtx.media.queue.stop()`);
+  await js(`mvClearQueue()`);
 
   // ---- 自动播放开始的视频：离开视窗即暂停并取消，不接续。
   await js(
@@ -427,7 +564,7 @@ try {
   await js('box.remove()');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: background play (keeps playing when scrolled away and across books, parked without reloading, back into the page seamlessly), list continuation without scrolling, locate / stop, one media at a time, handing the picture to an outside container and back (placeholder), play list types / remove / single file loop / cross-book, media zone enabled by a track, auto-scroll separate from background play, Space rules, bookmark target, autoplayed video released when it leaves',
+    'PASS: background play (keeps playing when scrolled away and across books, parked without reloading, back into the page seamlessly), list continuation without scrolling, locate, removing everything stops, one media at a time, handing the picture to an outside container and back (placeholder), play list filter (kept in the list) / remove / single file loop / cross-book, the list model (items across books, addBook, steps skipping filtered items, both ends across books, bookmarked only and marks per item, favorites saved / renamed / removed / synced / loaded, removing the track with nothing to go on), media zone enabled by a track, auto-scroll separate from background play, Space rules, bookmark target, autoplayed video released when it leaves',
   );
 } finally {
   if (ws?.readyState === 1) {

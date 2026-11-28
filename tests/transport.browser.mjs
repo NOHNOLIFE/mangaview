@@ -8,7 +8,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+import { MEDIA_FIXTURES, CTX_HOOK } from './media-fixtures.mjs';
 import { imageRuns } from '../src/core/engine.mjs';
 const binary = process.argv[2];
 if (!binary) throw Error('Usage: node tests/transport.browser.mjs <chrome-or-edge-executable>');
@@ -124,7 +124,7 @@ try {
     cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 900, deviceScaleFactor: 1, mobile: false });
   await wide();
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});`,
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});${CTX_HOOK}`,
   });
   await cdp('Page.navigate', { url: origin });
   await wait(() => js('document.querySelector("#empty")?.hidden===false'));
@@ -472,7 +472,7 @@ try {
     'the play list moves on after it ends (also right after it last ended)',
   );
   assert.deepEqual([await running(), await top()], [false, t1], 'Without auto-scroll or scrolling');
-  await js(`document.querySelector('#filebar [data-head="stop"]').click()`);
+  await js(`mvClearQueue()`);
   await wait(() => js(`![...document.querySelectorAll('video,audio')].some(m=>!m.paused)`), 'stopped');
 
   // ---- 只播区段：滚动只经过图片区段，到区段终点直接跳到下一个区段起点；整个处在图片区段之内的媒体整段播放，其余没有区段的媒体跳过。

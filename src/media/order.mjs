@@ -89,7 +89,7 @@ export function install(ctx, S) {
     requestAnimationFrame(claimNow);
   }
   // 要播放的页的播放器在视窗里时接手：成为当前曲目，定位到指定时间，play 为真则播放，否则只挂上源停在该画面。
-  // fresh：书签跳转带起的后台播放，不在播放列表里时重建列表（queue.mjs）。
+  // fresh：书签跳转带起的后台播放，不在播放列表里时替换列表（queue.mjs）。
   function claim(p) {
     if (!S.queued || S.queued.page !== p.page || p.book !== ctx.current) return;
     const q = S.queued;

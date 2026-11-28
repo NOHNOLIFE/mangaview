@@ -197,14 +197,14 @@ try {
     if (data) await writeFile(join(process.env.MV_SHOTS, name + '.png'), Buffer.from(data, 'base64'));
   };
 
-  // ---- 入口：文件栏标题行的「画中画」（order 20，在「定位」「停止」之间）；显示的是图片时只打开窗口（没有曲目时是一句说明），再按关闭。
+  // ---- 入口：文件栏标题行的「画中画」（order 20，在「定位」之后）；显示的是图片时只打开窗口（没有曲目时是一句说明），再按关闭。
   await js(`openBook('Alpha')`);
   await wait(() => js(`bookTitle.textContent==='Alpha'`), 'Alpha');
   assert.ok(await js(`toPage('01.svg')`));
   await showBar();
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#filebar .fb-head-tools [data-head]')].map(b=>b.dataset.head)`),
-    ['locate', 'pip', 'stop'],
+    ['locate', 'pip'],
   );
   assert.equal(await js(`${H('pip')}.getAttribute('aria-label')`), 'Picture-in-picture');
   const top0 = await js('reader.scrollTop');
@@ -369,7 +369,7 @@ try {
     'locate the track',
   );
 
-  // ---- 上一个 / 下一个（保持显示位置）；移除别的项、移除当前曲目（接着播下一项）；停止。
+  // ---- 上一个 / 下一个（保持显示位置）；移除别的项、移除当前曲目（接着播下一项）、移除最后一项（停止）。
   await js(`pq('.pip-tools [data-id="prev"]').click()`);
   await wait(() => js(`track()==='04 clip.webm'&&!!pq('.pip-screen video')`), 'previous, still in the window');
   await js(`pq('.pip-tools [data-id="next"]').click()`);
@@ -382,42 +382,41 @@ try {
     () => js(`track()==='04 clip.webm'&&rows().map(r=>r.textContent).join()==='04 clip'`),
     'removing the track plays the next',
   );
-  await js(`pq('.pip-tools [data-id="stop"]').click()`);
-  await wait(() => js(`track()===null&&rows().length===0`), 'stopped');
+  await js(`rowOf('04 clip.webm').querySelector('[data-id="remove"]').click()`);
+  await wait(() => js(`track()===null&&rows().length===0`), 'removing the last item stops');
   await wait(() => js(`pq('.pip-idle').textContent.includes('Nothing is playing')`), 'the hint again');
   assert.deepEqual(
-    await js(`['prev','next','locate','stop','play'].map(id=>pq('[data-id="'+id+'"]').disabled)`),
-    [true, true, true, true, true],
+    await js(`['prev','next','locate','play'].map(id=>pq('[data-id="'+id+'"]').disabled)`),
+    [true, true, true, true],
     'Track buttons disabled without a track',
   );
   assert.equal(await isOpen(), true, 'Stopping does not close the window');
+  assert.equal(await js(`!!pq('[data-id="stop"]')||!!pq('[data-id="shuffle"]')`), false, 'No stop or shuffle button');
 
-  // ---- 循环范围、随机、类型：与偏好同步（本窗口、主窗口的接口、别的窗口改了偏好）。
+  // ---- 循环范围、类型：与偏好同步（本窗口、主窗口的接口、别的窗口改了偏好；旧值「本书」读作列表）。
   const look = () =>
     js(
-      `['scope','shuffle','audio','video'].map(id=>{const b=pq('.pip-tools [data-id="'+id+'"]');return id==='scope'?b.dataset.scope+':'+b.querySelector('use').getAttribute('href')+':'+b.getAttribute('aria-label'):b.getAttribute('aria-pressed');})`,
+      `['scope','audio','video'].map(id=>{const b=pq('.pip-tools [data-id="'+id+'"]');return id==='scope'?b.dataset.scope+':'+b.querySelector('use').getAttribute('href')+':'+b.getAttribute('aria-label'):b.getAttribute('aria-pressed');})`,
     );
-  assert.deepEqual(await look(), ['book:#i-loop-book:Loop: this book', 'false', 'false', 'false']);
+  assert.deepEqual(await look(), ['list:#i-loop-book:Loop: play list', 'false', 'false']);
   await js(`pq('.pip-tools [data-id="scope"]').click()`);
-  await js(`pq('.pip-tools [data-id="shuffle"]').click()`);
   await js(`pq('.pip-tools [data-id="audio"]').click()`);
-  assert.deepEqual(await look(), ['books:#i-loop-books:Loop: across books', 'true', 'true', 'false']);
-  assert.deepEqual(await js(`['playScope','playShuffle','playTypes'].map(k=>localStorage.getItem('mv2:'+k))`), [
+  assert.deepEqual(await look(), ['books:#i-loop-books:Loop: across books', 'true', 'false']);
+  assert.deepEqual(await js(`['playScope','playTypes'].map(k=>localStorage.getItem('mv2:'+k))`), [
     '"books"',
-    'true',
     '["audio"]',
   ]);
   await js(`mvCtx.media.queue.setScope('file');mvCtx.media.queue.setTypes([])`);
   await wait(
-    async () => (await look()).join() === 'file:#i-loop-file:Loop: single file,true,false,false',
+    async () => (await look()).join() === 'file:#i-loop-file:Loop: single file,false,false',
     'follows the API',
   );
   // 别的窗口写入偏好（storage 事件）。
   await js(
-    `(()=>{const e=(k,v)=>{localStorage.setItem('mv2:'+k,v);window.dispatchEvent(new StorageEvent('storage',{key:'mv2:'+k,newValue:v,storageArea:localStorage}));};e('playShuffle','false');e('playTypes','["video"]');e('playScope','"book"');})()`,
+    `(()=>{const e=(k,v)=>{localStorage.setItem('mv2:'+k,v);window.dispatchEvent(new StorageEvent('storage',{key:'mv2:'+k,newValue:v,storageArea:localStorage}));};e('playTypes','["video"]');e('playScope','"book"');})()`,
   );
   await wait(
-    async () => (await look()).join() === 'book:#i-loop-book:Loop: this book,false,false,true',
+    async () => (await look()).join() === 'list:#i-loop-book:Loop: play list,false,true',
     'follows other windows',
   );
   await js(`mvCtx.media.queue.setTypes([])`);
@@ -634,7 +633,7 @@ try {
   await showBar();
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#filebar .fb-head-tools [data-head]')].map(b=>b.dataset.head)`),
-    ['locate', 'stop'],
+    ['locate'],
   );
   assert.equal(await js(`document.querySelectorAll('#reader .mv-x[data-control="pip"]').length`), 0, 'No card button');
   await js('reader.focus()');
@@ -645,7 +644,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: picture-in-picture: entries (file bar, audio card, Z; image only opens; again closes; hidden without the API), moving the picture without reload or pause, the placeholder both ways, clicks in the reader, list play / locate / remove / stop, scope / shuffle / types synced with prefs, keys in the window, virtual list, layout at any size, closing by the user, by another window and by reloading',
+    'PASS: picture-in-picture: entries (file bar, audio card, Z; image only opens; again closes; hidden without the API), moving the picture without reload or pause, the placeholder both ways, clicks in the reader, list play / locate / remove (the last one stops), no stop or shuffle, scope / types synced with prefs (the old book value reads as the list), keys in the window, virtual list, layout at any size, closing by the user, by another window and by reloading',
   );
 } finally {
   if (ws?.readyState === 1) {

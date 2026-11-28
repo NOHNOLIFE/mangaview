@@ -7,7 +7,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { MEDIA_FIXTURES } from './media-fixtures.mjs';
+import { MEDIA_FIXTURES, CTX_HOOK } from './media-fixtures.mjs';
 const binary = process.argv[2];
 if (!binary) throw Error('Usage: node tests/mediamarks.browser.mjs <chrome-or-edge-executable>');
 const profile = await mkdtemp(join(process.env.MV_TEST_TEMP || tmpdir(), 'mv-mediamarks-'));
@@ -122,7 +122,7 @@ try {
   await wide();
   // 记录每次给媒体元素挂源（探测）的是哪一页：验证「播不了的文件不重复探测」「只有可见的媒体持有源」。
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
-    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});
+    source: `Object.defineProperty(navigator,'languages',{value:['en-US']});${CTX_HOOK}
     window.srcLog=[];const d=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'src');
     Object.defineProperty(HTMLMediaElement.prototype,'src',{get(){return d.get.call(this);},set(v){window.srcLog.push(this.closest('.page')?.dataset.name);d.set.call(this,v);},configurable:true});`,
   });
@@ -222,9 +222,9 @@ try {
     await js(`el(${JSON.stringify(name)}).play()`);
   };
   // 取消选中媒体（中线离开视窗即取消）：之后的「当前文件」是视窗中心所在的页。
-  // 取消当前曲目：后台播放的曲目离开视窗不取消，用文件栏的「停止」。
+  // 取消当前曲目：后台播放的曲目离开视窗不取消，清空播放列表（mvClearQueue）。
   const deselect = async () => {
-    await js(`filebar.querySelector('[data-head="stop"]')?.click()`);
+    await js(`mvClearQueue()`);
     await js('reader.scrollTop=0');
     await wait(() => js(`!reader.querySelector('.page.media.selected')`), 'nothing selected');
   };

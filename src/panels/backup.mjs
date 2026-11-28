@@ -304,7 +304,26 @@ export function mergeMarks(pages, marks, incoming) {
   }
   return out;
 }
-// 合并：同 id 以本机记录为准，只并入标签和书签（含区段书签，见 mergeMarks）、补上自定义封面；阅读位置只补缺；设置覆盖（mv2:last 除外）；缩略图只补缺。
+// 按 id 合并的存储键（值为带 id 的对象数组，如收藏的播放列表 media/queue.mjs）：本机的保留，备份里本机没有的接在后面；本机的值读不出时用备份的。
+const BY_ID = new Set([PREFIX + 'playlists']);
+export function unionById(mine, incoming) {
+  const read = (s) => {
+    try {
+      const v = JSON.parse(s);
+      return Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  const a = read(mine),
+    b = read(incoming);
+  if (!a) return incoming;
+  if (!b) return mine;
+  const ids = new Set(a.map((x) => x?.id));
+  return JSON.stringify([...a, ...b.filter((x) => !ids.has(x?.id))]);
+}
+// 合并：同 id 以本机记录为准，只并入标签和书签（含区段书签，见 mergeMarks）、补上自定义封面；阅读位置只补缺；收藏的播放列表按 id 取并集（unionById）；
+// 设置覆盖（mv2:last 除外）；缩略图只补缺。
 export async function merge(ctx, data) {
   ctx.flush();
   const saved = new Map((await ctx.library('getAll')).map((b) => [b.id, b]));
@@ -329,7 +348,7 @@ export async function merge(ctx, data) {
   for (const x of data.thumbs) if (!keys.has(x.key)) await ctx.thumbs('put', x.value, x.key);
   for (const [k, v] of data.storage) {
     if (k === PREFIX + 'last' || (k.startsWith(PREFIX + 'pos:') && localStorage.getItem(k) !== null)) continue;
-    localStorage.setItem(k, v);
+    localStorage.setItem(k, BY_ID.has(k) ? unionById(localStorage.getItem(k), v) : v);
   }
   return { added, merged };
 }
