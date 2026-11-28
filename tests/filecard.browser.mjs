@@ -151,6 +151,7 @@ try {
     await mvMedia.write(dir,'03 song.wav',mvMedia.wav({seconds:12}));
     await mvMedia.write(dir,'04.svg',svg(600,900,'purple'));
     await mvMedia.write(dir,'05 tail.wav',mvMedia.wav({seconds:6}));
+    await mvMedia.write(dir,'06 Long title words Long title words Long title words Long title words Long title words Long title words part 012.wav',mvMedia.wav({seconds:3}));
     window.showDirectoryPicker=async()=>dir;document.querySelector('#empty [data-act="folder"]').click();await new Promise(r=>{const w=()=>addDialog.open?r():setTimeout(w,10);w();});addMany.click();})()`);
   await wait(() => js("bookTitle.textContent==='Cards'"), 'book opened');
   // 书签直接写进记录后重新载入：03 song.wav 上一个普通书签（2 秒）和一个区段（5–9 秒），图片上一个跨页区段（01.svg → 04.svg），03 上次播到 4 秒。
@@ -282,11 +283,13 @@ try {
   await move(r.x, r.y);
   await wait(() => js('!!card()'), 'card on hover');
   const fc = await js(
-    "(()=>{const c=card();return {name:c.querySelector('.fc-name').textContent,meta:c.querySelector('.fc-meta').textContent,bar:!c.querySelector('.mv-bar').hidden,marks:[...c.querySelectorAll('.mv-mk')].map(m=>m.classList[1]).join(),pin:c.querySelector('.fc-pin').hidden,note:c.querySelector('.fc-mark').hidden,inert:c.inert,pe:getComputedStyle(c).pointerEvents}})()",
+    "(()=>{const c=card();return {name:c.querySelector('.fc-name').textContent,icon:c.querySelector('.fc-name .mid-lines > svg.i:first-child use')?.getAttribute('href'),meta:!!c.querySelector('.fc-meta'),bar:!c.querySelector('.mv-bar').hidden,marks:[...c.querySelectorAll('.mv-mk')].map(m=>m.classList[1]).join(),pin:c.querySelector('.fc-pin').hidden,note:c.querySelector('.fc-mark').hidden,inert:c.inert,pe:getComputedStyle(c).pointerEvents}})()",
   );
+  // 没有「类型 · 时间 / 时长」那一行：文件名（类型图标在首行开头）下面直接是进度条。
   assert.deepEqual(fc, {
     name: '03 song.wav',
-    meta: 'Audio · 0:04 / 0:12',
+    icon: '#i-music',
+    meta: false,
     bar: true,
     marks: 'mark,start,end',
     pin: true,
@@ -311,9 +314,9 @@ try {
   assert.ok(await inside(await rect('card()')), 'Kept inside the window');
   assert.deepEqual(
     await js(
-      "(()=>{const c=card();return [c.querySelector('.fc-name').textContent,c.querySelector('.fc-meta').textContent,c.querySelector('.mv-bar').hidden]})()",
+      "(()=>{const c=card();return [c.querySelector('.fc-name').textContent,c.querySelector('.fc-meta'),c.querySelector('.mv-bar').hidden]})()",
     ),
-    ['05 tail.wav', 'Audio', true],
+    ['05 tail.wav', null, true],
     'Unknown duration: the file is not read, only what is known shows',
   );
   assert.equal(
@@ -325,6 +328,36 @@ try {
   r = await rect("rail('01.svg')");
   await move(r.x, r.y);
   await wait(() => js('!card()'), 'images show no card');
+  // 长文件名：最多两行（类型图标在首行开头），放不下时省略中间、保留开头和结尾；详情框宽度固定，不随名称变化。
+  const w1 = c1.width;
+  await js('preview.scrollTop=preview.scrollHeight');
+  await wait(
+    () =>
+      js(
+        `!!rail(${JSON.stringify('06 Long title words Long title words Long title words Long title words Long title words Long title words part 012.wav')})`,
+      ),
+    'long name in the strip',
+  );
+  r = await rect(
+    `rail(${JSON.stringify('06 Long title words Long title words Long title words Long title words Long title words Long title words part 012.wav')})`,
+  );
+  await move(r.x, Math.max(r.top + 4, Math.min(r.y, 890)));
+  await wait(() => js("card()?.querySelector('.fc-name').textContent.startsWith('06 ')"), 'card for the long name');
+  const long = await js(
+    "(()=>{const c=card(),n=c.querySelector('.fc-name'),l=n.querySelector('.mid-lines'),r=l.getBoundingClientRect(),i=l.querySelector('svg.i').getBoundingClientRect();return {w:c.getBoundingClientRect().width,text:n.textContent,lines:Math.round(r.height/parseFloat(getComputedStyle(l).lineHeight)),iconTop:i.top-r.top<4,iconLeft:i.left-r.left<1,inside:r.right<=c.getBoundingClientRect().right}})()",
+  );
+  assert.equal(long.w, w1, 'Fixed width');
+  assert.equal(long.w, 264);
+  assert.equal(long.lines, 2, 'Two lines: ' + JSON.stringify(long));
+  assert.ok(
+    long.text.startsWith('06 Long title') && long.text.endsWith('…part 012.wav'),
+    'Middle elided, end kept: ' + long.text,
+  );
+  assert.ok(long.iconTop && long.iconLeft && long.inside, JSON.stringify(long));
+  await shot('filecard-long-name');
+  await move(300, 450);
+  await wait(() => js('!card()'));
+  await js('preview.scrollTop=0');
 
   // ==== 6. 书签面板：起点和区段书签各占一格、按位置排序，视频、音频书签悬停显示详情框，当前书签另有指针 ====
   await js('reader.scrollTop=0');
@@ -357,10 +390,13 @@ try {
   assert.equal(await noteOf(), 'Bookmark 0:02 · song-A');
   assert.ok(Math.abs((await pinAt()) - 2 / 12) < 0.02, 'Pointer at the bookmark time');
   assert.equal(await hotOf(), 'mv-mk.mark');
-  assert.equal(
-    await js("card().querySelector('.fc-meta').textContent"),
-    'Audio · 0:04 / 0:12',
-    'Same file details as the file',
+  // 当前书签的指示只有进度条上方一个朝下的三角：尖端对准书签的时间，不压住轨道上的标记，没有竖线。
+  const pinLook = await js(
+    "(()=>{const c=card(),t=c.querySelector('.mv-track').getBoundingClientRect(),p=c.querySelector('.fc-pin').getBoundingClientRect(),m=[...c.querySelectorAll('.mv-mk')].map(e=>e.getBoundingClientRect().top);return {above:p.bottom<=Math.min(t.top,...m)+.5,h:p.height,w:p.width}})()",
+  );
+  assert.ok(
+    pinLook.above && pinLook.h <= 8 && pinLook.w <= 13,
+    'Only a triangle above the bar: ' + JSON.stringify(pinLook),
   );
   const c2 = await rect('card()');
   assert.ok(apart(c2, r) && (await inside(c2)), 'Does not cover the bookmark');
@@ -459,6 +495,47 @@ try {
   await click(r.x, r.y);
   await wait(() => js("!overview.open&&centred('02 clip.webm')&&!card()"), 'video centred from full-screen thumbnails');
   assert.equal(await js("!reader.querySelector('.page.media.selected')"), true);
+
+  // ==== 9. 浮出的面板（右侧缩略图栏、左侧书架书签栏）淡入完成之前不弹详情框，完成时指针仍在项上再弹；固定停靠的不受影响（见 5） ====
+  // 进场动画放慢，便于在动画中途指向。
+  await js('document.querySelector(\'#bar [data-act="preview"]\').click()');
+  await wait(() => js("!document.body.classList.contains('docked')&&panel.hidden"), 'strip unpinned');
+  await js(
+    "document.head.append(Object.assign(document.createElement('style'),{id:'slow',textContent:'#panel:not(.leaving),.sm-dock.floating:not(.leaving){animation-duration:1.2s!important}'}))",
+  );
+  await move(400, 450);
+  await move(795, 450);
+  await wait(() => js('!panel.hidden'), 'strip floats out');
+  r = await rect("rail('03 song.wav')");
+  await move(r.x - 30, r.y);
+  await delay(250);
+  assert.deepEqual(
+    await js("[!card(),panel.getAnimations().some(a=>a.playState==='running')]"),
+    [true, true],
+    'No card while the strip is still fading in',
+  );
+  await wait(() => js('!!card()'), 'card once the strip is fully shown, pointer not moved');
+  assert.equal(await js("card().querySelector('.fc-name').textContent"), '03 song.wav');
+  assert.equal(await js('panel.getAnimations().length'), 0);
+  await move(300, 450);
+  await wait(() => js('panel.hidden&&!card()'), 'strip folds away');
+  // 左侧书架书签栏同样。
+  await move(2, 450);
+  await wait(() => js('!shelfmarks.hidden'), 'shelf bookmarks float out');
+  r = await rect('document.querySelector(\'#shelfmarks .bm-item[data-id="a1"]\')');
+  await move(r.x + 20, r.y);
+  await delay(250);
+  assert.deepEqual(
+    await js("[!card(),shelfmarks.getAnimations().some(a=>a.playState==='running')]"),
+    [true, true],
+    'No card while the shelf bookmarks are still fading in',
+  );
+  await wait(() => js('!!card()'), 'card once the dock is fully shown');
+  assert.equal(await noteOf(), 'Bookmark 0:02 · song-A');
+  await shot('filecard-dock-card');
+  await move(400, 450);
+  await wait(() => js('shelfmarks.hidden&&!card()'), 'dock folds away');
+  await js('slow.remove()');
 
   assert.deepEqual(errors, []);
   console.log(

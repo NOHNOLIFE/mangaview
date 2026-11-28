@@ -11,7 +11,21 @@ import { normalize } from './core/normalize.mjs';
 import { expired, looseLost, lostSources, probeAll } from './core/status.mjs';
 import { prefs, prefix, get, put, dropKey, resetPrefs } from './core/prefs.mjs';
 import { books, bases, persist, pull, joinLoose } from './core/books.mjs';
-import { $, main, shelf, make, icon, iconButton, safe, notice, fade, showing, copy, holdRing } from './ui/dom.mjs';
+import {
+  $,
+  main,
+  shelf,
+  make,
+  icon,
+  iconButton,
+  safe,
+  notice,
+  fade,
+  showing,
+  settled,
+  copy,
+  holdRing,
+} from './ui/dom.mjs';
 import { getThumb, saveThumb, makeThumb, dropThumbs, installFrames } from './reader/thumbs.mjs';
 import { current, view, createView, select, step, readingList, readRatio, flush } from './reader/session.mjs';
 import { localize, toolsState, updateProgress, accessState, setLang, markProbed } from './reader/shell.mjs';
@@ -133,6 +147,7 @@ const ctx = {
   ring,
   fade,
   showing,
+  settled,
   // ---- 偏好（core/prefs.mjs）
   get,
   put,

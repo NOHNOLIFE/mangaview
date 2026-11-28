@@ -11,7 +11,7 @@
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
-  font-size: 17.5px;
+  font-size: 21px;
   line-height: 1.4;
   text-align: center;
   white-space: pre-line;
@@ -24,10 +24,10 @@
   display: none;
 }
 .media.video .mv-cue {
-  font-size: clamp(16px, 2.8vw, 33px);
+  font-size: clamp(19px, 3.36vw, 40px);
 }
 .page.media.mv-full .mv-cue {
-  font-size: clamp(21px, 3.5vw, 51px);
+  font-size: clamp(25px, 4.2vw, 61px);
 }
 /* 音频卡片：字号、行高随字幕区（3 行正好放满，不被裁切）。 */
 .mv-card .mv-cue {

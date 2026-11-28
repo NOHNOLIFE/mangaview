@@ -40,19 +40,33 @@ export function playlist(ctx, { win, root, peeker }) {
   // ---- 停靠 / 浮出
   const docked = () => root.classList.contains('pinned') && win.getComputedStyle(side).position !== 'absolute';
   const peek = peeker('list-peek', () => side.matches(':hover') || side.matches(':focus-within'), settle);
-  // 「已完全显示」（.revealed）：停靠时立即成立；浮出时等淡入结束，收起时立即去掉。
-  let shownTimer = 0;
+  // 「已完全显示」（.revealed）：停靠时立即成立；浮出时等淡入结束，收起时立即去掉。文件详情框只在它成立时弹出（fileCard.attach 的 ready）：
+  // 成立的那一刻补弹指针所在的项（cardHook.recheck）或键盘刚选中的项（keyCard）。
+  let shownTimer = 0,
+    cardHook = null,
+    keyCard = null; // 键盘选中、等列表完全显示后再弹详情框的那一项（页对象）
+  const isRevealed = () => side.classList.contains('revealed');
   function settle() {
     clearTimeout(shownTimer);
     shownTimer = 0;
-    if (docked()) return side.classList.add('revealed');
+    if (docked()) return ready();
     side.classList.remove('revealed');
     if (peek.shown()) shownTimer = setTimeout(revealed, SHOWN);
+    else keyCard = null;
   }
   function revealed() {
     clearTimeout(shownTimer);
     shownTimer = 0;
-    if (peek.shown() || docked()) side.classList.add('revealed');
+    if (peek.shown() || docked()) ready();
+  }
+  function ready() {
+    if (isRevealed()) return;
+    side.classList.add('revealed');
+    const it = keyCard && items.find((x) => x.page === keyCard),
+      r = it && shown.get(it.page);
+    keyCard = null;
+    if (r) card.show(r, { book: it.book, page: it.page });
+    else cardHook?.recheck();
   }
   side.addEventListener('transitionend', (e) => {
     if (e.target === side && e.propertyName === 'opacity' && peek.shown()) revealed();
@@ -194,7 +208,10 @@ export function playlist(ctx, { win, root, peeker }) {
     }
     paintRows();
     const r = shown.get(items[sel].page);
-    if (byKey && r && card) card.show(r, { book: items[sel].book, page: items[sel].page });
+    if (byKey && r && card) {
+      if (isRevealed()) card.show(r, { book: items[sel].book, page: items[sel].page });
+      else keyCard = items[sel].page;
+    }
   }
   // 键盘（pipview.mjs 的按键）：↑ ↓ 移动选中项（收起时先弹出列表，一会儿没有操作再收起），Enter 播放它。
   function move(d) {
@@ -222,10 +239,15 @@ export function playlist(ctx, { win, root, peeker }) {
     if (r && sel !== +r.dataset.i) select(+r.dataset.i, false);
   });
   list.addEventListener('pointerleave', () => (hovering = false));
-  card?.attach(list, (el) => {
-    const r = el.closest('.pip-item');
-    return r?.item && list.contains(r) ? { el: r, book: r.item.book, page: r.item.page } : null;
-  });
+  cardHook =
+    card?.attach(
+      list,
+      (el) => {
+        const r = el.closest('.pip-item');
+        return r?.item && list.contains(r) ? { el: r, book: r.item.book, page: r.item.page } : null;
+      },
+      { ready: isRevealed },
+    ) ?? null;
   const sizes = new win.ResizeObserver(() => {
     paintRows();
     if (docked() !== side.classList.contains('revealed') && !peek.shown()) settle();

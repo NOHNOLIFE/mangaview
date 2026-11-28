@@ -185,8 +185,8 @@ try {
     const p = await js(`parts(${JSON.stringify(name)})`),
       pad = 14 + p.border;
     assert.ok(near(p.card.height, p.node.height - 16), 'Card height unchanged: ' + JSON.stringify(p));
-    assert.ok(near(p.subs.height, 66), 'Three subtitle lines');
-    assert.ok(near(p.art.width, p.art.height) && near(p.art.width, 94), 'Square picture: ' + JSON.stringify(p.art));
+    assert.ok(near(p.subs.height, 78), 'Three subtitle lines');
+    assert.ok(near(p.art.width, p.art.height) && near(p.art.width, 106), 'Square picture: ' + JSON.stringify(p.art));
     assert.ok(near(p.art.right, p.card.right - pad), 'Picture on the right');
     assert.ok(
       near(p.art.top, p.head.top) && near(p.art.bottom, p.subs.bottom),

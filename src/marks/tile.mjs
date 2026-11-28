@@ -84,20 +84,25 @@ export function install(ctx, S) {
       )) ||
     null;
   // 列表（书签面板、书架书签栏）：区段两项的成对高亮；视频、音频书签悬停 / 聚焦时显示文件详情框（filecard.mjs），区段书签那一项是区段书签那一端。
-  function cards(box) {
+  // opts 原样交给 fileCard.attach（如 ready：浮出的面板淡入完成后才弹）。
+  function cards(box, opts) {
     mates(box);
-    ctx.fileCard?.attach(box, (target) => {
-      const item = target.closest('.bm-item');
-      if (!item || !box.contains(item)) return null;
-      const group = item.closest('.sm-book'),
-        book = group ? ctx.books.get(group.dataset.book) : ctx.current,
-        bm = book?.bookmarks?.find((b) => b.id === item.dataset.id),
-        end = !!bm?.end && 'end' in item.dataset,
-        m = end ? bm.end : bm;
-      if (!isMedia(m)) return null;
-      const page = book.pages.find((p) => p.name === m.name);
-      return page ? { el: item, book, page, mark: { id: bm.id, end } } : null;
-    });
+    ctx.fileCard?.attach(
+      box,
+      (target) => {
+        const item = target.closest('.bm-item');
+        if (!item || !box.contains(item)) return null;
+        const group = item.closest('.sm-book'),
+          book = group ? ctx.books.get(group.dataset.book) : ctx.current,
+          bm = book?.bookmarks?.find((b) => b.id === item.dataset.id),
+          end = !!bm?.end && 'end' in item.dataset,
+          m = end ? bm.end : bm;
+        if (!isMedia(m)) return null;
+        const page = book.pages.find((p) => p.name === m.name);
+        return page ? { el: item, book, page, mark: { id: bm.id, end } } : null;
+      },
+      opts,
+    );
   }
   // 缩略图按视口形状截取；显示时把比例限制在 3:4 ~ 4:3，避免窄窗口或宽屏下变成长条（居中裁切，书签位置仍在中央）。
   const ratio = () => String(Math.min(4 / 3, Math.max(3 / 4, main.clientWidth / Math.max(1, main.clientHeight))));

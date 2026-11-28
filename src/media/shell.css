@@ -164,7 +164,7 @@ body.mv-fullvideo #controlbar {
 }
 .mv-card > .mv-away {
   grid-column: 1;
-  height: calc(3 * 22px);
+  height: calc(3 * 26px); /* 与字幕区同高 */
 }
 .mv-card > .mv-away .mv-away-text {
   flex-direction: row;
@@ -353,17 +353,17 @@ body.mv-fullvideo #controlbar {
   left: 6%;
   right: 6%;
   bottom: max(16px, 5%);
-  font-size: clamp(16px, 2.6vw, 30px);
+  font-size: clamp(19px, 3.1vw, 36px);
   line-height: 1.35;
 }
 .media.video .mv-subs:empty {
   display: none;
 }
 .mv-card .mv-subs {
-  height: calc(3 * 22px);
+  height: calc(3 * 26px);
   padding: 0 8px;
-  font-size: 16.5px;
-  line-height: 22px;
+  font-size: 20px;
+  line-height: 26px;
   color: var(--text);
 }
 /* 阶梯音柱：音频没有字幕可显示（.mv-nosubs，subtitles.mjs）时，选中即在字幕区显示；播放中逐格跳动，暂停、减少动态效果时静止成阶梯。
@@ -436,11 +436,11 @@ body.mv-fullvideo #controlbar {
 }
 /* 单文件模式（reader/single.css）：音频页占满一屏，卡片保持长条里的高度（AUDIO_H 减去上下内边距），在槽内居中。 */
 #reader.single-file .page.media.audio .mv-card {
-  height: 160px;
+  height: 172px;
 }
 .mv-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 94px;
+  grid-template-columns: minmax(0, 1fr) 106px;
   grid-template-rows: 22px auto 40px;
   align-content: center;
   gap: 6px 12px;
@@ -456,13 +456,13 @@ body.mv-fullvideo #controlbar {
 .mv-card > .mv-subs {
   grid-column: 1;
 }
-/* 小图：高度等于文件名行 + 间距 + 字幕区（22 + 6 + 66），正方形。 */
+/* 小图：高度等于文件名行 + 间距 + 字幕区（22 + 6 + 78），正方形。 */
 .mv-card > .mv-art {
   position: relative;
   grid-column: 2;
   grid-row: 1 / 3;
-  width: 94px;
-  height: 94px;
+  width: 106px;
+  height: 106px;
   border-radius: 10px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }

@@ -94,13 +94,17 @@ export function install(ctx) {
   ctx.on('select', pvSync);
   ctx.on('books', pvSync);
   ctx.on('lang', pvSync);
-  // 缩略图栏里的视频、音频：悬停 / 聚焦时显示文件详情框（media/filecard.mjs），取代提示。
+  // 缩略图栏里的视频、音频：悬停 / 聚焦时显示文件详情框（media/filecard.mjs），取代提示；浮出的缩略图栏淡入完成后才弹。
   const nav = document.getElementById('preview');
-  ctx.fileCard?.attach(nav, (target) => {
-    const node = target.closest('.page'),
-      book = ctx.current,
-      page = node && nav.contains(node) ? book?.pages[+node.dataset.n - 1] : null;
-    return page && page.name === node.dataset.name ? { el: node, book, page } : null;
-  });
+  ctx.fileCard?.attach(
+    nav,
+    (target) => {
+      const node = target.closest('.page'),
+        book = ctx.current,
+        page = node && nav.contains(node) ? book?.pages[+node.dataset.n - 1] : null;
+      return page && page.name === node.dataset.name ? { el: node, book, page } : null;
+    },
+    { ready: () => ctx.settled(panel) },
+  );
   ctx.overview = { thumbs, shelfmarks: shelfSheet };
 }

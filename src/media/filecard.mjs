@@ -1,30 +1,31 @@
 // 文件详情框（可复用）：视频、音频在列表里悬停或键盘聚焦时立即弹出，取代 title 提示。用于缩略图栏、全屏缩略图、书签面板、书架书签、
 // 全屏书签、选择起点（以及播放列表）。
-// 内容：文件名（不带路径）、类型、播放进度（上次播放位置 / 时长；正在播放时实时更新；不读文件，时长未知时只显示已知的部分、不画进度条）、
-// 一条进度条，条上画出该文件的全部书签与区段（进度条是 ctx.player.seekBar / paintBar，标记是 ctx.marks.drawBar，与播放器同一画法）。
-// 书签上弹出的（mark）：同一文件的各书签内容相同，只是这个书签在进度条上另有醒目的指针（.fc-pin，区段书签那一端则指在它的时间上），
+// 内容：文件名（不带路径，类型图标在首行开头，最多两行，放不下时省略中间、保留结尾：view.mjs 的 midLines / fitLines）、
+// 一条进度条，滑块在上次播放的位置（正在播放时为强调色、实时更新），条上画出该文件的全部书签与区段（进度条是 ctx.player.seekBar / paintBar，
+// 标记是 ctx.marks.drawBar，与播放器同一画法）；不读文件，时长未知时不画进度条。宽度固定（filecard.css），不随名称长短变化。
+// 书签上弹出的（mark）：同一文件的各书签内容相同，只是进度条上方另有一个朝下的三角（.fc-pin）指着这个书签的时间（区段书签那一端则指在它的时间上），
 // 它这一对标记高亮，并在最下一行显示它的时间和名称。
 // 不可交互（inert、不接收指针）、不挡住所指的格子（优先放在右侧，其次左侧、下方、上方），夹在窗口内；popover（top layer），在 <dialog> 之上；
 // 指针移开、焦点离开、按下指针即消失；所指的元素随滚动移动时跟着走，被移除或滚出窗口时消失。
+// 所在的面板还在淡入时不弹（attach 的 ready），淡入结束时指针 / 焦点仍在某项上再弹。
 //
 // 接口（ctx.fileCard）：
-// - attach(box, resolve)：在容器 box 上事件委托（适用于虚拟列表，容器只接一次）：指针移到、焦点进入 box 里的元素时调用 resolve(目标元素)，
+// - attach(box, resolve, {ready?})：在容器 box 上事件委托（适用于虚拟列表，容器只接一次）：指针移到、焦点进入 box 里的元素时调用 resolve(目标元素)，
 //   返回 {el, book, page, mark?} 即为 el 弹出（page 不是视频、音频时不弹；mark 为书签 {id, end}，end 为区段书签那一端），返回 null 则收起；
 //   指针离开 box、焦点移出 box 时收起。
+//   ready()：所在的面板是否已完全显示（浮出的面板淡入完成；固定停靠的始终为真，可用 ctx.settled(面板)）。为假时不弹（已弹出的收起），
+//   记着指针 / 焦点所在的元素；面板或其祖先的动画、过渡结束时自动复查，就绪时指针仍在 box 上（或焦点仍在 box 里）即补弹。
+//   返回 {recheck()}：面板用别的方式进入就绪状态（没有动画）时调用它补弹。
 // - show(el, {book, page, mark?})：为 el 弹出（列表自己管理选中项时用，如全屏界面里键盘移动的选中）；内容相同时不重画。
 // - hide()：收起。
 // - current()：当前所指的元素，没有为 null。
 // - within(窗口, {thumb?})：另一个窗口（画中画）里的详情框，接口同上（popover 建在那个文档里，按那个窗口的大小摆放）；窗口小到放不下时不弹出，
 //   退回元素上的 title 提示（完整路径）。thumb 为真时（只有画中画的播放列表用）详情框顶部另有一张缩略图：视频是缩略图栏的同一张画面
 //   （ctx.frames：已有的直接用，没有时按它的规则在空闲时生成，本次会话每个文件只请求一次），音频是它的图（art.mjs）。其他详情框不带图。
-import { extend } from '../core/lang.mjs';
 import { shownName, pageKind, clock } from '../core/model.mjs';
-import { midName } from '../reader/view.mjs';
+import { midLines, fitLines } from '../reader/view.mjs';
 import { audioArt } from './art.mjs';
 
-extend({
-  fcPlaying: ['Playing', '正在播放', '再生中', '재생 중'],
-});
 const GAP = 8,
   EDGE = 4,
   TICK = 250; // 正在播放时刷新进度的间隔（毫秒）
@@ -41,7 +42,6 @@ export function install(ctx) {
     let card = null,
       pic = null,
       head = null,
-      meta = null,
       parts = null,
       pin = null,
       note = null,
@@ -55,11 +55,10 @@ export function install(ctx) {
       card.inert = true;
       card.setAttribute('aria-hidden', 'true');
       head = make('div', 'fc-name');
-      meta = make('div', 'fc-meta');
       parts = ctx.player?.seekBar(() => null) ?? null;
       note = make('div', 'fc-mark');
       if (thumb) card.append((pic = make('div', 'fc-thumb')));
-      card.append(head, meta);
+      card.append(head);
       if (parts) {
         parts.bar.tabIndex = -1;
         pin = make('i', 'fc-pin');
@@ -88,6 +87,7 @@ export function install(ctx) {
       // 重新放进 top layer：之后才打开的对话框（全屏界面、选择起点）也盖不住它。
       if (card.matches(':popover-open')) card.hidePopover();
       card.showPopover();
+      fit();
       if (!place() && fallback) {
         hide();
         // 放不下：退回 title 提示（完整路径）。
@@ -103,6 +103,11 @@ export function install(ctx) {
       }
       clearInterval(timer);
       timer = setInterval(tick, TICK);
+    }
+    // 文件名按详情框的宽度截成至多两行（要在详情框显示之后测量）。
+    function fit() {
+      const n = head?.firstElementChild;
+      if (n) fitLines(n);
     }
     function hide() {
       cur = null;
@@ -125,12 +130,11 @@ export function install(ctx) {
       if (full && pic) picture(book, page, kind);
       if (full) {
         const name = shownName(page);
-        head.replaceChildren(icon(kind === 'audio' ? 'music' : 'film'), midName(name.slice(name.lastIndexOf('/') + 1)));
+        head.replaceChildren(
+          midLines(name.slice(name.lastIndexOf('/') + 1), { lead: icon(kind === 'audio' ? 'music' : 'film') }),
+        );
+        if (card.matches(':popover-open')) fit();
       }
-      meta.textContent =
-        t(kind === 'audio' ? 'mvAudio' : 'mvVideo') +
-        (d ? ' · ' + clock(now) + ' / ' + clock(d) : now > 0 ? ' · ' + clock(now) : '') +
-        (pos.playing ? ' · ' + t('fcPlaying') : '');
       card.classList.toggle('playing', !!pos.playing);
       if (parts) {
         parts.bar.hidden = !d;
@@ -211,23 +215,50 @@ export function install(ctx) {
       card.style.top = Math.round(Math.min(H - h - EDGE, Math.max(EDGE, y))) + 'px';
       return fits;
     }
-    // 委托：容器里的元素由 resolve 认出；离开容器即收起。
-    function attach(box, resolve) {
+    // 委托：容器里的元素由 resolve 认出；离开容器即收起。ready 为假（面板还在淡入）时不弹，就绪时补弹指针 / 焦点所在的那一项。
+    function attach(box, resolve, { ready = null } = {}) {
+      let over = null, // 指针所在的元素（离开 box 时清空）
+        inside = null; // 焦点所在的元素（焦点移出 box 时清空）
       const pick = (target) => {
+        if (ready && !ready()) {
+          if (cur?.box === box) hide();
+          return;
+        }
         const info = target?.nodeType === 1 ? resolve(target) : null;
         if (info?.el && isMedia(info.page)) show(info.el, info, box);
         else if (cur?.box === box) hide();
       };
+      const recheck = () => {
+        if (cur?.box === box || (ready && !ready())) return;
+        const target = over?.isConnected && box.contains(over) ? over : inside?.isConnected ? inside : null;
+        if (target) pick(target);
+      };
       box.addEventListener('pointerover', (e) => {
-        if (e.pointerType !== 'touch') pick(e.target);
+        if (e.pointerType === 'touch') return;
+        over = e.target;
+        pick(over);
       });
       box.addEventListener('pointerleave', () => {
+        over = null;
         if (cur?.box === box) hide();
       });
-      box.addEventListener('focusin', (e) => pick(e.target));
-      box.addEventListener('focusout', (e) => {
-        if (cur?.box === box && !box.contains(e.relatedTarget)) hide();
+      box.addEventListener('focusin', (e) => {
+        inside = e.target;
+        pick(inside);
       });
+      box.addEventListener('focusout', (e) => {
+        if (box.contains(e.relatedTarget)) return;
+        inside = null;
+        if (cur?.box === box) hide();
+      });
+      // 面板（box 或它的祖先）的进场动画、过渡结束即复查。
+      if (ready) {
+        const settle = (e) => {
+          if ((over || inside) && e.target.nodeType === 1 && e.target.contains(box)) recheck();
+        };
+        for (const type of ['animationend', 'transitionend']) doc.addEventListener(type, settle, true);
+      }
+      return { recheck };
     }
     // 按下指针（点击跳转、拖动滚动）即收起；滚动时跟着所指的元素走（每帧至多一次）。
     doc.addEventListener('pointerdown', hide, true);

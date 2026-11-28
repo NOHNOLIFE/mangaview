@@ -231,6 +231,11 @@ try {
   );
   assert.equal(await js(`document.querySelectorAll('.mv-subs-own').length`), 0, 'No fallback container');
   assert.match(box.bg, /^rgba\(0, 0, 0, 0\.\d+\)$/);
+  // 字号（比早先的大约 20%）：页内视频 clamp(19px, 3.36vw, 40px)。
+  const vfont = await js(
+    `(()=>{const s=getComputedStyle(node('01 clip.webm').querySelector('.mv-cue'));return [parseFloat(s.fontSize),innerWidth];})()`,
+  );
+  assert.ok(Math.abs(vfont[0] - Math.min(40, Math.max(19, vfont[1] * 0.0336))) < 0.6, 'Video subtitle size: ' + vfont);
   await shot('subs-video');
   await js(`seekTo('01 clip.webm',2.6)`);
   assert.equal(await js(`cue('01 clip.webm')`), 'L1\nL2\nL3\nL4\nL5');
@@ -313,6 +318,13 @@ try {
     );
   const oneLine = await audioBox();
   assert.deepEqual([oneLine.inside, oneLine.lines, oneLine.own], [true, 1, true], JSON.stringify(oneLine));
+  // 音频卡片的字幕：20px 字、26px 行高，3 行正好放满字幕区。
+  assert.deepEqual(
+    await js(
+      `(()=>{const n=node('02 song.wav'),s=getComputedStyle(n.querySelector('.mv-cue'));return [parseFloat(s.fontSize),parseFloat(s.lineHeight),n.querySelector('.mv-card>.mv-subs').getBoundingClientRect().height];})()`,
+    ),
+    [20, 26, 78],
+  );
   await js(`node('02 song.wav').querySelector('.mv-cue').textContent='L1\\nL2\\nL3\\nL4\\nL5'`);
   const fiveLines = await audioBox();
   assert.deepEqual(

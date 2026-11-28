@@ -83,7 +83,7 @@ export function safe(fn) {
         }
       });
 }
-// 浮动面板淡出后再隐藏，鼠标快速划过时不会一闪；淡出途中再次打开会直接取消淡出。
+// 浮动面板淡出后再隐藏，鼠标快速划过时不会一闪；淡出途中再次打开会直接取消淡出（淡入是各面板自己的进场动画）。
 export function fade(el, show) {
   if (show) {
     clearTimeout(el.fadeTimer);
@@ -99,6 +99,10 @@ export function fade(el, show) {
   }, 170);
 }
 export const showing = (el) => !el.hidden && !el.classList.contains('leaving');
+// 浮动面板已完全显示：可见、不在淡出，自身的进场动画 / 过渡已结束（固定停靠、没有动画的面板显示即为真）。
+// 面板里的悬停提示（文件详情框）等它为真才弹出，免得面板还没显示完整就先单独弹出来。
+export const settled = (el) =>
+  showing(el) && !el.getAnimations().some((a) => a.playState === 'running' || a.playState === 'pending');
 export async function copy(value) {
   await navigator.clipboard.writeText(value);
   notice('copied');

@@ -366,7 +366,18 @@ try {
     ['hidden', 'visible', true],
     'Row buttons show on hover in place ' + r0[1] + r1[1],
   );
-  // 悬停显示文件详情框（建在画中画窗口的文档里），不设 title。
+  // 悬停显示文件详情框（建在画中画窗口的文档里），不设 title。列表完全显示（.revealed）之前不弹；
+  // 淡入结束时指针仍在该项上，这时补弹（不需要再移动指针）。
+  await delay(300);
+  assert.deepEqual(
+    await js(`[pq('.pip-side').classList.contains('revealed'),!!D().querySelector('.fc:popover-open')]`),
+    [false, false],
+    'No file card before the list is fully shown',
+  );
+  await js(
+    `pq('.pip').dispatchEvent(new (W().PointerEvent)('pointermove',{bubbles:true,pointerType:'mouse',clientX:W().innerWidth-2,clientY:40}))`,
+  );
+  await wait(() => js(`pq('.pip-side').classList.contains('revealed')`), 'the list is fully shown');
   await wait(() => js(`!!D().querySelector('.fc:popover-open')`), 'file card in the window');
   assert.deepEqual(
     await js(
@@ -374,6 +385,7 @@ try {
     ),
     ['02 song.wav', '', false],
   );
+  await js(`pq('.pip').dispatchEvent(new (W().PointerEvent)('pointerleave',{pointerType:'mouse'}))`);
   await js(`rowOf('02 song.wav').querySelector('[data-id="locate"]').click()`);
   await wait(() => js(`bookTitle.textContent==='Alpha'&&!!node('02 song.wav')`), 'locate switches the book');
   await wait(
