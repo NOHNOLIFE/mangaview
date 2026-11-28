@@ -1,4 +1,4 @@
-import { at, point, offsets, shownName, splitTail, pageKind, videoWidth } from '../core/model.mjs';
+import { at, point, offsets, shownName, stem, splitTail, pageKind, videoWidth } from '../core/model.mjs';
 import {
   pageKey,
   fileStamp,
@@ -308,6 +308,24 @@ export function midName(name) {
   head.textContent = a;
   el.append(head, b);
   return el;
+}
+// 一个文件的文件名（文件栏、画中画标题行共用，两处同一表现）：只显示最末一段、不带扩展名，过长省略中间（midName），完整路径在 title。
+// locate 给出时是按钮（.name-btn，style.css：手形指针，悬停 / 键盘聚焦高亮，点击或 Enter 调用 locate，文字不可选中）；
+// 否则是可选中的文字。
+export function fileName(page, locate) {
+  const full = shownName(page),
+    n = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
+  n.title = full;
+  n.dataset.nodrag = '';
+  if (!locate) return n;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'name-btn';
+  b.title = full;
+  b.dataset.nodrag = '';
+  b.append(n);
+  b.addEventListener('click', () => locate());
+  return b;
 }
 
 export class Reader {

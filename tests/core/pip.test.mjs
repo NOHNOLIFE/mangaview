@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { entry, span, centerTop, revealTop, listRows } from '../../src/core/pip.mjs';
+import { entry, span, centerTop, revealTop, listRows, pinResize, SIDE, DOCK_MIN } from '../../src/core/pip.mjs';
 
 test('入口：视频、音频成为当前曲目并在画中画显示，已在画中画的当前曲目再按即关闭；图片只开 / 关窗口', () => {
   assert.equal(entry({ open: false, kind: 'video' }), 'show', 'Opens the window with the file');
@@ -63,4 +63,41 @@ test('播放列表的行：跨多本书时每段连续的同一本书前有一�
     [1, '-', 2, '-'],
     'Custom book key',
   );
+});
+
+test('切换固定时窗口尺寸的变化：内容区保持不变，列表只在会停靠时计入宽度', () => {
+  assert.deepEqual(pinResize({ on: true, width: 480, height: 480, side: 220, dock: 112, dockMin: 420 }), {
+    dw: 220,
+    dh: 112,
+    width: 700,
+    height: 592,
+  });
+  assert.deepEqual(
+    pinResize({ on: false, width: 700, height: 592, side: 220, dock: 112, dockMin: 420 }),
+    { dw: -220, dh: -112, width: 480, height: 480 },
+    'Unpinning gives it back',
+  );
+  assert.deepEqual(
+    pinResize({ on: true, width: 150, height: 300, side: 220, dock: 76, dockMin: 420 }),
+    { dw: 0, dh: 76, width: 150, height: 376 },
+    'Still too narrow to dock: the list floats, the width stays',
+  );
+  assert.deepEqual(
+    pinResize({ on: false, width: 360, height: 400, side: 220, dock: 112, dockMin: 420 }),
+    { dw: 0, dh: -112, width: 360, height: 288 },
+    'The list was floating: only the height changes',
+  );
+  assert.equal(
+    pinResize({ on: true, width: 200, height: 200, side: 220, dock: 0, dockMin: 420 }).dw,
+    220,
+    'Exactly wide enough',
+  );
+  assert.deepEqual(pinResize({ on: false, width: 10, height: 10, dock: 40, side: 220, dockMin: 420 }), {
+    dw: 0,
+    dh: -40,
+    width: 10,
+    height: 0,
+  });
+  assert.equal(pinResize({ on: true, width: 480, height: 480 }).dw, SIDE, 'Defaults');
+  assert.ok(DOCK_MIN > SIDE);
 });

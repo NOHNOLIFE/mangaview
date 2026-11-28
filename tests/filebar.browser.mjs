@@ -641,14 +641,59 @@ try {
   }
   await size(1280);
 
-  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：「定位」「画中画」（按 order 排列，没有「停止」）；与文件名同在一行。
+  // ---- 标题行右端的按钮区（ctx.fileBar.addHead）：只有「画中画」（没有「定位」「停止」）；与文件名同在一行。
   await showBar();
   assert.deepEqual(
     await js(
       `(()=>{const h=filebar.querySelector('.fb-head-tools'),r=h.getBoundingClientRect(),n=filebar.querySelector('.fb-name').getBoundingClientRect();return [h.parentElement.matches('.fb-head'),h.previousElementSibling.matches('.fb-name'),[...h.children].map(b=>b.dataset.head+':'+b.getAttribute('aria-label')),Math.abs((r.top+r.bottom)/2-(n.top+n.bottom)/2)<2,r.right<=filebar.getBoundingClientRect().right];})()`,
     ),
-    [true, true, ['locate:Locate', 'pip:Picture-in-picture'], true, true],
+    [true, true, ['pip:Picture-in-picture'], true, true],
   );
+
+  // ---- 文件名：视频、音频的文件名是按钮（与画中画的标题行同一表现）：手形指针、悬停 / 聚焦高亮、文字不可选中，点击或 Enter 让主窗口定位到这个文件；
+  // 图片的文件名是普通文字（可选中、不可点）。
+  const nameLook = () =>
+    js(
+      `(()=>{const b=filebar.querySelector('.fb-name > .name-btn'),t=filebar.querySelector('.fb-name > .mid-name');return b?{btn:true,cursor:getComputedStyle(b).cursor,select:getComputedStyle(b.querySelector('.mid-name')).userSelect,bg:getComputedStyle(b).backgroundColor,title:b.title,mid:Math.abs((b.getBoundingClientRect().left+b.getBoundingClientRect().right)/2-(filebar.querySelector('.fb-head').getBoundingClientRect().left+filebar.querySelector('.fb-head').getBoundingClientRect().right)/2)<2}:{btn:false,select:getComputedStyle(t).userSelect,cursor:getComputedStyle(t).cursor};})()`,
+    );
+  let nl = await nameLook();
+  assert.deepEqual(
+    [nl.btn, nl.cursor, nl.select, nl.title, nl.mid],
+    [true, 'pointer', 'none', LONG, true],
+    'A media name is a button: ' + JSON.stringify(nl),
+  );
+  await hover('#filebar .fb-name > .name-btn');
+  await wait(async () => (await nameLook()).bg === 'rgba(255, 255, 255, 0.08)', 'hover highlight');
+  // 播放它，滚走：文件栏仍显示它；点文件名定位回来（居中），不中断播放。
+  await tap('#filebar .fb-play');
+  await wait(() => js(`look(${JSON.stringify(LONG)}).playing`), 'playing');
+  const centred = (name) =>
+    js(
+      `(()=>{const n=node(${JSON.stringify(name)});return !!n&&Math.abs(n.offsetTop+n.offsetHeight/2-reader.scrollTop-reader.clientHeight/2)<2;})()`,
+    );
+  await js(`toPage('07.svg')`);
+  await showBar();
+  await wait(() => js(`fb().name===${JSON.stringify(STEM)}`), 'still the playing video');
+  await tap('#filebar .fb-name > .name-btn');
+  await wait(() => centred(LONG), 'clicking the name locates the file');
+  assert.equal(await js(`el(${JSON.stringify(LONG)}).paused`), false, 'Locating does not interrupt');
+  // 键盘：聚焦后 Enter 同样定位。
+  await js(`toPage('07.svg')`);
+  await showBar();
+  await wait(() => js(`fb().name===${JSON.stringify(STEM)}`), 'the video again');
+  await js(`filebar.querySelector('.fb-name > .name-btn').focus()`);
+  await key('Enter', 'Enter', 13, { text: '\r' });
+  await wait(() => centred(LONG), 'Enter on the name locates the file');
+  await js(`el(${JSON.stringify(LONG)}).pause();reader.focus()`);
+  // 图片：普通文字，可选中、不是按钮。
+  await js(`toPage('07.svg')`);
+  await showBar();
+  await wait(() => js(`fb().name==='07'`), 'the image');
+  nl = await nameLook();
+  assert.deepEqual([nl.btn, nl.select, nl.cursor], [false, 'text', 'text'], 'An image name is plain text');
+  await js(`toPage(${JSON.stringify(LONG)})`);
+  await showBar();
+  await wait(() => js(`fb().name===${JSON.stringify(STEM)}`), 'back to the video');
 
   // ---- 不显示时不更新：收起后时间不再跟着走，显示时立即取当前值。
   await tap('#filebar .fb-play');
@@ -663,7 +708,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: file bar above the control bar zones in two rows (title without extension, full path in tooltip; playback row with a wide progress bar), three fixed places (image: bookmark / section / cover; video: bookmark / section / ⋯ with cover and fullscreen on hover; audio: bookmark / section), section button in the normal colour, subtitles button in the control bar for the shown media, current file = selected media else the centre page, bookmark from the file bar and hold D on the selected media, dimming (off-centre videos darker, centre / hovered videos as before, selected not dimmed), stepped bars for audio without subtitles (playing / paused / reduced motion), rewind / fast-forward on the time (click 2 s, hold like A / D, keyboard), unplayable media, set as cover, bookmark jump selects, video fullscreen centred and covering the window (also a tall video with docked thumbnails) and back to the reading position, no overflow at 1280–360px, no updates while hidden',
+    'PASS: file bar above the control bar zones in two rows (title without extension, full path in tooltip, a locate button for media; playback row with a wide progress bar), three fixed places (image: bookmark / section / cover; video: bookmark / section / ⋯ with cover and fullscreen on hover; audio: bookmark / section), section button in the normal colour, subtitles button in the control bar for the shown media, current file = selected media else the centre page, bookmark from the file bar and hold D on the selected media, dimming (off-centre videos darker, centre / hovered videos as before, selected not dimmed), stepped bars for audio without subtitles (playing / paused / reduced motion), rewind / fast-forward on the time (click 2 s, hold like A / D, keyboard), unplayable media, set as cover, bookmark jump selects, video fullscreen centred and covering the window (also a tall video with docked thumbnails) and back to the reading position, no overflow at 1280–360px, no updates while hidden',
   );
 } finally {
   if (errors.length) console.error('Page errors:', errors);

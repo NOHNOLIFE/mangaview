@@ -1,4 +1,4 @@
-// 画中画面板标题行的「收藏列表」按钮与菜单（pipview.mjs 装配；数据是 ctx.media.queue.favorites，见 queue.mjs）。
+// 画中画面板按钮行最右的「收藏列表」按钮与菜单（pipview.mjs 装配；数据是 ctx.media.queue.favorites，见 queue.mjs）。
 // - 按钮点击打开 / 关闭菜单（popover，建在面板所在的文档里；点菜单外、Esc 收起）。菜单贴着按钮弹出（上方放得下放上方，否则下方），
 //   右沿与按钮对齐、夹在窗口内，列表长时在菜单里滚动。
 // - 第一项「保存当前列表」：点击后就地变成名称输入框（默认名 favorites.defaultName()），回车保存、Esc 取消；当前列表没有可保存的项时不可用。
@@ -6,7 +6,7 @@
 //   每个有「改名」（就地编辑，回车保存、Esc 取消）和「删除」。没有收藏时是一句说明。
 // - 菜单里 ↑ ↓ 在按钮之间移动焦点；菜单里的按键不传到面板的按键处理（不会切换播放、移动列表的选中项）。
 // - 收藏或列表变了（'queue' 的 'favorites' / 'list'）时，菜单开着且没有在编辑名称就重画。
-// favorites(ctx, {root, button, onClose}) → {menu, refresh(), open(), close()}；onClose 在菜单收起时调用（操作面板据此决定是否淡出）。
+// favorites(ctx, {root, button, onClose}) → {menu, refresh(), open(), close()}；onClose 在菜单收起时调用（功能栏据此决定是否淡出）。
 import { extend } from '../core/lang.mjs';
 
 extend({
