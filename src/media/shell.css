@@ -99,7 +99,8 @@ body.mv-fullvideo #controlbar {
   overflow: hidden;
   pointer-events: none;
 }
-/* 画面在外部容器里（画中画）时页内的占位（track.mjs）：视频盖住整个画面，音频占卡片的字幕区；点它收回页内。 */
+/* 画面在外部容器里（画中画）时页内的占位（track.mjs）：视频盖住整个画面，底下是搬走那一刻的一帧或缩略图（.mv-still，压暗），
+   说明文字在近乎不透明的深色底上；音频占卡片的字幕区（没有画面）。点它只收回页内。 */
 .mv-away {
   appearance: none;
   margin: 0;
@@ -120,6 +121,14 @@ body.mv-fullvideo #controlbar {
   -webkit-user-select: none;
   user-select: none;
 }
+.mv-away-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
 .mv-away .i {
   width: 28px;
   height: 28px;
@@ -136,14 +145,32 @@ body.mv-fullvideo #controlbar {
   width: 100%;
   height: 100%;
   z-index: 1;
+  overflow: hidden;
   background: #000;
+}
+.media.video > .mv-away .mv-away-text {
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+}
+.mv-away > .mv-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: brightness(0.4);
+  pointer-events: none;
 }
 .mv-card > .mv-away {
   grid-column: 1;
+  height: calc(3 * 22px);
+}
+.mv-card > .mv-away .mv-away-text {
   flex-direction: row;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 2px 8px;
-  height: calc(3 * 20px);
 }
 .mv-card > .mv-away .i {
   width: 20px;
@@ -326,17 +353,17 @@ body.mv-fullvideo #controlbar {
   left: 6%;
   right: 6%;
   bottom: max(16px, 5%);
-  font-size: clamp(14px, 2.2vw, 26px);
+  font-size: clamp(16px, 2.6vw, 30px);
   line-height: 1.35;
 }
 .media.video .mv-subs:empty {
   display: none;
 }
 .mv-card .mv-subs {
-  height: calc(3 * 20px);
+  height: calc(3 * 22px);
   padding: 0 8px;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 16.5px;
+  line-height: 22px;
   color: var(--text);
 }
 /* 阶梯音柱：音频没有字幕可显示（.mv-nosubs，subtitles.mjs）时，选中即在字幕区显示；播放中逐格跳动，暂停、减少动态效果时静止成阶梯。
@@ -409,11 +436,11 @@ body.mv-fullvideo #controlbar {
 }
 /* 单文件模式（reader/single.css）：音频页占满一屏，卡片保持长条里的高度（AUDIO_H 减去上下内边距），在槽内居中。 */
 #reader.single-file .page.media.audio .mv-card {
-  height: 154px;
+  height: 160px;
 }
 .mv-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
+  grid-template-columns: minmax(0, 1fr) 94px;
   grid-template-rows: 22px auto 40px;
   align-content: center;
   gap: 6px 12px;
@@ -429,13 +456,13 @@ body.mv-fullvideo #controlbar {
 .mv-card > .mv-subs {
   grid-column: 1;
 }
-/* 小图：高度等于文件名行 + 间距 + 字幕区（22 + 6 + 60），正方形。 */
+/* 小图：高度等于文件名行 + 间距 + 字幕区（22 + 6 + 66），正方形。 */
 .mv-card > .mv-art {
   position: relative;
   grid-column: 2;
   grid-row: 1 / 3;
-  width: 88px;
-  height: 88px;
+  width: 94px;
+  height: 94px;
   border-radius: 10px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }

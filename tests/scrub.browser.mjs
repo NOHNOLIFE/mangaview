@@ -200,6 +200,17 @@ try {
   const at = (name, t) =>
     wait(() => js(`Math.abs(el(${JSON.stringify(name)}).currentTime-${t})<0.05`), name + ' at ' + t);
   const WHOLE = /^[+−]\d+:\d\d → \d+:\d\d$/;
+  // 选中（成为当前曲目）而不播放：点一下播放，再点一下暂停。
+  const choose = async (name, sel = '') => {
+    const s = '#reader .page[data-name="' + name + '"]' + (sel ? ' ' + sel : '');
+    await tap(s);
+    await wait(() => js(`!el(${JSON.stringify(name)}).paused`), name + ' plays');
+    await tap(s);
+    await wait(
+      () => js(`el(${JSON.stringify(name)}).paused&&node(${JSON.stringify(name)}).classList.contains('selected')`),
+      name + ' paused, selected',
+    );
+  };
 
   // ---- 视频画面上横向拖动：拖动中只显示提示（整秒），不定位、不滚动；松手定位；没有触发点击（不播放）。
   // 8 秒的视频：拖过整个画面宽度 ≈ 时长的 1/4、至少 30 秒、不超过时长 → 8 秒；拖 2.2 / 8 的宽度即 +2 秒。
@@ -209,7 +220,23 @@ try {
   await at(CLIP, 1);
   let [x, y, w] = await mid(CLIP);
   const top = await js('reader.scrollTop');
-  let texts = await drag(x, y, path((w * 2.2) / 8, 3), false);
+  // 不是当前曲目：横向拖动没有效果（不定位、没有提示、不算点击、不滚动）。
+  let texts = await drag(x, y, path((w * 2.2) / 8, 3));
+  await delay(300);
+  assert.deepEqual(
+    [
+      texts.filter(Boolean).length,
+      await js(`el(${JSON.stringify(CLIP)}).currentTime`),
+      await js(`el(${JSON.stringify(CLIP)}).paused`),
+      await js('reader.scrollTop'),
+    ],
+    [0, 1, true, top],
+    'Not the current track: a sideways drag does nothing',
+  );
+  await choose(CLIP);
+  await js(`el(${JSON.stringify(CLIP)}).currentTime=1`);
+  await at(CLIP, 1);
+  texts = await drag(x, y, path((w * 2.2) / 8, 3), false);
   assert.ok(
     texts.filter(Boolean).every((s) => WHOLE.test(s)),
     'Whole seconds only: ' + JSON.stringify(texts),
@@ -255,6 +282,7 @@ try {
   // ---- 音频卡片的字幕区（没有字幕时是空白区）：同样横向拖动定位；9 秒的音频：拖 3.2 / 9 个卡片宽即 +3 秒。
   await js(`toPage(${JSON.stringify(SONG)})`);
   await ready(SONG);
+  await choose(SONG, '.mv-head');
   await js(`el(${JSON.stringify(SONG)}).currentTime=1`);
   await at(SONG, 1);
   [x, y, w] = await mid(SONG, '.mv-subs');
@@ -282,6 +310,7 @@ try {
     Document.prototype.exitFullscreen=function(){fs=null;setTimeout(change);return Promise.resolve();};})()`);
   await js(`toPage(${JSON.stringify(CLIP)})`);
   await ready(CLIP);
+  await choose(CLIP); // 下方的音频（暂停的当前曲目）中线仍在视窗内时文件栏显示的是它：先选中视频
   await js(`el(${JSON.stringify(CLIP)}).currentTime=1`);
   await at(CLIP, 1);
   await showBar();
@@ -312,7 +341,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: horizontal drag seeks on the video picture and the audio card subtitle area (hint in whole seconds while dragging, seek on release, no scroll / click / fling, clamped to the duration, Esc cancels), vertical drag scrolls, other card areas do not seek, fullscreen: horizontal seeks and vertical does nothing',
+    "PASS: horizontal drag does nothing on media other than the current track, seeks on the current track's video picture and the audio card subtitle area (hint in whole seconds while dragging, seek on release, no scroll / click / fling, clamped to the duration, Esc cancels), vertical drag scrolls, other card areas do not seek, fullscreen: horizontal seeks and vertical does nothing",
   );
 } finally {
   if (errors.length) console.error('Page errors:', errors);

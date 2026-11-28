@@ -246,7 +246,7 @@ try {
   const bar = await js(
     `(()=>{const n=node('04 song.wav'),r=n.querySelector('.mv-card').getBoundingClientRect(),R=reader.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(n.getBoundingClientRect().height),left:Math.round(r.left-R.left),name:n.querySelector('.mv-head').textContent,time:n.querySelector('.mv-time').textContent};})()`,
   );
-  assert.deepEqual(bar, { w: 776, h: 170, left: 12, name: '04 song', time: '0:00 / 0:09' }); // 标题不带扩展名
+  assert.deepEqual(bar, { w: 776, h: 176, left: 12, name: '04 song', time: '0:00 / 0:09' }); // 标题不带扩展名
   await shot('media-audio');
 
   // 壳：播放 / 暂停；点击进度条定位；时间显示不推动其他控件。

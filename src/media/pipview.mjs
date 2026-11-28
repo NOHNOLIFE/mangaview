@@ -111,8 +111,8 @@ export function install(ctx) {
         dragScroll(win);
       }
     }
-    // 播放器：有当前曲目时是它（ctx.media.target() 即当前曲目），否则为 null。
-    const tp = () => (Q().track() ? (M().target()?.player ?? null) : null);
+    // 播放器：当前曲目的（与主窗口的当前文件无关），没有为 null。
+    const tp = () => M().track?.() ?? null;
 
     // ---- DOM
     // 按钮：鼠标点击不夺焦点（之后按空格仍是播放 / 暂停，不会再点一次它）；键盘仍可 Tab 聚焦。
@@ -386,7 +386,7 @@ export function install(ctx) {
       } else if (['arrowleft', 'arrowright', 'a', 'd'].includes(low)) {
         if (!e.repeat && !holding && Q().track()) {
           holding = e.code;
-          ctx.pageHold?.start(low === 'arrowleft' || low === 'a' ? -1 : 1);
+          ctx.pageHold?.start(low === 'arrowleft' || low === 'a' ? -1 : 1, tp());
         }
       } else if (low === 'arrowup' || low === 'arrowdown') {
         const d = low === 'arrowup' ? -1 : 1,

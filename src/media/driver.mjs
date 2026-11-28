@@ -3,7 +3,7 @@
 //   开始播放时它成为当前曲目（p.by = 'user'）；它不在播放列表里时列表换成它所在的书（queue.mjs ensure），已在列表里的不改列表。
 //   自动滚动运行中：点的是自动滚动正在播的那个，则暂停它并停止自动滚动；是别的媒体（不是当前曲目），则停止自动滚动并后台播放它；
 //   是与自动滚动无关的当前曲目（漫画模式下，或混合模式尚未遇到媒体时）则只播放 / 暂停它，不影响自动滚动。
-//   画面在外部容器里的当前曲目在阅读区被点击：画面收回页内并播放。
+//   新的曲目的画面显示在哪里按上一次的明确选择（track.mjs）；当前曲目只播放 / 暂停，显示位置不变（页内占位自己负责收回）。
 // - 'media' 模式的驱动器（影音模式的自动滚动）：开始 = 当前曲目在本书且中线在视窗内就播放它，否则播放视窗内离中心最近的媒体，
 //   都没有时从视窗顶部所在的页往后找第一个媒体，滚到居中再播放；停止 = 暂停自动滚动播放的媒体。播完之后按页序与循环切换（order.mjs finished）。
 //   running 与自动滚动播放的媒体（p.by === 'scroll'）保持一致：它开始播放即报告运行，暂停、播完不再继续、打不开时报告停止
@@ -11,7 +11,7 @@
 // - 混合模式的驱动器（reader/engine.mjs）经 ctx.media.run 播放、暂停媒体并查看它的状态；它播放的媒体成为当前曲目（p.by = 'scroll'），
 //   不读写播放列表。翻屏对齐经 ctx.media.align（autoplay.mjs）。
 // - 当前文件（track.mjs target）变化时派发 ctx.emit('media', 'current')；当前曲目变了另派发 'track'（track.mjs），播放 / 暂停派发 'state'，
-//   当前文件的时间变化派发 'time'（媒体元素自己的事件经 S.notify 转来，元素停放或在外部容器里时照样派发）。
+//   当前文件或当前曲目的时间变化派发 'time'（媒体元素自己的事件经 S.notify 转来，元素停放或在外部容器里时照样派发）。
 // - 上一个 / 下一个媒体（总控栏）：自动滚动运行中由自动滚动切换（滚到居中播放）；否则有当前曲目时在播放列表里切换（不跳转，保持播放或暂停，queue.mjs）；
 //   都不是时在本书里按页序定位到上一个 / 下一个媒体并居中（两端相接），不播放、不选中。
 // - 播放速率 ctx.transport.playRate 作用于所有媒体元素（含之后加载的），变速不变调（preservesPitch 保持默认）。
@@ -36,7 +36,7 @@ export function install(ctx, S) {
     align = (...a) => S.align(...a);
   const on = (p) => (p.state === 'ready' && !p.el.paused) || p.wantPlay;
   const busy = () => S.all().some((p) => p.by === 'scroll' && on(p)) || (!!S.queued?.play && S.queued.by === 'scroll');
-  const playerOf = (el) => players.get(el?.closest?.('.page'));
+  const playerOf = (el) => S.playerOf(el?.closest?.('.page'));
   const pause = (p) => {
     if (p.wantPlay) p.wantPlay = false;
     else if (p.state === 'ready' && !p.el.paused) p.el.pause();
@@ -98,10 +98,7 @@ export function install(ctx, S) {
       return;
     }
     if (tr.running && p !== S.track) tr.stop();
-    if (from === 'page' && p === S.track && S.stage.where() === 'out') {
-      S.stage.back();
-      if (on(p)) return;
-    } else if (on(p)) {
+    if (on(p)) {
       pause(p);
       return;
     }
@@ -192,7 +189,7 @@ export function install(ctx, S) {
       changed();
       ctx.emit('media', 'state');
     } else if (type === 'time' || type === 'durationchange') {
-      if (p === marked) ctx.emit('media', 'time');
+      if (p === marked || p === S.track) ctx.emit('media', 'time');
     } else if (type === 'meta') applyRate(p);
   };
   ctx.on('transport', (key) => {

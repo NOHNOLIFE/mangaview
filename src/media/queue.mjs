@@ -39,7 +39,7 @@
 //   rename(id, name)（name 为空时不改）、remove(id)：返回是否改了。
 // 事件：ctx.emit('queue', key)：'list' 列表的内容或项的状态变了（替换、追加、移除、过滤变化、列表里的书的书签或页变化、书被删除）；
 // 'scope' / 'types' / 'marked' 偏好变了（本窗口或别的窗口）；'favorites' 收藏列表变了（本窗口或别的窗口）。
-// 当前曲目变了是 ctx.emit('media', 'track')，播放 / 暂停 'state'，当前曲目的时间 'time'（当前曲目即文件栏显示的文件），画面的显示位置 'display'。
+// 当前曲目变了是 ctx.emit('media', 'track')，播放 / 暂停 'state'，当前曲目的时间 'time'（当前曲目不一定是文件栏显示的文件，见 core/selection.mjs fileTarget），画面的显示位置 'display'。
 import { extend } from '../core/lang.mjs';
 import { pageKind } from '../core/model.mjs';
 import {
