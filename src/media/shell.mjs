@@ -12,9 +12,11 @@
 // 没有字幕可显示（.mv-nosubs，subtitles.mjs）的音频选中时显示，播放中跳动（纯 CSS，不分析音频）。
 // 只有按钮、进度条、可选中的文件名带 data-nodrag，面板的空白处可以拖动滚动正文。
 // 音频卡片：纯色底，右侧一张方形小图（像内嵌的专辑图，art.mjs：书的当前封面，没有封面时按文件名配色的占位图；封面换了已显示的卡片跟着变）。
-// 视频全屏：整个页面进入全屏（已在全屏时不再请求），该视频成为选中媒体、在正文里居中（窗口尺寸变化时仍在虚拟列表的可见范围里），
-// 并铺满窗口居中显示（.mv-full：不受正文里的宽度上限影响，盖住其他页），其余照常：鼠标到底缘弹出文件栏和总控栏，快捷键、字幕照常；
-// 全屏期间滚轮不滚动正文，退出后回到进入前的阅读位置。
+// 视频全屏：整个页面进入全屏（已在全屏时不再请求），该视频成为选中媒体、画面在页内（在画中画里的先收回），在正文里居中（窗口尺寸变化时
+// 仍在虚拟列表的可见范围里；不在正文里的——别的书里的——临时挂到阅读区里，track.mjs lift），并铺满窗口居中显示（.mv-full：不受正文里的
+// 宽度上限影响，盖住其他页），其余照常：鼠标到底缘弹出文件栏和总控栏，快捷键、字幕照常；全屏期间滚轮不滚动正文，退出后回到进入前的阅读位置。
+// 全屏跟随当前曲目（follow，track.mjs 换曲目时调用）：全屏期间当前曲目换了（播完接续、上一个 / 下一个、列表点选），新曲目是视频时
+// 全屏画面换成它（不重新请求页面全屏，退出时仍回到最初进入前的位置），是音频（或没有曲目、播不了）时退出全屏。
 import { extend } from '../core/lang.mjs';
 import { shownName, stem, clock } from '../core/model.mjs';
 import { midName } from '../reader/view.mjs';
@@ -376,12 +378,9 @@ export function install(ctx, S) {
     if (S.full) drop();
     if (p.kind !== 'video' || p.state === 'failed') return;
     back = ctx.view.anchor();
-    S.select(p, 'press'); // 全屏的视频即选中媒体（不压暗、没有大播放键）
-    // 先在正文里居中：窗口变成全屏尺寸、正文重排后它仍在虚拟列表的可见范围里（不被卸载），退出时回到 back。
-    const i = p.book === ctx.current ? p.book.pages.indexOf(p.page) : -1;
-    if (i >= 0) ctx.view.jump({ i, f: 0.5 });
-    S.full = p;
-    p.node.classList.add('mv-full');
+    if (S.track === p && S.stage.where() === 'out') S.stage.back(); // 在画中画里的画面先收回页内
+    S.select(p, 'press', { page: true }); // 全屏的视频即选中媒体（不压暗、没有大播放键），画面在页内
+    enter(p);
     document.body.classList.add('mv-fullvideo');
     own = !document.fullscreenElement;
     if (own)
@@ -389,6 +388,24 @@ export function install(ctx, S) {
         own = false;
         if (S.full === p) leaveFull();
       });
+    changedFull();
+  }
+  // 铺满显示 p：先在正文里居中（窗口变成全屏尺寸、正文重排后它仍在虚拟列表的可见范围里，不被卸载），退出时回到 back；
+  // 不在正文里的（别的书里、还没画出来的）临时挂到阅读区里。
+  function enter(p) {
+    S.full = p;
+    const i = p.book === ctx.current ? p.book.pages.indexOf(p.page) : -1;
+    if (i >= 0) ctx.view.jump({ i, f: 0.5 });
+    if (!S.hosted(p)) S.lift(p);
+    p.node.classList.add('mv-full');
+  }
+  // 当前曲目从 old 换成 p（track.mjs setTrack）：old 正在全屏时，视频接着全屏显示，其余退出全屏。
+  function follow(old, p) {
+    if (!S.full || S.full !== old || p === old) return;
+    if (p?.kind !== 'video' || p.state === 'failed') return leaveFull();
+    old.node.classList.remove('mv-full');
+    S.unlift(old);
+    enter(p);
     changedFull();
   }
   // 退出视频全屏：取消铺满，这里请求的页面全屏一并退出，回到进入前的阅读位置。
@@ -402,6 +419,7 @@ export function install(ctx, S) {
   }
   function drop() {
     S.full?.node.classList.remove('mv-full');
+    S.unlift(S.full);
     S.full = null;
     document.body.classList.remove('mv-fullvideo');
   }
@@ -494,5 +512,6 @@ export function install(ctx, S) {
     refreshAll,
     fullscreen,
     leaveFull,
+    follow,
   });
 }

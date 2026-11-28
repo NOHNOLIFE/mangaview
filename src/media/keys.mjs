@@ -51,10 +51,10 @@ export function install(ctx, S) {
     },
   };
   S.hold = hold;
-  // 长按 A / D / ← / →（reader/keys.mjs 的长按翻页键，经 ctx.pageHold 交到这里）：文件栏显示的媒体（当前曲目，不在视窗、在别的书里也一样）快退 / 快进；
-  // 文件栏显示的是图片时无功能。
+  // 长按 A / D / ← / →（reader/keys.mjs 的长按翻页键，经 ctx.pageHold 交到这里）：文件栏显示的媒体（当前文件，规则见 core/selection.mjs）快退 / 快进；
+  // 文件栏显示的是图片时无功能。start(d, 播放器?)：画中画面板传入当前曲目的播放器。
   ctx.pageHold = {
-    start: (d) => hold.start(current(), d),
+    start: (d, p = current()) => hold.start(p, d),
     stop: () => hold.stop(),
   };
   // 空格（见文件开头），不滚动。

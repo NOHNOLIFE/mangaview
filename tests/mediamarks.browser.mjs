@@ -453,8 +453,8 @@ try {
   await tapKey('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)), 'closed');
 
-  // ---- 单击 F 跳转书签对媒体生效：滚到该媒体并定位到书签时间；自动播放开启则从该处播放。
-  await js(`localStorage.setItem('mv2:autoplay','true');reader.scrollTop=0`);
+  // ---- 单击 F 跳转书签对媒体生效：滚到该媒体、定位到书签时间并从该处开始后台播放（不取决于自动播放设置）。
+  await js(`localStorage.setItem('mv2:autoplay','false');reader.scrollTop=0`);
   await delay(400);
   await tapKey('f');
   await wait(
@@ -474,12 +474,11 @@ try {
   );
   await tapKey('f');
   await wait(async () => Math.abs((await now('03 long.wav')) - 12) < 0.5, 'next bookmark in the same audio by time');
-  // 自动播放关闭：停在该处。
-  await js(`localStorage.setItem('mv2:autoplay','false');el('03 long.wav').pause()`);
+  // 暂停之后再跳：同样从书签处播放。
+  await js(`el('03 long.wav').pause()`);
   await tapKey('F', 8);
-  await wait(async () => Math.abs((await now('03 long.wav')) - 5) < 0.05, 'Shift+F goes back');
-  await delay(300);
-  assert.equal(await paused('03 long.wav'), true, 'Autoplay off: stays paused');
+  await wait(async () => Math.abs((await now('03 long.wav')) - 5) < 0.5, 'Shift+F goes back');
+  await wait(async () => !(await paused('03 long.wav')), 'plays from the bookmark again');
   await js(`localStorage.setItem('mv2:autoplay','false')`); // 下面显式播放，不让自动播放插手
 
   // ---- 影音模式的自动滚动（Shift+空格）播完后按页序切换，循环（本书〔默认〕/ 单文件）决定末尾与重复

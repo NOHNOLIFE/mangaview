@@ -41,10 +41,17 @@ test('「停止」、播放器被释放或打不开时取消；释放的是别�
   assert.equal(selectAfter(a, { type: 'gone', player: b }), a);
 });
 
-test('当前文件：有当前曲目时是它（不在视窗、在别的书里也一样），否则是视窗中心所在的页', () => {
+test('当前文件：当前曲目在播放时是它（不在视窗、在别的书里也一样），暂停时只在本书且中线在视窗内才是它，否则是视窗中心所在的页', () => {
   const page = { name: '01.jpg' };
-  assert.equal(fileTarget(a, page), a);
-  assert.equal(fileTarget(null, page), page);
+  assert.equal(fileTarget(a, page, { playing: true }), a, 'Playing: the track, wherever it is');
+  assert.equal(fileTarget(a, page, { playing: true, inBook: false, inView: false }), a);
+  assert.equal(fileTarget(a, page, { inBook: true, inView: true }), a, 'Paused in view: the track');
+  assert.equal(fileTarget(a, page, { inBook: true, inView: false }), page, 'Paused, scrolled away: the centre page');
+  assert.equal(fileTarget(a, page, { inBook: false, inView: false }), page, 'Paused in another book: the centre page');
+  assert.equal(fileTarget(a, page), page, 'Paused, nothing known: the centre page');
+  assert.equal(fileTarget(a, null), null, 'Paused away and no centre page');
+  assert.equal(fileTarget(a, page, { full: true }), a, 'Fullscreen: the track even when paused');
+  assert.equal(fileTarget(null, page, { playing: true }), page);
   assert.equal(fileTarget(undefined, undefined), null);
 });
 

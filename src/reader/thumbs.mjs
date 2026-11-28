@@ -263,6 +263,7 @@ export const frameKey = (book, page) => book.id + ':vt:' + page.name;
 // - 播不了、没有画面的记下当时的大小 + 修改时间（page.vfail；播放器已记为播不了的 page.bad 同样对待），文件没变就不再尝试；
 //   读不到（找不到、超时）不记录，只在本次会话内不再重试。
 // - 只为可见项生成；串行，在空闲、没有正在播放的媒体、正文没有在读图时进行。
+// - ctx.frames：show(格子, 书, 页, 可见)、get(书, 页)（封面用，必要时生成）、cached(书, 页)（只取已有的，不读文件）、src(书, 页)。
 export function installFrames(ctx) {
   const checked = new Set(),
     missed = new Set(),
@@ -350,6 +351,11 @@ export function installFrames(ctx) {
       save(book);
       return null;
     }
+  }
+  // 已有的画面（不读文件、不生成；画中画开着时页内占位用）：{url,w,h}，没有为 null。
+  async function cached(book, page) {
+    const m = firstMark(book, page);
+    return (m && (await getThumb(markKey(book, m)))) || (await getThumb(frameKey(book, page)));
   }
   // 封面用：{blob,w,h,src}，没有画面为 null。
   async function get(book, page) {
@@ -463,6 +469,6 @@ export function installFrames(ctx) {
   ctx.on('thumbs', (keys) =>
     again((s) => keys.some((k) => k === frameKey(s.book, s.page) || k.startsWith(s.book.id + ':bm:'))),
   );
-  ctx.frames = { show, get, src: frameSrc };
+  ctx.frames = { show, get, cached, src: frameSrc };
   ctx.view.hooks.frame = show;
 }

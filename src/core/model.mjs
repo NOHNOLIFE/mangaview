@@ -172,7 +172,7 @@ export const stem = (name) => name.replace(/\.[^./\s]{1,8}$/, '');
 // 媒体页：视频的宽度规则与图片相同、高度按帧比例（尺寸未知时按 16:9），高于 cap（阅读视窗高度）时等比缩小到正好一屏；
 // 音频在正文里是固定高度的卡片（AUDIO_H：文件名、3 行字幕区、控件）。
 // nav：缩略图栏的排版（宽度一律铺满），视频、音频是与全屏缩略图格子同样比例的小块（cellRatio；nav 为数字时即用它作比例）。
-export const AUDIO_H = 170;
+export const AUDIO_H = 176;
 export function offsets(pages, width, fit, cap = Infinity, nav = false) {
   const starts = [0],
     cell = nav ? width * (typeof nav === 'number' ? nav : cellRatio(pages)) : 0;

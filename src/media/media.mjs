@@ -12,7 +12,8 @@
 //   后台播放的循环范围、随机、类型在播放列表（ctx.media.queue，queue.mjs），它们的按钮和列表在画中画窗口（pip.mjs、pipview.mjs）；
 //   进度条上有一层 .mv-marks 容器，ctx.player.decorate(fn) 在每个播放器创建时（以及 ctx.player.refresh() 时）调用 fn(播放器) 画标记。
 // - 当前曲目与当前文件（track.mjs，规则见 core/selection.mjs）：当前曲目即选中媒体，不压暗、没有大播放键；当前文件是当前曲目，否则视窗中心所在的页，
-//   文件栏、长按 A / D、空格作用于它；ctx.media.current() 是其中的媒体播放器（没有为 null），ctx.media.here() 是书签作用的媒体播放器。
+//   文件栏、长按 A / D、空格作用于它；ctx.media.current() 是其中的媒体播放器（没有为 null），ctx.media.here() 是书签作用的媒体播放器，
+//   ctx.media.track() 是当前曲目的播放器。
 //   当前曲目的画面的显示位置（页内 / 外部容器）是 ctx.media.stage（track.mjs）。
 // - 后台播放与自动滚动的分工（driver.mjs）：点媒体本体、它自己的播放键、文件栏的播放键、空格只是后台播放它（不滚动、不跳转）；
 //   自动滚动播放的媒体（p.by === 'scroll'）播完由自动滚动决定下一步，后台播放的（'user'）按播放列表接续，自动播放开始的（'auto'）播完即停。
@@ -57,7 +58,6 @@ const ICONS = {
 };
 
 export function install(ctx) {
-  const { get } = ctx;
   addIcons(ICONS);
   // S：子模块之间共享的状态与函数。状态：players 正文里的媒体页节点 → 播放器（不含停放中的当前曲目；全部播放器用 S.all()）、
   // times 会话内的播放位置、controls / decorators 登记的按钮与装饰、failedPages 打不开的页、playing 正在播放的播放器、
@@ -148,22 +148,21 @@ export function install(ctx) {
   // 画面在外部时页内的占位（.mv-away，按钮，点它把画面收回页内，track.mjs）自己处理点击。
   ctx.media = {
     tap(target) {
-      const node = target?.closest?.('.page.media');
-      const p = node && players.get(node);
+      const p = S.playerOf(target?.closest?.('.page.media'));
       if (!p) return false;
       if (!target.closest('.mv-shell,.mv-subs,.mv-away')) S.press(p, 'page');
       return true;
     },
     current: () => current(),
     here: () => S.here(),
+    // 当前曲目的播放器（没有为 null；画中画面板用，与当前文件无关）。
+    track: () => S.track,
     stage: S.stage,
-    // 跳到媒体书签（bookmarks.mjs，正文已滚到该页）：定位到书签时间；自动播放开启则从该处播放，关闭则停在该画面（正在播放的继续播放）。
-    // 带起的播放是后台播放（不在播放列表里时重建列表）。
+    // 跳到媒体书签（bookmarks.mjs，正文已滚到该页）：定位到书签时间并从那里开始后台播放（不取决于「自动播放」设置；
+    // 不在播放列表里时重建列表，画面的显示位置按上一次的选择，见 track.mjs）。
     goto(book, page, s) {
       times.set(page, s);
-      S.queued = { page, time: s, play: get('autoplay', false) === true, hop: false, by: 'user', fresh: true };
-      const p = find(book, page);
-      if (p && !S.queued.play && p.state === 'ready' && !p.el.paused) S.queued.play = true;
+      S.queued = { page, time: s, play: true, hop: false, by: 'user', fresh: true };
       claimNow();
     },
   };

@@ -1,10 +1,12 @@
 /* 文件栏（filebar.mjs）：总控栏里三区那一行上方的两行（行容器 #filebar 的位置、分隔线见 controlbar.css）。
-   上行：文件名（不带扩展名，过长省略中间，可选中），右端是标题行按钮区（.fb-head-tools，按钮由其他模块经 ctx.fileBar.addHead 放入）。
+   上行：文件名（不带扩展名，过长省略中间，可选中）在行的正中，右端是标题行按钮区（.fb-head-tools，按钮由其他模块经 ctx.fileBar.addHead 放入）：
+   三列网格，两侧列等分剩余宽度（右列至少放得下按钮），名称长到放不下居中时向左让出、不压住按钮。
    下行：播放键、进度条（与音频卡片共用 .mv-bar，shell.css；占满剩余宽度）、时间（.mv-tbox，悬停换成快退 / 快进），右侧三个固定的按钮位
    （没有的位置留空：.fb-void 只隐藏、不让位；第三个位上可能是「⋯」，弹出层 .fb-more-pop）。
    图片时播放键、进度条、时间留空（同样只隐藏、不让位）。播放与暂停只在播放键图标和进度条颜色上有区别。 */
 .fb-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -12,26 +14,27 @@
   padding: 0 4px;
 }
 #filebar .fb-name {
+  grid-column: 2;
   display: flex;
-  flex: 1 1 auto;
   align-items: center;
+  justify-content: center;
   min-width: 0;
   overflow: hidden;
   font-size: 13px;
   color: var(--text);
 }
 #filebar .fb-name .mid-name {
-  justify-content: flex-start;
+  justify-content: center;
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
 }
 .fb-head-tools {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
-  flex: none;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
 }
 .fb-head-tools:empty {
   display: none;

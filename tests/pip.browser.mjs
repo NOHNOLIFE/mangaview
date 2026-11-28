@@ -295,16 +295,19 @@ try {
   await wait(() => js(`!!pq('.pip-screen audio')&&pq('.pip-idle').hidden`), 'show here takes it again');
   assert.deepEqual(await js(`[elOf('02 song.wav').paused,loads]`), [false, 0]);
 
-  // ---- 在阅读区点别的媒体：在页内播放它，窗口不关，内容区变占位；文件名、列表、进度照常同步。
+  // ---- 显示位置跟随上一次的明确选择：画面在画中画里时，在阅读区点别的媒体，画面直接进画中画（页内是占位）；文件名、列表、进度照常同步。
   assert.ok(await js(`toPage('04 clip.webm')`));
   await tap('#reader .page[data-name="04 clip.webm"]');
-  await wait(() => js(`track()==='04 clip.webm'&&!elOf('04 clip.webm').paused`), 'clip plays in the page');
-  await wait(() => js(`!pq('.pip-idle').hidden&&pq('.pip-name').textContent==='04 clip'`), 'window follows');
+  await wait(() => js(`track()==='04 clip.webm'&&!elOf('04 clip.webm').paused`), 'clip plays');
+  await wait(
+    () => js(`!!pq('.pip-screen video')&&pq('.pip-idle').hidden&&pq('.pip-name').textContent==='04 clip'`),
+    'straight into the window',
+  );
   assert.deepEqual(
     await js(
-      `[node('04 clip.webm').contains(elOf('04 clip.webm')),!!pq('.pip-screen video'),rowOf('04 clip.webm').classList.contains('current'),elOf('02 song.wav')?.paused??true]`,
+      `[mvCtx.media.stage.where(),!!node('04 clip.webm').querySelector(':scope>.mv-away'),rowOf('04 clip.webm').classList.contains('current'),elOf('02 song.wav')?.paused??true]`,
     ),
-    [true, false, true, true],
+    ['out', true, true, true],
   );
   const v1 = await js(`+pq('.pip-line .mv-bar').getAttribute('aria-valuenow')*0+elOf('04 clip.webm').currentTime`);
   await wait(
@@ -312,10 +315,29 @@ try {
     'progress goes on',
   );
   assert.match(await js(`pq('.pip-line .mv-clock').textContent`), / \/ 0:04$/, 'The time of the new track');
+  // 点页内占位：只把画面收回页内（不翻屏）；之后新的曲目在页内显示，直到再次按画中画入口。
+  const top2 = await js('reader.scrollTop');
+  await tap('#reader .page[data-name="04 clip.webm"] .mv-away');
+  await wait(() => js(`mvCtx.media.stage.where()==='page'&&!pq('.pip-idle').hidden`), 'the placeholder brings it back');
+  await delay(200);
+  assert.deepEqual(
+    await js(`[reader.scrollTop,node('04 clip.webm').contains(elOf('04 clip.webm'))]`),
+    [top2, true],
+    'Clicking the placeholder does not turn the page',
+  );
+  assert.ok(await js(`toPage('02 song.wav')`));
+  await tap('#reader .page[data-name="02 song.wav"] .mv-head');
+  await wait(() => js(`track()==='02 song.wav'&&!elOf('02 song.wav').paused`), 'song plays');
+  await wait(() => js(`!pq('.pip-idle').hidden&&pq('.pip-name').textContent==='02 song'`), 'window follows');
+  assert.deepEqual(
+    await js(`[mvCtx.media.stage.where(),node('02 song.wav').contains(elOf('02 song.wav')),!!pq('.pip-screen audio')]`),
+    ['page', true, false],
+    'After bringing it back, a new track plays in the page',
+  );
 
   // ---- 列表项：点击只播放，主窗口不滚动；画面留在原来的显示位置（这里在画中画里）。
   await js(`mvCtx.media.stage.take(pq('.pip-screen'))`);
-  await wait(() => js(`!!pq('.pip-screen video')`), 'clip in the window');
+  await wait(() => js(`!!pq('.pip-screen audio')`), 'song in the window');
   await shotPip('pip-window-video');
   const top1 = await js('reader.scrollTop');
   await js(`rowOf('05 b.wav').click()`);

@@ -237,7 +237,16 @@ try {
   assert.equal(s.mid, true);
   assert.deepEqual(s.places, ['bookmark', 'section', 'more']);
   assert.deepEqual(s.placeBoxes, places, 'The three places do not move between file types');
-  assert.deepEqual([s.playBox, s.nameBox], [imageMid.play, imageMid.name], 'Play button and name keep their places');
+  const mid = (b) => Math.round((b.left + b.right) / 2);
+  assert.deepEqual(
+    [s.playBox, mid(s.nameBox), s.nameBox.top],
+    [imageMid.play, mid(imageMid.name), imageMid.name.top],
+    'Play button keeps its place, the name stays centred',
+  );
+  assert.ok(
+    Math.abs(mid(s.nameBox) - mid(s.head)) <= 1,
+    'Name centred in the title row: ' + JSON.stringify([s.nameBox, s.head]),
+  );
   assert.ok(s.bar.width > s.row.width * 0.5, 'The progress bar takes most of the row: ' + s.bar.width);
   assert.equal(s.play, 'Play');
   assert.match(s.time, /^0:00 \/ 0:04$/);
@@ -342,13 +351,25 @@ try {
   );
   assert.equal(await js(`el('03 song.wav')?.currentTime??0`), 0, 'The centre audio is untouched');
   assert.equal(await js(`fb().name`), STEM);
-  // 中线离开视窗：仍是当前曲目（后台播放），文件栏仍显示它；「停止」后取消，文件栏回到视窗中心所在的页。
+  // 暂停的当前曲目中线离开视窗：仍是当前曲目，文件栏回到视窗中心所在的页；回到它所在处又显示它。
+  await js(`toPage('03 song.wav',0.95)`);
+  await delay(300);
+  assert.deepEqual(
+    await js(`[fb().name,look(${JSON.stringify(LONG)}).selected]`),
+    ['03 song', true],
+    'A paused track that leaves: the file bar shows the centre page, the track stays selected',
+  );
+  await js(`toPage(${JSON.stringify(LONG)})`);
+  await wait(() => js(`fb().name===${JSON.stringify(STEM)}`), 'back where the paused track is');
+  // 播放中的当前曲目中线离开视窗：文件栏仍显示它；「停止」后取消，文件栏回到视窗中心所在的页。
+  await tap('#filebar .fb-play');
+  await wait(() => js(`!el(${JSON.stringify(LONG)}).paused`), 'the track plays');
   await js(`toPage('03 song.wav',0.95)`);
   await delay(300);
   assert.deepEqual(
     await js(`[fb().name,look(${JSON.stringify(LONG)}).selected]`),
     [STEM, true],
-    'The track stays selected and in the file bar when its midline leaves',
+    'A playing track stays selected and in the file bar when its midline leaves',
   );
   await js(`filebar.querySelector('[data-head="stop"]').click()`);
   await wait(() => js(`!look(${JSON.stringify(LONG)}).selected`), 'deselected by Stop');
@@ -513,13 +534,13 @@ try {
     'cover set from the file bar',
   );
 
-  // ---- 单击 F 跳到书签：该媒体成为选中媒体（自动播放关闭时停在书签处），文件栏随之换成它。
+  // ---- 单击 F 跳到书签：该媒体成为选中媒体并从书签处开始后台播放（自动播放关闭也一样），文件栏随之换成它。
   await key('f', 'KeyF', 70);
   await wait(
     () => js(`look(${JSON.stringify(LONG)}).selected&&fb().name===${JSON.stringify(STEM)}`),
     'bookmark jump selects the media',
   );
-  assert.equal(await js(`el(${JSON.stringify(LONG)}).paused`), true);
+  await wait(() => js(`!el(${JSON.stringify(LONG)}).paused`), 'bookmark jump plays it (autoplay off)');
 
   // ---- 视频全屏：页面全屏、视频铺满窗口，底缘弹出文件栏 + 总控栏；退出回到原来的阅读位置。
   // 无头浏览器不允许真正进入全屏：替换成立即生效的模拟（只验证请求全屏的对象与页面的反应）。

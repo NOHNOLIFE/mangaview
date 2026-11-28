@@ -373,7 +373,7 @@ try {
   assert.equal(await aligned(), '05 song.wav');
   {
     const [c, v] = await js(`[box(node('05 song.wav').querySelector('.mv-card')),view()]`);
-    assert.ok(Math.abs(c.height - 154) < 1, 'Audio card keeps its height ' + JSON.stringify(c));
+    assert.ok(Math.abs(c.height - 160) < 1, 'Audio card keeps its height ' + JSON.stringify(c));
     assert.ok(Math.abs(c.top + c.height / 2 - (v.top + v.height / 2)) < 1, 'Audio card is centred vertically');
     assert.ok(c.width > v.width - 40 && c.left >= v.left, 'Audio card spans the view');
   }
