@@ -350,6 +350,18 @@ body.docked {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 多行的中间省略（view.mjs 的 midLines / fitLines 按宽度截断）：可在任意字符处换行，首行开头可带一个图标。 */
+.mid-lines {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.mid-lines > .i {
+  display: inline-block;
+  vertical-align: -0.18em;
+}
 
 /* 欢迎页 */
 #empty {

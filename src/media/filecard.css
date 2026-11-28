@@ -1,5 +1,5 @@
-/* 文件详情框（filecard.mjs）：浮在最上层（popover），不接收指针；接近不透明的底色。进度条沿用播放器的 .mv-bar（shell.css）与书签标记（media.css），
-   只是不可交互、滑块常显；当前书签另有一根醒目的指针（.fc-pin）。 */
+/* 文件详情框（filecard.mjs）：浮在最上层（popover），不接收指针；接近不透明的底色；宽度固定，不随名称长短变化。
+   进度条沿用播放器的 .mv-bar（shell.css）与书签标记（media.css），只是不可交互、滑块常显；当前书签在进度条上方另有一个朝下的三角（.fc-pin）。 */
 .fc {
   position: fixed;
   inset: auto;
@@ -45,31 +45,18 @@
   height: 100%;
   aspect-ratio: 1;
 }
+/* 文件名：最多两行（view.mjs 的 midLines，放不下时省略中间），类型图标在首行开头。 */
 .fc-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   min-width: 0;
   font-size: 13px;
   font-weight: 600;
+  line-height: 18px;
 }
-.fc-name > .i {
-  flex: none;
+.fc-name .i {
   width: 15px;
   height: 15px;
+  margin-right: 6px;
   color: var(--accent);
-}
-.fc-name > .mid-name {
-  flex: 1;
-  justify-content: flex-start;
-}
-.fc-meta {
-  margin-top: 2px;
-  overflow: hidden;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .fc .mv-bar:not([hidden]) {
   display: block;
@@ -84,25 +71,18 @@
 .fc.playing .mv-fill {
   background: var(--accent);
 }
-/* 当前书签的指针：贯穿进度条的一道竖线，顶上一个朝下的三角，白色加强调色光晕，盖在其他标记之上。 */
+/* 当前书签的指示：进度条上方一个朝下的三角，尖端正对它的时间点（在标记上方，不压住标记），白色加强调色光晕。 */
 .fc-pin {
   position: absolute;
   z-index: 2;
-  top: 3px;
-  bottom: 3px;
-  width: 2px;
-  margin-left: -1px;
-  background: #fff;
-  filter: drop-shadow(0 0 3px var(--accent));
-}
-.fc-pin::before {
-  content: '';
-  position: absolute;
-  left: -5px;
-  top: -3px;
+  top: 1px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
   border: 6px solid transparent;
   border-bottom: 0;
   border-top: 7px solid #fff;
+  filter: drop-shadow(0 0 3px var(--accent));
 }
 .fc-pin[hidden] {
   display: none;

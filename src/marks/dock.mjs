@@ -30,7 +30,7 @@ export function install(ctx, S) {
   dockGrip.setAttribute('aria-orientation', 'vertical');
   dockGrip.tabIndex = 0;
   dock.append(dockHead, dockList, dockGrip);
-  S.cards(dockList);
+  S.cards(dockList, { ready: () => ctx.settled(dock) }); // 浮出时淡入完成后才弹文件详情框
   document.getElementById('toolbar').before(dock);
   // 阅读列表里的书（书架页当前选中的页签 + 筛选，不含过期书），顺序与上一本 / 下一本相同。
   const shelfBooks = () => ctx.readingList();

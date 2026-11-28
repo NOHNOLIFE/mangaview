@@ -309,6 +309,42 @@ export function midName(name) {
   el.append(head, b);
   return el;
 }
+// 文件名最多 lines 行（默认两行）、放不下时省略中间：结尾（splitTail 的那段）始终完整，开头按宽度尽量多保留（样式见 style.css .mid-lines）。
+// 两行的省略要按容器宽度测量：元素放进文档并显示出来之后调用 fitLines(el) 截断，宽度变了再调用一次（没显示时不动）。
+// lead：放在首行开头的元素（如类型图标），之后的行从左缘起。
+export function midLines(name, { lines = 2, lead = null } = {}) {
+  const el = document.createElement('span'),
+    text = document.createElement('span');
+  el.className = 'mid-lines';
+  el.mvName = name;
+  el.mvLines = lines;
+  text.textContent = name;
+  if (lead) el.append(lead);
+  el.append(text);
+  return el;
+}
+export function fitLines(el) {
+  const text = el.lastChild,
+    name = el.mvName;
+  text.textContent = name;
+  const s = el.ownerDocument.defaultView.getComputedStyle(el),
+    lh = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.2,
+    max = el.mvLines * lh + 1;
+  if (!el.offsetWidth || el.offsetHeight <= max) return;
+  const [a, b] = splitTail(name),
+    head = [...a],
+    put = (k) => (text.textContent = head.slice(0, k).join('').trimEnd() + '…' + b);
+  // 二分找能放下的最长开头（每次测量一次重排，十次以内）。
+  let lo = 0,
+    hi = head.length - 1;
+  while (lo < hi) {
+    const k = (lo + hi + 1) >> 1;
+    put(k);
+    if (el.offsetHeight <= max) lo = k;
+    else hi = k - 1;
+  }
+  put(lo);
+}
 
 export class Reader {
   constructor(main, preview, hooks) {

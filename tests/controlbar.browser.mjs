@@ -624,7 +624,7 @@ try {
     await js(
       `(()=>{const s=node('03 b.wav').querySelector('.mv-card>.mv-subs');return [s.getAttribute('aria-live'),[...s.children].map(c=>c.className+':'+c.hidden).join(),s.textContent,Math.round(s.getBoundingClientRect().height)];})()`,
     ),
-    ['off', 'mv-bars:false,mv-cue:true', '', 66],
+    ['off', 'mv-bars:false,mv-cue:true', '', 78],
   );
   const cueText = (name, text) =>
     js(

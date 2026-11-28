@@ -392,22 +392,22 @@ try {
   );
   await js(`mvCtx.media.stage.drop();box.remove()`);
 
-  // ---- B6 字幕字号：视频（含全屏）与音频卡片约大 15%–20%，音频卡片仍是正好 3 行。
+  // ---- 字幕字号：视频（含全屏）与音频卡片比原先的 clamp(16px, 2.8vw, 33px)、clamp(21px, 3.5vw, 51px)、16.5px 大约 20%，音频卡片仍是正好 3 行。
   const sizes =
     await js(`(()=>{const n=node('04 film.webm'),v=n.querySelector('.mv-subs'),c=document.createElement('div');c.className='mv-cue';c.textContent='x';v.append(c);
     const fv=parseFloat(getComputedStyle(c).fontSize);n.classList.add('mv-full');const ff=parseFloat(getComputedStyle(c).fontSize);n.classList.remove('mv-full');c.remove();
     return {fv,ff,vw:innerWidth/100};})()`);
-  const old = { fv: Math.min(28, Math.max(14, 2.4 * sizes.vw)), ff: Math.min(44, Math.max(18, 3 * sizes.vw)) };
+  const old = { fv: Math.min(33, Math.max(16, 2.8 * sizes.vw)), ff: Math.min(51, Math.max(21, 3.5 * sizes.vw)) };
   for (const k of ['fv', 'ff']) {
     const r = sizes[k] / old[k];
-    assert.ok(r >= 1.14 && r <= 1.21, k + ': ' + sizes[k] + ' vs ' + old[k]);
+    assert.ok(r >= 1.17 && r <= 1.23, k + ': ' + sizes[k] + ' vs ' + old[k]);
   }
   assert.ok(await js(`toPage('05 song.wav')`));
   const card = await js(
     `(()=>{const s=node('05 song.wav').querySelector('.mv-card>.mv-subs'),cs=getComputedStyle(s);return [parseFloat(cs.fontSize),parseFloat(cs.lineHeight),Math.round(s.getBoundingClientRect().height)];})()`,
   );
   assert.ok(
-    card[0] / 14 >= 1.15 && card[0] / 14 <= 1.2 && card[2] === 3 * card[1],
+    card[0] / 16.5 >= 1.17 && card[0] / 16.5 <= 1.23 && card[2] === 3 * card[1],
     'Audio card: ' + JSON.stringify(card),
   );
 
