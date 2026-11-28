@@ -23,7 +23,7 @@
 // 本文件是唯一入口：建立子模块共享的 S，按顺序装配子模块，对外提供 ctx.media、ctx.player（含 api）和正文的 ctx.view.hooks.media。
 // 子模块（安装顺序）：volume 统一音量；order 播完后的去向、自动滚动（影音模式）的切换、待接手的播放请求；sections 只播放书签区段；
 // position 播放位置记忆；hud 提示浮层；tile 缩略图里的占位；shell 壳的 DOM 与状态显示；player 播放器的状态（挂源、失败、播放 / 暂停）；
-// track 当前曲目、显示位置与当前文件；autoplay 自动播放；keys 媒体按键；scrub 横向拖动快进 / 快退；driver 与总控、文件栏的衔接；
+// track 当前曲目、显示位置与当前文件；autoplay 自动播放；keys 媒体按键；surface 画面的交互（单击播放 / 暂停、横向拖动定位）；driver 与总控、文件栏的衔接；
 // queue 播放列表；subtitles 外挂字幕。
 // 进度条上的书签标记在 marks.mjs（由 bookmarks.mjs 安装）。
 import { addIcons } from '../ui/icons.mjs';
@@ -38,7 +38,7 @@ import { install as player } from './player.mjs';
 import { install as track } from './track.mjs';
 import { install as autoplay } from './autoplay.mjs';
 import { install as keys } from './keys.mjs';
-import { install as scrub } from './scrub.mjs';
+import { install as surface } from './surface.mjs';
 import { install as driver } from './driver.mjs';
 import { install as queue } from './queue.mjs';
 import { install as subtitles } from './subtitles.mjs';
@@ -144,20 +144,15 @@ export function install(ctx) {
   };
   autoplay(ctx, S);
 
-  // 点击正文里的媒体：画面、大播放键、卡片上等同它自己的播放键（driver.mjs press），卡片控件之间的空白处不动作；都不翻屏（tap.mjs 的正文点击先问这里）。
-  // 画面在外部时页内的占位（.mv-away，按钮，点它把画面收回页内，track.mjs）自己处理点击。
+  // 画面的点击与横向拖动（ctx.media.tap、ctx.media.surface）在 surface.mjs。
   ctx.media = {
-    tap(target) {
-      const p = S.playerOf(target?.closest?.('.page.media'));
-      if (!p) return false;
-      if (!target.closest('.mv-shell,.mv-subs,.mv-away')) S.press(p, 'page');
-      return true;
-    },
     current: () => current(),
     here: () => S.here(),
     // 当前曲目的播放器（没有为 null；画中画面板用，与当前文件无关）。
     track: () => S.track,
     stage: S.stage,
+    // 在 host 里建一个提示浮层（hud.mjs；画中画面板用，主窗口的是 S.hud）。
+    hud: (host) => S.makeHud(host),
     // 跳到媒体书签（bookmarks.mjs，正文已滚到该页）：定位到书签时间并从那里开始后台播放（不取决于「自动播放」设置；
     // 不在播放列表里时替换列表，画面的显示位置按上一次的选择，见 track.mjs）。
     goto(book, page, s) {
@@ -167,11 +162,11 @@ export function install(ctx) {
     },
   };
   keys(ctx, S);
-  scrub(ctx, S);
+  surface(ctx, S);
   // ---- 播放器的扩展点：登记按钮、画进度条上的标记。
   // add({id,icon,label(文案 key),order?,secondary?=true,card?=true,kinds?:['video','audio'],click(播放器,api,按钮),state?(播放器,api,按钮)→{disabled,pressed,icon,label}})
   // 文件栏用：controls() 登记的按钮；seekBar(get) 建一条进度条（get() 为它作用的播放器），paintBar(进度条, 播放器) 画进度、返回时间文字；
-  // timeBox(get, 类名) 建时间（悬停换成快退 / 快进，见 shell.mjs makeTime）；timeWidth(时长) 时间文字的宽度（ch）。
+  // timeBox(get, 类名, 提示浮层?) 建时间（悬停换成快退 / 快进，提示显示在给出的浮层里，省略为主窗口的，见 shell.mjs makeTime）；timeWidth(时长) 时间文字的宽度（ch）。
   // 文件详情框（filecard.mjs）用：seekBar、paintBar、position(书, 页)。
   ctx.player = {
     add(c) {
@@ -180,7 +175,7 @@ export function install(ctx) {
     },
     controls: () => controls,
     seekBar: (get) => S.makeBar(get),
-    timeBox: (get, cls) => S.makeTime(get, cls),
+    timeBox: (get, cls, hud) => S.makeTime(get, cls, hud),
     paintBar: (parts, p, at) => S.paintBar(parts, p, at),
     timeWidth: (d) => S.timeWidth(d),
     decorate(fn) {

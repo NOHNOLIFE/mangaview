@@ -15,10 +15,13 @@
 //   目标尺寸见 core/pip.mjs pinResize。浏览器拒绝、或被屏幕与尺寸上限截断时照常切换布局，由内容区让出空间。普通容器里不调整窗口。
 // - 画中画窗口的标题（document.title）是当前曲目的文件名（与标题行相同），没有曲目时是主窗口的标题（应用名）。
 // - 内容区的画面不在这里时（在页内播放、没有曲目）显示占位：说明正在主窗口播放 + 「在画中画显示」按钮（stage.take 收进来）；没有曲目时是一句说明。
-// - 内容区上按住横向拖动即快进 / 快退当前曲目（media/scrub.mjs 的 ctx.media.scrubArea，与主窗口同一套判定与换算），提示显示在面板自己的浮层里。
+// - 内容区与主窗口的画面是同一套交互（media/surface.mjs 的 ctx.media.surface）：单击（没有拖动）= 播放 / 暂停当前曲目，按住横向拖动 =
+//   快进 / 快退（同一套判定与换算），按钮（占位的「在画中画显示」）、带 data-nodrag 的元素除外；竖向拖动什么也不做。
+// - 提示浮层（hud.mjs，与主窗口同一个组件、同一套样式，在内容区中上部，按内容区大小缩放）：这个面板里发生的操作——内容区的拖动、
+//   窗口里的按键（← → / A D、Q / E）、时间处的快退 / 快进——提示都显示在这里，不显示到主窗口。
 // - 按键（装在 keys 上：画中画窗口是它的 window，普通容器是容器本身；处理过的按键不再冒泡，不会作用到主窗口的全局快捷键）：
 //   空格 播放 / 暂停；← → / A D 点按 2 秒、按住递增快退 / 快进（ctx.pageHold，与长按 A / D 同一份逻辑）；↑ ↓ 在列表里移动选中项，Enter 播放它；
-//   Q / ; 、E / ' 音量。焦点在按钮上时空格、Enter 交给按钮；菜单、输入框里的按键不在这里处理。
+//   Q / ; 、E / ' 音量（提示带音量条）。焦点在按钮上时空格、Enter 交给按钮；菜单、输入框里的按键不在这里处理。
 // - 装进别的文档时自带所需的样式表（STYLES）、图标 sprite、lang 属性，并对那个窗口接上拖动滚动（ui/dragscroll.mjs install）；
 //   主文档上靠 document 委托的东西（全局点击分派、快捷键）在那里不生效，面板里只用元素自己的事件（悬停弹层 ui/hoverpop.mjs 按按钮所在的文档工作）。
 // - 尺寸：容器是 size 查询容器（pip）；内容区占去其余高度（画面 object-fit 保持比例），窗口变矮时依次收起按钮行、标题行，
@@ -161,19 +164,18 @@ export function install(ctx) {
       art = make('div', 'pip-art-box'),
       screen = make('div', 'pip-screen'),
       idle = make('div', 'pip-idle'),
-      hud = make('div', 'pip-hud'),
       dock = make('div', 'pip-dock'),
       head = make('div', 'pip-head'),
       name = make('div', 'pip-name'),
       pinBox = make('div', 'pip-head-end'),
       line = make('div', 'pip-line'),
       tools = make('div', 'pip-tools');
-    hud.hidden = true;
-    hud.setAttribute('aria-hidden', 'true');
-    stage.append(art, screen, idle, hud);
+    stage.append(art, screen, idle);
+    // 提示浮层：这个面板里的操作的提示都在这里（见文件开头）。
+    const hud = M().hud(stage);
     const play = btn('play', 'play', 'mvPlay', () => Q().toggle(), 'pip-play'),
       seek = ctx.player.seekBar(() => tp()),
-      time = ctx.player.timeBox(() => tp(), 'pip-time');
+      time = ctx.player.timeBox(() => tp(), 'pip-time', hud);
     line.append(play, seek.bar, time.box);
     const pinBtn = btn('pin', 'pin', 'pipPin', () => pin(!pinned), 'pip-pin');
     pinBox.append(pinBtn);
@@ -396,19 +398,15 @@ export function install(ctx) {
       L.paint();
     }
 
-    // ---- 提示（音量、横向拖动定位）：ms 为 0 时常显，直到 hideHud。
-    let hudTimer = 0;
-    function showHud(name, text, ms = 900) {
-      hud.replaceChildren(icon(name), make('span', '', text));
-      hud.hidden = false;
-      clearTimeout(hudTimer);
-      if (ms) hudTimer = setTimeout(() => (hud.hidden = true), ms);
-    }
-    function hideHud(ms) {
-      clearTimeout(hudTimer);
-      hudTimer = setTimeout(() => (hud.hidden = true), ms);
-    }
-    const unscrub = M().scrubArea?.(stage, { show: (n, s) => showHud(n, s, 0), hide: hideHud });
+    // ---- 内容区的交互（media/surface.mjs）：单击播放 / 暂停当前曲目，横向拖动定位，提示在这个面板里。
+    const unsurface = M().surface(stage, {
+      player: () => tp(),
+      seek: (e) => !e.target.closest('button'),
+      play: (t) => !t.closest('button'),
+      press: () => Q().toggle(),
+      hud: () => hud,
+      tap: true,
+    });
 
     // ---- 按键
     let holding = null;
@@ -429,7 +427,7 @@ export function install(ctx) {
       } else if (['arrowleft', 'arrowright', 'a', 'd'].includes(low)) {
         if (!e.repeat && !holding && Q().track()) {
           holding = e.code;
-          ctx.pageHold?.start(low === 'arrowleft' || low === 'a' ? -1 : 1, tp());
+          ctx.pageHold?.start(low === 'arrowleft' || low === 'a' ? -1 : 1, tp(), hud);
         }
       } else if (low === 'arrowup' || low === 'arrowdown') {
         L.move(low === 'arrowup' ? -1 : 1);
@@ -444,8 +442,7 @@ export function install(ctx) {
         e.code === 'Quote'
       ) {
         const d = low === 'q' || low === ';' || e.code === 'Semicolon' ? -1 : 1;
-        ctx.media.setVolume(nudge(ctx.media.volume, d));
-        showHud(ctx.media.volIcon(), Math.round(ctx.media.volume * 100) + '%');
+        M().setVolume(nudge(M().volume, d), hud);
       } else return;
       e.preventDefault();
       e.stopPropagation();
@@ -522,7 +519,8 @@ export function install(ctx) {
         L.destroy();
         filterPop.hide();
         fav.close();
-        unscrub?.();
+        unsurface();
+        hud.hide();
         dockSize.disconnect();
         keys.removeEventListener('keydown', down);
         keys.removeEventListener('keyup', up);

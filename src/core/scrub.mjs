@@ -1,4 +1,4 @@
-// 横向拖动快进 / 快退的纯逻辑（手势在 media/scrub.mjs，方向判定由 ui/dragscroll.mjs 调用）：
+// 横向拖动快进 / 快退的纯逻辑（手势在 media/surface.mjs，方向判定由 ui/dragscroll.mjs 调用）：
 // - 方向：位移超过 DECIDE 像素后一次判定并锁定：明显横向（|dx| ≥ RATIO × |dy|）才是定位，否则是原有的拖动滚动。
 // - 换算：拖过全宽对应 span(时长)：时长的四分之一，限制在 SPAN_MIN 到 SPAN_MAX 秒之间，且不超过时长。
 // - 偏移按整秒（offset），带少许回差：指针在两个整秒的分界上抖动时数字不来回跳；目标时间夹在 0 到时长之间（target）。

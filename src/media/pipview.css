@@ -4,7 +4,8 @@
    功能栏的三行共用同一个左右内边距（--pip-pad）：播放键、「上一个」与左边对齐，时间、「收藏列表」、「固定」与右边对齐；
    按钮行与播放键同一规格（32px），「固定」小一号（24px），离上缘、右缘都是 --pip-pad。
    窗口变矮时依次收起按钮行、标题行，变窄时收起时间、按钮行的按钮等分缩小；根元素 overflow: hidden，任何尺寸都不溢出。
-   当前曲目的画面（track.mjs 的 .mv-screen，内含媒体元素与字幕容器）由 stage.take 放进 .pip-screen，样式在这里提供。 */
+   当前曲目的画面（track.mjs 的 .mv-screen，内含媒体元素与字幕容器）由 stage.take 放进 .pip-screen，样式在这里提供；
+   内容区里还有提示浮层（hud.mjs 的 .mv-hud，样式在 media.css，这里只给位置与缩放）。 */
 html:has(> body > .pip),
 body:has(> .pip) {
   height: 100%;
@@ -60,14 +61,14 @@ body:has(> .pip) {
 .mv-screen.audio > audio {
   display: none;
 }
-/* 字幕：离内容区底部留出间距（浮出的操作面板盖在内容区上时让到它上面，--dock-h），字号随面板宽度，与主窗口放大后的字幕协调。 */
+/* 字幕：离内容区底部留出间距（约 max(28px, 12%)；浮出的功能栏盖在内容区上时让到它上面，--dock-h），字号随内容区宽度，与主窗口放大后的字幕协调。 */
 .mv-screen.video > .mv-subs {
   position: absolute;
   z-index: 1;
   left: 6%;
   right: 6%;
-  bottom: max(16px, 7%);
-  font-size: clamp(14px, 5cqw, 26px);
+  bottom: max(28px, 12%);
+  font-size: clamp(17px, 6cqw, 31px);
   line-height: 1.35;
   transition: bottom 0.15s;
 }
@@ -80,7 +81,8 @@ body:has(> .pip) {
 .pip:not(.pinned).dock-peek .mv-screen > .mv-subs {
   bottom: calc(var(--dock-h, 0px) + 12px);
 }
-/* 音频：图居中（方形，高度占满内容区），字幕区在底部 3 行（离底部留出间距）；没有字幕可显示时是阶梯音柱，播放中跳动（shell.css）。 */
+/* 音频：图居中（方形，高度占满内容区），字幕区 3 行（离底部的间距同视频）；没有字幕可显示时是阶梯音柱，播放中跳动（shell.css），
+   在这里横向铺满字幕区、带与字幕相同的半透明深色圆角底（subtitles.css .mv-cue），不直接叠在图上。 */
 .pip-art {
   position: absolute;
   left: 50%;
@@ -94,16 +96,26 @@ body:has(> .pip) {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 12px;
-  height: min(66px, 45%);
+  bottom: max(28px, 12%);
+  height: min(82px, 45%);
   padding: 0 10px;
-  font-size: 15px;
-  line-height: 22px;
+  font-size: 18px;
+  line-height: 26px;
   color: var(--text);
+  transition: bottom 0.15s;
+}
+.mv-screen.audio .mv-cue {
+  line-height: inherit;
 }
 .pip-stage.nosubs .mv-screen.audio .mv-bars {
   display: flex;
-  opacity: 0.9;
+  gap: 3px;
+  padding: 8px 10px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+}
+.mv-screen.audio .mv-bars i {
+  flex: 1 1 0;
 }
 .pip-stage.playing .mv-bars i {
   animation-name: mv-bars;
@@ -141,27 +153,15 @@ body:has(> .pip) {
   width: 16px;
   height: 16px;
 }
-/* 提示浮层（音量、横向拖动定位）：内容区右上角。 */
-.pip-hud {
+/* 提示浮层（hud.mjs，与主窗口同一个组件、同一套样式，media.css .mv-hud）：内容区中上部；字号按内容区宽度缩小（内部尺寸随之按比例），
+   内容区宽约 470px 以上时与主窗口一样大，最小 11px。 */
+.pip-stage > .mv-hud {
   position: absolute;
   z-index: 3;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  left: 50%;
+  top: 18%;
   max-width: calc(100% - 16px);
-  padding: 3px 10px;
-  border-radius: 8px;
-  background: rgba(22, 23, 27, 0.92);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.pip-hud .i {
-  flex: none;
-  width: 16px;
-  height: 16px;
+  font-size: clamp(11px, 3cqw, 14px);
 }
 /* ---- 功能栏（.pip-dock）：固定时在内容区下方；不固定时浮在内容区底部，平时透明、不接收指针，.dock-peek 时淡入。 */
 .pip-dock {
