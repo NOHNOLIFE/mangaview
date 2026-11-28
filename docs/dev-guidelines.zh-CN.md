@@ -284,6 +284,7 @@
 - 每个行为改动都要有测试：纯逻辑放 `tests/core/<模块>.test.mjs`，界面行为放 `tests/*.browser.mjs`。布局类要求用 `getBoundingClientRect` 断言（位置稳定要连 left / top / width 一起比），并截图自查观感。
 - 测试分三档（详见 `docs/agent-workflow.zh-CN.md`）：改动后跑冒烟（`node tests/run.mjs "<浏览器路径>" smoke`，几秒），开发中按名称跑相关测试，提交前（多代理开发时为全部合并之后）跑一次全量（约 3–4 分钟）。同一时间只跑一份全量，并行度不超过默认的 4，否则会因时序抖动超时。
 - 多代理协作（任务怎么拆、子代理须知、统筹的步骤）按 `docs/agent-workflow.zh-CN.md`：按文件归属拆分、各组同时开工，子代理只跑冒烟和相关测试，全量由统筹在合并后统一跑。
+- 版本号 `主.次.补丁`：每次发版默认只把补丁号加 1（不论改动大小）；主、次版本号只在用户明确指定时才改，不自行判断。
 - 发版同时修改 `index.html` 的 `<title>` 和 `sw.js` 的 `cacheName`；新增源文件要按字母序加进 `sw.js` 的 `shell` 列表（有测试把关）。
 - 行为变化要同步 `README.zh-CN.md` 和 `README.md`。
 - 开发推送到 `2.0` 分支；`main` 即线上（GitHub Pages），人工验收后再合并。
