@@ -257,95 +257,91 @@ try {
   const SEC = 'rgb(90, 180, 255)';
   const items = (root = '.bm-panel') =>
     js(
-      `[...document.querySelectorAll('${root} .bm-item')].map(e=>[e.dataset.id,e.querySelector(':scope>.bm-sub')?.getAttribute('aria-label')??null,e.getAttribute('aria-label'),e.querySelector(':scope>.bm-thumb>.bm-name')?.textContent??null])`,
+      `[...document.querySelectorAll('${root} .bm-item')].map(e=>[e.dataset.id,'end' in e.dataset,e.getAttribute('aria-label'),e.querySelector(':scope>.bm-thumb>.bm-name')?.textContent??null])`,
     );
   await menu();
   const list1 = await items();
-  assert.equal(list1.length, 28, '28 bookmarks, one cell each (a section bookmark is the small picture of its start)');
+  assert.equal(list1.length, 30, '28 bookmarks and two section bookmarks, one item each');
   assert.equal(await js(`document.querySelector('.bm-head .count').textContent`), '28', 'Section ends are not counted');
-  assert.deepEqual(list1.slice(1, 4), [
-    ['i0b', null, 'Page 1', null],
-    ['i1a', 'Section bookmark · Page 3', 'Page 2 · Section start', null],
-    ['i1b', null, 'Page 2', null],
+  // 按位置排序：区段书签（02.svg 的中间）夹在 02.svg 的两个书签之间，区段内的书签在起点和它之间。
+  assert.deepEqual(list1.slice(1, 7), [
+    ['i0b', false, 'Page 1', null],
+    ['i1a', false, 'Page 2 · Section start', null],
+    ['i1b', false, 'Page 2', null],
+    ['i2a', false, 'Page 3', null],
+    ['i1a', true, 'Section bookmark · Page 3', null],
+    ['i2b', false, 'Page 3', null],
   ]);
-  assert.deepEqual(list1.slice(24), [
-    ['c1', null, 'Page 13 · 0:01 · clip-Bookmark1', 'clip-Bookmark1'],
-    ['s2', null, 'Page 14 · 0:02 · song-Bookmark1', 'song-Bookmark1'],
-    ['s3', null, 'Page 14 · 0:03 · song-Verse', 'song-Verse'],
-    ['s5', 'Section bookmark · Page 14 · 0:08', 'Page 14 · 0:05 · song-Bookmark2 · Section start', 'song-Bookmark2'],
+  assert.deepEqual(list1.slice(25), [
+    ['c1', false, 'Page 13 · 0:01 · clip-Bookmark1', 'clip-Bookmark1'],
+    ['s2', false, 'Page 14 · 0:02 · song-Bookmark1', 'song-Bookmark1'],
+    ['s3', false, 'Page 14 · 0:03 · song-Verse', 'song-Verse'],
+    ['s5', false, 'Page 14 · 0:05 · song-Bookmark2 · Section start', 'song-Bookmark2'],
+    ['s5', true, 'Section bookmark · Page 14 · 0:08', 'song-Bookmark2'],
   ]);
   const nth = (n, sel = '') => '.bm-panel .bm-item:nth-child(' + n + ')' + sel;
   const [t1, ts, te] = await Promise.all([
     box(nth(1, ' .bm-thumb')),
     box(nth(3, ' .bm-thumb')),
-    box(nth(3, ' .bm-sub')),
+    box(nth(6, ' .bm-thumb')),
   ]);
   assert.ok(
-    Math.abs(ts.width - t1.width) < 0.5 && Math.abs(ts.height - t1.height) < 0.5,
-    'A cell with a section is the same size as other items',
+    Math.abs(ts.width - te.width) < 0.5 && Math.abs(ts.height - te.height) < 0.5 && Math.abs(ts.width - t1.width) < 0.5,
+    'Start and section bookmark are the same size as other items',
   );
-  assert.ok(
-    te.left - ts.left < 6 && ts.bottom - te.bottom < 6 && te.width < ts.width * 0.6 && te.height < ts.height * 0.6,
-    'The section bookmark is a small picture in the bottom-left corner of its start',
-  );
-  assert.equal(
-    await js(`getComputedStyle(document.querySelector('${nth(3, ' > .bm-thumb .bm-mk.start')}')).color`),
-    SEC,
-  );
-  assert.equal(await js(`getComputedStyle(document.querySelector('${nth(3, ' > .bm-sub > .bm-mk.end')}')).color`), SEC);
-  // 区段的两张图平时不描边，只靠互相呼应的标记区分；悬停这一格时才一起高亮。
-  for (const n of [1, 3])
+  assert.equal(await js(`getComputedStyle(document.querySelector('${nth(3, ' .bm-mk.start')}')).color`), SEC);
+  assert.equal(await js(`getComputedStyle(document.querySelector('${nth(6, ' .bm-mk.end')}')).color`), SEC);
+  // 区段的两项平时不描边，只靠互相呼应的标记区分；悬停 / 选中时才一起高亮。
+  for (const n of [1, 3, 6])
     assert.equal(
       await js(`getComputedStyle(document.querySelector('${nth(n, ' .bm-thumb')}'),'::after').content`),
       'none',
     );
   const ring = (sel) => js(`getComputedStyle(document.querySelector('${sel}')).boxShadow`);
-  // 悬停小图：起点一起高亮（区段配色）；其他项不高亮。
-  await mouse('mouseMoved', te.left + 6, te.bottom - 6);
+  // 悬停区段书签：起点一起高亮（区段配色）；夹在中间的书签和其他项不高亮。
+  await mouse('mouseMoved', te.x, te.y);
   await wait(
-    async () => /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(await ring(nth(3, ' > .bm-thumb'))),
+    async () => /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(await ring(nth(3, ' .bm-thumb'))),
     'start highlighted',
   );
+  assert.match(await ring(nth(6, ' .bm-thumb')), /rgb\(90, 180, 255\) 0px 0px 0px 2px/);
+  assert.doesNotMatch(await ring(nth(4, ' .bm-thumb')), /0px 0px 0px 2px/);
+  assert.doesNotMatch(await ring(nth(8, ' .bm-thumb')), /0px 0px 0px 2px/);
+  // 悬停起点：区段书签一起高亮。
+  await mouse('mouseMoved', ts.x, ts.y);
   await wait(
-    async () => /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(await ring(nth(3, ' > .bm-sub'))),
-    'the small picture highlighted',
-  );
-  assert.doesNotMatch(await ring(nth(7, ' .bm-thumb')), /0px 0px 0px 2px/);
-  // 悬停起点：小图一起高亮。
-  await mouse('mouseMoved', ts.right - 6, ts.top + 6);
-  await wait(
-    async () => /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(await ring(nth(3, ' > .bm-sub'))),
+    async () => /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(await ring(nth(6, ' .bm-thumb'))),
     'Hovering the start highlights the end',
   );
   // 名称叠在缩略图下沿，底色接近不透明；类型角标在名称上方。
   await js(`document.querySelector('.bm-panel .bm-grid').scrollTop=1e5`);
   await delay(100);
   const [nt, nn, nb] = await Promise.all([
-    box(nth(26, ' .bm-thumb')),
-    box(nth(26, ' .bm-name')),
-    box(nth(26, ' .bm-type')),
+    box(nth(27, ' .bm-thumb')),
+    box(nth(27, ' .bm-name')),
+    box(nth(27, ' .bm-type')),
   ]);
   assert.ok(
     Math.abs(nn.bottom - nt.bottom) < 0.5 && Math.abs(nn.left - nt.left) < 0.5 && Math.abs(nn.right - nt.right) < 0.5,
   );
   assert.ok(nb.bottom <= nn.top + 0.5, 'Type badge above the name');
   assert.equal(
-    await js(`getComputedStyle(document.querySelector('${nth(26, ' .bm-name')}')).backgroundColor`),
+    await js(`getComputedStyle(document.querySelector('${nth(27, ' .bm-name')}')).backgroundColor`),
     'rgba(10, 10, 12, 0.88)',
   );
   // 音频书签：书有封面（默认封面取自第一张图）时以封面作背景。
   await wait(() =>
     js(
-      `(document.querySelector('${nth(26, ' .bm-ph.audio')}')?.style.getPropertyValue('--cover')||'').includes('blob:')`,
+      `(document.querySelector('${nth(27, ' .bm-ph.audio')}')?.style.getPropertyValue('--cover')||'').includes('blob:')`,
     ),
   );
-  assert.ok(await js(`document.querySelector('${nth(26, ' .bm-ph.audio')}').classList.contains('has-cover')`));
+  assert.ok(await js(`document.querySelector('${nth(27, ' .bm-ph.audio')}').classList.contains('has-cover')`));
   await shot('marknames-panel');
-  // 点小图：跳到区段书签的位置。
+  // 点区段书签那一项：跳到区段书签的位置。
   await js(`document.querySelector('.bm-panel .bm-grid').scrollTop=0`);
   await delay(100);
-  const end1 = await box(nth(3, ' > .bm-sub'));
-  await click(end1.left + 6, end1.bottom - 6); // 避开右上角的删除按钮
+  const end1 = await box(nth(6, ' .bm-thumb'));
+  await click(end1.x, end1.y);
   await wait(() => js('document.querySelector(".bm-panel").hidden'));
   await wait(async () => JSON.stringify(await js('center()')) === JSON.stringify(['02.svg', 0.5]));
 
@@ -372,14 +368,14 @@ try {
   // Esc 取消：名称不变，面板不关闭。
   await js(`document.querySelector('.bm-panel .bm-grid').scrollTop=1e5`);
   await delay(100);
-  p = await box(nth(26, ' .bm-thumb'));
+  p = await box(nth(27, ' .bm-thumb'));
   await mouse('mouseMoved', p.x, p.y);
-  await wait(() => js(`getComputedStyle(document.querySelector('${nth(26, ' .bm-ren')}')).opacity==='1'`));
-  p = await box(nth(26, ' .bm-ren'));
+  await wait(() => js(`getComputedStyle(document.querySelector('${nth(27, ' .bm-ren')}')).opacity==='1'`));
+  p = await box(nth(27, ' .bm-ren'));
   await click(p.x, p.y);
   assert.deepEqual(await editor(), ['song-Bookmark1', 'song-Bookmark1', 's2']);
-  const ed = await box(nth(26, ' .bm-edit')),
-    th = await box(nth(26, ' .bm-thumb'));
+  const ed = await box(nth(27, ' .bm-edit')),
+    th = await box(nth(27, ' .bm-thumb'));
   assert.ok(Math.abs(ed.bottom - th.bottom) < 0.5 && Math.abs(ed.width - th.width) < 0.5, 'Editor over the name');
   await shot('marknames-edit');
   await type('Zzz');
@@ -394,7 +390,7 @@ try {
   await wait(async () => (await marksOf()).s2[0] === 'Intro');
   assert.deepEqual((await marksOf()).s2, ['Intro', true]);
   await js(`document.querySelector('.bm-panel .bm-grid').scrollTop=1e5`);
-  p = await box(nth(26, ' .bm-thumb'));
+  p = await box(nth(27, ' .bm-thumb'));
   await mouse('mouseMoved', p.x + 1, p.y);
   await tap('F2');
   assert.deepEqual(await editor(), ['Intro', 'song-Bookmark3', 's2']);
@@ -426,17 +422,17 @@ try {
   );
   assert.deepEqual([added.name, added.label, added.named ?? false], ['song.wav', 'song-Bookmark4', false]);
 
-  // ==== 6. 书架书签栏：同样一个区段一格，F2 重命名悬停的项 ====
+  // ==== 6. 书架书签栏：同样两项各占一格，F2 重命名悬停的项 ====
   await js(`document.querySelector('#bar [data-act="shelfmarks"]').click()`);
   await wait(() =>
-    js(`!document.getElementById('shelfmarks').hidden&&document.querySelectorAll('#shelfmarks .bm-item').length===29`),
+    js(`!document.getElementById('shelfmarks').hidden&&document.querySelectorAll('#shelfmarks .bm-item').length===31`),
   );
   assert.deepEqual(
     await js(
-      `(()=>{const a=document.querySelectorAll('#shelfmarks .bm-item[data-id="i1a"]'),s=a[0].querySelector(':scope>.bm-sub');return [a.length,!!s?.querySelector('.bm-mk.end'),!!s?.querySelector('.bm-sub-del'),s?.offsetWidth<a[0].offsetWidth*.6];})()`,
+      `(()=>{const [a,b]=document.querySelectorAll('#shelfmarks .bm-item[data-id="i1a"]');return [b.previousElementSibling.dataset.id,'end' in b.dataset,!!b.querySelector('.bm-mk.end'),b.querySelector('.bm-del').getAttribute('aria-label'),Math.abs(a.offsetWidth-b.offsetWidth)<1&&Math.abs(a.offsetHeight-b.offsetHeight)<1];})()`,
     ),
-    [1, true, true, true],
-    'One cell with the small picture in the shelf bookmarks too',
+    ['i2a', true, true, 'Delete section bookmark', true],
+    'Start and section bookmark as two items in position order in the shelf bookmarks too',
   );
   await js(`document.querySelector('#shelfmarks .bm-item[data-id="i3a"]').scrollIntoView({block:'center'})`);
   await delay(150);
@@ -456,7 +452,7 @@ try {
   await wait(() => js(`document.getElementById('shelfmarks').hidden`));
   await js('reader.focus()');
 
-  // ==== 7. 全屏书架书签：一个区段一格（方向键以格为单位），选中这一格起点和小图一起高亮；点小图跳到区段书签；F2 / 铅笔按钮重命名 ====
+  // ==== 7. 全屏书架书签：区段书签是单独的一项（键盘可达），选中一项两项一起高亮；回车跳到区段书签；F2 / 铅笔按钮重命名 ====
   const sheetOpen = () =>
     js(
       `document.getElementById('shelfOverview').open&&!document.getElementById('shelfOverview').classList.contains('closing')`,
@@ -465,12 +461,10 @@ try {
   await wait(sheetOpen);
   await delay(250);
   const ovNodes = () =>
-    js(
-      `[...document.querySelectorAll('#shelfOverview .ov-mark')].map(n=>n.dataset.id+(n.querySelector(':scope>.bm-sub')?':sub':''))`,
-    );
+    js(`[...document.querySelectorAll('#shelfOverview .ov-mark')].map(n=>n.dataset.id+('end' in n.dataset?':end':''))`);
   const ids = await ovNodes();
-  assert.equal(ids.length, 29);
-  assert.deepEqual(ids.slice(2, 4), ['i1a:sub', 'i1b']);
+  assert.equal(ids.length, 31);
+  assert.deepEqual(ids.slice(2, 7), ['i1a', 'i1b', 'i2a', 'i1a:end', 'i2b']);
   const ovNode = (k) => '#shelfOverview .ov-mark[data-k="' + k + '"]';
   await js(`document.querySelector('${ovNode(2)}').scrollIntoView({block:'center'})`);
   await delay(150);
@@ -478,40 +472,39 @@ try {
   await mouse('mouseMoved', p.x + 1, p.y + 1);
   await mouse('mouseMoved', p.x, p.y);
   await wait(() => js(`document.querySelector('${ovNode(2)}').classList.contains('sel')`));
-  // 选中这一格：格子与小图都以区段配色高亮。
-  await wait(async () =>
-    /rgb\(90, 180, 255\) 0px 0px 0px 3px/.test(
-      await js(`getComputedStyle(document.querySelector('${ovNode(2)}')).boxShadow`),
-    ),
-  );
-  await wait(async () =>
-    /rgb\(90, 180, 255\) 0px 0px 0px 2px/.test(
-      await js(`getComputedStyle(document.querySelector('${ovNode(2)} > .bm-sub')).boxShadow`),
-    ),
-  );
+  // 选中起点：它的区段书签一起以区段配色高亮。
+  for (const k of [2, 5])
+    await wait(async () =>
+      /rgb\(90, 180, 255\) 0px 0px 0px 3px/.test(
+        await js(`getComputedStyle(document.querySelector('${ovNode(k)}')).boxShadow`),
+      ),
+    );
+  assert.ok(await js(`document.querySelector('${ovNode(5)}').classList.contains('mate')`));
   assert.equal(
     await js(`document.querySelector('#shelfOverview .ov-pos').textContent`),
     'Bookmark 3 / 29 · Names',
     'Ends are not counted',
   );
-  // 方向键以格为单位：区段书签不是单独的一项。
+  // 方向键以项为单位：区段书签是单独的一项（位置文字显示它起点的序号）。
   await tap('ArrowRight');
   await wait(() => js(`document.querySelector('${ovNode(3)}').classList.contains('sel')`));
-  assert.equal(await js(`document.querySelector('${ovNode(3)}').dataset.id`), 'i1b');
   assert.equal(await js(`document.querySelector('#shelfOverview .ov-pos').textContent`), 'Bookmark 4 / 29 · Names');
-  await tap('ArrowLeft');
-  await wait(() => js(`document.querySelector('${ovNode(2)}').classList.contains('sel')`));
+  assert.equal(await js(`document.querySelectorAll('#shelfOverview .ov-mark.mate').length`), 0);
+  await tap('ArrowRight');
+  await tap('ArrowRight');
+  await wait(() => js(`document.querySelector('${ovNode(5)}').classList.contains('sel')`));
+  assert.ok(await js(`document.querySelector('${ovNode(2)}').classList.contains('mate')`));
+  assert.equal(await js(`document.querySelector('#shelfOverview .ov-pos').textContent`), 'Bookmark 3 / 29 · Names');
   await shot('marknames-overview');
-  // 点小图：跳到区段书签。
-  p = await box(ovNode(2) + ' > .bm-sub');
-  await click(p.left + 6, p.bottom - 6);
+  // 回车：跳到区段书签。
+  await tap('Enter');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)));
   await wait(async () => JSON.stringify(await js('center()')) === JSON.stringify(['02.svg', 0.5]));
   await js('reader.focus()');
   await tap('c');
   await wait(sheetOpen);
   await delay(250);
-  const s5 = (await ovNodes()).indexOf('s5:sub');
+  const s5 = (await ovNodes()).indexOf('s5');
   await js(`document.querySelector('${ovNode(s5)}').scrollIntoView({block:'center'})`);
   await delay(150);
   p = await box(ovNode(s5));
@@ -526,8 +519,8 @@ try {
   assert.deepEqual((await marksOf()).s5, ['Chorus', true]);
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#shelfOverview .ov-mark[data-id="s5"] .bm-name')].map(n=>n.textContent)`),
-    ['Chorus'],
-    'The cell shows the new name',
+    ['Chorus', 'Chorus'],
+    'Both items of the section show the new name',
   );
   assert.ok(await sheetOpen(), 'Still open after renaming');
   assert.equal(
@@ -623,7 +616,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: cover picker without overlapping cells or hint, one cell per section (the section bookmark as a small picture in its start) with the section colour and paired highlight, jump to the end, media bookmark names (new, legacy filled in, .pbf 2.3.0), names over thumbnails, in-place rename (panel, shelf bookmarks, full-screen; F2 / pencil, Enter / Esc, clear restores the default), audio covers from the book cover (updates on change, none for text covers), backup keeps the name fields',
+    'PASS: cover picker without overlapping cells or hint, start and section bookmark as two items in position order with the section colour and paired highlight, jump to the end, media bookmark names (new, legacy filled in, .pbf 2.3.0), names over thumbnails, in-place rename (panel, shelf bookmarks, full-screen; F2 / pencil, Enter / Esc, clear restores the default), audio covers from the book cover (updates on change, none for text covers), backup keeps the name fields',
   );
 } finally {
   if (ws?.readyState === 1) {

@@ -1,15 +1,15 @@
 import { clock } from '../core/model.mjs';
-import { union, layers } from '../core/sections.mjs';
+import { union } from '../core/sections.mjs';
 import { list, isMedia } from '../marks/list.mjs';
 // 播放器上的书签：进度条上的书签标记与区段、「添加书签」「添加区段书签」按钮（音频卡片与文件栏）。由 marks/bookmarks.mjs 安装（S 为书签模块的共享对象）。
 // 进度条标记只依赖进度条元素本身（drawBar / wireBar：给一个进度条和它的书、页、时长、定位函数就能画、能交互），不依赖它所在的面板。
 const NEAR = 9; // 指针离标记这么多像素以内算指向它（挤在一起时取最近的）
 export function install(ctx, S) {
   const { t, make } = ctx;
-  // ---- 进度条上的书签：按时间位置画出该文件的全部书签。普通书签是轨道上的圆点；区段画成一对方括号连着一道顶线（┌──┐），
-  // 按嵌套深度分层（core/sections.mjs 的 layers，最多 3 层，外层的顶线最高，嵌套的在里面）。
-  // 指针指向某个标记（标记挤在一起时取离指针最近的）：只高亮它这一对，提示两端的时间与名称；点击跳到该标记的时间。键盘聚焦标记同样。
-  // 开启「只播放书签区段」时（.sec-only，shell.mjs），所有区段的并集以外变暗。
+  // ---- 进度条上的书签：按时间位置画出该文件的全部书签。普通书签是轨道上的圆点；起点与区段书签是一对方括号，各在自己的时间点上（不连线、不分层）。
+  // 指针指向某个标记（标记挤在一起时取离指针最近的）：只高亮它这一对（区段的两个方括号，两者之间的一段在轨道上以区段配色显示），
+  // 提示两端的时间与名称；点击跳到该标记的时间。键盘聚焦标记同样。
+  // 开启「只播放书签区段」时（.sec-only，shell.mjs），各区段常显（即所有区段的并集），并集以外变暗。
   function drawBar(bar, book, page, d, seek) {
     let layer = bar.querySelector(':scope>.mv-marks');
     if (!layer) bar.append((layer = make('div', 'mv-marks')));
@@ -25,8 +25,7 @@ export function install(ctx, S) {
     const pct = (s) => Math.min(100, Math.max(0, (s / d) * 100)) + '%',
       out = [],
       marks = [],
-      secs = items.filter((x) => x.live),
-      lvs = layers(secs.map((x) => ({ a: x.bm.t, b: x.bm.end.t })));
+      secs = items.filter((x) => x.live);
     // 变暗：所有区段的并集以外的部分（没有区段时不画）。
     let from = 0;
     for (const s of union(secs.map((x) => ({ a: x.bm.t, b: x.bm.end.t })))) {
@@ -47,36 +46,30 @@ export function install(ctx, S) {
         out.push(marker(x.bm.t, 'mark', tip));
         continue;
       }
-      const lv = lvs[secs.indexOf(x)],
-        tip = t('secStart') + ' ' + clock(x.bm.t) + ' – ' + clock(x.bm.end.t) + name(x),
+      const tip = t('secStart') + ' ' + clock(x.bm.t) + ' – ' + clock(x.bm.end.t) + name(x),
         span = make('i', 'mv-span');
       span.dataset.sec = x.bm.id;
-      span.style.setProperty('--lv', lv);
       span.style.left = pct(x.bm.t);
       span.style.width = ((x.bm.end.t - x.bm.t) / d) * 100 + '%';
       out.push(
         span,
-        marker(x.bm.t, 'start', tip, x.bm.id, lv),
+        marker(x.bm.t, 'start', tip, x.bm.id),
         marker(
           x.bm.end.t,
           'end',
           t('secEnd') + ' ' + clock(x.bm.end.t) + ' · ' + t('secStart') + ' ' + clock(x.bm.t) + name(x),
           x.bm.id,
-          lv,
         ),
       );
     }
-    function marker(s, kind, tip, sec, lv = 0) {
+    function marker(s, kind, tip, sec) {
       const b = make('button', 'mv-mk ' + kind);
       b.type = 'button';
       b.setAttribute('aria-label', tip);
       b.style.left = pct(s);
       b.dataset.t = s;
       b.dataset.tip = tip;
-      if (sec) {
-        b.dataset.sec = sec;
-        b.style.setProperty('--lv', lv);
-      }
+      if (sec) b.dataset.sec = sec;
       marks.push(b);
       return b;
     }
@@ -104,7 +97,7 @@ export function install(ctx, S) {
     tipEl.style.left = Math.round(Math.min(innerWidth - w - 4, Math.max(4, r.left + r.width / 2 - w / 2))) + 'px';
     tipEl.style.top = Math.round(r.top - h - 6 < 4 ? r.bottom + 6 : r.top - h - 6) + 'px';
   }
-  // 指向 / 聚焦的标记（null 为没有）：区段的一对（两个方括号和顶线）一起高亮，普通书签只高亮它自己。
+  // 指向 / 聚焦的标记（null 为没有）：区段的一对（两个方括号和两者之间的一段）一起高亮，普通书签只高亮它自己。
   function hot(layer, b) {
     if (layer._hot === b) return;
     layer._hot = b;

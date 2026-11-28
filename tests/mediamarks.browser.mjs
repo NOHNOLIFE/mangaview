@@ -386,8 +386,19 @@ try {
     /^Section start 0:05 – 0:09/,
     'The tooltip gives both ends',
   );
+  // 一对方括号各在自己的时间点上，与圆点一样在轨道中线上（没有顶线、不分层）；区段只在轨道上显示。
+  assert.ok(
+    await js(
+      `(()=>{const n=node('03 long.wav'),c=(s)=>{const r=n.querySelector(s).getBoundingClientRect();return r.top+r.height/2;};return [c('.mv-mk.end'),c('.mv-mk.mark'),c('.mv-span')].every(y=>Math.abs(y-c('.mv-mk.start'))<1)&&n.querySelector('.mv-span').getBoundingClientRect().height<=4;})()`,
+    ),
+    'Brackets on the track line, the section on the track',
+  );
   await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 400, y: 200 }); // 移开（不靠近四边，免得弹出侧栏）
   await wait(() => js(`!node('03 long.wav').querySelector('.mv-span.hot')`), 'highlight cleared');
+  await wait(
+    async () => (await js(`getComputedStyle(node('03 long.wav').querySelector('.mv-span')).opacity`)) === '0',
+    'section hidden when not pointed at',
+  );
   // 延长：在区段之后、下一个普通书签之前添加，延长这个区段。
   await at('03 long.wav', 10);
   await hold(true);
@@ -403,7 +414,7 @@ try {
   await hold(true);
   await said('No bookmark before this point to pair with — add a bookmark first');
 
-  // 书签列表：媒体书签带类型角标和时间点；音频是占位小块；区段只占一格（区段书签是起点左下角的小图）；视频书签的缩略图在列表里可见时才截取。
+  // 书签列表：媒体书签带类型角标和时间点；音频是占位小块；区段书签单独一项，按时间排在区段内的书签之后；视频书签的缩略图在列表里可见时才截取。
   assert.ok(!(await thumbKeys()).includes((await record()).id + ':bm:lazy'), 'Not generated before it is shown');
   await js(`reader.scrollTop=0`);
   await delay(100);
@@ -412,20 +423,14 @@ try {
   await wait(() => js(`!document.querySelector('.bm-panel').hidden`), 'panel');
   assert.deepEqual(
     await js(
-      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-thumb .bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector(':scope>.bm-thumb>.bm-name')?.textContent??null,e.querySelector(':scope>.bm-sub')?.getAttribute('aria-label')??null,!!e.querySelector(':scope>.bm-sub>.bm-ph.audio')])`,
+      `[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>[e.getAttribute('aria-label'),e.querySelector('.bm-thumb .bm-type')?.textContent??null,!!e.querySelector('.bm-thumb>.bm-ph.audio'),e.querySelector(':scope>.bm-thumb>.bm-name')?.textContent??null,'end' in e.dataset])`,
     ),
     [
-      ['Page 2 · 0:01 · 02 clip-Bookmark1', '0:01', false, '02 clip-Bookmark1', null, false],
-      [
-        'Page 3 · 0:05 · 03 long-Bookmark1 · Section start',
-        '0:05',
-        true,
-        '03 long-Bookmark1',
-        'Section bookmark · Page 3 · 0:10',
-        true,
-      ],
-      ['Page 3 · 0:12 · 03 long-Bookmark2', '0:12', true, '03 long-Bookmark2', null, false],
-      ['Page 4 · 0:00 · 04 clip-Bookmark1', '0:00', false, '04 clip-Bookmark1', null, false],
+      ['Page 2 · 0:01 · 02 clip-Bookmark1', '0:01', false, '02 clip-Bookmark1', false],
+      ['Page 3 · 0:05 · 03 long-Bookmark1 · Section start', '0:05', true, '03 long-Bookmark1', false],
+      ['Section bookmark · Page 3 · 0:10', '0:10', true, '03 long-Bookmark1', true],
+      ['Page 3 · 0:12 · 03 long-Bookmark2', '0:12', true, '03 long-Bookmark2', false],
+      ['Page 4 · 0:00 · 04 clip-Bookmark1', '0:00', false, '04 clip-Bookmark1', false],
     ],
   );
   await wait(
@@ -441,14 +446,14 @@ try {
   );
   await shot('mediamarks-panel');
   await tapKey('Escape');
-  // 全屏书架书签里同样带类型角标（区段同样只占一格，区段书签是左下角的小图）。
+  // 全屏书架书签里同样带类型角标（区段书签同样是单独的一项）。
   await tapKey('c');
   await wait(() => js(`document.getElementById('shelfOverview').open`), 'full-screen bookmarks');
   assert.deepEqual(
     await js(
-      `[...document.querySelectorAll('#shelfOverview .ov-mark')].map(e=>e.querySelector('.bm-type').textContent+(e.querySelector(':scope>.bm-sub')?' +sub':''))`,
+      `[...document.querySelectorAll('#shelfOverview .ov-mark')].map(e=>e.querySelector('.bm-type').textContent+('end' in e.dataset?' end':''))`,
     ),
-    ['0:01', '0:05 +sub', '0:12', '0:00'],
+    ['0:01', '0:05', '0:10 end', '0:12', '0:00'],
   );
   await tapKey('c');
   await wait(async () => !(await js(`document.getElementById('shelfOverview').open`)), 'closed');

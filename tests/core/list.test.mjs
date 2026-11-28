@@ -5,6 +5,7 @@ import {
   key,
   endKey,
   list,
+  entries,
   coord,
   coords,
   mediaRanges,
@@ -63,6 +64,25 @@ test('区段书签：终点在起点之后才生效；媒体只在同一文件�
     { id: 's', a: 0, b: 2, lv: 0 },
     { id: 'm', a: 3, b: 3, lv: 0 },
   ]);
+});
+test('列表里的项：区段书签单独一项，与其他书签一起按位置排序', () => {
+  const b = book([
+    { id: 's', name: 'a', f: 0.5, at: 1, end: { name: 'c', f: 0.1, at: 2 } },
+    { id: 'p', name: 'b', f: 0.3, at: 3 },
+    { id: 'q', name: 'c', f: 0.6, at: 4 },
+    { id: 'r', name: 'c', f: 0.5, at: 5, end: { name: 'b', f: 0.1, at: 6 } },
+    { id: 'm', name: 'v', t: 2, at: 7, end: { name: 'v', t: 8, at: 8 } },
+    { id: 'n', name: 'v', t: 5, at: 9 },
+    { id: 'g', name: 'a', f: 0.9, at: 10, end: { name: 'gone', f: 0.1, at: 11 } },
+    { id: 'x', name: 'gone', f: 0.2, at: 12 },
+  ]);
+  const names = entries(list(b)).map(({ x, end }) => x.bm.id + (end ? ':end' : ''));
+  assert.deepEqual(
+    names,
+    ['s', 'g', 'r:end', 'p', 's:end', 'r', 'q', 'm', 'n', 'm:end', 'g:end', 'x'],
+    '区段内的书签夹在两项之间；暂不生效的区段书签按自己的位置排在起点之前；页已不存在的排最后',
+  );
+  assert.deepEqual(entries([]), []);
 });
 test('每页的标记汇总：计数不含区段书签，媒体页不画页内细标记', () => {
   const b = book([

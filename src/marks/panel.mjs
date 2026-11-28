@@ -1,4 +1,4 @@
-import { list } from './list.mjs';
+import { list, entries } from './list.mjs';
 // 书签面板（右键或快捷键呼出）：顶部是「添加书签」「添加区段书签」两个图标按钮和小的「设置为封面」按钮，下面是当前书的书签列表，点击跳转。
 export function install(ctx, S) {
   const { main, t, make, icon } = ctx;
@@ -40,10 +40,10 @@ export function install(ctx, S) {
       grid.replaceChildren(make('p', 'bm-empty', t('bmEmpty')));
       return;
     }
-    grid.replaceChildren(...items.map((x) => S.tile(book, x)));
+    grid.replaceChildren(...entries(items).map(({ x, end }) => S.tile(book, x, false, end)));
     markPanel();
   }
-  // 面板里的最近书签（只看本书，core/recent.mjs；与书架书签列表的 .active 相同，是区段书签时只高亮小图）；面板开着时随阅读滚动更新。
+  // 面板里的最近书签（只看本书，core/recent.mjs；与书架书签列表的 .active 相同，只高亮最近的那一项）；面板开着时随阅读滚动更新。
   function markPanel() {
     const el = S.spotOf(grid, S.nearest());
     for (const o of grid.querySelectorAll('.active')) if (o !== el) o.classList.remove('active');
@@ -83,7 +83,7 @@ export function install(ctx, S) {
   });
   panel.addEventListener('contextmenu', (e) => e.preventDefault());
   panel.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-ren,.bm-edit,.bm-sub-del')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
     if (e.target.closest('.bm-cover')) {
       close();
       ctx.safe(ctx.actions.setCover)();
@@ -100,11 +100,10 @@ export function install(ctx, S) {
       main.focus();
       return;
     }
-    // 点起点格子跳到起点，点左下角的小图跳到区段书签。
-    const item = e.target.closest('.bm-item'),
-      end = e.target.closest('.bm-sub');
-    if (!item || (end ?? item).classList.contains('gone')) return;
-    S.jumpTo(item.dataset.id, !!end);
+    // 点哪项跳到哪里：区段书签那一项跳到区段书签。
+    const item = e.target.closest('.bm-item');
+    if (!item || item.classList.contains('gone')) return;
+    S.jumpTo(item.dataset.id, 'end' in item.dataset);
     close();
     main.focus();
   });

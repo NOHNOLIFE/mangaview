@@ -183,8 +183,8 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 260px;
 }
-/* 选中项所在的分组不做绘制隔离，选中的阴影不被分组边缘裁掉。 */
-.ov-sec:has(.ov-mark.sel) {
+/* 选中项（及成对高亮的另一项）所在的分组不做绘制隔离，选中的阴影不被分组边缘裁掉。 */
+.ov-sec:has(.ov-mark:is(.sel, .mate)) {
   content-visibility: visible;
 }
 .ov-sec-head {

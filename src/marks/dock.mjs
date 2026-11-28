@@ -1,5 +1,5 @@
 import { clipEnd } from '../core/model.mjs';
-import { list, key, endKey } from './list.mjs';
+import { list, entries, key, endKey } from './list.mjs';
 // 书架书签栏（左侧，常驻或左缘弹出）：按阅读列表（ctx.readingList：书架页当前页签 + 筛选 + 书籍排序）集中显示各书的书签、标出最近书签（core/recent.mjs）、跨书跳转，以及供全屏书架书签用的 ctx.shelfmarks。
 const DWELL = 150,
   MIN_W = 160,
@@ -76,7 +76,7 @@ export function install(ctx, S) {
         const section = make('section', 'sm-book');
         section.dataset.book = book.id;
         section.setAttribute('aria-label', ctx.title(book));
-        section.append(...items.map((x) => S.tile(book, x, true)));
+        section.append(...entries(items).map(({ x, end }) => S.tile(book, x, true, end)));
         if (grid) section.style.containIntrinsicSize = sizeOf(section);
         return section;
       }),
@@ -106,7 +106,7 @@ export function install(ctx, S) {
   }
   new ResizeObserver(() => estimate()).observe(dockList);
   // 标出当前书的一组，以及最近书签（当前标记，.active；core/recent.mjs：阅读位置之前最近的一项，本书前面没有时是列表里前面某本书的最后一项；
-  // 是区段书签时只高亮那一格的小图）。只改样式，不滚动列表。
+  // 起点与区段书签各是一项，只高亮最近的那一项）。只改样式，不滚动列表。
   function markDock() {
     if (dock.hidden) return;
     for (const s of dockList.querySelectorAll('.sm-book'))
@@ -208,15 +208,14 @@ export function install(ctx, S) {
     );
   }
   dockList.addEventListener('click', (e) => {
-    if (e.target.closest('.bm-del,.bm-ren,.bm-edit,.bm-sub-del')) return;
+    if (e.target.closest('.bm-del,.bm-ren,.bm-edit')) return;
     const section = e.target.closest('.sm-book'),
       book = section && ctx.books.get(section.dataset.book);
     if (!book) return;
-    // 点起点格子跳到起点，点左下角的小图跳到区段书签。
+    // 点哪项跳到哪里：区段书签那一项跳到区段书签。
     const item = e.target.closest('.bm-item'),
-      sub = e.target.closest('.bm-sub'),
-      end = !!sub;
-    if (!item || (sub ?? item).classList.contains('gone')) return;
+      end = !!item && 'end' in item.dataset;
+    if (!item || item.classList.contains('gone')) return;
     const x = list(book).find((x) => x.bm.id === item.dataset.id);
     if (x && (end ? x.e >= 0 : x.i >= 0)) goShelf(book, x, end);
     main.focus();
