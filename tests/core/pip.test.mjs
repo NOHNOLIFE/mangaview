@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { entry, span, centerTop, revealTop, ratio, MIN_RATIO, MAX_RATIO } from '../../src/core/pip.mjs';
+import { entry, span, centerTop, revealTop, listRows } from '../../src/core/pip.mjs';
 
 test('入口：视频、音频成为当前曲目并在画中画显示，已在画中画的当前曲目再按即关闭；图片只开 / 关窗口', () => {
   assert.equal(entry({ open: false, kind: 'video' }), 'show', 'Opens the window with the file');
@@ -35,10 +35,32 @@ test('播放列表只渲染可视范围（前后多几项），打开时当前�
   assert.equal(revealTop(2, 32, 200, 320), 64, 'Above: its top');
 });
 
-test('内容区的画面比例：按帧尺寸，未知时 16:9，夹在合理范围内', () => {
-  assert.equal(ratio(1920, 1080), 1080 / 1920);
-  assert.equal(ratio(0, 0), 9 / 16);
-  assert.equal(ratio(undefined, 100), 9 / 16);
-  assert.equal(ratio(100, 1000), MAX_RATIO, 'Very tall');
-  assert.equal(ratio(1000, 10), MIN_RATIO, 'Very wide');
+test('播放列表的行：跨多本书时每段连续的同一本书前有一行书名小标题，只有一本书时没有', () => {
+  const it = (book, name) => ({ book, name });
+  const one = [it('A', 1), it('A', 2)];
+  assert.deepEqual(
+    listRows(one),
+    {
+      rows: [
+        { item: one[0], i: 0 },
+        { item: one[1], i: 1 },
+      ],
+      at: [0, 1],
+    },
+    'One book',
+  );
+  const mix = [it('A', 1), it('A', 2), it('B', 1), it('A', 3)];
+  const r = listRows(mix);
+  assert.deepEqual(
+    r.rows.map((x) => (x.head ? 'h:' + x.head : x.i)),
+    ['h:A', 0, 1, 'h:B', 2, 'h:A', 3],
+    'A heading before every run of one book',
+  );
+  assert.deepEqual(r.at, [1, 2, 4, 6]);
+  assert.deepEqual(listRows([]), { rows: [], at: [] });
+  assert.deepEqual(
+    listRows([{ b: 1 }, { b: 2 }], (x) => x.b).rows.map((x) => x.head ?? '-'),
+    [1, '-', 2, '-'],
+    'Custom book key',
+  );
 });

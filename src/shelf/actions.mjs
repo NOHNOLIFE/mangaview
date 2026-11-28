@@ -1,12 +1,28 @@
 // 书卡片上的操作按钮。卡片上固定四个位置：编辑标签（源文件夹找不到时为「恢复」）、移到书库 / 书架、删除、更多（⋯）；
 // 已失效的书：恢复、（空位）、删除、更多。按钮位置不随状态移动。
+// 含视频、音频的书（未失效、浏览器支持画中画时）另有「添加到播放列表」：在这一行按钮下方、靠右（不挤占四个固定位置），
+// 点击把整本书的视频、音频追加到播放列表（ctx.media.queue.addBook：不替换、不播放），提示追加了几项（都已在列表里时也提示）。
 // 「更多」弹出菜单（书架里共用一个弹出层 #cardMenu，打开时按书生成菜单项）：重命名、设置封面、复制书名；
 // 源找不到时编辑标签也在菜单里；已失效的书只有重命名、设置封面。菜单可用方向键、Home / End、回车操作，Esc 关闭后焦点回到「更多」。
 import { extend } from '../core/lang.mjs';
 import { $ } from './util.mjs';
+import { kindsOf } from './criteria.mjs';
 
 extend({
   cardMore: ['More', '更多', 'その他', '더 보기'],
+  qAddBook: ['Add to the play list', '添加到播放列表', '再生リストに追加', '재생 목록에 추가'],
+  qAdded: [
+    'Added {n} files to the play list',
+    '已将 {n} 个文件添加到播放列表',
+    '{n} 個のファイルを再生リストに追加しました',
+    '파일 {n}개를 재생 목록에 추가했습니다',
+  ],
+  qAddedNone: [
+    'All of them are already in the play list',
+    '这本书的文件都已在播放列表里',
+    'すべて再生リストに入っています',
+    '모두 이미 재생 목록에 있습니다',
+  ],
 });
 export function install(ctx, S) {
   const { books, t, iconButton, make, icon, safe, shelf } = ctx;
@@ -109,6 +125,12 @@ export function install(ctx, S) {
   // 卡片滚动、书架关闭时菜单随之关闭（菜单固定定位，不跟着卡片移动）。
   $('books').addEventListener('scroll', () => close(false), { passive: true });
   shelf.addEventListener('close', () => close(false));
+  // 「添加到播放列表」：含视频、音频、未失效，且浏览器支持画中画（播放列表在画中画窗口里）。
+  const queueable = (b, ex) => !ex && !!ctx.pip?.supported && ['video', 'audio'].some((k) => kindsOf(b).has(k));
+  function addToQueue(b) {
+    const n = ctx.media?.queue?.addBook(live(b)) ?? 0;
+    ctx.notice(null, n ? ctx.fmt('qAdded', { n }) : t('qAddedNone'));
+  }
   // ex：过期书；lost：找不到的源（卷）数。
   S.cardActions = (b, ex, lost) => {
     const tools = make('div', 'actions');
@@ -147,9 +169,10 @@ export function install(ctx, S) {
       iconButton('trash', t('remove'), () => ctx.remove(live(b)), 'danger'),
       more,
     );
+    if (queueable(b, ex)) tools.append(iconButton('list-plus', t('qAddBook'), () => addToQueue(b), 'queue-add'));
     return tools;
   };
   // 按钮的状态：变了才重建卡片上的按钮（card.mjs），其余增量更新不动按钮，打开的菜单不受影响。
   S.menuFor = () => (menu.matches(':popover-open') ? menuFor : null);
-  S.actionKey = (b, ex, lost) => [ex ? 'x' : lost ? 'l' : 'ok', b.place, ctx.lang].join('|');
+  S.actionKey = (b, ex, lost) => [ex ? 'x' : lost ? 'l' : 'ok', b.place, ctx.lang, queueable(b, ex)].join('|');
 }

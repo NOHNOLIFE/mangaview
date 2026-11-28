@@ -1,0 +1,154 @@
+/* 画中画面板的播放列表（piplist.mjs）：窗口右侧的一栏。平时收起（透明、不接收指针），.list-peek 时浮在内容上；
+   固定（.list-pinned）且面板够宽时停靠在右侧（参与布局，主体相应变窄），太窄时固定也按浮出的方式显示。
+   行固定高度（piplist.mjs ROW），只渲染可视范围的行（绝对定位）；书名小标题（.pip-group）也占一行。 */
+.pip-side {
+  --side: clamp(150px, 44cqw, 280px);
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--side);
+  max-width: 100%;
+  border-left: 1px solid var(--line2);
+  background: rgba(20, 21, 25, 0.97);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.18s,
+    visibility 0s 0.18s;
+}
+.pip.list-peek .pip-side {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.12s;
+}
+@container pip (min-width: 340px) {
+  .pip.list-pinned .pip-side {
+    position: relative;
+    z-index: auto;
+    flex: none;
+    border-left-color: var(--line);
+    background: var(--bg);
+    box-shadow: none;
+    opacity: 1;
+    visibility: visible;
+    transition: none;
+  }
+}
+.pip-list {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pip-list:focus-visible {
+  outline-offset: -2px;
+}
+.pip-rows {
+  position: relative;
+}
+.pip-item,
+.pip-group {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 32px;
+}
+/* 书名小标题：小字、弱化，单行末尾省略（作品名省略末尾），可选中。 */
+.pip-group {
+  padding: 10px 10px 0;
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.pip-group > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pip-item {
+  gap: 6px;
+  padding: 0 2px 0 6px;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pip-item > .i {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+.pip-item > .mid-name {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+/* 书签标记位：始终占位；有书签显示书签图标，有区段书签用区段配色，没有书签留空。 */
+.pip-mk {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--muted);
+}
+.pip-mk .i {
+  width: 13px;
+  height: 13px;
+}
+.pip-mk[data-marks='section'] {
+  color: var(--sec);
+}
+.pip-mk:not([data-marks='mark'], [data-marks='section']) .i {
+  visibility: hidden;
+}
+.pip-item.sel {
+  background: rgba(255, 255, 255, 0.08);
+}
+/* 被过滤的项：弱化（仍可读、可点）。 */
+.pip-item.filtered {
+  color: var(--faint);
+}
+.pip-item.filtered > .i,
+.pip-item.filtered .pip-mk {
+  opacity: 0.6;
+}
+/* 当前曲目：强调色、加粗，左侧一道强调色竖条。 */
+.pip-item.current {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+.pip-item.current > .i {
+  color: var(--accent);
+}
+.pip-item.current.sel {
+  background: rgba(255, 122, 89, 0.22);
+}
+/* 每项的「定位」「移除」：始终占位，只在悬停 / 选中 / 聚焦的项上显示。 */
+.pip .pip-ib {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  visibility: hidden;
+}
+.pip-ib .i {
+  width: 16px;
+  height: 16px;
+}
+.pip-item.sel .pip-ib,
+.pip-item:focus-within .pip-ib {
+  visibility: visible;
+}
