@@ -326,23 +326,23 @@ try {
   await move(r.x, r.y);
   await wait(() => js('!card()'), 'images show no card');
 
-  // ==== 6. 书签面板：区段只占一格（起点左下角的小图），视频、音频书签悬停显示详情框，当前书签另有指针 ====
+  // ==== 6. 书签面板：起点和区段书签各占一格、按位置排序，视频、音频书签悬停显示详情框，当前书签另有指针 ====
   await js('reader.scrollTop=0');
   await delay(150);
   await click(300, 400, 'right');
   await wait(() => js("!document.querySelector('.bm-panel').hidden"));
   assert.deepEqual(
     await js(
-      "[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>e.dataset.id+(e.classList.contains('paired')?'+':'')+(e.querySelector(':scope>.bm-sub')?'/sub':''))",
+      "[...document.querySelectorAll('.bm-panel .bm-item')].map(e=>e.dataset.id+('end' in e.dataset?':end':'')+(e.matches('.sec-start,.sec-end')?'+':''))",
     ),
-    ['i3+/sub', 'a1', 'b2+/sub'],
-    'One cell per bookmark; a section bookmark is the small picture of its start',
+    ['i3+', 'a1', 'b2+', 'b2:end+', 'i3:end+'],
+    'Start and section bookmark as separate items in position order; bookmarks inside a section between them',
   );
   assert.deepEqual(
     await js(
-      "(()=>{const i=document.querySelector('.bm-panel .bm-item[data-id=\"i3\"]'),s=i.querySelector('.bm-sub'),t=i.querySelector('.bm-thumb'),a=s.getBoundingClientRect(),b=t.getBoundingClientRect();return {start:!!t.querySelector('.bm-mk.start'),end:!!s.querySelector('.bm-mk.end'),del:!!s.querySelector('.bm-sub-del'),corner:a.left-b.left<=6&&b.bottom-a.bottom<=6&&a.width<b.width*.6,label:s.getAttribute('aria-label')}})()",
+      "(()=>{const [i,s]=document.querySelectorAll('.bm-panel .bm-item[data-id=\"i3\"]'),a=s.getBoundingClientRect(),b=i.getBoundingClientRect();return {start:!!i.querySelector('.bm-mk.start'),end:!!s.querySelector('.bm-mk.end'),del:s.querySelector('.bm-del').getAttribute('aria-label'),same:Math.abs(a.width-b.width)<0.5&&Math.abs(a.height-b.height)<0.5,label:s.getAttribute('aria-label')}})()",
     ),
-    { start: true, end: true, del: true, corner: true, label: 'Section bookmark · Page 4' },
+    { start: true, end: true, del: 'Delete section bookmark', same: true, label: 'Section bookmark · Page 4' },
   );
   const pinAt = () =>
     js(
@@ -370,31 +370,31 @@ try {
     'No tooltip on media bookmarks',
   );
   await shot('filecard-panel');
-  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="b2"] .bm-thumb\')');
+  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="b2"]:not([data-end]) .bm-thumb\')');
   await move(r.right - 6, r.top + 10);
   await wait(async () => (await noteOf()) === 'Bookmark 0:05 · song-B');
   assert.ok(Math.abs((await pinAt()) - 5 / 12) < 0.02);
   assert.equal(await hotOf(), 'mv-span.hot,mv-mk.start,mv-mk.end', 'The bar highlights this section');
-  // 悬停这一格：起点和小图一起以区段配色高亮（描边有过渡，等它到位）。
+  // 悬停起点：起点和区段书签两项一起以区段配色高亮（描边有过渡，等它到位）。
   await wait(
     () =>
       js(
-        "(()=>{const i=document.querySelector('.bm-panel .bm-item[data-id=\"b2\"]');return [i.querySelector('.bm-thumb'),i.querySelector('.bm-sub')].every(e=>getComputedStyle(e).boxShadow.startsWith('rgb(90, 180, 255) 0px 0px 0px 2px'))})()",
+        "[...document.querySelectorAll('.bm-panel .bm-item[data-id=\"b2\"] > .bm-thumb')].every(e=>getComputedStyle(e).boxShadow.startsWith('rgb(90, 180, 255) 0px 0px 0px 2px'))",
       ),
-    'both pictures highlighted in the section colour',
+    'both items highlighted in the section colour',
   );
-  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="b2"] .bm-sub\')');
-  await move(r.x, r.y + 4);
+  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="b2"][data-end] .bm-thumb\')');
+  await move(r.right - 6, r.top + 10);
   await wait(
     async () => (await noteOf()) === 'Section bookmark 0:09 · song-B',
-    'the small picture shows the section end',
+    'the section bookmark item shows the section end',
   );
   assert.ok(Math.abs((await pinAt()) - 9 / 12) < 0.02);
   r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="i3"] .bm-thumb\')');
   await move(r.right - 6, r.top + 10);
   await wait(() => js('!card()'), 'image bookmarks show no card');
-  // 点起点格子左下角的小图：跳到区段书签。
-  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="i3"] .bm-sub\')');
+  // 点区段书签那一项：跳到区段书签。
+  r = await rect('document.querySelector(\'.bm-panel .bm-item[data-id="i3"][data-end] .bm-thumb\')');
   await click(r.x, r.y + 4);
   await wait(
     () =>
@@ -404,16 +404,16 @@ try {
     'jumped to the section end',
   );
 
-  // ==== 7. 全屏书签：一个书签一格，方向键以格为单位；详情框在对话框之上 ====
+  // ==== 7. 全屏书签：起点和区段书签各是一项，方向键以项为单位；详情框在对话框之上 ====
   await js('reader.focus()');
   await tap('c');
   await wait(() => js("shelfOverview.open&&!shelfOverview.classList.contains('closing')"));
   await delay(200);
   assert.deepEqual(
     await js(
-      "[...document.querySelectorAll('#shelfOverview .ov-mark')].map(e=>e.dataset.id+(e.querySelector(':scope>.bm-sub')?'/sub':'')+(e.querySelector('.bm-sub-del')?'/del':''))",
+      "[...document.querySelectorAll('#shelfOverview .ov-mark')].map(e=>e.dataset.id+('end' in e.dataset?':end':'')+(e.querySelector('.bm-del')?'/del':''))",
     ),
-    ['i3/sub', 'a1', 'b2/sub'],
+    ['i3', 'a1', 'b2', 'b2:end', 'i3:end'],
   );
   r = await rect('document.querySelector(\'#shelfOverview .ov-mark[data-id="a1"]\')');
   await move(r.x + 1, r.y + 1);
@@ -428,9 +428,15 @@ try {
   await tap('ArrowRight');
   await wait(
     () => js("document.querySelector('#shelfOverview .ov-mark.sel')?.dataset.id==='b2'"),
-    'arrow keys move cell by cell',
+    'arrow keys move item by item',
   );
   await wait(async () => (await noteOf()) === 'Bookmark 0:05 · song-B', 'keyboard selection shows the card');
+  await tap('ArrowRight');
+  await wait(
+    async () => (await noteOf()) === 'Section bookmark 0:09 · song-B',
+    'the section bookmark is an item of its own',
+  );
+  await tap('ArrowLeft');
   await tap('ArrowLeft');
   await tap('ArrowLeft');
   await wait(() => js("document.querySelector('#shelfOverview .ov-mark.sel')?.dataset.id==='i3'&&!card()"));
@@ -456,7 +462,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: name area is one big button (shelf icon, no selection, full title tooltip), no shelf button in the toolbar, full-screen title row (layout, wide orange shelf button, close; no key hints), strip without the viewport area, media tiles at the full-screen cell ratio, audio tiles like audio bookmarks, clicking media thumbnails centres the file without selecting or playing, image thumbnails by offset, file details card (strip, bookmark panel, full-screen bookmarks and thumbnails; name, type, progress, marks, pointer for the bookmark; beside the item, above dialogs, gone on leave; unknown duration not read), one cell per section in bookmark lists with the small picture and its own delete button',
+    'PASS: name area is one big button (shelf icon, no selection, full title tooltip), no shelf button in the toolbar, full-screen title row (layout, wide orange shelf button, close; no key hints), strip without the viewport area, media tiles at the full-screen cell ratio, audio tiles like audio bookmarks, clicking media thumbnails centres the file without selecting or playing, image thumbnails by offset, file details card (strip, bookmark panel, full-screen bookmarks and thumbnails; name, type, progress, marks, pointer for the bookmark; beside the item, above dialogs, gone on leave; unknown duration not read), start and section bookmark as separate items in position order in bookmark lists with their own delete buttons',
   );
 } finally {
   if (ws?.readyState === 1) {

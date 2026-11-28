@@ -1,4 +1,4 @@
-// 区段嵌套与交叉在媒体上的表现：进度条上按嵌套深度分层画区段、挤在一起时指向最近的标记、只播区段按并集；媒体的「选择起点」与最近书签。
+// 区段嵌套与交叉在媒体上的表现：进度条上的区段是一对方括号（不分层）、挤在一起时指向最近的标记、只播区段按并集；媒体的「选择起点」与最近书签。
 // 独立临时配置 + OPFS 测试数据；视频、音频由 tests/media-fixtures.mjs 在测试页里现场生成，不使用任何真实文件。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -175,26 +175,35 @@ try {
     );
   const tipText = () => js(`document.querySelector('.mv-tip:popover-open')?.textContent??''`);
 
-  // ==== 1. 分层：嵌套的在里面（顶线更低），交叉的错开一层，最多三层；都在进度条范围内 ====
+  // ==== 1. 一对方括号：起点与区段书签各在自己的时间点上，都在轨道中线上，没有顶线、不按嵌套分层；区段平时不显示 ====
   const bar = await box('.mv-bar');
-  const roof = (id) => box(`.mv-span[data-sec="${id}"]`),
+  const span = (id) => box(`.mv-span[data-sec="${id}"]`),
     leg = (id, kind) => box(`.mv-mk.${kind}[data-sec="${id}"]`);
-  const [rA, rB, rC, rD] = await Promise.all(['A', 'B', 'C', 'D'].map(roof));
-  assert.ok(rA.top < rB.top - 2 && rB.top < rC.top - 2, 'Nested sections sit lower, one layer per level');
-  assert.equal(Math.round(rD.top), Math.round(rB.top), 'The crossing section is one layer down');
-  for (const r of [rA, rB, rC, rD]) assert.ok(r.top >= bar.top && r.bottom <= bar.bottom, 'Inside the seek bar');
   const track = await box('.mv-track');
-  for (const id of ['A', 'C']) {
+  const xAt0 = (t) => bar.left + (t / 60) * bar.width;
+  for (const [id, a, b] of [
+    ['A', 5, 50],
+    ['B', 10, 20],
+    ['C', 12, 15],
+    ['D', 40, 55],
+  ]) {
     const s = await leg(id, 'start'),
       e = await leg(id, 'end'),
-      r = await roof(id);
-    assert.ok(Math.abs(s.top - r.top) < 1 && Math.abs(e.top - r.top) < 1, 'Brackets hang from their top line');
-    assert.ok(s.bottom >= track.top && s.bottom <= track.bottom + 1, 'and reach down to the track');
+      r = await span(id);
     assert.ok(
-      Math.abs(s.left + 1 - r.left) < 1.5 && Math.abs(e.right - 1 - r.right) < 1.5,
-      'The brackets frame the section',
+      Math.abs(s.y - track.y) < 1 && Math.abs(e.y - track.y) < 1 && Math.abs(s.top - e.top) < 0.5,
+      'Brackets of ' + id + ' on the track line, all at the same height',
     );
+    assert.ok(s.top >= bar.top && s.bottom <= bar.bottom, 'Inside the seek bar');
+    assert.ok(Math.abs(s.left + 1 - xAt0(a)) < 1.5 && Math.abs(e.right - 1 - xAt0(b)) < 1.5, 'Each at its own time');
+    assert.ok(Math.abs(r.y - track.y) < 1 && r.height <= 4, 'The section lies on the track, not above it');
+    assert.ok(Math.abs(r.left - xAt0(a)) < 1.5 && Math.abs(r.right - xAt0(b)) < 1.5, 'between the two brackets');
   }
+  assert.deepEqual(
+    await js(`[...node(${N}).querySelectorAll('.mv-span')].map(s=>getComputedStyle(s).opacity)`),
+    ['0', '0', '0', '0'],
+    'No top line: sections are shown only when pointed at',
+  );
   // 截图自查可读性（放大两倍，只截进度条附近）。
   if (process.env.MV_SHOTS) {
     const { data } = await cdp('Page.captureScreenshot', {
@@ -220,6 +229,16 @@ try {
   await move(xAt(12) + 0.5, c0.y);
   await wait(async () => (await hotSet()) === 'mv-mk:C,mv-mk:C,mv-span:C', 'only the pair of C');
   assert.equal(await tipText(), 'Section start 0:12 – 0:15 · C');
+  // 这一对的两个方括号高亮，两者之间的一段在轨道上以区段配色显示。
+  await wait(
+    async () => (await js(`getComputedStyle(node(${N}).querySelector('.mv-span[data-sec="C"]')).opacity`)) === '1',
+    'the section of C shown',
+  );
+  assert.equal(
+    await js(`getComputedStyle(node(${N}).querySelector('.mv-span[data-sec="C"]')).backgroundColor`),
+    'rgb(90, 180, 255)',
+  );
+  assert.equal(await js(`getComputedStyle(node(${N}).querySelector('.mv-span[data-sec="B"]')).opacity`), '0');
   await shot('marklayers-hover');
   // 点击跳到该标记的时间（点的位置不必正好在标记上）。
   await cdp('Input.dispatchMouseEvent', {
@@ -263,6 +282,12 @@ try {
       [92, 8],
     ],
     'Only outside the union is dimmed',
+  );
+  await wait(
+    async () =>
+      (await js(`[...node(${N}).querySelectorAll('.mv-span')].map(s=>getComputedStyle(s).opacity).join()`)) ===
+      '0.6,0.6,0.6,0.6',
+    'the sections (their union) always shown',
   );
   await shot('marklayers-only');
   const seekTo = (s) =>
@@ -327,7 +352,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: seek bar sections drawn in layers by nesting (nested lower, crossing one layer down, inside the bar, brackets hanging from the top line), nearest mark under a crowded pointer, only the pointed pair highlighted with both times, click seeks to the mark and elsewhere seeks normally, keyboard focus, sections-only plays the union and dims outside it, media start picker (this file before now, file name, playback keeps going, end taken when triggered), nearest bookmark by playback time',
+    'PASS: seek bar sections as a pair of brackets at their own times on the track line (no top line, no layers, the section shown on the track only when pointed at), nearest mark under a crowded pointer, only the pointed pair highlighted with both times, click seeks to the mark and elsewhere seeks normally, keyboard focus, sections-only plays the union, shows the sections and dims outside them, media start picker (this file before now, file name, playback keeps going, end taken when triggered), nearest bookmark by playback time',
   );
 } finally {
   if (ws?.readyState === 1) {

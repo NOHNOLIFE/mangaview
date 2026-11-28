@@ -7,10 +7,11 @@ export function install(ctx, { sheet, sheets, masonry }) {
   // 网格：书签缩略图都按同一比例显示（CSS grid）；瀑布流：按缩略图自身比例在每组里逐列排布（markLayout）。
   // 按书分组并显示书名，当前书高亮。上下按画面位置找最近的一格。
   let marks = [],
+    count = 0,
     msel = 0,
     mframe = 0,
     mfollow = false,
-    prefer = null; // prefer：重建时保留的选中项 {book, id}
+    prefer = null; // prefer：重建时保留的选中项 {book, id, end}
   const sm = () => ctx.shelfmarks;
   // groups：打开时的全部书签（按书分组）；搜索只在其中过滤后重建列表，不重新读取书架。
   let groups = [];
@@ -70,7 +71,7 @@ export function install(ctx, { sheet, sheets, masonry }) {
         mfollow = false;
         mark(k);
       }
-      card(k, !!node.querySelector(':scope>.bm-sub:hover'));
+      card(k);
     },
     choose() {
       pick(msel);
@@ -90,16 +91,17 @@ export function install(ctx, { sheet, sheets, masonry }) {
       ),
     );
   }
-  // 第 k 项是哪个书签：{book, id}，重建后据此找回选中项。
-  const at = (k) => (marks[k] ? { book: marks[k].book, id: marks[k].x.bm.id } : null);
-  // 按当前搜索词重建列表，start 为要选中的书签 {book, id}（打开时为最近书签，见 dock.mjs 的 start；最近的是区段书签时选中它所在的那一格）。
-  // 一个书签一格（与书签列表相同）：带区段书签的一格左下角叠一张区段书签的小图，选中这一格时两张一起高亮（区段配色），点小图跳到区段书签；
-  // 键盘导航以格为单位，Enter / 空格跳到起点。
+  // 第 k 项是哪一项：{book, id, end}（end：区段书签那一项），重建后据此找回选中项。
+  const at = (k) => (marks[k] ? { book: marks[k].book, id: marks[k].x.bm.id, end: marks[k].end } : null);
+  // 按当前搜索词重建列表，start 为要选中的项 {book, id, end}（打开时为最近书签，见 dock.mjs 的 start）。
+  // 与书签列表相同，区段的起点和区段书签各是一项，按位置排序（ctx.marks.entries）；键盘导航把区段书签当作单独的一项，
+  // 选中其中一项时两项一起高亮（.mate，区段配色），Enter / 空格或点击跳到选中的那一项。位置文字只数书签（区段书签显示它起点的序号）。
   function build(start) {
     const words = norm(shelfSheet.query()).split(' ').filter(Boolean),
       ks = shelfSheet.kinds(),
       body = shelfSheet.body;
     marks = [];
+    count = 0;
     // 类型按书签所在页的类型（媒体书签即所在的视频 / 音频）。
     const keep = (book, x) =>
       (!ks.size || ks.has(pageKind(book.pages[x.i] ?? { name: '' }))) &&
@@ -117,60 +119,68 @@ export function install(ctx, { sheet, sheets, masonry }) {
           grid = make('div', 'ov-sec-grid');
         head.append(make('strong', '', ctx.title(book)), make('span', '', String(items.length)));
         sec.append(head, grid);
-        for (const x of items) {
-          const node = item(book, x);
+        const own = new Map(); // 本组里各书签的序号（区段书签那一项沿用它起点的）
+        for (const x of items) own.set(x.bm.id, ++count);
+        for (const { x, end } of ctx.marks?.entries(items) ?? items.map((x) => ({ x, end: false }))) {
+          const node = item(book, x, end);
           node.dataset.k = marks.length;
           grid.append(node);
-          marks.push({ book, x, node });
+          marks.push({ book, x, end, node, n: own.get(x.bm.id) });
         }
         return sec;
       }),
     );
     msel = Math.max(
       0,
-      marks.findIndex((m) => !!start && m.x.bm.id === start.id && m.book === start.book),
+      marks.findIndex((m) => !!start && m.x.bm.id === start.id && m.end === !!start.end && m.book === start.book),
     );
     shelfSheet.none(!marks.length);
   }
-  function item(book, x) {
-    const node = make('div', 'ov-item ov-mark' + (x.bm.end ? ' paired' : '')),
-      img = make('img');
+  function item(book, x, end) {
+    const node = make(
+        'div',
+        'ov-item ov-mark' + (x.live ? (end ? ' sec-end' : ' sec-start') : '') + (end && !x.live ? ' off' : ''),
+      ),
+      img = make('img'),
+      i = end ? x.e : x.i;
     img.alt = '';
     img.draggable = false;
     node.dataset.id = x.bm.id;
+    if (end) node.dataset.end = '';
     node.setAttribute('role', 'option');
-    label(node, book, x);
+    label(node, book, x, end);
     img.onload = () => {
       node.dataset.r = Math.min(2.5, Math.max(0.4, img.naturalHeight / img.naturalWidth));
       if (masonry()) markSchedule();
     };
-    node.append(img, make('span', 'ov-n', x.i >= 0 ? String(x.i + 1) : ''));
-    // 画面（视频为书签时间点的画面，懒生成；音频为音频的图）、类型角标、区段标记、名称，区段书签的小图（不带删除按钮）（bookmarks.mjs）。
-    if (ctx.marks) {
-      ctx.marks.face(node, img, book, x);
-      if (x.bm.end) node.append(ctx.marks.sub(book, x, false));
-    }
+    node.append(img, make('span', 'ov-n', i >= 0 ? String(i + 1) : ''));
+    // 画面（视频为书签时间点的画面，懒生成；音频为音频的图）、类型角标、区段标记、名称（bookmarks.mjs）。
+    ctx.marks?.face(node, img, book, x, end);
     // 铅笔按钮：就地重命名（与 F2 相同）。
     node.append(ctx.iconButton('pencil', t('bmRename'), () => rename(node), 'bm-ren'));
     return node;
   }
-  function label(node, book, x) {
+  function label(node, book, x, end) {
     node.setAttribute(
       'aria-label',
       ctx.title(book) +
         ' · ' +
-        (ctx.marks?.where(book, x) ?? fmt('bmPage', { n: x.i + 1 })) +
-        (x.bm.end ? ' · ' + t('secStart') : ''),
+        (end
+          ? t('secEnd') + ' · ' + (ctx.marks?.where(book, x, true) ?? fmt('bmPage', { n: x.e + 1 }))
+          : (ctx.marks?.where(book, x) ?? fmt('bmPage', { n: x.i + 1 })) + (x.bm.end ? ' · ' + t('secStart') : '')),
     );
   }
-  // 重命名选中的书签（F2 或铅笔按钮），改完后更新名称；焦点回到列表。
+  // 重命名选中的书签（F2 或铅笔按钮），改完后同一书签的两项都更新名称；焦点回到列表。
   function rename(node) {
     const m = marks[+node.dataset.k];
     if (!m || !ctx.marks) return;
     if (+node.dataset.k !== msel) mark(+node.dataset.k);
     ctx.marks.edit(node, m.book, m.x.bm, () => {
-      ctx.marks.named(m.node, m.book, m.x.bm);
-      label(m.node, m.book, m.x);
+      for (const o of marks)
+        if (o.x.bm === m.x.bm) {
+          ctx.marks.named(o.node, o.book, o.x.bm);
+          label(o.node, o.book, o.x, o.end);
+        }
       if (shelfSheet.dialog.open) shelfSheet.scroller.focus({ preventScroll: true });
     });
   }
@@ -203,8 +213,8 @@ export function install(ctx, { sheet, sheets, masonry }) {
     const m = marks[i];
     m.node.classList.add('sel');
     m.node.setAttribute('aria-selected', 'true');
-    shelfSheet.pos.textContent = shelfSheet.pos.title =
-      fmt('bmN', { n: i + 1, m: marks.length }) + ' · ' + ctx.title(m.book);
+    mate(m.node);
+    shelfSheet.pos.textContent = shelfSheet.pos.title = fmt('bmN', { n: m.n, m: count }) + ' · ' + ctx.title(m.book);
   }
   function markLayout() {
     const m = masonry(),
@@ -278,11 +288,11 @@ export function install(ctx, { sheet, sheets, masonry }) {
       .filter(([r]) => Math.abs(cy(r) - row) < 1)
       .reduce((a, b) => (Math.abs(cx(b[0]) - cx(cur)) < Math.abs(cx(a[0]) - cx(cur)) ? b : a))[1];
   }
-  // 文件详情框：选中（悬停或键盘移动）的是视频、音频书签时弹出（指在小图上时是区段书签那一端），其余收起；指针离开列表时收起。
-  function card(k, end = false) {
+  // 文件详情框：选中（悬停或键盘移动）的是视频、音频书签时弹出（区段书签那一项是区段书签那一端），其余收起；指针离开列表时收起。
+  function card(k) {
     const m = marks[k],
-      x = m?.x;
-    end &&= !!x?.bm.end;
+      x = m?.x,
+      end = !!m?.end;
     const i = x ? (end ? x.e : x.i) : -1,
       page = i >= 0 ? m.book.pages[i] : null;
     if (page && pageKind(page) !== 'image')
@@ -290,17 +300,24 @@ export function install(ctx, { sheet, sheets, masonry }) {
     else ctx.fileCard?.hide();
   }
   shelfSheet.body.addEventListener('pointerleave', () => ctx.fileCard?.hide());
-  // end：跳到区段书签（点在小图上）。
-  function pick(i, end = false) {
+  // 区段书签那一项跳到区段书签。
+  function pick(i) {
     const m = marks[i];
-    if (!m || (end ? m.x.e : m.x.i) < 0) return;
+    if (!m || (m.end ? m.x.e : m.x.i) < 0) return;
     shelfSheet.close();
-    sm()[end ? 'goEnd' : 'go'](m.book, m.x);
+    sm()[m.end ? 'goEnd' : 'go'](m.book, m.x);
   }
   shelfSheet.body.addEventListener('click', (e) => {
     if (e.target.closest('.bm-ren,.bm-edit')) return;
     const node = e.target.closest('.ov-mark');
-    if (node) pick(+node.dataset.k, !!e.target.closest('.bm-sub'));
+    if (node) pick(+node.dataset.k);
   });
+  // 选中生效区段的起点或区段书签时，两项一起高亮（悬停即选中，见 overview-sheet.mjs）。
+  const mate = (node) => {
+    for (const o of shelfSheet.body.querySelectorAll('.ov-mark.mate')) o.classList.remove('mate');
+    if (node.classList.contains('sec-start') || node.classList.contains('sec-end'))
+      for (const o of shelfSheet.body.querySelectorAll('.ov-mark[data-id="' + CSS.escape(node.dataset.id) + '"]'))
+        o.classList.add('mate');
+  };
   return shelfSheet;
 }

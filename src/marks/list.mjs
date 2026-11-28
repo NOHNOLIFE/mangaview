@@ -1,4 +1,5 @@
-// 书签列表的纯逻辑（不操作界面，可在 Node 里测试）：排序与区段是否生效、配对坐标、媒体区段、每页的标记汇总（含区段的嵌套层级）、缩略图键。
+// 书签列表的纯逻辑（不操作界面，可在 Node 里测试）：排序与区段是否生效、列表里的项（区段书签单独一项）、配对坐标、媒体区段、
+// 每页的标记汇总（含区段的嵌套层级）、缩略图键。
 // 书签的数据格式见 bookmarks.mjs 开头的说明。
 import { layers } from '../core/sections.mjs';
 export const isMedia = (m) => Number.isFinite(m?.t),
@@ -26,6 +27,19 @@ export function list(book) {
       };
     })
     .sort((a, b) => (a.i < 0) - (b.i < 0) || a.i - b.i || spot(a.bm) - spot(b.bm) || a.bm.at - b.bm.at);
+}
+// 书签列表（书签面板、书架书签、全屏书架书签）里的项：每个书签一项，区段书签另占一项（end 为真），items 为 list 的结果。
+// 按位置排序：页序、页内位置（媒体按时间），区段内的其他书签夹在起点和区段书签之间；暂不生效的区段，区段书签按它自己的位置排（在起点之前）；
+// 所在页已不存在的项排在最后。返回 [{x, end}]。
+export function entries(items) {
+  const out = [];
+  for (const x of items) {
+    out.push({ x, end: false, i: x.i, v: spot(x.bm), at: x.bm.at });
+    if (x.bm.end) out.push({ x, end: true, i: x.e, v: spot(x.bm.end), at: x.bm.end.at ?? x.bm.at });
+  }
+  return out
+    .sort((a, b) => (a.i < 0) - (b.i < 0) || a.i - b.i || a.v - b.v || a.at - b.at || a.end - b.end)
+    .map(({ x, end }) => ({ x, end }));
 }
 // 配对用的一维坐标（sections.mjs）：图片为页序 + 页内位置，全书一个坐标系（page 为 -1）；媒体按所在文件分组（page 为它的页序），以时间为坐标。
 // 图片书签与媒体书签互不配对。

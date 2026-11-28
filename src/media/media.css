@@ -1,8 +1,8 @@
 /* 视频、音频的其他样式：进度条上的书签标记（marks.mjs）、缩略图栏 / 全屏缩略图 / 书架封面里的占位（tile.mjs）、提示浮层（hud.mjs）。壳的样式在 shell.css。 */
-/* 进度条上的书签标记（marks.mjs drawBar）：普通书签是轨道上的圆点；区段是一对方括号连着一道顶线（┌──┐），按嵌套层级（--lv，0–2）分层：
-   外层的顶线最高，嵌套的在里面（--r：顶线离轨道中线的距离）。浮在进度条之上，不改变壳的布局；标记本身不接收指针
-   （指向哪一个由 marks.mjs 按离指针的距离判断），可以用键盘聚焦。指向 / 聚焦的一对高亮（.hot），提示在 .mv-tip；
-   开启「只播放书签区段」时所有区段的并集以外变暗（.mv-dim）。 */
+/* 进度条上的书签标记（marks.mjs drawBar）：普通书签是轨道上的圆点；起点与区段书签是一对方括号（[ ]），各在自己的时间点上，不连线、不分层。
+   浮在进度条之上，不改变壳的布局；标记本身不接收指针（指向哪一个由 marks.mjs 按离指针的距离判断），可以用键盘聚焦。
+   指向 / 聚焦的一对高亮（.hot），这时两者之间的一段（.mv-span）在轨道上以区段配色显示，提示在 .mv-tip；
+   开启「只播放书签区段」时各区段常显（半透明，即所有区段的并集），并集以外变暗（.mv-dim）。 */
 .mv-mk {
   position: absolute;
   top: 50%;
@@ -33,29 +33,24 @@
   background: var(--accent);
   border: 1.5px solid #fff;
 }
-.mv-mk.start,
-.mv-mk.end,
-.mv-span {
-  --r: calc(13px - var(--lv, 0) * 4px);
-}
+/* 方括号的那一竖正对它的时间点：起点 [ 向后开口，区段书签 ] 向前开口。 */
 .mv-mk.start,
 .mv-mk.end {
-  top: calc(50% - var(--r));
-  width: 7px;
-  height: calc(var(--r) + 2px);
-  margin: 0 0 0 -1px;
+  width: 6px;
+  height: 14px;
+  margin: -7px 0 0 -1px;
 }
 .mv-mk.end {
-  margin-left: -6px;
+  margin-left: -5px;
 }
 .mv-mk.start::before,
 .mv-mk.end::before {
   inset: 0;
   border: 0 solid var(--sec);
-  border-width: 2px 0 0 2px;
+  border-width: 3px 0 3px 3px;
 }
 .mv-mk.end::before {
-  border-width: 2px 2px 0 0;
+  border-width: 3px 3px 3px 0;
 }
 .mv-mk.hot::before {
   border-color: #fff;
@@ -85,18 +80,18 @@
   margin-top: -2px;
   pointer-events: none;
 }
-/* 区段的顶线：区段配色（--sec），平时半透明，指向 / 聚焦这一对时实色。 */
+/* 区段（两个方括号之间的一段，在轨道上）：区段配色，平时不显示，指向 / 聚焦这一对时实色，「只播放书签区段」开着时常显（半透明）。 */
 .mv-span {
-  top: calc(50% - var(--r));
-  height: 2px;
-  margin: 0;
+  border-radius: 2px;
   background: var(--sec);
-  opacity: 0.55;
-  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
+  opacity: 0;
   transition: opacity 0.12s;
 }
 .mv-span.hot {
   opacity: 1;
+}
+.sec-only .mv-span:not(.hot) {
+  opacity: 0.6;
 }
 .mv-dim {
   display: none;
