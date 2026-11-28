@@ -197,14 +197,14 @@ try {
     if (data) await writeFile(join(process.env.MV_SHOTS, name + '.png'), Buffer.from(data, 'base64'));
   };
 
-  // ---- 入口：文件栏标题行的「画中画」（order 20，在「定位」之后）；显示的是图片时只打开窗口（没有曲目时是一句说明），再按关闭。
+  // ---- 入口：文件栏标题行的「画中画」（标题行右端只有它）；显示的是图片时只打开窗口（没有曲目时是一句说明），再按关闭。
   await js(`openBook('Alpha')`);
   await wait(() => js(`bookTitle.textContent==='Alpha'`), 'Alpha');
   assert.ok(await js(`toPage('01.svg')`));
   await showBar();
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#filebar .fb-head-tools [data-head]')].map(b=>b.dataset.head)`),
-    ['locate', 'pip'],
+    ['pip'],
   );
   assert.equal(await js(`${H('pip')}.getAttribute('aria-label')`), 'Picture-in-picture');
   const top0 = await js('reader.scrollTop');
@@ -221,6 +221,7 @@ try {
     ['en', true, true, top0, null],
     'Own styles, icons and lang; the main window does not move; no track',
   );
+  assert.equal(await js(`D().title===document.title`), true, 'Without a track the window title is the app name');
   await showBar();
   await wait(() => js(`${H('pip')}.getAttribute('aria-pressed')==='true'`), 'entry pressed while open');
   assert.equal(await js(`${H('pip')}.getAttribute('aria-label')`), 'Exit picture-in-picture');
@@ -253,6 +254,7 @@ try {
     [0, 'out', true, '02 song', true, true, ['02 song', '04 clip', '05 b'], true],
     'Picture in the window, placeholder in the page, name, art and the list',
   );
+  assert.equal(await js(`D().title`), '02 song', 'The window title is the track name');
   await shotPip('pip-window-audio');
   await wait(
     () => js(`node('02 song.wav').querySelector('.mv-x[data-control="pip"]').getAttribute('aria-pressed')==='true'`),
@@ -303,6 +305,7 @@ try {
     () => js(`!!pq('.pip-screen video')&&pq('.pip-idle').hidden&&pq('.pip-name').textContent==='04 clip'`),
     'straight into the window',
   );
+  await wait(() => js(`D().title==='04 clip'`), 'the window title follows the track');
   assert.deepEqual(
     await js(
       `[mvCtx.media.stage.where(),!!node('04 clip.webm').querySelector(':scope>.mv-away'),rowOf('04 clip.webm').classList.contains('current'),elOf('02 song.wav')?.paused??true]`,
@@ -381,8 +384,15 @@ try {
     'locate centres the file',
   );
   assert.deepEqual(await js(`[track(),!elOf('05 b.wav').paused]`), ['05 b.wav', true], 'Locating does not play');
-  // 窗口按钮行的「定位」：跳到当前曲目。
-  await js(`pq('.pip-tools [data-id="locate"]').click()`);
+  // 标题行的文件名（按钮，与文件栏同一表现）：点击即定位到当前曲目；完整路径在 title；没有单独的「定位」按钮。
+  assert.deepEqual(
+    await js(
+      `(()=>{const b=pq('.pip-name > .name-btn'),s=W().getComputedStyle(b);return [b.tagName,b.title,s.cursor,s.userSelect,b.textContent,!!pq('[data-id="locate"]:not(.pip-ib)')];})()`,
+    ),
+    ['BUTTON', '05 b.wav', 'pointer', 'none', '05 b', false],
+    'The name is a locate button',
+  );
+  await js(`pq('.pip-name > .name-btn').click()`);
   await wait(
     () =>
       js(
@@ -408,9 +418,11 @@ try {
   await wait(() => js(`track()===null&&rows().length===0`), 'removing the last item stops');
   await wait(() => js(`pq('.pip-idle').textContent.includes('Nothing is playing')`), 'the hint again');
   assert.deepEqual(
-    await js(`['prev','next','locate','play'].map(id=>pq('[data-id="'+id+'"]').disabled)`),
-    [true, true, true, true],
-    'Track buttons disabled without a track',
+    await js(
+      `[...['prev','next','play'].map(id=>pq('[data-id="'+id+'"]').disabled),!!pq('.pip-name .name-btn'),D().title===document.title]`,
+    ),
+    [true, true, true, false, true],
+    'Track buttons disabled without a track; no name, the app name as the title',
   );
   assert.equal(await isOpen(), true, 'Stopping does not close the window');
   assert.equal(await js(`!!pq('[data-id="stop"]')||!!pq('[data-id="shuffle"]')`), false, 'No stop or shuffle button');
@@ -535,30 +547,48 @@ try {
     'Keys in the window never reach the main window',
   );
 
-  // ---- 列表项：书签标记位（有书签 / 有区段书签用区段配色 / 没有留空位）、跨多本书时的书名小标题（也占一行）、被过滤的项弱化、当前曲目高亮。
+  // ---- 列表项：书签标记位（缩略图的书签角标同一画法：书签图标，多于一个带数量，有区段书签时区段配色；没有书签留空位）、跨多本书时的书名小标题（也占一行）、被过滤的项弱化、当前曲目高亮。
   await js(
     `(async()=>{const {books}=await import('./src/core/books.mjs');const b=[...books.values()].find(b=>b.title==='Alpha');window.oldMarks=b.bookmarks;
-      b.bookmarks=[{id:'pm1',name:'05 b.wav',t:0.5,at:1,label:'x'},{id:'pm2',name:'02 song.wav',t:0.2,at:2,label:'y',end:{name:'02 song.wav',t:1,at:3,label:'z'}}];
+      b.bookmarks=[{id:'pm1',name:'05 b.wav',t:0.5,at:1,label:'x'},{id:'pm3',name:'05 b.wav',t:1.5,at:4,label:'w'},{id:'pm2',name:'02 song.wav',t:0.2,at:2,label:'y',end:{name:'02 song.wav',t:1,at:3,label:'z'}}];
       (await import('./src/core/events.mjs')).emit('marks',b);})()`,
   );
-  await wait(() => js(`rowOf('05 b.wav')?.querySelector('.pip-mk').dataset.marks==='mark'`), 'bookmark marks');
+  await wait(() => js(`rowOf('05 b.wav')?.querySelector('.pip-mk').dataset.marks==='mark:2'`), 'bookmark marks');
   const mk = () =>
     js(
-      `['02 song.wav','04 clip.webm','05 b.wav'].map(n=>{const m=rowOf(n).querySelector('.pip-mk'),r=m.getBoundingClientRect(),x=rowOf(n).querySelector('.mid-name').getBoundingClientRect();return [m.dataset.marks,W().getComputedStyle(m.querySelector('.i')).visibility,W().getComputedStyle(m).color,Math.round(x.left-rowOf(n).getBoundingClientRect().left)];})`,
+      `['02 song.wav','04 clip.webm','05 b.wav'].map(n=>{const m=rowOf(n).querySelector('.pip-mk'),k=m.querySelector('.mk'),x=rowOf(n).querySelector('.mid-name').getBoundingClientRect();
+        return [k?[...k.querySelectorAll('svg')].map(s=>s.querySelector('use').getAttribute('href')+(s.classList.contains('sec')?':sec':'')).join()+(k.querySelector('b')?'#'+k.querySelector('b').textContent:''):'',
+          k?W().getComputedStyle(k.querySelector('svg')).color:'',Math.round(x.left-rowOf(n).getBoundingClientRect().left),k?W().getComputedStyle(k).backgroundColor:''];})`,
     );
   const marks = await mk();
   assert.deepEqual(
-    marks.map((m) => m.slice(0, 2)),
-    [
-      ['section', 'visible'],
-      ['none', 'hidden'],
-      ['mark', 'visible'],
-    ],
-    'One mark per row, an empty slot without bookmarks',
+    marks.map((m) => m[0]),
+    ['#i-bookmark:sec', '', '#i-bookmark#2'],
+    'The thumbnail badge: a section in the section colour, a count above one, an empty slot without bookmarks',
   );
-  assert.equal(marks[0][2], 'rgb(90, 180, 255)', 'Sections in the section colour');
-  assert.notEqual(marks[2][2], marks[0][2]);
-  assert.equal(new Set(marks.map((m) => m[3])).size, 1, 'Names line up with or without a mark');
+  assert.equal(marks[0][1], 'rgb(90, 180, 255)', 'Sections in the section colour');
+  assert.notEqual(marks[2][1], marks[0][1]);
+  assert.equal(marks[2][3], 'rgba(10, 10, 12, 0.85)', 'The badge style (bookmarks.css) in the window');
+  assert.equal(new Set(marks.map((m) => m[2])).size, 1, 'Names line up with or without a mark');
+  assert.equal(
+    await js(
+      `rowOf('05 b.wav').querySelector('.mk').outerHTML===document.querySelector('#preview .pv-mk[data-name="05 b.wav"] .mk')?.outerHTML`,
+    ),
+    true,
+    'The same badge as on the thumbnail',
+  );
+  const over = (n) =>
+    js(`rowOf('${n}').dispatchEvent(new (W().PointerEvent)('pointerover',{bubbles:true,pointerType:'mouse'}))`);
+  // 「定位」「移除」叠在行的右端：文件名占满到行尾（不为按钮让出宽度），两个按钮紧挨、底色接近不透明。
+  await over('05 b.wav');
+  assert.deepEqual(
+    await js(
+      `(()=>{const r=rowOf('05 b.wav'),R=r.getBoundingClientRect(),n=r.querySelector('.mid-name').getBoundingClientRect(),a=r.querySelector('.pip-acts'),l=a.querySelector('[data-id="locate"]').getBoundingClientRect(),x=a.querySelector('[data-id="remove"]').getBoundingClientRect();
+        return [Math.round(R.right-n.right)<=6,W().getComputedStyle(a).position,W().getComputedStyle(a).visibility,Math.round(x.left-l.right),Math.round(l.width),Math.round(R.right-x.right)<=4,W().getComputedStyle(a).backgroundImage.includes('gradient')];})()`,
+    ),
+    [true, 'absolute', 'visible', 0, 24, true, true],
+    'Row buttons float over the right end of the row',
+  );
   // 跨书：追加 Beta（不播放、不改当前曲目），每本书的项前一行书名小标题。
   const pos = (sel) => `Math.round(new (W().DOMMatrix)(W().getComputedStyle(${sel}).transform).m42/32)`;
   assert.equal(
@@ -589,8 +619,6 @@ try {
   // 详情框带缩略图（只有画中画的列表）：音频是它的图，视频是缩略图栏的同一张画面（没有就在空闲时生成）。
   await js(`mvCtx.media.queue.playing()&&mvCtx.media.queue.toggle()`);
   await wait(() => js(`!mvCtx.media.queue.playing()`), 'paused');
-  const over = (n) =>
-    js(`rowOf('${n}').dispatchEvent(new (W().PointerEvent)('pointerover',{bubbles:true,pointerType:'mouse'}))`);
   await over('05 b.wav');
   await wait(() => js(`!!D().querySelector('.fc:popover-open .fc-thumb > .mv-art')`), 'audio art in the card');
   await over('04 clip.webm');
@@ -606,12 +634,12 @@ try {
   );
 
   // ---- 收藏列表：标题行的按钮打开菜单；「保存当前列表」就地输入名称（默认名），已收藏的列表点击即载入并播放，可就地改名、删除。
-  const favBtn = `pq('.pip-head [data-id="fav"]')`,
+  const favBtn = `pq('.pip-tools [data-id="fav"]')`,
     menuOpen = `!!D().querySelector('.pip-menu:popover-open')`;
   assert.deepEqual(
-    await js(`[...D().querySelectorAll('.pip-head button')].map(b=>b.dataset.id+':'+b.getAttribute('aria-label'))`),
-    ['dock:Pin the controls', 'list:Play list', 'fav:Saved play lists'],
-    'Title row: name, then pin, list, saved lists',
+    await js(`[...D().querySelectorAll('.pip-head [data-id]')].map(b=>b.dataset.id+':'+b.getAttribute('aria-label'))`),
+    ['pin:Pin the controls and the play list'],
+    'Title row: the name, then only the pin',
   );
   await js(`${favBtn}.click()`);
   await wait(() => js(menuOpen), 'favorites menu');
@@ -699,77 +727,124 @@ try {
       return {stage:R('.pip-stage'),head:R('.pip-head'),line:R('.pip-line'),tools:R('.pip-tools'),dock:R('.pip-dock'),side:R('.pip-side'),
         sideOn:st('.pip-side').visibility==='visible',dockOn:st('.pip-dock').visibility==='visible',sideDocked:st('.pip-side').position!=='absolute'};})()`);
   let g = await geo();
+  // 默认不固定：功能栏、列表都收起，内容区占满。
   assert.deepEqual(
-    [
-      g.stage,
-      g.head[1] === g.stage[3],
-      g.line[1] === g.head[1] + g.head[3],
-      g.tools[1] === g.line[1] + g.line[3],
-      g.dock[1] + g.dock[3],
-      g.sideOn,
-    ],
-    [[0, 0, 480, g.stage[3]], true, true, true, 480, false],
-    'Content, title row, controls; the list is folded away: ' + JSON.stringify(g),
+    [g.stage, g.dockOn, g.sideOn, g.dock[1] + g.dock[3]],
+    [[0, 0, 480, 480], false, false, 480],
+    'Unpinned by default: the content fills the panel ' + JSON.stringify(g),
   );
   assert.deepEqual(await js(`[...${bq('.pip-tools')}.children].map(b=>b.dataset.id)`), [
     'prev',
     'next',
     'scope',
-    'filter',
     'sections',
-    'locate',
+    'filter',
+    'fav',
   ]);
-  assert.ok(
-    await js(
-      `(()=>{const t=${bq('.pip-tools')}.getBoundingClientRect(),l=${bq('.pip-tools [data-id="locate"]')}.getBoundingClientRect(),s=${bq('.pip-tools [data-id="sections"]')}.getBoundingClientRect();return t.right-l.right<=8&&l.left-s.right>40;})()`,
-    ),
-    'Locate sits at the right end',
+  assert.equal(
+    await js(`!!${bq('.pip-dock [data-id="locate"]')}||!!${bq('[data-id="list"]')}||!!${bq('[data-id="dock"]')}`),
+    false,
   );
-  await shot('pip-panel-480');
-  // 播放列表：靠近右缘停留即浮出（不挤占内容），移开收起。
+  // 指针移到下部：功能栏浮出（停留后淡入）。
   const move = (x, y) => cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 8 + x, y: 8 + y });
-  await move(240, 200);
+  await move(100, 470);
+  await wait(async () => (await geo()).dockOn, 'the controls pop up at the bottom');
+  // 三行共用同一个左右内边距：播放键、「上一个」与左边对齐；时间、「收藏列表」、「固定」与右边对齐；文件名在行的正中；
+  // 「固定」比按钮行的按钮小一号，离上缘、右缘都是内边距。
+  const align = () =>
+    js(`(()=>{const R=s=>box.querySelector(s).getBoundingClientRect(),d=R('.pip-dock'),h=R('.pip-head'),n=R('.pip-name .name-btn'),p=R('.pip-pin'),pl=R('.pip-play'),pv=R('.pip-tools [data-id="prev"]'),fv=R('.pip-tools [data-id="fav"]'),fl=R('.pip-tools [data-id="filter"]'),tm=R('.pip-time'),sc=R('.pip-tools [data-id="sections"]');
+      const r=Math.round;return {left:[pl.left-d.left,pv.left-d.left].map(r),right:[d.right-tm.right,d.right-fv.right,d.right-p.right].map(r),pinTop:r(p.top-d.top),pin:[r(p.width),r(p.height)],btn:[r(pl.width),r(pv.width),r(fv.width)],
+        nameMid:Math.abs((n.left+n.right)/2-(h.left+h.right)/2)<1.5,gapRight:r(fv.left-fl.right),groups:fl.left-sc.right>40,bottom:r(d.bottom-fv.bottom)};})()`);
+  let a = await align();
+  assert.deepEqual(
+    a,
+    {
+      left: [8, 8],
+      right: [8, 8, 8],
+      pinTop: 8,
+      pin: [24, 24],
+      btn: [32, 32, 32],
+      nameMid: true,
+      gapRight: 2,
+      groups: true,
+      bottom: 8,
+    },
+    'One padding for the three rows',
+  );
+  await shot('pip-panel-dock-peek');
+  // 功能栏的高度范围内靠近右缘不弹出列表（功能栏最右的按钮点得到）；在上部靠近右缘才弹出。
+  await move(470, 470);
+  await delay(500);
+  g = await geo();
+  assert.deepEqual([g.dockOn, g.sideOn], [true, false], 'The right edge next to the controls does not open the list');
   await move(470, 200);
   await wait(async () => (await geo()).sideOn, 'the list floats out at the right edge');
   g = await geo();
-  assert.deepEqual([g.stage[2], g.side[0] + g.side[2], g.side[3], g.sideDocked], [480, 480, 480, false]);
+  assert.deepEqual(
+    [g.stage[2], g.side[0] + g.side[2], g.side[2], g.side[3], g.sideDocked],
+    [480, 480, 220, 480, false],
+  );
+  // 「已完全显示」（.revealed）在淡入结束之后才成立。
+  await wait(() => js(`${bq('.pip-side')}.classList.contains('revealed')`), 'revealed after the fade');
   await shot('pip-panel-list-peek');
-  await move(360, 200);
-  await delay(100);
+  // 列表已浮出时，指针在列表上移动（包括功能栏的高度范围内）不收起。
+  await move(360, 470);
+  await delay(500);
   assert.ok((await geo()).sideOn, 'Stays while the pointer is on it');
   await move(100, 200);
   await wait(async () => !(await geo()).sideOn, 'folds away when the pointer leaves');
-  // 「播放列表」固定：停靠右侧，内容区、标题行、操作面板相应变窄；状态记住。
-  await js(`${bq('.pip-head [data-id="list"]')}.click()`);
+  assert.equal(await js(`${bq('.pip-side')}.classList.contains('revealed')`), false, 'Not revealed once it folds');
+  // 「固定」：功能栏停靠在内容区下方、列表停靠在右侧（固定宽度），一起切换；状态记住。普通容器里不调整窗口大小。
+  await js(
+    `window.__resized=0;window.resizeBy=(()=>{const f=window.resizeBy;return (...a)=>{__resized++;return f.apply(window,a);};})()`,
+  );
+  await js(`${bq('.pip-pin')}.click()`);
+  await wait(async () => (await geo()).sideDocked, 'pinned');
   g = await geo();
   assert.deepEqual(
-    [g.sideOn, g.sideDocked, g.side[0] + g.side[2], g.side[3], g.stage[2] + g.side[2], g.dock[2] === g.stage[2]],
-    [true, true, 480, 480, 480, true],
-    'Pinned: docked on the right ' + JSON.stringify(g),
+    [
+      g.sideOn,
+      g.dockOn,
+      g.side[2],
+      g.side[0] + g.side[2],
+      g.side[3],
+      g.stage[2] + g.side[2],
+      g.dock[2] === g.stage[2],
+      g.head[1] === g.stage[3],
+      g.line[1] === g.head[1] + g.head[3],
+      g.tools[1] === g.line[1] + g.line[3],
+      g.dock[1] + g.dock[3],
+    ],
+    [true, true, 220, 480, 480, 480, true, true, true, true, 480],
+    'Pinned: the controls under the content, the list docked on the right ' + JSON.stringify(g),
   );
   assert.deepEqual(
-    await js(`[${bq('.pip-head [data-id="list"]')}.getAttribute('aria-pressed'),localStorage.getItem('mv2:pipList')]`),
-    ['true', 'true'],
+    await js(
+      `[${bq('.pip-pin')}.getAttribute('aria-pressed'),localStorage.getItem('mv2:pipPin'),__resized,${bq('.pip-side')}.classList.contains('revealed')]`,
+    ),
+    ['true', 'true', 0, true],
   );
-  await shot('pip-panel-list-pinned');
-  // 操作面板不固定：标题行与操作面板收起、内容区占满；鼠标移到下部浮在内容区上弹出，移开淡出；状态记住。
+  a = await align();
+  assert.deepEqual([a.left, a.right, a.pinTop, a.nameMid], [[8, 8], [8, 8, 8], 8, true], 'Pinned rows line up too');
+  await shot('pip-panel-pinned');
+  // 取消固定：两者一起收起，内容区占满；指针在功能栏上时功能栏保持浮出，移开淡出。
   await move(100, 100);
-  await js(`${bq('.pip-head [data-id="dock"]')}.click()`);
+  await js(`${bq('.pip-pin')}.click()`);
   await move(100, 110);
   await wait(async () => !(await geo()).dockOn, 'unpinned: the controls fade out');
   g = await geo();
   assert.deepEqual(
     [
       g.stage[3],
-      await js(
-        `[${bq('.pip-head [data-id="dock"]')}.getAttribute('aria-pressed'),localStorage.getItem('mv2:pipDock')].join()`,
-      ),
+      g.stage[2],
+      g.sideOn,
+      await js(`[${bq('.pip-pin')}.getAttribute('aria-pressed'),localStorage.getItem('mv2:pipPin')].join()`),
     ],
-    [480, 'false,false'],
+    [480, 480, false, 'false,false'],
     'The content fills the panel',
   );
   await move(100, 470);
-  await wait(async () => (await geo()).dockOn, 'the controls pop up at the bottom');
+  await wait(async () => (await geo()).dockOn, 'up again');
   g = await geo();
   assert.deepEqual([g.dock[1] + g.dock[3], g.dock[1] > g.stage[1], g.stage[3]], [480, true, 480], 'Over the content');
   assert.equal(
@@ -777,20 +852,23 @@ try {
     g.dock[3] + 'px',
     'Subtitles make room for the floating controls',
   );
-  await shot('pip-panel-dock-peek');
   await move(100, 420);
   await delay(100);
   assert.ok((await geo()).dockOn, 'Stays while the pointer is on it');
   await move(100, 100);
   await wait(async () => !(await geo()).dockOn, 'fades out when the pointer leaves');
+  // 快速划过不弹出（停留延迟）。
   await move(100, 470);
-  await wait(async () => (await geo()).dockOn, 'up again');
-  await js(`${bq('.pip-head [data-id="dock"]')}.click()`);
+  await move(100, 100);
+  await delay(300);
+  assert.equal((await geo()).dockOn, false, 'Passing over quickly does not pop it up');
+  await move(100, 470);
+  await wait(async () => (await geo()).dockOn, 'up once more');
+  await js(`${bq('.pip-pin')}.click()`);
   g = await geo();
-  assert.deepEqual([g.dockOn, g.dock[1] === g.stage[3]], [true, true], 'Pinned again');
+  assert.deepEqual([g.dockOn, g.dock[1] === g.stage[3], g.sideDocked], [true, true, true], 'Pinned again');
 
   // ---- 内容区上横向拖动即快进 / 快退当前曲目（与主窗口同一套换算），提示显示在面板自己的浮层里。
-  await js(`${bq('.pip-head [data-id="list"]')}.click()`);
   await js(`(()=>{const q=mvCtx.media.queue;q.play(q.items().find(i=>i.page.name==='04 clip.webm'));})()`);
   await wait(() => js(`track()==='04 clip.webm'&&mvCtx.media.queue.playing()`), 'the clip is the track');
   await js(`mvCtx.media.queue.toggle()`);
@@ -805,7 +883,7 @@ try {
     x: 8 + 100,
     y: 8 + 150,
   });
-  for (let x = 100; x <= 220; x += 20)
+  for (let x = 100; x <= 180; x += 20)
     await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: 8 + x, y: 8 + 151 });
   await wait(() => js(`!${bq('.pip-hud')}.hidden`), 'hint in the panel');
   assert.deepEqual(
@@ -818,7 +896,7 @@ try {
     button: 'left',
     buttons: 0,
     clickCount: 1,
-    x: 8 + 220,
+    x: 8 + 180,
     y: 8 + 151,
   });
   await wait(() => js(`Math.abs(elOf('04 clip.webm').currentTime-2)<0.3`), 'dragging seeks');
@@ -834,8 +912,8 @@ try {
       const st=s=>getComputedStyle(box.querySelector(s));
       return {out:[...new Set(out)],docked:st('.pip-side').position!=='absolute',tools:st('.pip-tools').display!=='none',head:st('.pip-head').display!=='none'};})()`);
   for (const pinned of [false, true]) {
-    if ((await js(`${bq('.pip-head [data-id="list"]')}.getAttribute('aria-pressed')`)) !== String(pinned))
-      await js(`${bq('.pip-head [data-id="list"]')}.click()`);
+    if ((await js(`${bq('.pip-pin')}.getAttribute('aria-pressed')`)) !== String(pinned))
+      await js(`${bq('.pip-pin')}.click()`);
     for (const [w, h] of [
       [480, 480],
       [420, 300],
@@ -847,12 +925,12 @@ try {
     ]) {
       const f = await fit(w, h);
       assert.deepEqual(f.out, [], 'Nothing sticks out at ' + w + '×' + h + (pinned ? ' with the list pinned' : ''));
-      assert.equal(f.docked, pinned && w >= 340, 'Docked list at ' + w);
+      assert.equal(f.docked, pinned && w >= 420, 'Docked list at ' + w);
       assert.deepEqual([f.tools, f.head], [h > 200, h > 140], 'Rows fold away at ' + w + '×' + h);
     }
   }
   await shot('pip-panel-600x900');
-  await js(`${bq('.pip-head [data-id="list"]')}.click()`);
+  await js(`${bq('.pip-pin')}.click()`);
   await js(`view.destroy();box.remove()`);
   assert.equal(
     await js(`mvCtx.media.stage.where()+':'+!!node('04 clip.webm').querySelector(':scope>video')`),
@@ -869,6 +947,51 @@ try {
     ),
     [true, true, true, true],
   );
+  // 真实窗口里切换「固定」：在点击的手势里调用窗口的 resizeBy（宽加列表宽〔列表会停靠时〕、高加功能栏高，取消时减回），
+  // 等窗口的 resize（或超时）再切换布局；被拒绝时照常切换、不报错。无头模式下窗口大小不受控，这里只断言调用与退回路径。
+  const pipJs = async (expression) => {
+    const t = (await (await fetch('http://127.0.0.1:' + port + '/json/list')).json()).find(
+      (x) => x.type === 'page' && x.url === 'about:blank',
+    );
+    const w = new WebSocket(t.webSocketDebuggerUrl);
+    await new Promise((r) => w.addEventListener('open', r, { once: true }));
+    const out = await new Promise((r) => {
+      w.onmessage = ({ data }) => r(JSON.parse(data).result?.result?.value);
+      w.send(
+        JSON.stringify({
+          id: 1,
+          method: 'Runtime.evaluate',
+          params: { expression, userGesture: true, returnByValue: true, awaitPromise: true },
+        }),
+      );
+    });
+    w.close();
+    return out;
+  };
+  await js(
+    `window.__rz=[];(()=>{const w=W(),f=w.resizeBy;w.resizeBy=function(dw,dh){__rz.push([dw,dh,w.innerWidth,pq('.pip-dock').offsetHeight,navigator.userActivation&&w.navigator.userActivation.isActive]);return f.call(this,dw,dh);};})()`,
+  );
+  await pipJs(`document.querySelector('.pip-pin').click()`);
+  await wait(() => js(`pq('.pip').classList.contains('pinned')`), 'pinned in the real window');
+  let rz = await js('__rz');
+  assert.equal(rz.length, 1, 'resizeBy once');
+  assert.deepEqual(
+    rz[0].slice(0, 2),
+    [rz[0][2] + 220 >= 420 ? 220 : 0, rz[0][3]],
+    'Grows by the list and the controls',
+  );
+  assert.equal(rz[0][4], true, 'Called within the click (user activation)');
+  await pipJs(`document.querySelector('.pip-pin').click()`);
+  await wait(() => js(`!pq('.pip').classList.contains('pinned')`), 'unpinned in the real window');
+  rz = await js('__rz');
+  assert.deepEqual(rz[1].slice(0, 2), [rz[1][2] >= 420 ? -220 : 0, -rz[1][3]], 'Shrinks back');
+  // 浏览器拒绝调整：照常切换布局（内容区让出空间），不报错。
+  await js(`W().resizeBy=()=>{throw new (W().DOMException)('no','NotAllowedError');}`);
+  await js(`pq('.pip-pin').click()`);
+  await wait(() => js(`pq('.pip').classList.contains('pinned')`), 'pinned without resizing');
+  await js(`pq('.pip-pin').click()`);
+  await wait(() => js(`!pq('.pip').classList.contains('pinned')`), 'unpinned without resizing');
+  await js(`delete W().resizeBy`);
 
   // ---- 用户直接关掉窗口（pagehide）：画面回到页内，继续后台播放，不重新加载、时间连续。
   assert.ok(await js(`toPage('02 song.wav')`));
@@ -993,7 +1116,7 @@ try {
   await showBar();
   assert.deepEqual(
     await js(`[...document.querySelectorAll('#filebar .fb-head-tools [data-head]')].map(b=>b.dataset.head)`),
-    ['locate'],
+    [],
   );
   assert.equal(await js(`document.querySelectorAll('#reader .mv-x[data-control="pip"]').length`), 0, 'No card button');
   await key('b', 'KeyB', 66);

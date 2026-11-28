@@ -1,13 +1,19 @@
 // 画中画窗口里的播放器面板：可以装进任意文档里的任意容器（mount），真实的画中画窗口（pip.mjs）只是其中一种宿主，
 // 自动化测试也把它装进普通容器。它不是另一套播放：曲目、进度、播放列表都是 ctx.media.queue 的同一份，这里只是显示和操作。
 // - 自上而下：内容区（当前曲目的画面经 ctx.media.stage.take 搬进来：视频按画面比例完整显示，音频是它的图（art.mjs），字幕照常）、
-//   标题行（文件名，末尾依次是「固定操作面板」「播放列表」「收藏列表」三个按钮）、操作面板（播放 / 暂停 + 进度条（书签与区段标记，
-//   可点击拖动）+ 时间（悬停换成快退 / 快进，与文件栏同一份控件）；按钮行：上一个、下一个、循环范围（三态轮换，图标随状态）、
-//   过滤（悬停 / 聚焦 / 点击弹出二级按钮：音频、视频、只含书签；有任何过滤生效时显示为按下）、只播放书签区段（与总控栏的开关是同一个偏好，
-//   图标、说明相同），「定位」在最右）。播放列表在窗口右侧（piplist.mjs），收藏列表的菜单见 pipfav.mjs。
+//   功能栏（.pip-dock）：标题行（文件名居中，与文件栏的标题行同一表现（reader/view.mjs fileName）：点击 / Enter 让主窗口定位到当前曲目，
+//   完整路径在悬停提示里；右端只有「固定」，比按钮行的按钮小一号）、播放行（播放 / 暂停 + 进度条（书签与区段标记，可点击拖动）
+//   + 时间（悬停换成快退 / 快进，与文件栏同一份控件））、按钮行（左组：上一个、下一个、循环范围（三态轮换，图标随状态）、
+//   只播放书签区段（与总控栏的开关是同一个偏好，图标、说明相同）；右组：过滤（悬停 / 聚焦 / 点击弹出二级按钮：音频、视频、只含书签；
+//   有任何过滤生效时显示为按下）、收藏列表（最右，菜单见 pipfav.mjs））。三行共用同一个左右内边距（pipview.css）。播放列表在窗口右侧（piplist.mjs）。
 //   按钮只有图标，文字在 tooltip 与 aria-label；状态随 'media' / 'queue' / 'transport' 事件同步（偏好在别的窗口改了也一样）。
-// - 操作面板的固定（布局类偏好 'pipDock'，默认固定）：固定时标题行与操作面板常显在内容区下方；不固定时两者收起、内容区占满，
-//   鼠标移到面板下部（它们原来所在的高度）稍停即浮在内容区上弹出，移开淡出（键盘聚焦其中、过滤或收藏菜单开着时不淡出）。
+// - 「固定」（布局类偏好 'pipPin'，默认不固定）：功能栏与播放列表一起切换。固定时功能栏常显在内容区下方、列表停靠在右侧；
+//   不固定时两者收起、内容区占满：鼠标移到面板下部（功能栏所在的高度）稍停即浮在内容区上淡入，移开稍等淡出
+//   （键盘聚焦其中、过滤或收藏菜单开着时不淡出）；列表靠近右缘浮出（piplist.mjs，功能栏的高度范围内不触发）。
+// - 真实的画中画窗口（mount 的 resize 选项）里切换「固定」时保持内容区的大小：在点击的手势里同步调用窗口的 resizeBy
+//   （需要用户激活并消耗它，每次手势只能调整一次，所以不做逐帧动画），等窗口的 'resize' 再切换布局（设超时兜底），两者落在同一帧；
+//   目标尺寸见 core/pip.mjs pinResize。浏览器拒绝、或被屏幕与尺寸上限截断时照常切换布局，由内容区让出空间。普通容器里不调整窗口。
+// - 画中画窗口的标题（document.title）是当前曲目的文件名（与标题行相同），没有曲目时是主窗口的标题（应用名）。
 // - 内容区的画面不在这里时（在页内播放、没有曲目）显示占位：说明正在主窗口播放 + 「在画中画显示」按钮（stage.take 收进来）；没有曲目时是一句说明。
 // - 内容区上按住横向拖动即快进 / 快退当前曲目（media/scrub.mjs 的 ctx.media.scrubArea，与主窗口同一套判定与换算），提示显示在面板自己的浮层里。
 // - 按键（装在 keys 上：画中画窗口是它的 window，普通容器是容器本身；处理过的按键不再冒泡，不会作用到主窗口的全局快捷键）：
@@ -16,14 +22,16 @@
 // - 装进别的文档时自带所需的样式表（STYLES）、图标 sprite、lang 属性，并对那个窗口接上拖动滚动（ui/dragscroll.mjs install）；
 //   主文档上靠 document 委托的东西（全局点击分派、快捷键）在那里不生效，面板里只用元素自己的事件（悬停弹层 ui/hoverpop.mjs 按按钮所在的文档工作）。
 // - 尺寸：容器是 size 查询容器（pip）；内容区占去其余高度（画面 object-fit 保持比例），窗口变矮时依次收起按钮行、标题行，
-//   变窄时收起时间、固定的播放列表改为浮出，任何尺寸都不溢出容器（pipview.css）。
-// mount(容器, {keys}) → {root, screen（交给 stage.take 的容器）, ready（样式表载入完成的 Promise）, destroy()}；destroy 时画面若在这里，先收回页内。
+//   变窄时收起时间、按钮行的按钮等分缩小、固定的播放列表改为浮出，任何尺寸都不溢出容器（pipview.css）。
+// mount(容器, {keys, resize}) → {root, screen（交给 stage.take 的容器）, ready（样式表载入完成的 Promise）, destroy()}；resize 为真时切换「固定」
+// 会调整容器所在窗口的大小（只给真实的画中画窗口）；destroy 时画面若在这里，先收回页内。
 import { extend } from '../core/lang.mjs';
 import { shownName, stem, nudge } from '../core/model.mjs';
 import { nextScope, toggleType } from '../core/playlist.mjs';
+import { pinResize, SIDE, DOCK_MIN } from '../core/pip.mjs';
 import { install as dragScroll } from '../ui/dragscroll.mjs';
 import { morePop } from '../ui/hoverpop.mjs';
-import { midName } from '../reader/view.mjs';
+import { fileName } from '../reader/view.mjs';
 import { audioArt } from './art.mjs';
 import { playlist } from './piplist.mjs';
 import { favorites } from './pipfav.mjs';
@@ -40,18 +48,25 @@ extend({
   ],
   pipList: ['Play list', '播放列表', '再生リスト', '재생 목록'],
   pipFav: ['Saved play lists', '收藏列表', '保存したリスト', '저장된 목록'],
-  pipDock: ['Pin the controls', '固定操作面板', 'コントロールを固定', '컨트롤 고정'],
+  pipPin: [
+    'Pin the controls and the play list',
+    '固定功能栏与播放列表',
+    'コントロールと再生リストを固定',
+    '컨트롤과 재생 목록 고정',
+  ],
   pipLoopList: ['Loop: play list', '循环：列表', 'ループ：リスト', '반복: 목록'],
   pipFilter: ['Filter', '过滤', 'フィルター', '필터'],
   pipAudio: ['Type: audio', '类型：音频', '種類：音声', '유형: 오디오'],
   pipVideo: ['Type: video', '类型：视频', '種類：動画', '유형: 동영상'],
   pipMarked: ['Only files with bookmarks', '只含书签', 'しおりのあるファイルだけ', '책갈피가 있는 파일만'],
 });
-// 装进别的文档时链接的样式表（相对本文件）：全局样式与深色主题变量、播放器（进度条、时间、字幕容器）、书签标记、音频的图、字幕、文件详情框、本面板。
+// 装进别的文档时链接的样式表（相对本文件）：全局样式与深色主题变量、播放器（进度条、时间、字幕容器）、书签标记、
+// 书签角标（.mk，播放列表的书签标记位）、音频的图、字幕、文件详情框、本面板。
 const STYLES = [
   '../style.css',
   './shell.css',
   './media.css',
+  '../marks/bookmarks.css',
   './art.css',
   './subtitles.css',
   './filecard.css',
@@ -59,11 +74,13 @@ const STYLES = [
   './piplist.css',
   './pipfav.css',
 ];
+const lastPart = (s) => s.slice(s.lastIndexOf('/') + 1);
 const SCOPE_ICON = { file: 'loop-file', list: 'loop-book', books: 'loop-books' },
   SCOPE_LABEL = { file: 'cbLoopFile', list: 'pipLoopList', books: 'cbLoopBooks' };
-const DOCK = 'pipDock',
-  DWELL = 150, // 浮出前的停留（毫秒），防误触
-  LEAVE = 400; // 指针离开后多久淡出
+const PIN = 'pipPin',
+  DWELL = 150, // 浮出前的停留（毫秒），防误触（与主窗口的侧栏一致）
+  LEAVE = 400, // 指针离开后多久淡出
+  RESIZED = 300; // 调整窗口大小后最多等这么久的 'resize'，之后照常切换布局
 
 // 文档里还没有的样式表补上，返回全部载入（或失败、超时）的 Promise。
 function styles(doc) {
@@ -90,7 +107,7 @@ export function install(ctx) {
   const { t, make, icon } = ctx;
   const Q = () => ctx.media.queue,
     M = () => ctx.media;
-  ctx.prefs.add(DOCK);
+  ctx.prefs.add(PIN);
   const views = new Set();
   const each = (fn) => {
     for (const v of views) fn(v);
@@ -103,7 +120,7 @@ export function install(ctx) {
   ctx.on('lang', () => each((v) => v.lang()));
   const wired = new WeakSet(); // 已接上拖动滚动的窗口
 
-  return function mount(box, { keys = box } = {}) {
+  return function mount(box, { keys = box, resize = false } = {}) {
     const doc = box.ownerDocument,
       win = doc.defaultView,
       own = doc !== document;
@@ -148,6 +165,7 @@ export function install(ctx) {
       dock = make('div', 'pip-dock'),
       head = make('div', 'pip-head'),
       name = make('div', 'pip-name'),
+      pinBox = make('div', 'pip-head-end'),
       line = make('div', 'pip-line'),
       tools = make('div', 'pip-tools');
     hud.hidden = true;
@@ -157,21 +175,19 @@ export function install(ctx) {
       seek = ctx.player.seekBar(() => tp()),
       time = ctx.player.timeBox(() => tp(), 'pip-time');
     line.append(play, seek.bar, time.box);
-    const H = {
-      dock: btn('dock', 'pin', 'pipDock', () => pinDock(!dockPinned), 'pip-hb'),
-      list: btn('list', 'playlist', 'pipList', () => {}, 'pip-hb'),
-      fav: btn('fav', 'star', 'pipFav', () => {}, 'pip-hb'),
-    };
-    head.append(name, ...Object.values(H));
+    const pinBtn = btn('pin', 'pin', 'pipPin', () => pin(!pinned), 'pip-pin');
+    pinBox.append(pinBtn);
+    head.append(name, pinBox);
+    // 按钮行：左组（上一个、下一个、循环范围、只播放书签区段），右组（过滤、收藏列表）。
     const B = {
       prev: btn('prev', 'skip-back', 'cbMediaPrev', () => Q().prev()),
       next: btn('next', 'skip-forward', 'cbMediaNext', () => Q().next()),
       scope: btn('scope', 'loop-book', 'pipLoopList', () => Q().setScope(nextScope(Q().scope))),
-      filter: btn('filter', 'filter', 'pipFilter', () => {}),
       sections: btn('sections', 'sections', 'mvSections', () =>
         ctx.transport.setSectionsOnly(!ctx.transport.sectionsOnly),
       ),
-      locate: btn('locate', 'locate', 'fbLocate', () => Q().locate(), 'pip-locate'),
+      filter: btn('filter', 'filter', 'pipFilter', () => {}, 'pip-right'),
+      fav: btn('fav', 'star', 'pipFav', () => {}),
     };
     tools.append(...Object.values(B));
     // 过滤的二级按钮：弹出层里的开关，点了不收起（keep-pop）。
@@ -189,15 +205,21 @@ export function install(ctx) {
     root.append(pop); // 弹出层与按钮在同一个文档里（hoverpop 按按钮所在的文档定位）
     const filterPop = morePop(B.filter, pop);
 
-    // ---- 浮出：操作面板（不固定时）与播放列表（不固定时）。want(是否显示, 延迟)；busy() 为真时不收起（check() 在它变化后补收起）。
-    function peeker(cls, busy) {
+    // ---- 浮出：功能栏（不固定时）与播放列表（不固定或太窄时）。want(是否显示, 延迟)；busy() 为真时不收起（check() 在它变化后补收起）；
+    // changed(是否显示) 在类切换之后调用。
+    function peeker(cls, busy, changed = () => {}) {
       let target = false,
         timer = 0;
       const shown = () => root.classList.contains(cls);
+      const set = (v) => {
+        if (shown() === v) return;
+        root.classList.toggle(cls, v);
+        changed(v);
+      };
       const apply = () => {
         timer = 0;
         if (!target && busy()) return;
-        root.classList.toggle(cls, target);
+        set(target);
       };
       return {
         shown,
@@ -210,37 +232,70 @@ export function install(ctx) {
           else apply();
         },
         check() {
-          if (!target && !timer && shown() && !busy()) root.classList.remove(cls);
+          if (!target && !timer && shown() && !busy()) set(false);
         },
       };
     }
-    let dockPinned = ctx.get(DOCK, true) !== false;
+    let pinned = ctx.get(PIN, false) === true;
     const dockBusy = () => dock.matches(':hover') || dock.matches(':focus-within') || filterPop.open() || fav.open();
     const dockPeek = peeker('dock-peek', dockBusy);
-    function pinDock(on) {
-      dockPinned = on;
-      ctx.put(DOCK, on);
-      root.classList.toggle('dock-pinned', on);
-      press(H.dock, on);
-      // 取消固定时指针就在面板上：保持弹出，移开再淡出。
-      dockPeek.want(!on, 0);
-    }
-    root.classList.toggle('dock-pinned', dockPinned);
-    press(H.dock, dockPinned);
-    const fav = favorites(ctx, { root, button: H.fav, onClose: () => dockPeek.check() });
+    const fav = favorites(ctx, { root, button: B.fav, onClose: () => dockPeek.check() });
     pop.addEventListener('toggle', () => queueMicrotask(() => dockPeek.check()));
-    dock.addEventListener('focusin', () => dockPinned || dockPeek.want(true, 0));
+    dock.addEventListener('focusin', () => pinned || dockPeek.want(true, 0));
     dock.addEventListener('focusout', () => queueMicrotask(() => dockPeek.check()));
-    const L = playlist(ctx, { win, root, button: H.list, peeker });
+    const L = playlist(ctx, { win, root, peeker });
     root.append(L.side);
-    // 指针在面板上移动：下部（操作面板原来的高度）弹出操作面板；右缘弹出播放列表（piplist.mjs）。
+    // 「固定」：功能栏与列表一起切换布局。
+    function layout(on) {
+      root.classList.toggle('pinned', on);
+      // 取消固定时指针就在功能栏上：保持浮出，移开再淡出。
+      dockPeek.want(!on, 0);
+      L.pin();
+    }
+    let resizing = null; // 等待窗口 'resize' 的 {on, done}
+    function pin(on) {
+      pinned = on;
+      ctx.put(PIN, on);
+      press(pinBtn, on);
+      resizing?.done(false);
+      if (!resize) return layout(on);
+      // 真实的画中画窗口：内容区保持原来的大小，改为调整窗口（见文件开头）。
+      const r = pinResize({
+        on,
+        width: win.innerWidth,
+        height: win.innerHeight,
+        side: SIDE,
+        dock: dock.offsetHeight,
+        dockMin: DOCK_MIN,
+      });
+      if (!r.dw && !r.dh) return layout(on);
+      let timer = 0;
+      const done = (apply = true) => {
+        if (resizing?.done !== done) return;
+        resizing = null;
+        clearTimeout(timer);
+        win.removeEventListener('resize', onResize);
+        if (apply) layout(on);
+      };
+      const onResize = () => done();
+      resizing = { on, done };
+      win.addEventListener('resize', onResize);
+      timer = setTimeout(done, RESIZED);
+      try {
+        win.resizeBy(r.dw, r.dh);
+      } catch {
+        done();
+      }
+    }
+    root.classList.toggle('pinned', pinned);
+    press(pinBtn, pinned);
+    // 指针在面板上移动：下部（功能栏所在的高度）浮出功能栏；右缘浮出播放列表（piplist.mjs），功能栏的高度范围内右缘不触发。
     root.addEventListener('pointermove', (e) => {
       if (e.pointerType !== 'mouse') return;
-      if (!dockPinned) {
-        const b = body.getBoundingClientRect();
-        dockPeek.want(e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.bottom - dock.offsetHeight);
-      }
-      L.hover(e);
+      const b = body.getBoundingClientRect(),
+        band = e.clientY >= b.bottom - dock.offsetHeight && e.clientY <= b.bottom;
+      if (!pinned) dockPeek.want(e.clientX >= b.left && e.clientX <= b.right && band);
+      L.hover(e, band);
     });
     root.addEventListener('pointerleave', () => {
       dockPeek.want(false);
@@ -288,16 +343,14 @@ export function install(ctx) {
       }
       idleKey = key;
     }
+    // 标题行的文件名（点击定位当前曲目），真实窗口的标题随之更新。
     function paintName() {
       const tr = Q().track();
       if (tr?.page === named) return;
       named = tr?.page ?? null;
+      if (own) doc.title = named ? stem(lastPart(shownName(named))) : document.title;
       if (!named) return name.replaceChildren();
-      const full = shownName(named),
-        n = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
-      n.title = full;
-      n.dataset.nodrag = '';
-      name.replaceChildren(n);
+      name.replaceChildren(fileName(named, () => Q().locate()));
     }
     function states() {
       const tr = Q().track(),
@@ -313,7 +366,6 @@ export function install(ctx) {
       stage.classList.toggle('nosubs', !!p?.node.classList.contains('mv-nosubs'));
       B.prev.disabled = !q.canStep(-1);
       B.next.disabled = !q.canStep(1);
-      B.locate.disabled = !tr;
       setIcon(B.scope, SCOPE_ICON[q.scope]);
       setLabel(B.scope, SCOPE_LABEL[q.scope]);
       B.scope.dataset.scope = q.scope;
@@ -331,6 +383,7 @@ export function install(ctx) {
       if (drawn?.p !== p || drawn.d !== d) {
         drawn = { p, d };
         paintStage();
+        paintName();
         time.size(d);
         ctx.player.drawMarks?.(seek.bar, p);
       }

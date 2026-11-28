@@ -1,5 +1,5 @@
 // 画中画窗口的纯规则（media/pip.mjs、media/pipview.mjs、media/piplist.mjs 调用，tests/core/pip.test.mjs 覆盖）：入口的作用、
-// 播放列表的行（书名小标题）、可见范围与滚动位置。
+// 播放列表的行（书名小标题）、可见范围与滚动位置，「固定」切换时窗口尺寸的变化。
 // 入口（文件栏标题行的「画中画」、音频卡片上的同一个按钮、Z 键）按作用的文件与窗口的状态决定做什么（entry）：
 // - 视频、音频：它是当前曲目且画面已在画中画窗口里 → 'close' 关闭窗口；否则 'show'：它成为当前曲目、开始播放（已在播放的不中断），
 //   画面搬进窗口（没开就打开）；
@@ -45,4 +45,17 @@ export function listRows(items, bookOf = (it) => it.book) {
     rows.push({ item, i });
   });
   return { rows, at };
+}
+// 「固定」（功能栏停靠在画面下方 + 播放列表停靠在右侧）：停靠的列表是固定宽度 SIDE（不随面板宽度变化），面板至少 DOCK_MIN 宽时
+// 才停靠，更窄时固定也按浮出的方式显示。两个值与 piplist.css 的 --side、容器查询一致（改一处要同步另一处）。
+export const SIDE = 220,
+  DOCK_MIN = 420;
+// 真实画中画窗口里切换「固定」时窗口要变化的尺寸，使内容区（画面）的宽高保持不变：固定时宽度加上列表宽（列表会停靠时）、
+// 高度加上功能栏高；取消时减回。on：切到固定；width / height：窗口当前的内尺寸；side：停靠列表的宽；dock：功能栏的高；
+// dockMin：停靠所需的最小面板宽。返回 {dw, dh}（resizeBy 的参数）与目标内尺寸 {width, height}。
+export function pinResize({ on, width, height, side = SIDE, dock = 0, dockMin = DOCK_MIN }) {
+  const docks = on ? width + side >= dockMin : width >= dockMin, // 固定之后 / 取消之前，列表是否停靠
+    dw = docks ? (on ? side : -side) : 0,
+    dh = Math.max(0, dock) * (on ? 1 : -1);
+  return { dw, dh, width: Math.max(0, width + dw), height: Math.max(0, height + dh) };
 }

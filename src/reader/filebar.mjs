@@ -1,11 +1,12 @@
 // 文件栏：总控栏里三区那一行上方的两行（行容器是 ctx.controlBar.fileRow，与总控栏一起弹出 / 收起、同宽），作用于当前文件
 // （ctx.media.target()：在播放的当前曲目——不在视窗里、在别的书里也一样；暂停的当前曲目只在本书、中线在视窗内时；否则视窗中心所在的页，
 // 规则见 core/selection.mjs fileTarget；长按 A / D、空格作用于同一个对象）。
-// - 上行（标题行）：文件名在行的正中（只显示最末一段、不带扩展名，过长省略中间、放不下时向左让出；完整路径在悬停提示里，可选中复制），
-//   右端是标题行按钮区（.fb-head-tools）：
-//   「定位」（主窗口跳到当前曲目所在的页，必要时切书；没有当前曲目时禁用），其后是「画中画」（media/pip.mjs 登记，order 20；浏览器不支持时没有）。
+// - 上行（标题行）：文件名在行的正中（view.mjs fileName，与画中画的标题行同一表现：只显示最末一段、不带扩展名，过长省略中间、
+//   放不下时向左让出；完整路径在悬停提示里）。视频、音频的文件名是按钮：点击 / Enter 让主窗口定位到这个文件所在的页（必要时切书，
+//   ctx.media.queue.locate）；图片的文件名是普通文字（可选中复制）。右端是标题行按钮区（.fb-head-tools）：「画中画」（media/pip.mjs 登记，
+//   order 20；浏览器不支持时没有）。
 //   往标题行右端加按钮：ctx.fileBar.addHead({id, icon, label(文案 key), order?, click(当前文件), state?(当前文件)→{disabled,pressed,icon,label}})，
-//   按 order 从小到大排在文件名后面、行的右端（「定位」10、「画中画」20，默认 50，同值按登记顺序）；当前文件为 {book, page, i, kind, player}
+//   按 order 从小到大排在文件名后面、行的右端（「画中画」20，默认 50，同值按登记顺序）；当前文件为 {book, page, i, kind, player}
 //   （没有为 null），文件变了、当前曲目变了或播放状态变了时重新取 state。
 // - 下行：播放 / 暂停（等同媒体自己的播放键）、进度条（书签与区段标记，media/marks.mjs；可点击、拖动）、当前时间 / 总时长，右侧按钮；
 //   图片时播放键、进度条、时间留空（占位不变）。时间处悬停或键盘聚焦时原位换成「快退」「快进」（media/shell.mjs makeTime，与音频卡片共用）。
@@ -16,15 +17,13 @@
 // - 任何宽度都不横向溢出：先缩短文件名（标题行），下行由进度条让出宽度（filebar.css）。
 // - 只在总控栏显示时更新：显示时取一次，之后随 'media' 事件（'current' 当前文件变了、'state' 播放 / 暂停、'time' 时间）更新；收起后不做任何工作。
 import { extend } from '../core/lang.mjs';
-import { shownName, stem } from '../core/model.mjs';
 import { BUTTONS, buttonsOf, arrange } from '../core/filebar.mjs';
 import { make, icon } from '../ui/dom.mjs';
 import { morePop } from '../ui/hoverpop.mjs';
-import { midName } from './view.mjs';
+import { fileName } from './view.mjs';
 
 extend({
   fbBar: ['File bar', '文件栏', 'ファイルバー', '파일 바'],
-  fbLocate: ['Locate', '定位', '場所へ移動', '위치로 이동'],
 });
 // 各按钮的图标与文案。
 const LOOK = {
@@ -125,11 +124,9 @@ export function install(ctx) {
     if (tg?.page !== shownPage) {
       shownPage = tg?.page ?? null;
       if (shownPage) {
-        const full = shownName(shownPage),
-          n = midName(stem(full.slice(full.lastIndexOf('/') + 1)));
-        n.title = full;
-        n.dataset.nodrag = '';
-        name.replaceChildren(n);
+        const { book, page } = tg,
+          media = tg.kind === 'video' || tg.kind === 'audio';
+        name.replaceChildren(fileName(page, media ? () => M()?.queue?.locate({ book, page }) : null));
       } else name.replaceChildren();
     }
     mid.classList.toggle('fb-void', !p);
@@ -238,14 +235,4 @@ export function install(ctx) {
   refresh();
   // addHead：往标题行右端加按钮（见文件开头）；refresh()：立即按当前文件重画。
   ctx.fileBar = { addHead, refresh: later };
-  // 标题行的「定位」：作用于当前曲目（播放列表 ctx.media.queue），没有当前曲目时禁用。
-  const Q = () => ctx.media?.queue;
-  addHead({
-    id: 'locate',
-    icon: 'locate',
-    label: 'fbLocate',
-    order: 10,
-    click: () => Q()?.locate(),
-    state: () => ({ disabled: !Q()?.track() }),
-  });
 }

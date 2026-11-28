@@ -23,8 +23,9 @@
 //   别的窗口改了经 'storage' 事件同步。每个收藏是 {id, name, items: [{book: 书的 id, page: 页名}]}，保存后不随临时列表变化，只能改名、删除。
 //
 // 接口 ctx.media.queue（列表界面只调用它）：
-// - items() → [{book, page, kind, current, filtered, marks}]：列表的项，按列表顺序（播不了的不在其中）。book 所在的书、page 文件（页对象）、
-//   kind 'video' | 'audio'、current 是当前曲目、filtered 被过滤、marks 书签情况：'none' 没有 | 'mark' 有书签 | 'section' 有区段书签。
+// - items() → [{book, page, kind, current, filtered, marks, count}]：列表的项，按列表顺序（播不了的不在其中）。book 所在的书、page 文件（页对象）、
+//   kind 'video' | 'audio'、current 是当前曲目、filtered 被过滤、marks 书签情况：'none' 没有 | 'mark' 有书签 | 'section' 有区段书签，
+//   count 书签数（区段书签不另计，与缩略图的书签角标相同）。
 // - track() → 当前曲目 {book, page, kind, playing, by}（by：'user' 后台播放 | 'scroll' 自动滚动 | 'auto' 自动播放）或 null；playing() → 是否在播放（含等着播放）。
 // - play(item, {time?}?)：后台播放该项（item 为 {book, page}，可以是别的书里的；不跳转、不滚动；不在列表里时替换列表）。从 time 秒开始，
 //   省略时从记住的位置开始；成为当前曲目，画面留在原来的显示位置。toggle()：当前曲目的播放 / 暂停。
@@ -432,6 +433,7 @@ export function install(ctx, S) {
           current: !!p && p.book === e.book && p.page.name === e.name,
           filtered: !passes(F, kind, m?.n ?? 0),
           marks: markKind(m),
+          count: m?.n ?? 0,
         });
       }
       return out;

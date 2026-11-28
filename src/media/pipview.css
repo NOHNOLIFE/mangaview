@@ -1,13 +1,16 @@
 /* 画中画窗口里的播放器面板（pipview.mjs）：可装进任意文档里的任意容器。根元素是 size 查询容器（pip）：
-   左边是主体（.pip-body：内容区 .pip-stage 占去其余高度，其下是标题行 .pip-head 与操作面板（播放行 .pip-line、按钮行 .pip-tools），合称 .pip-dock），
-   右边是播放列表（.pip-side，piplist.css）。操作面板不固定（无 .dock-pinned）时浮在内容区底部，平时隐藏，.dock-peek 时显示；
-   窗口变矮时依次收起按钮行、标题行，变窄时收起时间；根元素 overflow: hidden，任何尺寸都不溢出。
+   左边是主体（.pip-body：内容区 .pip-stage 占去其余高度，其下是功能栏 .pip-dock：标题行 .pip-head、播放行 .pip-line、按钮行 .pip-tools），
+   右边是播放列表（.pip-side，piplist.css）。不固定（无 .pinned）时功能栏浮在内容区底部，平时隐藏，.dock-peek 时淡入；
+   功能栏的三行共用同一个左右内边距（--pip-pad）：播放键、「上一个」与左边对齐，时间、「收藏列表」、「固定」与右边对齐；
+   按钮行与播放键同一规格（32px），「固定」小一号（24px），离上缘、右缘都是 --pip-pad。
+   窗口变矮时依次收起按钮行、标题行，变窄时收起时间、按钮行的按钮等分缩小；根元素 overflow: hidden，任何尺寸都不溢出。
    当前曲目的画面（track.mjs 的 .mv-screen，内含媒体元素与字幕容器）由 stage.take 放进 .pip-screen，样式在这里提供。 */
 html:has(> body > .pip),
 body:has(> .pip) {
   height: 100%;
 }
 .pip {
+  --pip-pad: 8px;
   container: pip / size;
   position: relative;
   display: flex;
@@ -74,7 +77,7 @@ body:has(> .pip) {
 .mv-screen .mv-cue {
   font-size: inherit;
 }
-.pip:not(.dock-pinned).dock-peek .mv-screen > .mv-subs {
+.pip:not(.pinned).dock-peek .mv-screen > .mv-subs {
   bottom: calc(var(--dock-h, 0px) + 12px);
 }
 /* 音频：图居中（方形，高度占满内容区），字幕区在底部 3 行（离底部留出间距）；没有字幕可显示时是阶梯音柱，播放中跳动（shell.css）。 */
@@ -160,13 +163,13 @@ body:has(> .pip) {
   width: 16px;
   height: 16px;
 }
-/* ---- 标题行与操作面板（.pip-dock）：固定时在内容区下方；不固定时浮在内容区底部，平时透明、不接收指针，.dock-peek 时淡入。 */
+/* ---- 功能栏（.pip-dock）：固定时在内容区下方；不固定时浮在内容区底部，平时透明、不接收指针，.dock-peek 时淡入。 */
 .pip-dock {
   flex: none;
   min-width: 0;
   background: var(--bg);
 }
-.pip:not(.dock-pinned) .pip-dock {
+.pip:not(.pinned) .pip-dock {
   position: absolute;
   z-index: 4;
   left: 0;
@@ -179,45 +182,59 @@ body:has(> .pip) {
     opacity 0.18s,
     visibility 0s 0.18s;
 }
-.pip:not(.dock-pinned).dock-peek .pip-dock {
+.pip:not(.pinned).dock-peek .pip-dock {
   opacity: 1;
   visibility: visible;
   transition: opacity 0.12s;
 }
+/* 标题行：三列网格（同文件栏），文件名在正中，过长时向左让出、不压「固定」；「固定」在右列的右端。 */
 .pip-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 2px;
-  height: 32px;
+  gap: 6px;
+  height: calc(24px + var(--pip-pad));
   min-width: 0;
-  padding: 0 4px 0 10px;
+  padding: var(--pip-pad) var(--pip-pad) 0;
 }
 .pip-name {
+  grid-column: 2;
+  align-self: stretch;
   display: flex;
-  flex: 1 1 0;
   align-items: center;
+  justify-content: center;
   min-width: 0;
   overflow: hidden;
   font-weight: 600;
 }
-.pip-name .mid-name {
-  justify-content: flex-start;
+.pip-name > .mid-name {
+  justify-content: center;
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
 }
-.pip .icon-btn.pip-hb {
+.pip-head-end {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+}
+.pip .icon-btn.pip-pin {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.pip-pin .i {
+  width: 15px;
+  height: 15px;
 }
 .pip-line {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
-  height: 36px;
-  padding: 0 6px;
+  height: 40px;
+  padding: 0 var(--pip-pad);
 }
 .pip-line .mv-bar {
   flex: 1 1 0;
@@ -240,20 +257,21 @@ body:has(> .pip) {
 .pip-play .i {
   fill: currentColor;
 }
+/* 按钮行：左组贴左、右组（过滤、收藏列表）贴右；窄时按钮等分缩小。 */
 .pip-tools {
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 38px;
+  height: calc(32px + var(--pip-pad));
   min-width: 0;
-  padding: 0 6px 6px;
+  padding: 0 var(--pip-pad) var(--pip-pad);
 }
 .pip-tools .icon-btn {
-  flex: 0 1 34px;
+  flex: 0 1 32px;
   min-width: 0;
   width: auto;
 }
-.pip-tools .pip-locate {
+.pip-tools .pip-right {
   margin-left: auto;
 }
 /* 开关类按钮：按下为强调色（与总控栏的开关一致），未按下为普通颜色。 */

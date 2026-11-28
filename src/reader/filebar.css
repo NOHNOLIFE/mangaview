@@ -1,5 +1,6 @@
 /* 文件栏（filebar.mjs）：总控栏里三区那一行上方的两行（行容器 #filebar 的位置、分隔线见 controlbar.css）。
-   上行：文件名（不带扩展名，过长省略中间，可选中）在行的正中，右端是标题行按钮区（.fb-head-tools，按钮由其他模块经 ctx.fileBar.addHead 放入）：
+   上行：文件名（不带扩展名，过长省略中间；视频、音频是点击定位的按钮 .name-btn（style.css，与画中画的标题行共用），图片是可选中的文字）
+   在行的正中，右端是标题行按钮区（.fb-head-tools，按钮由其他模块经 ctx.fileBar.addHead 放入）：
    三列网格，两侧列等分剩余宽度（右列至少放得下按钮），名称长到放不下居中时向左让出、不压住按钮。
    下行：播放键、进度条（与音频卡片共用 .mv-bar，shell.css；占满剩余宽度）、时间（.mv-tbox，悬停换成快退 / 快进），右侧三个固定的按钮位
    （没有的位置留空：.fb-void 只隐藏、不让位；第三个位上可能是「⋯」，弹出层 .fb-more-pop）。
@@ -15,6 +16,7 @@
 }
 #filebar .fb-name {
   grid-column: 2;
+  align-self: stretch; /* 占满行高：文字与按钮两种形态的位置相同 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,11 +25,14 @@
   font-size: 13px;
   color: var(--text);
 }
-#filebar .fb-name .mid-name {
+#filebar .fb-name > .mid-name {
   justify-content: center;
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
+}
+#filebar .fb-name > .name-btn {
+  height: 22px;
 }
 .fb-head-tools {
   grid-column: 3;

@@ -7,7 +7,7 @@
 //   窗口开着时再按关闭。
 //   入口在用户手势里直接调用 requestWindow（不隔着异步）。浏览器不支持该接口时不登记任何入口，其余功能不受影响。
 // - 打开：requestWindow（默认约 480×480 的方形，之后浏览器记住用户调整的大小），在空白文档里装上面板（pipview.mjs mount：自带样式表、图标、
-//   lang、拖动滚动与按键），面板的内容区登记为显示位置（stage.take）。
+//   lang、拖动滚动与按键；切换「固定」时调整这个窗口的大小），面板的内容区登记为显示位置（stage.take）。窗口的标题由面板维护（当前曲目的文件名）。
 // - 关闭：窗口自己的关闭按钮、再按入口、主窗口刷新或关闭；同一浏览器里另一个窗口（另一个 MangaView 窗口）再开画中画时浏览器会关掉这一个。
 //   都在窗口的 pagehide 里同步收回：画面回到页内（或停放处），继续后台播放；万一浏览器仍暂停了它，立即恢复（进度不变）。
 // - 打开 / 关闭时派发 ctx.emit('media', 'pip')；打开 / 关闭与显示位置变化（'display'）时重画播放器上登记的按钮（入口按钮的按下状态）。
@@ -63,7 +63,7 @@ export function install(ctx) {
         .requestWindow(SIZE)
         .then(async (win) => {
           win.document.title = document.title;
-          const view = mount(win.document.body, { keys: win });
+          const view = mount(win.document.body, { keys: win, resize: true });
           await view.ready;
           if (win.closed) {
             view.destroy();

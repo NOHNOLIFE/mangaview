@@ -1,8 +1,11 @@
-/* 画中画面板的播放列表（piplist.mjs）：窗口右侧的一栏。平时收起（透明、不接收指针），.list-peek 时浮在内容上；
-   固定（.list-pinned）且面板够宽时停靠在右侧（参与布局，主体相应变窄），太窄时固定也按浮出的方式显示。
-   行固定高度（piplist.mjs ROW），只渲染可视范围的行（绝对定位）；书名小标题（.pip-group）也占一行。 */
+/* 画中画面板的播放列表（piplist.mjs）：窗口右侧的一栏，固定宽度（--side，与 core/pip.mjs SIDE 一致）。平时收起（透明、不接收指针），
+   .list-peek 时浮在内容上淡入；固定（.pinned）且面板至少 420px 宽（core/pip.mjs DOCK_MIN）时停靠在右侧（参与布局，主体相应变窄），
+   更窄时固定也按浮出的方式显示。.revealed（已完全显示）由 piplist.mjs 维护。
+   行固定高度（piplist.mjs ROW），只渲染可视范围的行（绝对定位）；书名小标题（.pip-group）也占一行。
+   行的底色按层叠出：列表底 --list-bg（不透明）+ 行的状态色 --row（选中、当前曲目）；叠在行右端的按钮用同样的两层，看起来与行一体。 */
 .pip-side {
-  --side: clamp(150px, 44cqw, 280px);
+  --side: 220px;
+  --list-bg: rgb(20, 21, 25);
   position: absolute;
   z-index: 5;
   top: 0;
@@ -13,7 +16,7 @@
   width: var(--side);
   max-width: 100%;
   border-left: 1px solid var(--line2);
-  background: rgba(20, 21, 25, 0.97);
+  background: var(--list-bg);
   box-shadow: var(--shadow);
   opacity: 0;
   visibility: hidden;
@@ -26,13 +29,14 @@
   visibility: visible;
   transition: opacity 0.12s;
 }
-@container pip (min-width: 340px) {
-  .pip.list-pinned .pip-side {
+@container pip (min-width: 420px) {
+  .pip.pinned .pip-side {
+    --list-bg: var(--bg);
     position: relative;
     z-index: auto;
     flex: none;
     border-left-color: var(--line);
-    background: var(--bg);
+    background: var(--list-bg);
     box-shadow: none;
     opacity: 1;
     visibility: visible;
@@ -77,8 +81,10 @@
   text-overflow: ellipsis;
 }
 .pip-item {
+  --row: transparent;
   gap: 6px;
-  padding: 0 2px 0 6px;
+  padding: 0 6px;
+  background: var(--row);
   color: var(--text);
   cursor: pointer;
   -webkit-user-select: none;
@@ -94,27 +100,18 @@
   flex: 1 1 auto;
   justify-content: flex-start;
 }
-/* 书签标记位：始终占位；有书签显示书签图标，有区段书签用区段配色，没有书签留空。 */
+/* 书签标记位：始终占位（各行的文件名对齐）；里面是缩略图的书签角标（pagemarks.mjs badge，.mk 样式见 marks/bookmarks.css），这里只改定位。 */
 .pip-mk {
   display: flex;
   flex: none;
   align-items: center;
-  justify-content: center;
-  width: 14px;
-  color: var(--muted);
+  width: 26px;
 }
-.pip-mk .i {
-  width: 13px;
-  height: 13px;
-}
-.pip-mk[data-marks='section'] {
-  color: var(--sec);
-}
-.pip-mk:not([data-marks='mark'], [data-marks='section']) .i {
-  visibility: hidden;
+.pip-mk > .mk {
+  position: static;
 }
 .pip-item.sel {
-  background: rgba(255, 255, 255, 0.08);
+  --row: rgba(255, 255, 255, 0.08);
 }
 /* 被过滤的项：弱化（仍可读、可点）。 */
 .pip-item.filtered {
@@ -126,7 +123,7 @@
 }
 /* 当前曲目：强调色、加粗，左侧一道强调色竖条。 */
 .pip-item.current {
-  background: var(--accent-soft);
+  --row: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
   color: var(--accent-hi);
   font-weight: 600;
@@ -135,20 +132,33 @@
   color: var(--accent);
 }
 .pip-item.current.sel {
-  background: rgba(255, 122, 89, 0.22);
+  --row: rgba(255, 122, 89, 0.22);
 }
-/* 每项的「定位」「移除」：始终占位，只在悬停 / 选中 / 聚焦的项上显示。 */
-.pip .pip-ib {
-  flex: none;
-  width: 28px;
-  height: 28px;
+/* 每项的「定位」「移除」：叠在行的右端（不占文件名的宽度），紧挨着，只在悬停 / 选中 / 聚焦的项上显示；
+   底色与该行一致（列表底 + 行的状态色，接近不透明），左侧渐变过渡到文件名上。 */
+.pip-acts {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 0 14px;
+  background:
+    linear-gradient(90deg, transparent, var(--row) 14px), linear-gradient(90deg, transparent, var(--list-bg) 14px);
   visibility: hidden;
 }
-.pip-ib .i {
-  width: 16px;
-  height: 16px;
+.pip .pip-ib {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
-.pip-item.sel .pip-ib,
-.pip-item:focus-within .pip-ib {
+.pip-ib .i {
+  width: 15px;
+  height: 15px;
+}
+.pip-item.sel .pip-acts,
+.pip-item:focus-within .pip-acts {
   visibility: visible;
 }
