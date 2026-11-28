@@ -1,7 +1,7 @@
 // 顶部工具栏与底部总控栏（总控栏的布局与控件另见 controlbar.browser.mjs）：边缘悬停弹出、离开收起、设置项、换行布局与阅读键位。框架同 tests/browser.mjs。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { launch } from './chrome.mjs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,19 +31,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = 'http://127.0.0.1:' + server.address().port + '/';
-const chrome = spawn(
-  binary,
-  [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--disable-background-networking',
-    '--window-size=800,900',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
+const chrome = launch(binary, profile);
 let ws,
   id = 0,
   cdp;

@@ -2,7 +2,7 @@
 // 框架同 tests/browser.mjs。设置环境变量 MV_SHOTS=目录 时把各尺寸的截图存到该目录，供人工自查观感。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { launch } from './chrome.mjs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,19 +32,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = 'http://127.0.0.1:' + server.address().port + '/';
-const chrome = spawn(
-  binary,
-  [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--disable-background-networking',
-    '--window-size=800,900',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
+const chrome = launch(binary, profile);
 let ws,
   id = 0,
   cdp;

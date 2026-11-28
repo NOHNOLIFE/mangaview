@@ -1,7 +1,7 @@
 // 多窗口端到端测试：同一个临时浏览器配置里开两个（以上）页面，每个页面是一个 CDP target。只用 OPFS 里自动生成的测试图片。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { launch } from './chrome.mjs';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,19 +31,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = 'http://127.0.0.1:' + server.address().port + '/';
-const chrome = spawn(
-  binary,
-  [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--disable-background-networking',
-    '--window-size=800,900',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
+const chrome = launch(binary, profile);
 async function wait(check, tries = 150) {
   let last;
   for (let i = 0; i < tries; i++) {

@@ -1,7 +1,7 @@
 // 设置面板与数据导入 / 导出的端到端测试：独立临时配置 + OPFS 测试数据；另一个源（localhost）模拟“新的空配置”。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { launch } from './chrome.mjs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,19 +38,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const port = server.address().port,
   origin = 'http://127.0.0.1:' + port + '/',
   other = 'http://localhost:' + port + '/';
-const chrome = spawn(
-  binary,
-  [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--disable-background-networking',
-    '--window-size=900,900',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
+const chrome = launch(binary, profile, { size: '900,900' });
 let ws,
   id = 0,
   js;

@@ -394,7 +394,7 @@ MangaView 会在三种情况下检查文件夹里文件的增删（第一种可�
 测试需要 Node 22.12+，统一从 `tests/run.mjs` 运行：
 
 ```sh
-# 全部测试：先跑核心测试，再逐个串行跑无头 Chrome / Edge 端到端测试，失败的自动单独重跑一次，最后列出通过 / 失败清单
+# 全部测试（约 3–4 分钟）：先跑核心测试，再并行跑无头 Chrome / Edge 端到端测试（默认同时 4 个，--jobs=N 可改；浏览器静音），失败的最后单独重跑一次，结尾列出通过 / 失败清单和最慢的文件
 node tests/run.mjs "<chrome.exe 或 msedge.exe 的路径>"
 # 只跑文件名包含给定名称的端到端测试（核心测试照常先跑）
 node tests/run.mjs "<路径>" shelf media

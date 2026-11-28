@@ -2,7 +2,7 @@
 // 拖动、滑行中加载完成的缩略图不改变占位尺寸（不重排），停下后才补齐尺寸。独立临时配置 + 测试生成的 JPEG，不读取用户的书库或浏览器配置。
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { launch } from './chrome.mjs';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,19 +32,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = 'http://127.0.0.1:' + server.address().port + '/';
-const chrome = spawn(
-  binary,
-  [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--disable-background-networking',
-    '--window-size=1000,760',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
+const chrome = launch(binary, profile, { size: '1000,760' });
 let ws,
   id = 0;
 const pending = new Map(),

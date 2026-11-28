@@ -15,7 +15,7 @@
 
 具体要求：
 
-- 调试、复现问题、验收一律用测试自己生成的临时数据：独立的临时浏览器配置（`--user-data-dir` 指向临时目录）+ 自动生成的测试图片。现有 `tests/*.browser.mjs` 都是这样做的，新测试照此办理。
+- 调试、复现问题、验收一律用测试自己生成的临时数据：独立的临时浏览器配置（`--user-data-dir` 指向临时目录）+ 自动生成的测试图片。现有 `tests/*.browser.mjs` 都是这样做的，新测试照此办理（用 `tests/harness.mjs`，浏览器经 `tests/chrome.mjs` 静音启动）。
 - 不要用开发者的默认浏览器配置启动浏览器，不要附加到开发者正在运行的浏览器，不要对开发者的真实窗口截图。
 - 需要了解旧存档的结构时，从代码和 git 历史推断，并自己构造旧格式的测试记录；不要去看真实存档。
 - 问题只在开发者的真实数据上出现时，请开发者自己描述现象或提供脱敏后的最小样例，不要自行去读。
@@ -277,12 +277,13 @@
 - 代码格式由 prettier 统一，配置在 `.prettierrc.json`：提交前运行 `npx prettier@3 --write "src/**/*.{mjs,css}" "tests/**/*.mjs" sw.js`。prettier 只在开发时经 `npx` 运行，不进仓库依赖；`index.html` 和文档不格式化。
 - 新增的界面文案放在使用它的模块自己的 `extend()` 里，四种语言一起写；`lang.mjs` 放 `index.html` 静态标签和多个模块共用的文案，不往里堆。
 - 新增、移动或删除 `src/` 下的文件要同步 `sw.js` 的 `shell` 列表；`tests/core/sw.test.mjs` 检查该列表正好是根目录的壳文件加 `src/` 下全部 `.mjs` / `.css`，漏登记会失败。
-- 测试：纯逻辑按被测模块放 `tests/core/<模块>.test.mjs`，界面行为放 `tests/<功能>.browser.mjs`（按此命名即被测试入口收入，不用另外登记）。统一入口是 `node tests/run.mjs "<浏览器路径>" [名称…]`：先跑核心测试，再逐个串行跑浏览器测试，失败的自动单独重跑一次，最后列出通过 / 失败清单；名称用来只跑文件名包含它的浏览器测试；不带浏览器路径时只跑核心测试（也可直接 `node --test "tests/core/*.test.mjs"`）。
+- 测试：纯逻辑按被测模块放 `tests/core/<模块>.test.mjs`，界面行为放 `tests/<功能>.browser.mjs`（按此命名即被测试入口收入，不用另外登记）。统一入口是 `node tests/run.mjs "<浏览器路径>" [名称…] [--jobs=N]`：先跑核心测试，再并行跑浏览器测试（默认同时 4 个，各文件的输出在它结束时一次打印），失败的最后逐个单独重跑一次，结尾列出通过 / 失败清单、最慢的文件和总用时；名称用来只跑文件名包含它的浏览器测试；不带浏览器路径时只跑核心测试（也可直接 `node --test "tests/core/*.test.mjs"`）。新的浏览器测试用 `tests/harness.mjs` 的 `browserTest`（启动、CDP、常用工具与清理，例子见 `tests/smoke.browser.mjs`），不复制启动代码；浏览器的启动参数只在 `tests/chrome.mjs`（一律静音，测试不出声）。
 
 ## 8. 开发流程
 
 - 每个行为改动都要有测试：纯逻辑放 `tests/core/<模块>.test.mjs`，界面行为放 `tests/*.browser.mjs`。布局类要求用 `getBoundingClientRect` 断言（位置稳定要连 left / top / width 一起比），并截图自查观感。
-- 提交前用 `node tests/run.mjs "<浏览器路径>"` 跑完全部测试。另行手动并行跑浏览器测试时同时最多 3 个，否则会因时序抖动超时。
+- 测试分三档（详见 `docs/agent-workflow.zh-CN.md`）：改动后跑冒烟（`node tests/run.mjs "<浏览器路径>" smoke`，几秒），开发中按名称跑相关测试，提交前（多代理开发时为全部合并之后）跑一次全量（约 3–4 分钟）。同一时间只跑一份全量，并行度不超过默认的 4，否则会因时序抖动超时。
+- 多代理协作（任务怎么拆、子代理须知、统筹的步骤）按 `docs/agent-workflow.zh-CN.md`：按文件归属拆分、各组同时开工，子代理只跑冒烟和相关测试，全量由统筹在合并后统一跑。
 - 发版同时修改 `index.html` 的 `<title>` 和 `sw.js` 的 `cacheName`；新增源文件要按字母序加进 `sw.js` 的 `shell` 列表（有测试把关）。
 - 行为变化要同步 `README.zh-CN.md` 和 `README.md`。
 - 开发推送到 `2.0` 分支；`main` 即线上（GitHub Pages），人工验收后再合并。

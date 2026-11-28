@@ -394,7 +394,7 @@ Opening `index.html` straight from disk does not work, because installing, offli
 Tests need Node 22.12+ and run from `tests/run.mjs`:
 
 ```sh
-# Everything: core tests first, then the headless Chrome / Edge end-to-end tests one at a time; a failed one is rerun once on its own, then passes and failures are listed
+# Everything (3–4 minutes): core tests first, then the headless Chrome / Edge end-to-end tests in parallel (4 at a time by default, --jobs=N to change; the browser is muted); failed ones are rerun once on their own at the end, then passes, failures and the slowest files are listed
 node tests/run.mjs "<path to chrome.exe or msedge.exe>"
 # Only the end-to-end tests whose file name contains one of the given names (core tests still run first)
 node tests/run.mjs "<path>" shelf media
